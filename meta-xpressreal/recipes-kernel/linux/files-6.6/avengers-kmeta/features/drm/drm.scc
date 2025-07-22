@@ -1,0 +1,8 @@
+patch 001-Add-DRM-driver-for-Realtek-DHC-SoCs.patch
+patch 002-gpu-drm-realtek-add-atomic-nonblock-api.patch
+patch 003-support-raspberrypi-touchscreen.patch
+patch 004-add-innolux-n080jce-g41-1200x1920-panel.patch
+patch 0005-drm-realtek-support-vowb.patch
+patch 0006-vowb_Patchset_15.patch
+
+kconf hardware drm.cfg

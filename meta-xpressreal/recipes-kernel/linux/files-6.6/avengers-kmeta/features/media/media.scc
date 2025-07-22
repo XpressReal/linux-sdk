@@ -1,0 +1,4 @@
+patch 840-Add-Realtek-media-related-drivers.patch
+patch 841-Add-irda-driver-for-Realtek-DHC-SoCs.patch
+
+kconf hardware media.cfg

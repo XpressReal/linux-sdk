@@ -1,0 +1,235 @@
+From 71c58c1660c9ad7fe6ca05ee9e72454e9f58b684 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 9 Dec 2024 16:47:29 +0800
+Subject: [PATCH] support video overlay plane on weston
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ include/libweston/libweston.h         |  3 ++
+ libweston/backend-drm/drm-gbm.c       | 10 ++++--
+ libweston/backend-drm/state-propose.c | 44 ++++++++++++++++++++++++---
+ libweston/compositor.c                |  1 +
+ libweston/renderer-gl/gl-renderer.c   | 37 ++++++++++++++++++++--
+ 5 files changed, 85 insertions(+), 10 deletions(-)
+
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index cc9c457..cfeb0b2 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1520,6 +1520,7 @@ struct weston_compositor {
+ 	} output_capture;
+ 
+ 	bool dmabuf_v1_overlay;
++	bool has_video_overlay;
+ 	bool transparent_fade_layer;
+ 	bool gbm_afbc;
+ 	bool found_drm_fd;
+@@ -1744,6 +1745,8 @@ struct weston_view {
+ 
+ 	bool is_mapped;
+ 	struct weston_log_pacer subsurface_parent_log_pacer;
++	bool is_video_buf;
++	bool need_scissor;
+ };
+ 
+ enum weston_surface_status {
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index 580a87f..601391a 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -314,8 +314,14 @@ drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage)
+ 	struct gbm_bo *bo;
+ 	struct drm_fb *ret;
+ 
+-	output->base.compositor->renderer->repaint_output(&output->base,
+-							  damage, NULL);
++
++	if (output->base.compositor->has_video_overlay == true) {
++		output->base.compositor->renderer->repaint_output(&output->base,
++								  &output->base.region, NULL);
++	} else {
++		output->base.compositor->renderer->repaint_output(&output->base,
++								  damage, NULL);
++	}
+ 
+ 	bo = gbm_surface_lock_front_buffer(output->gbm_surface);
+ 	if (!bo) {
+diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
+index 2b42e3d..5bb11aa 100644
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -552,7 +552,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
+ 			return NULL;
+ 		}
+ 
+-		if (mode == DRM_OUTPUT_PROPOSE_STATE_MIXED) {
++		if (b->compositor->dmabuf_v1_overlay == false && mode == DRM_OUTPUT_PROPOSE_STATE_MIXED) {
+ 			assert(scanout_state != NULL);
+ 			if (scanout_state->zpos >= plane->zpos_max) {
+ 				drm_debug(b, "\t\t\t\t[plane] not adding plane %d to "
+@@ -695,7 +695,15 @@ drm_output_propose_state(struct weston_output *output_base,
+ 	 */
+ 	pixman_region32_init(&renderer_region);
+ 	pixman_region32_init(&occluded_region);
+-
++#if 0
++	bool has_video_overlay = false;
++	wl_list_for_each(pnode, &output->base.paint_node_z_order_list, z_order_link) {
++		struct weston_view *ev = pnode->view;
++		if (ev->is_video_buf == true) {
++			has_video_overlay = true;
++		}
++	}
++#endif
+ 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list,
+ 			 z_order_link) {
+ 		struct weston_view *ev = pnode->view;
+@@ -739,7 +747,13 @@ drm_output_propose_state(struct weston_output *output_base,
+ 			pixman_region32_fini(&clipped_view);
+ 			continue;
+ 		}
+-
++#if 0
++		if (has_video_overlay == true)
++		{
++			if (ev->is_video_buf != true)
++				force_renderer = true;
++		}
++#endif
+ 		if (!b->gbm) {
+ 			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
+ 			             "(GBM not available)\n", ev);
+@@ -775,7 +789,7 @@ drm_output_propose_state(struct weston_output *output_base,
+ 		 * be part of, or occluded by, it, and cannot go on a plane. */
+ 		pixman_region32_intersect(&surface_overlap, &renderer_region,
+ 					  &clipped_view);
+-		if (pixman_region32_not_empty(&surface_overlap)) {
++		if (b->compositor->dmabuf_v1_overlay == false && pixman_region32_not_empty(&surface_overlap)) {
+ 			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
+ 			             "(occluded by renderer views)\n", ev);
+ 			force_renderer = true;
+@@ -945,11 +959,12 @@ drm_assign_planes(struct weston_output *output_base)
+ 	drm_debug(b, "\t[repaint] Using %s composition\n",
+ 		  drm_propose_state_mode_to_string(mode));
+ 
++	b->compositor->has_video_overlay = false;
+ 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list,
+ 			 z_order_link) {
+ 		struct weston_view *ev = pnode->view;
+ 		struct drm_plane *target_plane = NULL;
+-
++		pnode->view->is_video_buf = false;
+ 		assert(ev->output_mask & (1u << output->base.id));
+ 
+ 		/* Update dmabuf-feedback if needed */
+@@ -990,6 +1005,25 @@ drm_assign_planes(struct weston_output *output_base)
+ 			drm_debug(b, "\t[repaint] view %p on %s plane %lu\n",
+ 				  ev, plane_type_enums[target_plane->type].name,
+ 				  (unsigned long) target_plane->plane_id);
++
++			struct weston_view *ev = pnode->view;
++			struct linux_dmabuf_buffer *dmabuf = NULL;
++			bool use_video_overlay = false;
++
++			if (weston_view_has_valid_buffer(ev)) {
++				struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
++				if (buffer->type == WESTON_BUFFER_DMABUF) {
++					dmabuf = buffer->dmabuf;
++					if (dmabuf != NULL && dmabuf->attributes.format == DRM_FORMAT_NV12)
++						use_video_overlay = true;
++				}
++			}
++
++			if (target_plane->type == WDRM_PLANE_TYPE_OVERLAY && use_video_overlay == true) {
++				pnode->view->is_video_buf = true;
++				b->compositor->has_video_overlay = true;
++			}
++
+ 			weston_paint_node_move_to_plane(pnode, &target_plane->base);
+ 		} else {
+ 			drm_debug(b, "\t[repaint] view %p using renderer "
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index d4c16ba..96c15a4 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -602,6 +602,7 @@ weston_view_create_internal(struct weston_surface *surface)
+ 	view->transform.dirty = 1;
+ 	weston_view_update_transform(view);
+ 	pixman_region32_copy(&view->visible, &view->transform.boundingbox);
++	view->is_video_buf = false;
+ 
+ 	return view;
+ }
+diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
+index 5d53e5e..92faee6 100644
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -1270,7 +1270,7 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
+ 
+ static void
+ draw_paint_node(struct weston_paint_node *pnode,
+-		pixman_region32_t *damage /* in global coordinates */)
++		pixman_region32_t *damage /* in global coordinates */, pixman_region32_t *scissor_region)
+ {
+ 	struct gl_renderer *gr = get_renderer(pnode->surface->compositor);
+ 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
+@@ -1324,6 +1324,10 @@ draw_paint_node(struct weston_paint_node *pnode,
+ 	else
+ 		pixman_region32_copy(&surface_opaque, &pnode->surface->opaque);
+ 
++	if (pnode->view->need_scissor) {
++		pixman_region32_subtract(&repaint, &repaint, scissor_region);
++	}
++
+ 	maybe_censor_override(&sconf, pnode);
+ 
+ 	if (pixman_region32_not_empty(&surface_opaque)) {
+@@ -1364,16 +1368,43 @@ static void
+ repaint_views(struct weston_output *output, pixman_region32_t *damage)
+ {
+ 	struct weston_paint_node *pnode;
++	bool need_scissor = false;
++	pixman_region32_t scissor_region;
+ 
+ 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+ 	glEnableVertexAttribArray(0);
+ 
++	pixman_region32_init(&scissor_region);
++
++	if (output->compositor->has_video_overlay == true) {
++		glClearColor(0,0,0,0);
++		glClear(GL_COLOR_BUFFER_BIT);
++		wl_list_for_each(pnode, &output->paint_node_z_order_list, z_order_link) {
++			if (pnode->view->is_video_buf == true) {
++				need_scissor = true;
++
++				struct weston_view *parent_view = pnode->view->parent_view;
++				if (parent_view != NULL) {
++					struct weston_paint_node *parent_pnode;
++					wl_list_for_each(parent_pnode, &output->paint_node_z_order_list, z_order_link) {
++						if (parent_view == parent_pnode->view) {
++							pixman_region32_intersect(&scissor_region, &parent_pnode->visible, damage);
++						}
++					}
++				} else {
++					pixman_region32_intersect(&scissor_region, &pnode->visible, damage);
++				}
++			}
++			pnode->view->need_scissor = need_scissor;
++		}
++	}
++
+ 	wl_list_for_each_reverse(pnode, &output->paint_node_z_order_list,
+ 				 z_order_link) {
+ 		if (pnode->plane == &output->primary_plane)
+-			draw_paint_node(pnode, damage);
++			draw_paint_node(pnode, damage, &scissor_region);
+ 	}
+-
++	pixman_region32_fini(&scissor_region);
+ 	glDisableVertexAttribArray(0);
+ }
+ 
+-- 
+2.34.1
+

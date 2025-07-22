@@ -1,0 +1,79 @@
+From 24a823145eadd262507792e4c63f4f96114a86c3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 8 Oct 2024 13:12:49 +0800
+Subject: [PATCH] enable rtk dmabuf v1 flow
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c             |  2 ++
+ include/libweston/libweston.h |  2 ++
+ libweston/linux-dmabuf.c      | 13 ++++++++++---
+ 3 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index e67a0e8..2f77dca 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3065,6 +3065,8 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 	weston_config_section_get_bool(section, "sw-cursor",
+ 					   &config.use_sw_cursor, false);
+ 
++	weston_config_section_get_bool(section, "dmabuf-v1-overlay", &c->dmabuf_v1_overlay, false);
++
+ 	if (without_input)
+ 		c->require_input = !without_input;
+ 
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 077c16b..73e110a 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1517,6 +1517,8 @@ struct weston_compositor {
+ 		struct wl_global *weston_capture_v1;
+ 		struct wl_signal ask_auth;
+ 	} output_capture;
++
++	bool dmabuf_v1_overlay;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/linux-dmabuf.c b/libweston/linux-dmabuf.c
+index ea781cd..3cdf432 100644
+--- a/libweston/linux-dmabuf.c
++++ b/libweston/linux-dmabuf.c
+@@ -85,6 +85,7 @@ params_add(struct wl_client *client,
+ 	   uint32_t modifier_lo)
+ {
+ 	struct linux_dmabuf_buffer *buffer;
++	struct weston_compositor *compositor = NULL;
+ 
+ 	buffer = wl_resource_get_user_data(params_resource);
+ 	if (!buffer) {
+@@ -95,6 +96,8 @@ params_add(struct wl_client *client,
+ 		return;
+ 	}
+ 
++	compositor = buffer->compositor;
++
+ 	weston_assert_ptr_eq(buffer->compositor, buffer->params_resource, params_resource);
+ 	weston_assert_ptr_is_null(buffer->compositor, buffer->buffer_resource);
+ 
+@@ -119,9 +122,13 @@ params_add(struct wl_client *client,
+ 	buffer->attributes.offset[plane_idx] = offset;
+ 	buffer->attributes.stride[plane_idx] = stride;
+ 
+-	if (wl_resource_get_version(params_resource) < ZWP_LINUX_DMABUF_V1_MODIFIER_SINCE_VERSION)
+-		buffer->attributes.modifier[plane_idx] = DRM_FORMAT_MOD_INVALID;
+-	else
++	if (wl_resource_get_version(params_resource) < ZWP_LINUX_DMABUF_V1_MODIFIER_SINCE_VERSION) {
++		uint64_t modifier = u64_from_u32s(modifier_hi, modifier_lo);
++		if (compositor->dmabuf_v1_overlay == true && modifier == DRM_FORMAT_MOD_LINEAR)
++			buffer->attributes.modifier[plane_idx] = DRM_FORMAT_MOD_LINEAR;
++		else
++			buffer->attributes.modifier[plane_idx] = DRM_FORMAT_MOD_INVALID;
++	} else
+ 		buffer->attributes.modifier[plane_idx] = u64_from_u32s(modifier_hi, modifier_lo);
+ 
+ 	buffer->attributes.n_planes++;
+-- 
+2.34.1
+

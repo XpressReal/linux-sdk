@@ -1,0 +1,109 @@
+From 9a34338f298f17e633b961a25d46a3d25452d489 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 12 Feb 2025 03:56:07 -0500
+Subject: [PATCH] add property to clear subtitle immediately
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c | 64 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 64 insertions(+)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 6d68fd1..c9ef6de 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -61,6 +61,7 @@ enum
+   PROP_DISPLAY,
+   PROP_FULLSCREEN,
+   PROP_ROTATE_METHOD,
++  PROP_CLEAR,
+   PROP_LAST
+ };
+ 
+@@ -108,6 +109,7 @@ static void gst_wayland_sink_set_window_handle (GstVideoOverlay * overlay,
+ static void gst_wayland_sink_set_render_rectangle (GstVideoOverlay * overlay,
+     gint x, gint y, gint w, gint h);
+ static void gst_wayland_sink_expose (GstVideoOverlay * overlay);
++static void render_last_buffer (GstWaylandSink * self, gboolean redraw);
+ 
+ #define gst_wayland_sink_parent_class parent_class
+ G_DEFINE_TYPE_WITH_CODE (GstWaylandSink, gst_wayland_sink, GST_TYPE_VIDEO_SINK,
+@@ -165,6 +167,10 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+           "Whether the surface should be made fullscreen ", FALSE,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ 
++  g_object_class_install_property (gobject_class, PROP_CLEAR,
++      g_param_spec_boolean ("clear", "Clear",
++          "Clear rendering of subtitles", FALSE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+   /**
+    * waylandsink:rotate-method:
+    *
+@@ -298,6 +304,64 @@ gst_wayland_sink_set_property (GObject * object,
+       gst_wayland_sink_set_rotate_method (self, g_value_get_enum (value),
+           FALSE);
+       break;
++    case PROP_CLEAR:
++      GstFlowReturn ret = GST_FLOW_OK;
++      GstBuffer *to_render;
++      GstWlBuffer *wlbuffer;
++      GstVideoFrame dst;
++      struct wl_buffer *wbuf = NULL;
++      GstMemory *mem;
++      guint8 *plane;
++      gint size;
++      if (!gst_buffer_pool_is_active (self->pool)) {
++        GstStructure *config;
++        GstCaps *caps;
++
++        config = gst_buffer_pool_get_config (self->pool);
++        gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL);
++
++        /* revert back to default strides and offsets */
++        gst_video_info_from_caps (&self->video_info, caps);
++        gst_buffer_pool_config_set_params (config, caps, self->video_info.size,
++            2, 0);
++
++        /* This is a video pool, it should not fail with basic settings */
++        if (!gst_buffer_pool_set_config (self->pool, config) ||
++            !gst_buffer_pool_set_active (self->pool, TRUE))
++			return;
++      }
++
++      ret = gst_buffer_pool_acquire_buffer (self->pool, &to_render, NULL);
++      if (ret != GST_FLOW_OK)
++          return;
++
++      wlbuffer = gst_buffer_get_wl_buffer (self->display, to_render);
++      if (G_UNLIKELY (!wlbuffer)) {
++        mem = gst_buffer_peek_memory (to_render, 0);
++        wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, self->display,
++            &self->video_info);
++
++        if (G_UNLIKELY (!wbuf)) {
++          gst_buffer_unref(to_render);
++          return;
++        }
++
++        wlbuffer = gst_buffer_add_wl_buffer (to_render, wbuf, self->display);
++      }
++
++      if (!gst_video_frame_map (&dst, &self->video_info, to_render,
++              GST_MAP_WRITE)) {
++        gst_buffer_unref(to_render);
++        return;
++      }
++
++      plane = GST_VIDEO_FRAME_PLANE_DATA(&dst, 0);
++      size = GST_VIDEO_FRAME_SIZE(&dst);
++      memset(plane, 0, size);
++      gst_buffer_replace (&self->last_buffer, to_render);
++      render_last_buffer (self, FALSE);
++      gst_buffer_unref (to_render);
++      break;
+     default:
+       if (!gst_video_overlay_set_property (object, PROP_LAST, prop_id, value))
+           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+-- 
+2.34.1
+

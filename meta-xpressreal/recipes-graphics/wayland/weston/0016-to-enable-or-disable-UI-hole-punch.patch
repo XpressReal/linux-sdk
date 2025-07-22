@@ -1,0 +1,94 @@
+From 18b0e8606e50c0607d66964592acfbfa5e6ec0ae Mon Sep 17 00:00:00 2001
+From: "brian.shen" <brian.shen@realtek.com>
+Date: Tue, 25 Feb 2025 17:33:34 +0800
+Subject: [PATCH] to enable or disable UI hole punch
+Source: Realtek
+License: GPLV2
+Upstream-Status: Pending
+
+Reason for change: Disable UI hole punch to show UI when video is playing on the wayland platform
+Test Procedure: Start UI on the wayland paltform and play video in full screen, to check if UI is clipped.
+Risks: Low
+Signed-off-by: brian.shen <brian.shen@realtek.com>
+
+---
+ compositor/main.c                   |  1 +
+ include/libweston/libweston.h       |  1 +
+ libweston/compositor.c              | 18 ++++++++++++++++++
+ libweston/renderer-gl/gl-renderer.c |  7 +++++++
+ 4 files changed, 27 insertions(+)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 8550a5f..6a6e0d4 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3082,6 +3082,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 	weston_config_section_get_bool(section, "full-damage", &c->full_damage, false);
+ 	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
++	weston_config_section_get_bool(section, "ui-hole-punch", &c->ui_hole_punch, true);
+ 
+ 	if (without_input)
+ 		c->require_input = !without_input;
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index fee5f33..4a63e56 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1525,6 +1525,7 @@ struct weston_compositor {
+ 	bool gbm_afbc;
+ 	bool found_drm_fd;
+ 	bool full_damage;
++	bool ui_hole_punch;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index f74b770..c0331dc 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -3424,6 +3424,24 @@ weston_output_repaint(struct weston_output *output)
+ 	if (output->destroying)
+ 		return 0;
+ 
++	if (ec->ui_hole_punch == false) {
++		struct weston_layer *layer, *layer_bg = NULL;
++		struct weston_view *view, *view_rtk_video = NULL;
++		wl_list_for_each(layer, &ec->layer_list, link) {
++			if (layer->position == WESTON_LAYER_POSITION_BACKGROUND)
++				layer_bg = layer;
++			wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
++				if(layer->position != WESTON_LAYER_POSITION_BACKGROUND &&
++					strncmp(view->surface->app_id, "rtk_video", 9) == 0)
++					view_rtk_video = view;
++			}
++		}
++		if (layer_bg != NULL && view_rtk_video != NULL) {
++			// move rtk_video to layer WESTON_LAYER_POSITION_BACKGROUND in order to control UI
++			weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
++		}
++	}
++
+ 	TL_POINT(ec, "core_repaint_begin", TLP_OUTPUT(output), TLP_END);
+ 
+ 	/* Rebuild the surface list and update surface transforms up front. */
+diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
+index 4b40452..591c764 100644
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -1405,6 +1405,13 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
+ 		if (strncmp(pnode->view->surface->app_id, "rtk_video", 9) == 0) {
+ 			need_paint = false;
+ 		}
++		else if (output->compositor->ui_hole_punch == false &&
++				pnode->view->layer_link.layer != NULL)
++		{
++			if (pnode->view->layer_link.layer->position >= WESTON_LAYER_POSITION_BOTTOM_UI &&
++				pnode->view->layer_link.layer->position <= WESTON_LAYER_POSITION_TOP_UI)
++				pnode->view->need_scissor = false;
++		}
+ 
+ 		if (need_paint == true && pnode->plane == &output->primary_plane)
+ 			draw_paint_node(pnode, damage, &scissor_region);
+-- 
+2.7.4
+

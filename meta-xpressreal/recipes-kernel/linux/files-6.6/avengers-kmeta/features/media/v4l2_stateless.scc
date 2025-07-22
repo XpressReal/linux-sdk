@@ -1,0 +1,3 @@
+patch 846-Add-SLV4L2-config-for-Realtek-DHC-SoCs.patch
+
+kconf hardware v4l2_stateless.cfg

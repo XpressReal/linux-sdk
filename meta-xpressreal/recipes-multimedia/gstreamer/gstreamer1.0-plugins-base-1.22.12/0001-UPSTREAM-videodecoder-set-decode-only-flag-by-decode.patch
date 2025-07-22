@@ -1,0 +1,29 @@
+From 339d679e44858b33227ad897b7911b8c153af444 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Thu, 20 Feb 2025 14:56:20 +0800
+Subject: [PATCH 1/1] [UPSTREAM] videodecoder: set decode only flag by decode only buffer
+Upstream-Status: Backport
+
+
+This is used for optimize frame drop issue. Some video streams such as av1 contains decode-only frames. These frames are handled by decoder butnot show by display, which will cause input frame count unmatch the output frame count. After collecting more decoder only frame, it will cause error report "so many frame droped". So attach the flag GST_BUFFER_FLAG_DECODE_ONLY with the input buffer, the v4l2videodecoder can further handle the decode-only buffer in output list.
+---
+ gst-libs/gst/video/gstvideodecoder.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/gst-libs/gst/video/gstvideodecoder.c b/gst-libs/gst/video/gstvideodecoder.c
+index 6a04086..26ae972 100644
+--- a/gst-libs/gst/video/gstvideodecoder.c
++++ b/gst-libs/gst/video/gstvideodecoder.c
+@@ -2449,6 +2449,9 @@ gst_video_decoder_chain_forward (GstVideoDecoder * decoder,
+ 
+   priv->input_offset += gst_buffer_get_size (buf);
+ 
++  if (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DECODE_ONLY))
++    GST_VIDEO_CODEC_FRAME_SET_DECODE_ONLY (priv->current_frame);
++
+   if (priv->packetized) {
+     GstVideoCodecFrame *frame;
+     gboolean was_keyframe = FALSE;
+-- 
+2.34.1
+

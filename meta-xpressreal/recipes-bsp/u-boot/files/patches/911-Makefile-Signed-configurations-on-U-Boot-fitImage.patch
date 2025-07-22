@@ -1,0 +1,120 @@
+From 9a90d3e7b1af2d16e62ff49334fe7e0ef927e97e Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Fri, 18 Oct 2024 11:42:28 +0800
+Subject: [PATCH] Makefile: Signed configurations on U-Boot fitImage
+
+- tools/fit-image.c: AF_SIGNED_CONF:
+-- hash_algo = "sha256"
+- algo: "sha256,rsa2048"
+- key-name-hint = "dev"
+
+prefer uboot.key to dev.key
+---
+ Makefile                              |  9 +++++++++
+ test/py/tests/test_fit_auto_signed.py | 11 +++++------
+ tools/fit_image.c                     |  2 +-
+ 3 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index a30098c66f..0b34e789e3 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1353,6 +1353,9 @@ $(U_BOOT_ITS): $(U_BOOT_ITS_DEPS) FORCE
+ endif
+ endif
+ 
++KEYDIR = ../keys
++KEYFILE = $(firstword $(wildcard $(KEYDIR)/uboot.key $(KEYDIR)/dev.key))
++KEYNAME = $(basename $(notdir $(KEYFILE)))
+ ifdef CONFIG_SPL_LOAD_FIT
+ MKIMAGEFLAGS_u-boot.img = -f auto -A $(ARCH) -T firmware -C none -O u-boot \
+ 	-a $(CONFIG_TEXT_BASE) -e $(CONFIG_SYS_UBOOT_START) \
+@@ -1361,6 +1364,9 @@ MKIMAGEFLAGS_u-boot.img = -f auto -A $(ARCH) -T firmware -C none -O u-boot \
+ 	$(patsubst %,-b arch/$(ARCH)/dts/%.dtb,$(subst ",,$(DEVICE_TREE))) \
+ 	$(patsubst %,-b arch/$(ARCH)/dts/%.dtb,$(subst ",,$(CONFIG_OF_LIST))) \
+ 	$(patsubst %,-b arch/$(ARCH)/dts/%.dtbo,$(subst ",,$(CONFIG_OF_OVERLAY_LIST)))
++ifneq ($(wildcard $(KEYFILE)),)
++MKIMAGEFLAGS_u-boot.img += -f auto-conf -k $(KEYDIR) -g $(KEYNAME) -o sha256,rsa2048
++endif
+ else
+ MKIMAGEFLAGS_u-boot.img = -A $(ARCH) -T firmware -C none -O u-boot \
+ 	-a $(CONFIG_TEXT_BASE) -e $(CONFIG_SYS_UBOOT_START) \
+@@ -1423,6 +1429,9 @@ else
+ MKIMAGEFLAGS_u-boot.itb = -E
+ endif
+ MKIMAGEFLAGS_u-boot.itb += -B 0x8
++ifneq ($(wildcard $(KEYFILE)),)
++MKIMAGEFLAGS_u-boot.itb += -k $(KEYDIR) -K $(KEYDIR)/dummy.dtb
++endif
+ 
+ ifdef U_BOOT_ITS
+ u-boot.itb: u-boot-nodtb.bin \
+diff --git a/test/py/tests/test_fit_auto_signed.py b/test/py/tests/test_fit_auto_signed.py
+index 9ea3351619..52476b7f9e 100644
+--- a/test/py/tests/test_fit_auto_signed.py
++++ b/test/py/tests/test_fit_auto_signed.py
+@@ -6,7 +6,7 @@ Test that mkimage generates auto-FIT with signatures and/or hashes as expected.
+ 
+ The mkimage tool can create auto generated (i.e. without an ITS file
+ provided as input) FIT in three different flavours: with crc32 checksums
+-of 'images' subnodes; with signatures of 'images' subnodes; with sha1
++of 'images' subnodes; with signatures of 'images' subnodes; with sha256
+ hashes of 'images' subnodes and signatures of 'configurations' subnodes.
+ This test verifies that auto-FIT are generated as expected, in all of
+ the three flavours, including check of hashes and signatures (except for
+@@ -19,7 +19,6 @@ import os
+ import pytest
+ import u_boot_utils as util
+ import binascii
+-from Cryptodome.Hash import SHA1
+ from Cryptodome.Hash import SHA256
+ from Cryptodome.PublicKey import RSA
+ from Cryptodome.Signature import pkcs1_15
+@@ -97,7 +96,7 @@ class SignedFitHelper(object):
+     def check_fit_signed_confgs(self, key_name, sign_algo):
+         """Test that all configs are signed, and images hashed, as expected.
+ 
+-        Each image must have an hash with algo=sha1 and hash value must match
++        Each image must have an hash with algo=sha256 and hash value must match
+         the one calculated over image data. Each configuration must have a
+         signature with key-name-hint matching key_name argument and algo
+         matching sign_algo argument.
+@@ -105,11 +104,11 @@ class SignedFitHelper(object):
+         """
+         for node in self.images_nodes:
+             algo = self.__fdt_get_string(f'{node}/hash', 'algo')
+-            assert algo == "sha1\n", "Missing expected sha1 image hash!"
++            assert algo == "sha256\n", "Missing expected sha256 image hash!"
+ 
+             raw_hash = self.__fdt_get_binary(f'{node}/hash', 'value')
+             raw_bin = self.__fdt_get_binary(node, 'data')
+-            assert raw_hash == SHA1.new(raw_bin).digest(), "Wrong sha1 hash!"
++            assert raw_hash == SHA256.new(raw_bin).digest(), "Wrong sha256 hash!"
+ 
+         for node in self.confgs_nodes:
+             hint = self.__fdt_get_string(f'{node}/signature', 'key-name-hint')
+@@ -125,7 +124,7 @@ def test_fit_auto_signed(u_boot_console):
+ 
+     The mkimage tool can create auto generated (i.e. without an ITS file
+     provided as input) FIT in three different flavours: with crc32 checksums
+-    of 'images' subnodes; with signatures of 'images' subnodes; with sha1
++    of 'images' subnodes; with signatures of 'images' subnodes; with sha256
+     hashes of 'images' subnodes and signatures of 'configurations' subnodes.
+     This test verifies that auto-FIT are generated as expected, in all of
+     the three flavours, including check of hashes and signatures (except for
+diff --git a/tools/fit_image.c b/tools/fit_image.c
+index 0aee0c6f58..698a520bb5 100644
+--- a/tools/fit_image.c
++++ b/tools/fit_image.c
+@@ -224,7 +224,7 @@ static void fit_add_hash_or_sign(struct image_tool_params *params, void *fdt,
+ 	case AF_SIGNED_CONF:
+ 		if (is_images_subnode) {
+ 			do_hash = true;
+-			hash_algo = "sha1";
++			hash_algo = "sha256";
+ 		} else {
+ 			do_sign = true;
+ 		}
+-- 
+2.46.2
+

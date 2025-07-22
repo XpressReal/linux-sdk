@@ -1,0 +1,19 @@
+From ea6a8f2e54e86ea9bf749bc5970eca5cef5c45df Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 21 Mar 2022 10:03:41 +0800
+Subject: [PATCH] drivers: gpio: Add rt_gpio
+
+---
+ drivers/gpio/Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index c8b3fd7814..e7ead610cc 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -75,3 +75,5 @@ obj-$(CONFIG_$(SPL_TPL_)TURRIS_OMNIA_MCU)	+= turris_omnia_mcu.o
+ obj-$(CONFIG_FTGPIO010)		+= ftgpio010.o
+ obj-$(CONFIG_ADP5585_GPIO)	+= adp5585_gpio.o
+ obj-$(CONFIG_RZG2L_GPIO)	+= rzg2l-gpio.o
++obj-$(CONFIG_TARGET_RTD1319)	+= rt_gpio_131x.o
++obj-$(CONFIG_TARGET_RTD1619B)	+= rt_gpio_161xb.o

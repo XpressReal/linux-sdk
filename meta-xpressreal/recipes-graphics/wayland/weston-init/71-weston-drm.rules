@@ -1,0 +1,1 @@
+SUBSYSTEM=="dma_heap", GROUP="weston", MODE="0660"

@@ -1,0 +1,38 @@
+From 954b4b75ee79847e30b29aa5b7daffadc689a714 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 3 Jan 2024 20:08:29 +0800
+Subject: [PATCH] u-boot: add u-boot patch and drivers from openwrt 22.03
+
+---
+ boot/image-fit.c     | 4 ++++
+ common/spl/spl_fit.c | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-fit.c b/boot/image-fit.c
+index 3cc556b727..a6bbc747af 100644
+--- a/boot/image-fit.c
++++ b/boot/image-fit.c
+@@ -1976,6 +1976,10 @@ static int fit_image_select(const void *fit, int rd_noffset, int verify)
+ {
+ 	fit_image_print(fit, rd_noffset, "   ");
+ 
++#ifdef CONFIG_SPL_BUILD
++	verify = 1;
++#endif
++
+ 	if (verify) {
+ 		puts("   Verifying Hash Integrity ... ");
+ 		if (!fit_image_verify(fit, rd_noffset)) {
+diff --git a/common/spl/spl_fit.c b/common/spl/spl_fit.c
+index 70d8d5942d..1acffa20eb 100644
+--- a/common/spl/spl_fit.c
++++ b/common/spl/spl_fit.c
+@@ -312,7 +312,7 @@ static int load_simple_fit(struct spl_load_info *info, ulong sector,
+ 		src = (void *)data;	/* cast away const */
+ 	}
+ 
+-	if (CONFIG_IS_ENABLED(FIT_SIGNATURE)) {
++	if (CONFIG_IS_ENABLED(HASH)) {
+ 		printf("## Checking hash(es) for Image %s ... ",
+ 		       fit_get_name(fit, node, NULL));
+ 		if (!fit_image_verify_with_data(fit, node, gd_fdt_blob(), src,

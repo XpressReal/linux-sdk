@@ -1,0 +1,487 @@
+From d7f6548a8af1cb7969b2c7b40f882e33ba4db5c6 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 11 Nov 2024 12:14:38 +0800
+Subject: [PATCH] to support remote control kms
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ include/libweston/libweston.h        |   1 +
+ libweston/backend-drm/drm-internal.h |  18 ++++
+ libweston/backend-drm/drm.c          | 151 ++++++++++++++++++++++++++
+ libweston/backend-drm/kms.c          | 154 +++++++++++++++++++++++++++
+ libweston/backend-drm/modes.c        |   4 +-
+ libweston/compositor.c               |   1 +
+ 6 files changed, 327 insertions(+), 2 deletions(-)
+
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index fd570dd..350d23d 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1521,6 +1521,7 @@ struct weston_compositor {
+ 
+ 	bool dmabuf_v1_overlay;
+ 	bool transparent_fade_layer;
++	bool found_drm_fd;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index dcb8271..ee2e88c 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -550,6 +550,11 @@ struct drm_plane {
+ 
+ 	/*scanout plane need to use triple buffer*/
+ 	struct gbm_bo *prev_bo;
++
++	int32_t src_x, src_y;
++	uint32_t src_w, src_h;
++	int32_t dest_x, dest_y;
++	uint32_t dest_w, dest_h;
+ };
+ 
+ struct drm_connector {
+@@ -701,6 +706,10 @@ struct drm_output {
+ 	submit_frame_cb virtual_submit_frame;
+ 
+ 	enum wdrm_content_type content_type;
++
++	pthread_t kms_ipc_thread;
++	bool kms_ipc_run;
++	int kms_ipc_socket;
+ };
+ 
+ void
+@@ -826,6 +835,13 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 			enum weston_drm_backend_output_mode mode,
+ 			const char *modeline, const char *tv_modeline);
+ 
++struct drm_mode *
++drm_output_choose_initial_mode(struct drm_device *device,
++			struct drm_output *output,
++			enum weston_drm_backend_output_mode mode,
++			const char *modeline,
++			const drmModeModeInfo *current_mode);
++
+ void
+ drm_property_info_populate(struct drm_device *device,
+ 		           const struct drm_property_info *src,
+@@ -982,6 +998,8 @@ int
+ parse_gbm_format(const char *s, const struct pixel_format_info *default_format,
+ 		 const struct pixel_format_info **format);
+ 
++void *kms_ipc(void *data);
++
+ #ifdef BUILD_DRM_VIRTUAL
+ extern int
+ drm_backend_init_virtual_output_api(struct weston_compositor *compositor);
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 5f1b85e..df28d7a 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -68,6 +68,38 @@
+ #include "linux-dmabuf.h"
+ #include "linux-dmabuf-unstable-v1-server-protocol.h"
+ #include "linux-explicit-synchronization.h"
++#include <pthread.h>
++#include <sys/socket.h>
++#include <sys/types.h>
++#include <sys/un.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++
++#define DRM_MASTER_MANAGER "/tmp/drm_master.sock"
++enum command_type {
++	GET_FILE_FD,
++};
++
++struct command_info {
++	enum command_type type;
++};
++
++struct client_info {
++	int client_fd;
++	pthread_t client_thread;
++	int drm_fd;
++	int client_run;
++};
++
++struct server_info {
++	int server_fd;
++	pthread_t server_thread;
++	int drm_fd;
++	int server_run;
++};
+ 
+ static const char default_seat[] = "seat0";
+ 
+@@ -2297,6 +2329,9 @@ drm_output_enable(struct weston_output *base)
+ 		   output->base.name, output->crtc->crtc_id);
+ 	drm_output_print_modes(output);
+ 
++	output->kms_ipc_run = true;
++
++	pthread_create(&output->kms_ipc_thread, NULL, kms_ipc, output);
+ 	return 0;
+ 
+ err_planes:
+@@ -2388,6 +2423,14 @@ drm_output_disable(struct weston_output *base)
+ 	assert(output);
+ 	assert(!output->virtual);
+ 
++	output->kms_ipc_run = false;
++	if (output->kms_ipc_socket >= 0) {
++		shutdown(output->kms_ipc_socket, SHUT_RDWR);
++		output->kms_ipc_socket = -1;
++	}
++
++	pthread_join(output->kms_ipc_thread, NULL);
++
+ 	if (output->page_flip_pending || output->atomic_complete_pending) {
+ 		output->disable_pending = true;
+ 		return -1;
+@@ -2776,6 +2819,9 @@ drm_output_create(struct weston_backend *backend, const char *name)
+ 
+ 	output->state_cur = drm_output_state_alloc(output, NULL);
+ 
++	output->kms_ipc_socket = -1;
++	output->kms_ipc_run = false;
++
+ 	weston_compositor_add_pending_output(&output->base, b->compositor);
+ 
+ 	return &output->base;
+@@ -3461,6 +3507,99 @@ drm_device_changed(struct weston_backend *backend,
+ 	wl_signal_emit(&compositor->session_signal, compositor);
+ }
+ 
++void *handle_client(void *data) {
++	struct client_info *c_info = (struct client_info *)data;
++	struct command_info cmd_info = {0};
++
++	while (c_info->client_run) {
++		int ret = recv(c_info->client_fd, &cmd_info, sizeof(struct command_info), 0);
++		if (ret <= 0)
++			break;
++
++		if (cmd_info.type == GET_FILE_FD) {
++			struct msghdr socket_msg;
++			struct cmsghdr *ctrl_msg;
++			char ctrl_data[CMSG_SPACE(sizeof(int))];
++			struct iovec iov;
++			char buf[16];
++
++			socket_msg.msg_name = NULL;
++			socket_msg.msg_namelen = 0;
++			iov.iov_base = buf;
++			iov.iov_len = sizeof(buf);
++			socket_msg.msg_iov = &iov;
++			socket_msg.msg_iovlen = 1;
++			socket_msg.msg_control = ctrl_data;
++			socket_msg.msg_controllen = sizeof(ctrl_data);
++
++			ctrl_msg = CMSG_FIRSTHDR(&socket_msg);
++			ctrl_msg->cmsg_len = CMSG_LEN(sizeof(int));
++			ctrl_msg->cmsg_level = SOL_SOCKET;
++			ctrl_msg->cmsg_type = SCM_RIGHTS;
++			*((int *)CMSG_DATA(ctrl_msg)) = c_info->drm_fd;
++
++			ret = sendmsg(c_info->client_fd, &socket_msg, MSG_NOSIGNAL);
++			if (ret <= 0)
++				break;
++		}
++	}
++
++	shutdown(c_info->client_fd, SHUT_RDWR);
++	free(c_info);
++	printf("%s exit\n", __func__);
++	pthread_exit(NULL);
++}
++
++void *handle_server(void *data)
++{
++	struct server_info *s_info = (struct server_info *)data;
++	struct sockaddr_un addr;
++	struct sockaddr_un clientaddr;
++	socklen_t addrlen = sizeof(clientaddr);
++
++	unlink(DRM_MASTER_MANAGER);
++	s_info->server_fd = socket(AF_UNIX,SOCK_STREAM, 0);
++
++	memset(&addr,0,sizeof(addr));
++	addr.sun_family = AF_UNIX;
++	strcpy(addr.sun_path, DRM_MASTER_MANAGER);
++
++	if (bind(s_info->server_fd ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
++		printf("%s bind socket fail\n", __func__);
++		goto finish;
++	}
++
++	if (listen(s_info->server_fd, 100) < 0)
++	{
++		printf("%s listen fail\n", __func__);
++		goto finish;
++	}
++
++	while(s_info->server_run) {
++		int client_fd = accept(s_info->server_fd, (struct sockaddr *)&clientaddr, &addrlen);
++		if (client_fd < 0) {
++			s_info->server_run = 0;
++			break;
++		}
++
++		struct client_info *c_info = (struct client_info *)malloc(sizeof(struct client_info));
++		c_info->client_fd = client_fd;
++		c_info->drm_fd = s_info->drm_fd;
++
++		pthread_attr_t attr;
++		pthread_attr_init(&attr);
++		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
++		c_info->client_run = 1;
++		pthread_create(&c_info->client_thread, &attr, handle_client, c_info);
++	}
++
++finish:
++	shutdown(s_info->server_fd, SHUT_RDWR);
++	free(s_info);
++	printf("%s exit\n", __func__);
++	pthread_exit(NULL);
++}
++
+ /**
+  * Determines whether or not a device is capable of modesetting. If successful,
+  * sets b->drm.fd and b->drm.filename to the opened device.
+@@ -3509,6 +3648,18 @@ drm_device_is_kms(struct drm_backend *b, struct drm_device *device,
+ 	device->drm.filename = strdup(filename);
+ 	device->drm.devnum = devnum;
+ 
++    if (strstr(filename, "/dev/dri/card") != NULL && compositor->found_drm_fd == false)
++    {
++        struct server_info *s_info = (struct server_info *)malloc(sizeof(struct server_info));
++        s_info->drm_fd = fd;
++        pthread_attr_t attr;
++        pthread_attr_init(&attr);
++        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
++        s_info->server_run = 1;
++		compositor->found_drm_fd = true;
++        pthread_create(&s_info->server_thread, &attr, handle_server, s_info);
++    }
++
+ 	drmModeFreeResources(res);
+ 
+ 	return true;
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index a602b4c..3067bd7 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -41,6 +41,10 @@
+ #include "drm-internal.h"
+ #include "pixel-formats.h"
+ #include "presentation-time-server-protocol.h"
++#include <pthread.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/un.h>
+ 
+ struct drm_property_enum_info plane_type_enums[] = {
+ 	[WDRM_PLANE_TYPE_PRIMARY] = {
+@@ -1282,6 +1286,16 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 		struct drm_plane *plane = plane_state->plane;
+ 		const struct pixel_format_info *pinfo = NULL;
+ 
++		plane->src_x = plane_state->src_x;
++		plane->src_y = plane_state->src_y;
++		plane->src_w = plane_state->src_w;
++		plane->src_h = plane_state->src_w;
++
++		plane->dest_x = plane_state->dest_x;
++		plane->dest_y = plane_state->dest_y;
++		plane->dest_w = plane_state->dest_w;
++		plane->dest_h = plane_state->dest_h;
++
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_FB_ID,
+ 				      plane_state->fb ? plane_state->fb->fb_id : 0);
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_ID,
+@@ -1890,3 +1904,143 @@ init_kms_caps(struct drm_device *device)
+ 
+ 	return 0;
+ }
++
++enum kms_type {
++	CONNECTOR_TYPE = 0,
++	CRTC_TYPE,
++	PLANE_TYPE,
++	UNKNOWN_TYPE,
++	KMS_TYPE_COUNT,
++};
++
++enum kms_cmd_type {
++	CRTC_TV_MODE = 0,
++	UNKNOWN_CMD_TYPE = 300,
++	KMS_CMD_TYPE_COUNT,
++};
++
++struct kms_ipc_info {
++	enum kms_type type;
++	enum kms_cmd_type cmd_type;
++	char cmd_str[128];
++	int cmd_value;
++};
++
++#define KMS_IPC_SOCKET_PATH "/tmp/kms_ipc.sock"
++
++static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, drmModeAtomicReq *req, struct kms_ipc_info *info) {
++	struct drm_device *device = output->device;
++	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
++	struct drm_mode *tv_current = NULL;
++	struct drm_crtc *crtc = output->crtc;
++	struct drm_plane *plane = NULL;
++	drmModeModeInfo dummy_mode;
++	float w_ratio = 1;
++	float h_ratio = 1;
++	int ret = 0;
++	int crtc_id = info->cmd_value;
++
++	if (crtc_id != crtc->crtc_id) {
++		printf("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		return -1;
++	}
++
++	tv_current = drm_output_choose_initial_mode(device, output, WESTON_DRM_BACKEND_OUTPUT_PREFERRED, info->cmd_str, &dummy_mode);
++	output->base.tv_current_mode = &tv_current->base;
++	ret = drm_mode_ensure_blob(device, tv_current);
++	if (ret != 0) {
++		printf("%s:drm_mode_ensure_blob error\n", __func__);
++		return -1;
++	}
++
++	w_ratio = (float)tv_current->base.width / (float)current_mode->base.width;
++	h_ratio = (float)tv_current->base.height / (float)current_mode->base.height;
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, tv_current->blob_id);
++
++	plane = output->scanout_plane;
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X, plane->dest_x * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y, plane->dest_y * h_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W, plane->dest_w * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
++
++	if (ret != 0) {
++		printf("%s:add property fail\n", __func__);
++		return -1;
++	}
++
++	return 0;
++}
++
++int kms_ipc_crtc_control(struct drm_output *output, drmModeAtomicReq *req, struct kms_ipc_info *info) {
++	int ret = -1;
++	switch (info->cmd_type) {
++		case CRTC_TV_MODE:
++			ret = kms_ipc_crtc_set_tv_mode(output, req, info);
++			break;
++		default:
++			break;
++	}
++
++	return ret;
++}
++
++void *kms_ipc(void *data) {
++	struct drm_output *output = (struct drm_output *)data;
++	struct drm_device *device = output->device;
++	struct sockaddr_un addr;
++	struct sockaddr_un clientaddr;
++	socklen_t addrlen = sizeof(clientaddr);
++	int ret = -1;
++
++	unlink(KMS_IPC_SOCKET_PATH);
++	output->kms_ipc_socket = socket(AF_UNIX,SOCK_DGRAM, 0);
++	if (output->kms_ipc_socket < 0) {
++		printf("open socket fail\n");
++		goto finish;
++	}
++
++	memset(&addr,0,sizeof(addr));
++	addr.sun_family = AF_UNIX;
++	strcpy(addr.sun_path, KMS_IPC_SOCKET_PATH);
++
++	if (bind(output->kms_ipc_socket ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
++		printf("bind socket fail\n");
++		goto finish;
++	}
++
++	while(output->kms_ipc_run)
++	{
++		struct kms_ipc_info info = {0};
++		drmModeAtomicReq *req = drmModeAtomicAlloc();
++		ret = recvfrom(output->kms_ipc_socket, &info, sizeof(struct kms_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
++		if (ret < 0) {
++			printf("recvfrom ret:%d\n", ret);
++			drmModeAtomicFree(req);
++			continue;
++		}
++
++		switch (info.type) {
++			case CRTC_TYPE:
++				ret = kms_ipc_crtc_control(output, req, &info);
++				break;
++			default:
++				break;
++		}
++
++		if (ret == 0)
++			drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++		else
++			printf("add property fail\n");
++
++		drmModeAtomicFree(req);
++	}
++
++finish:
++	if (output->kms_ipc_socket >= 0) {
++		shutdown(output->kms_ipc_socket, SHUT_RDWR);
++		output->kms_ipc_socket = -1;
++	}
++
++	pthread_exit(NULL);
++}
++
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index b215dc6..5f14b99 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -635,7 +635,7 @@ update_head_from_connector(struct drm_head *head)
+  * @param current_mode Mode currently being displayed on this output
+  * @returns A mode from the output's mode list, or NULL if none available
+  */
+-static struct drm_mode *
++struct drm_mode *
+ drm_output_choose_initial_mode(struct drm_device *device,
+ 			       struct drm_output *output,
+ 			       enum weston_drm_backend_output_mode mode,
+@@ -911,7 +911,7 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 
+ 	struct drm_mode *current;
+ 	struct drm_mode *tv_current;
+-	drmModeModeInfo dummy_mode;
++	drmModeModeInfo dummy_mode = {0};
+ 
+ 	if (tv_modeline == NULL)
+ 		return -1;
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index 41459eb..d4c16ba 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -9027,6 +9027,7 @@ weston_compositor_create(struct wl_display *display,
+ 	ec->weston_log_ctx = log_ctx;
+ 	ec->wl_display = display;
+ 	ec->user_data = user_data;
++	ec->found_drm_fd = false;
+ 	wl_signal_init(&ec->destroy_signal);
+ 	wl_signal_init(&ec->create_surface_signal);
+ 	wl_signal_init(&ec->activate_signal);
+-- 
+2.34.1
+

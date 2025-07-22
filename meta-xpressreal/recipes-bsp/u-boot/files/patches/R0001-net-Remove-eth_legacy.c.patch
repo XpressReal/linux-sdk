@@ -1,0 +1,657 @@
+From e524f3a449f58e2ef967fb9b64b01db3d099a27a Mon Sep 17 00:00:00 2001
+From: Tom Rini <trini@konsulko.com>
+Date: Sun, 27 Nov 2022 10:25:36 -0500
+Subject: [PATCH] net: Remove eth_legacy.c
+
+As there are no more non-DM_ETH cases for networking, remove this legacy
+file and update the Makefile to match current usage.
+
+Signed-off-by: Tom Rini <trini@konsulko.com>
+---
+ boot/bootm.c        |   3 +
+ cmd/net.c           |   2 +
+ cmd/usb.c           |  10 ++
+ drivers/net/Kconfig |   4 -
+ include/net.h       |  71 ++++++++
+ net/Makefile        |  10 +-
+ net/eth_internal.h  |   4 +
+ net/eth_legacy.c    | 426 ++++++++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 523 insertions(+), 7 deletions(-)
+ create mode 100644 net/eth_legacy.c
+
+diff --git a/boot/bootm.c b/boot/bootm.c
+index cb61485c22..ddf4525806 100644
+--- a/boot/bootm.c
++++ b/boot/bootm.c
+@@ -490,6 +490,9 @@ ulong bootm_disable_interrupts(void)
+ #ifdef CONFIG_NETCONSOLE
+ 	/* Stop the ethernet stack if NetConsole could have left it up */
+ 	eth_halt();
++# ifndef CONFIG_DM_ETH
++	eth_unregister(eth_get_dev());
++# endif
+ #endif
+ 
+ #if defined(CONFIG_CMD_USB)
+diff --git a/cmd/net.c b/cmd/net.c
+index d407d8320a..307a3e7ee5 100644
+--- a/cmd/net.c
++++ b/cmd/net.c
+@@ -677,6 +677,7 @@ U_BOOT_CMD(
+ 
+ #endif  /* CONFIG_CMD_LINK_LOCAL */
+ 
++#ifdef CONFIG_DM_ETH
+ static int do_net_list(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+ {
+ 	const struct udevice *current = eth_get_dev();
+@@ -770,6 +771,7 @@ U_BOOT_CMD(
+ 	"list - list available devices\n"
+ 	"stats <device> - dump statistics for specified device\n"
+ );
++#endif // CONFIG_DM_ETH
+ 
+ #if defined(CONFIG_CMD_NCSI)
+ static int do_ncsi(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
+diff --git a/cmd/usb.c b/cmd/usb.c
+index 23253f2223..1c7cf162a5 100644
+--- a/cmd/usb.c
++++ b/cmd/usb.c
+@@ -593,6 +593,16 @@ static void do_usb_start(void)
+ 	drv_usb_kbd_init();
+ # endif
+ #endif /* !CONFIG_DM_USB */
++#ifdef CONFIG_USB_HOST_ETHER
++# ifdef CONFIG_DM_ETH
++#  ifndef CONFIG_DM_USB
++#   error "You must use CONFIG_DM_USB if you want to use CONFIG_USB_HOST_ETHER with CONFIG_DM_ETH"
++#  endif
++# else
++	/* try to recognize ethernet devices immediately */
++	usb_ether_curr_dev = usb_host_eth_scan(1);
++# endif
++#endif
+ }
+ 
+ #ifdef CONFIG_DM_USB
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index ebab4d9f2e..ba814a98ff 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -15,10 +15,6 @@ config DM_ETH
+ 	  This is currently implemented in net/eth-uclass.c
+ 	  Look in include/net.h for details.
+ 
+-config SPL_DM_ETH
+-	depends on SPL_NET
+-	def_bool y
+-
+ config DM_MDIO
+ 	bool "Enable Driver Model for MDIO devices"
+ 	depends on PHYLIB
+diff --git a/include/net.h b/include/net.h
+index e63a946002..0285a8c5f3 100644
+--- a/include/net.h
++++ b/include/net.h
+@@ -118,6 +118,7 @@ enum eth_state_t {
+ 	ETH_STATE_ACTIVE
+ };
+ 
++#ifdef CONFIG_DM_ETH
+ /**
+  * struct eth_pdata - Platform data for Ethernet MAC controllers
+  *
+@@ -202,6 +203,76 @@ unsigned char *eth_get_ethaddr(void); /* get the current device MAC */
+ int eth_is_active(struct udevice *dev); /* Test device for active state */
+ int eth_init_state_only(void); /* Set active state */
+ void eth_halt_state_only(void); /* Set passive state */
++#endif
++
++#ifndef CONFIG_DM_ETH
++struct eth_device {
++#define ETH_NAME_LEN 20
++	char name[ETH_NAME_LEN];
++	unsigned char enetaddr[ARP_HLEN];
++	phys_addr_t iobase;
++	int state;
++
++	int (*init)(struct eth_device *eth, struct bd_info *bd);
++	int (*send)(struct eth_device *, void *packet, int length);
++	int (*recv)(struct eth_device *);
++	void (*halt)(struct eth_device *);
++	int (*mcast)(struct eth_device *, const u8 *enetaddr, int join);
++	int (*write_hwaddr)(struct eth_device *eth);
++	struct eth_device *next;
++	int index;
++	void *priv;
++};
++
++int eth_register(struct eth_device *dev);/* Register network device */
++int eth_unregister(struct eth_device *dev);/* Remove network device */
++
++extern struct eth_device *eth_current;
++
++static __always_inline struct eth_device *eth_get_dev(void)
++{
++	return eth_current;
++}
++struct eth_device *eth_get_dev_by_name(const char *devname);
++struct eth_device *eth_get_dev_by_index(int index); /* get dev @ index */
++
++/* get the current device MAC */
++static inline unsigned char *eth_get_ethaddr(void)
++{
++	if (eth_current)
++		return eth_current->enetaddr;
++	return NULL;
++}
++
++/* Used only when NetConsole is enabled */
++int eth_is_active(struct eth_device *dev); /* Test device for active state */
++/* Set active state */
++static __always_inline int eth_init_state_only(void)
++{
++	eth_get_dev()->state = ETH_STATE_ACTIVE;
++
++	return 0;
++}
++/* Set passive state */
++static __always_inline void eth_halt_state_only(void)
++{
++	eth_get_dev()->state = ETH_STATE_PASSIVE;
++}
++
++/*
++ * Set the hardware address for an ethernet interface based on 'eth%daddr'
++ * environment variable (or just 'ethaddr' if eth_number is 0).
++ * Args:
++ *	base_name - base name for device (normally "eth")
++ *	eth_number - value of %d (0 for first device of this type)
++ * Returns:
++ *	0 is success, non-zero is error status from driver.
++ */
++int eth_write_hwaddr(struct eth_device *dev, const char *base_name,
++		     int eth_number);
++
++int usb_eth_initialize(struct bd_info *bi);
++#endif
+ 
+ int eth_initialize(void);		/* Initialize network subsystem */
+ void eth_try_another(int first_restart);	/* Change the device */
+diff --git a/net/Makefile b/net/Makefile
+index 64ab7ec740..d647313e21 100644
+--- a/net/Makefile
++++ b/net/Makefile
+@@ -10,14 +10,18 @@ obj-$(CONFIG_CMD_BOOTP) += bootp.o
+ obj-$(CONFIG_CMD_CDP)  += cdp.o
+ obj-$(CONFIG_CMD_DNS)  += dns.o
+ obj-$(CONFIG_DM_DSA)   += dsa-uclass.o
+-obj-$(CONFIG_$(SPL_)DM_ETH) += eth-uclass.o
++ifdef CONFIG_DM_ETH
++obj-$(CONFIG_NET)      += eth-uclass.o
+ obj-$(CONFIG_$(SPL_TPL_)BOOTDEV_ETH) += eth_bootdev.o
++else
++obj-$(CONFIG_NET)      += eth_legacy.o
++endif
+ obj-$(CONFIG_DM_MDIO)  += mdio-uclass.o
+ obj-$(CONFIG_DM_MDIO_MUX) += mdio-mux-uclass.o
+-obj-$(CONFIG_$(SPL_)DM_ETH) += eth_common.o
++obj-$(CONFIG_NET)      += eth_common.o
+ obj-$(CONFIG_CMD_LINK_LOCAL) += link_local.o
+ obj-$(CONFIG_IPV6)     += ndisc.o
+-obj-$(CONFIG_$(SPL_)DM_ETH) += net.o
++obj-$(CONFIG_NET)      += net.o
+ obj-$(CONFIG_IPV6)     += net6.o
+ obj-$(CONFIG_CMD_NFS)  += nfs.o
+ obj-$(CONFIG_CMD_PING) += ping.o
+diff --git a/net/eth_internal.h b/net/eth_internal.h
+index 0b829a8d38..042e58a99a 100644
+--- a/net/eth_internal.h
++++ b/net/eth_internal.h
+@@ -29,7 +29,11 @@ int eth_env_set_enetaddr_by_index(const char *base_name, int index,
+ 
+ int eth_mac_skip(int index);
+ void eth_current_changed(void);
++#ifdef CONFIG_DM_ETH
+ void eth_set_dev(struct udevice *dev);
++#else
++void eth_set_dev(struct eth_device *dev);
++#endif
+ void eth_set_current_to_next(void);
+ 
+ #endif
+diff --git a/net/eth_legacy.c b/net/eth_legacy.c
+new file mode 100644
+index 0000000000..0b282d918b
+--- /dev/null
++++ b/net/eth_legacy.c
+@@ -0,0 +1,426 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * (C) Copyright 2001-2015
++ * Wolfgang Denk, DENX Software Engineering, wd@denx.de.
++ * Joe Hershberger, National Instruments
++ */
++
++#include <common.h>
++#include <bootstage.h>
++#include <command.h>
++#include <dm.h>
++#include <env.h>
++#include <log.h>
++#include <net.h>
++#include <phy.h>
++#include <asm/global_data.h>
++#include <linux/bug.h>
++#include <linux/errno.h>
++#include <net/pcap.h>
++#include "eth_internal.h"
++
++DECLARE_GLOBAL_DATA_PTR;
++
++/*
++ * CPU and board-specific Ethernet initializations.  Aliased function
++ * signals caller to move on
++ */
++static int __def_eth_init(struct bd_info *bis)
++{
++	return -1;
++}
++int cpu_eth_init(struct bd_info *bis) __attribute__((weak, alias("__def_eth_init")));
++int board_eth_init(struct bd_info *bis) __attribute__((weak, alias("__def_eth_init")));
++
++#ifdef CONFIG_API
++static struct {
++	uchar data[PKTSIZE];
++	int length;
++} eth_rcv_bufs[PKTBUFSRX];
++
++static unsigned int eth_rcv_current, eth_rcv_last;
++#endif
++
++static struct eth_device *eth_devices;
++struct eth_device *eth_current;
++
++void eth_set_current_to_next(void)
++{
++	eth_current = eth_current->next;
++}
++
++void eth_set_dev(struct eth_device *dev)
++{
++	eth_current = dev;
++}
++
++struct eth_device *eth_get_dev_by_name(const char *devname)
++{
++	struct eth_device *dev, *target_dev;
++
++	BUG_ON(devname == NULL);
++
++	if (!eth_devices)
++		return NULL;
++
++	dev = eth_devices;
++	target_dev = NULL;
++	do {
++		if (strcmp(devname, dev->name) == 0) {
++			target_dev = dev;
++			break;
++		}
++		dev = dev->next;
++	} while (dev != eth_devices);
++
++	return target_dev;
++}
++
++struct eth_device *eth_get_dev_by_index(int index)
++{
++	struct eth_device *dev, *target_dev;
++
++	if (!eth_devices)
++		return NULL;
++
++	dev = eth_devices;
++	target_dev = NULL;
++	do {
++		if (dev->index == index) {
++			target_dev = dev;
++			break;
++		}
++		dev = dev->next;
++	} while (dev != eth_devices);
++
++	return target_dev;
++}
++
++int eth_get_dev_index(void)
++{
++	if (!eth_current)
++		return -1;
++
++	return eth_current->index;
++}
++
++static int on_ethaddr(const char *name, const char *value, enum env_op op,
++	int flags)
++{
++	int index;
++	struct eth_device *dev;
++
++	if (!eth_devices)
++		return 0;
++
++	/* look for an index after "eth" */
++	index = dectoul(name + 3, NULL);
++
++	dev = eth_devices;
++	do {
++		if (dev->index == index) {
++			switch (op) {
++			case env_op_create:
++			case env_op_overwrite:
++				string_to_enetaddr(value, dev->enetaddr);
++				eth_write_hwaddr(dev, "eth", dev->index);
++				break;
++			case env_op_delete:
++				memset(dev->enetaddr, 0, ARP_HLEN);
++			}
++		}
++		dev = dev->next;
++	} while (dev != eth_devices);
++
++	return 0;
++}
++U_BOOT_ENV_CALLBACK(ethaddr, on_ethaddr);
++
++int eth_write_hwaddr(struct eth_device *dev, const char *base_name,
++		   int eth_number)
++{
++	unsigned char env_enetaddr[ARP_HLEN];
++	int ret = 0;
++
++	eth_env_get_enetaddr_by_index(base_name, eth_number, env_enetaddr);
++
++	if (!is_zero_ethaddr(env_enetaddr)) {
++		if (!is_zero_ethaddr(dev->enetaddr) &&
++		    memcmp(dev->enetaddr, env_enetaddr, ARP_HLEN)) {
++			printf("\nWarning: %s MAC addresses don't match:\n",
++			       dev->name);
++			printf("Address in SROM is         %pM\n",
++			       dev->enetaddr);
++			printf("Address in environment is  %pM\n",
++			       env_enetaddr);
++		}
++
++		memcpy(dev->enetaddr, env_enetaddr, ARP_HLEN);
++	} else if (is_valid_ethaddr(dev->enetaddr)) {
++		eth_env_set_enetaddr_by_index(base_name, eth_number,
++					      dev->enetaddr);
++	} else if (is_zero_ethaddr(dev->enetaddr)) {
++#ifdef CONFIG_NET_RANDOM_ETHADDR
++		net_random_ethaddr(dev->enetaddr);
++		printf("\nWarning: %s (eth%d) using random MAC address - %pM\n",
++		       dev->name, eth_number, dev->enetaddr);
++		eth_env_set_enetaddr_by_index("eth", eth_number,
++					      dev->enetaddr);
++#else
++		printf("\nError: %s address not set.\n",
++		       dev->name);
++		return -EINVAL;
++#endif
++	}
++
++	if (dev->write_hwaddr && !eth_mac_skip(eth_number)) {
++		if (!is_valid_ethaddr(dev->enetaddr)) {
++			printf("\nError: %s address %pM illegal value\n",
++			       dev->name, dev->enetaddr);
++			return -EINVAL;
++		}
++
++		ret = dev->write_hwaddr(dev);
++		if (ret)
++			printf("\nWarning: %s failed to set MAC address\n",
++			       dev->name);
++	}
++
++	return ret;
++}
++
++int eth_register(struct eth_device *dev)
++{
++	struct eth_device *d;
++	static int index;
++
++	assert(strlen(dev->name) < sizeof(dev->name));
++
++	if (!eth_devices) {
++		eth_devices = dev;
++		eth_current = dev;
++		eth_current_changed();
++	} else {
++		for (d = eth_devices; d->next != eth_devices; d = d->next)
++			;
++		d->next = dev;
++	}
++
++	dev->state = ETH_STATE_INIT;
++	dev->next  = eth_devices;
++	dev->index = index++;
++
++	return 0;
++}
++
++int eth_unregister(struct eth_device *dev)
++{
++	struct eth_device *cur;
++
++	/* No device */
++	if (!eth_devices)
++		return -ENODEV;
++
++	for (cur = eth_devices; cur->next != eth_devices && cur->next != dev;
++	     cur = cur->next)
++		;
++
++	/* Device not found */
++	if (cur->next != dev)
++		return -ENODEV;
++
++	cur->next = dev->next;
++
++	if (eth_devices == dev)
++		eth_devices = dev->next == eth_devices ? NULL : dev->next;
++
++	if (eth_current == dev) {
++		eth_current = eth_devices;
++		eth_current_changed();
++	}
++
++	return 0;
++}
++
++int eth_initialize(void)
++{
++	int num_devices = 0;
++
++	eth_devices = NULL;
++	eth_current = NULL;
++	eth_common_init();
++	/*
++	 * If board-specific initialization exists, call it.
++	 * If not, call a CPU-specific one
++	 */
++	if (board_eth_init != __def_eth_init) {
++		if (board_eth_init(gd->bd) < 0)
++			printf("Board Net Initialization Failed\n");
++	} else if (cpu_eth_init != __def_eth_init) {
++		if (cpu_eth_init(gd->bd) < 0)
++			printf("CPU Net Initialization Failed\n");
++	} else {
++		printf("Net Initialization Skipped\n");
++	}
++
++	if (!eth_devices) {
++		log_err("No ethernet found.\n");
++		bootstage_error(BOOTSTAGE_ID_NET_ETH_START);
++	} else {
++		struct eth_device *dev = eth_devices;
++		char *ethprime = env_get("ethprime");
++
++		bootstage_mark(BOOTSTAGE_ID_NET_ETH_INIT);
++		do {
++			if (dev->index)
++				puts(", ");
++
++			printf("%s", dev->name);
++
++			if (ethprime && strcmp(dev->name, ethprime) == 0) {
++				eth_current = dev;
++				puts(" [PRIME]");
++			}
++
++			if (strchr(dev->name, ' '))
++				puts("\nWarning: eth device name has a space!"
++					"\n");
++
++			eth_write_hwaddr(dev, "eth", dev->index);
++
++			dev = dev->next;
++			num_devices++;
++		} while (dev != eth_devices);
++
++		eth_current_changed();
++		putc('\n');
++	}
++
++	return num_devices;
++}
++
++/* Multicast.
++ * mcast_addr: multicast ipaddr from which multicast Mac is made
++ * join: 1=join, 0=leave.
++ */
++int eth_mcast_join(struct in_addr mcast_ip, int join)
++{
++	u8 mcast_mac[ARP_HLEN];
++	if (!eth_current || !eth_current->mcast)
++		return -1;
++	mcast_mac[5] = htonl(mcast_ip.s_addr) & 0xff;
++	mcast_mac[4] = (htonl(mcast_ip.s_addr)>>8) & 0xff;
++	mcast_mac[3] = (htonl(mcast_ip.s_addr)>>16) & 0x7f;
++	mcast_mac[2] = 0x5e;
++	mcast_mac[1] = 0x0;
++	mcast_mac[0] = 0x1;
++	return eth_current->mcast(eth_current, mcast_mac, join);
++}
++
++int eth_init(void)
++{
++	struct eth_device *old_current;
++
++	if (!eth_current) {
++		log_err("No ethernet found.\n");
++		return -ENODEV;
++	}
++
++	old_current = eth_current;
++	do {
++		debug("Trying %s\n", eth_current->name);
++
++		if (eth_current->init(eth_current, gd->bd) >= 0) {
++			eth_current->state = ETH_STATE_ACTIVE;
++
++			return 0;
++		}
++		debug("FAIL\n");
++
++		eth_try_another(0);
++	} while (old_current != eth_current);
++
++	return -ETIMEDOUT;
++}
++
++void eth_halt(void)
++{
++	if (!eth_current)
++		return;
++
++	eth_current->halt(eth_current);
++
++	eth_current->state = ETH_STATE_PASSIVE;
++}
++
++int eth_is_active(struct eth_device *dev)
++{
++	return dev && dev->state == ETH_STATE_ACTIVE;
++}
++
++int eth_send(void *packet, int length)
++{
++	int ret;
++
++	if (!eth_current)
++		return -ENODEV;
++
++	ret = eth_current->send(eth_current, packet, length);
++#if defined(CONFIG_CMD_PCAP)
++	if (ret >= 0)
++		pcap_post(packet, length, true);
++#endif
++	return ret;
++}
++
++int eth_rx(void)
++{
++	if (!eth_current)
++		return -ENODEV;
++
++	return eth_current->recv(eth_current);
++}
++
++#ifdef CONFIG_API
++static void eth_save_packet(void *packet, int length)
++{
++	char *p = packet;
++	int i;
++
++	if ((eth_rcv_last+1) % PKTBUFSRX == eth_rcv_current)
++		return;
++
++	if (PKTSIZE < length)
++		return;
++
++	for (i = 0; i < length; i++)
++		eth_rcv_bufs[eth_rcv_last].data[i] = p[i];
++
++	eth_rcv_bufs[eth_rcv_last].length = length;
++	eth_rcv_last = (eth_rcv_last + 1) % PKTBUFSRX;
++}
++
++int eth_receive(void *packet, int length)
++{
++	char *p = packet;
++	void *pp = push_packet;
++	int i;
++
++	if (eth_rcv_current == eth_rcv_last) {
++		push_packet = eth_save_packet;
++		eth_rx();
++		push_packet = pp;
++
++		if (eth_rcv_current == eth_rcv_last)
++			return -1;
++	}
++
++	length = min(eth_rcv_bufs[eth_rcv_current].length, length);
++
++	for (i = 0; i < length; i++)
++		p[i] = eth_rcv_bufs[eth_rcv_current].data[i];
++
++	eth_rcv_current = (eth_rcv_current + 1) % PKTBUFSRX;
++	return length;
++}
++#endif /* CONFIG_API */
+-- 
+2.45.2
+

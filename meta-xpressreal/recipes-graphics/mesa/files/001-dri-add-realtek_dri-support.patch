@@ -1,0 +1,37 @@
+From a4551ee3d7da109a105bfe842a8bb540e13cd58c Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Fri, 9 Aug 2024 11:49:08 +0000
+Subject: [PATCH] dri-add-realtek_dri-support
+
+---
+ src/gallium/targets/dri/meson.build | 1 +
+ src/gallium/targets/dri/target.c    | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/src/gallium/targets/dri/meson.build b/src/gallium/targets/dri/meson.build
+index 8392524..9cd5b3f 100644
+--- a/src/gallium/targets/dri/meson.build
++++ b/src/gallium/targets/dri/meson.build
+@@ -93,6 +93,7 @@ foreach d : [[with_gallium_kmsro, [
+                'panel-mipi-dbi_dri.so',
+                'pl111_dri.so',
+                'rcar-du_dri.so',
++               'realtek_dri.so',
+                'repaper_dri.so',
+                'rockchip_dri.so',
+                'st7586_dri.so',
+diff --git a/src/gallium/targets/dri/target.c b/src/gallium/targets/dri/target.c
+index 415e494..b2d6c34 100644
+--- a/src/gallium/targets/dri/target.c
++++ b/src/gallium/targets/dri/target.c
+@@ -121,6 +121,7 @@ DEFINE_LOADER_DRM_ENTRYPOINT(mxsfb_drm)
+ DEFINE_LOADER_DRM_ENTRYPOINT(panel_mipi_dbi)
+ DEFINE_LOADER_DRM_ENTRYPOINT(pl111)
+ DEFINE_LOADER_DRM_ENTRYPOINT(rcar_du)
++DEFINE_LOADER_DRM_ENTRYPOINT(realtek)
+ DEFINE_LOADER_DRM_ENTRYPOINT(repaper)
+ DEFINE_LOADER_DRM_ENTRYPOINT(rockchip)
+ DEFINE_LOADER_DRM_ENTRYPOINT(st7586)
+-- 
+2.34.1
+

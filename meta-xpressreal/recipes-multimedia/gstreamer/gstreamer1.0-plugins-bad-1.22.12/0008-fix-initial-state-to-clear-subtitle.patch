@@ -1,0 +1,188 @@
+From f26c321064df3526c715172dfa5a29e626fdef0f Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 13 Feb 2025 04:39:05 -0500
+Subject: [PATCH] fix initial state to clear subtitle
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c | 128 +++++++++++++++++++----------------
+ ext/wayland/gstwaylandsink.h |   1 +
+ 2 files changed, 72 insertions(+), 57 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 1b0ff4a..37ee173 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -211,6 +211,7 @@ gst_wayland_sink_init (GstWaylandSink * self)
+   self->h = 0;
+   self->silent = DEFAULT_PROP_SILENT;
+   self->set_rect = FALSE;
++  self->need_clear = FALSE;
+   g_mutex_init (&self->display_lock);
+   g_mutex_init (&self->render_lock);
+ }
+@@ -292,6 +293,67 @@ gst_wayland_sink_get_property (GObject * object,
+   }
+ }
+ 
++static void gst_wayland_sink_clear_buf(GstWaylandSink *self)
++{
++  GstFlowReturn ret = GST_FLOW_OK;
++  GstBuffer *to_render;
++  GstWlBuffer *wlbuffer;
++  GstVideoFrame dst;
++  struct wl_buffer *wbuf = NULL;
++  GstMemory *mem;
++  guint8 *plane;
++  gint size;
++
++  if (!gst_buffer_pool_is_active (self->pool)) {
++    GstStructure *config;
++    GstCaps *caps;
++
++    config = gst_buffer_pool_get_config (self->pool);
++    gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL);
++
++    /* revert back to default strides and offsets */
++    gst_video_info_from_caps (&self->video_info, caps);
++    gst_buffer_pool_config_set_params (config, caps, self->video_info.size,
++        2, 0);
++
++    /* This is a video pool, it should not fail with basic settings */
++    if (!gst_buffer_pool_set_config (self->pool, config) ||
++        !gst_buffer_pool_set_active (self->pool, TRUE))
++        return;
++  }
++
++  ret = gst_buffer_pool_acquire_buffer (self->pool, &to_render, NULL);
++  if (ret != GST_FLOW_OK)
++      return;
++
++  wlbuffer = gst_buffer_get_wl_buffer (self->display, to_render);
++  if (G_UNLIKELY (!wlbuffer)) {
++    mem = gst_buffer_peek_memory (to_render, 0);
++    wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, self->display,
++        &self->video_info);
++
++    if (G_UNLIKELY (!wbuf)) {
++      gst_buffer_unref(to_render);
++      return;
++    }
++
++    wlbuffer = gst_buffer_add_wl_buffer (to_render, wbuf, self->display);
++  }
++
++  if (!gst_video_frame_map (&dst, &self->video_info, to_render,
++          GST_MAP_WRITE)) {
++    gst_buffer_unref(to_render);
++    return;
++  }
++
++  plane = GST_VIDEO_FRAME_PLANE_DATA(&dst, 0);
++  size = GST_VIDEO_FRAME_SIZE(&dst);
++  memset(plane, 0, size);
++  gst_buffer_replace (&self->last_buffer, to_render);
++  render_last_buffer (self, FALSE);
++  gst_buffer_unref (to_render);
++}
++
+ static void
+ gst_wayland_sink_set_property (GObject * object,
+     guint prop_id, const GValue * value, GParamSpec * pspec)
+@@ -314,65 +376,11 @@ gst_wayland_sink_set_property (GObject * object,
+           FALSE);
+       break;
+     case PROP_CLEAR:
+-      GstFlowReturn ret = GST_FLOW_OK;
+-      GstBuffer *to_render;
+-      GstWlBuffer *wlbuffer;
+-      GstVideoFrame dst;
+-      struct wl_buffer *wbuf = NULL;
+-      GstMemory *mem;
+-      guint8 *plane;
+-      gint size;
+-      if (!self->window)
++      if (!self->window) {
++        self->need_clear = TRUE;
+         return;
+-
+-      if (!gst_buffer_pool_is_active (self->pool)) {
+-        GstStructure *config;
+-        GstCaps *caps;
+-
+-        config = gst_buffer_pool_get_config (self->pool);
+-        gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL);
+-
+-        /* revert back to default strides and offsets */
+-        gst_video_info_from_caps (&self->video_info, caps);
+-        gst_buffer_pool_config_set_params (config, caps, self->video_info.size,
+-            2, 0);
+-
+-        /* This is a video pool, it should not fail with basic settings */
+-        if (!gst_buffer_pool_set_config (self->pool, config) ||
+-            !gst_buffer_pool_set_active (self->pool, TRUE))
+-			return;
+       }
+-
+-      ret = gst_buffer_pool_acquire_buffer (self->pool, &to_render, NULL);
+-      if (ret != GST_FLOW_OK)
+-          return;
+-
+-      wlbuffer = gst_buffer_get_wl_buffer (self->display, to_render);
+-      if (G_UNLIKELY (!wlbuffer)) {
+-        mem = gst_buffer_peek_memory (to_render, 0);
+-        wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, self->display,
+-            &self->video_info);
+-
+-        if (G_UNLIKELY (!wbuf)) {
+-          gst_buffer_unref(to_render);
+-          return;
+-        }
+-
+-        wlbuffer = gst_buffer_add_wl_buffer (to_render, wbuf, self->display);
+-      }
+-
+-      if (!gst_video_frame_map (&dst, &self->video_info, to_render,
+-              GST_MAP_WRITE)) {
+-        gst_buffer_unref(to_render);
+-        return;
+-      }
+-
+-      plane = GST_VIDEO_FRAME_PLANE_DATA(&dst, 0);
+-      size = GST_VIDEO_FRAME_SIZE(&dst);
+-      memset(plane, 0, size);
+-      gst_buffer_replace (&self->last_buffer, to_render);
+-      render_last_buffer (self, FALSE);
+-      gst_buffer_unref (to_render);
++      gst_wayland_sink_clear_buf(self);
+       break;
+     case PROP_SILENT:
+       self->silent = g_value_get_boolean (value);
+@@ -836,6 +844,12 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+     return ret;
+   }
+ 
++  if (self->need_clear == TRUE) {
++    gst_buffer_replace (&self->last_buffer, buffer);
++    self->need_clear = FALSE;
++    return ret;
++  }
++
+   g_mutex_lock (&self->render_lock);
+ 
+   GST_LOG_OBJECT (self, "render buffer %" GST_PTR_FORMAT "", buffer);
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index e180174..2407c8c 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -74,6 +74,7 @@ struct _GstWaylandSink
+   gint h;
+   gboolean set_rect;
+   gboolean silent;
++  gboolean need_clear;
+ };
+ 
+ struct _GstWaylandSinkClass
+-- 
+2.34.1
+

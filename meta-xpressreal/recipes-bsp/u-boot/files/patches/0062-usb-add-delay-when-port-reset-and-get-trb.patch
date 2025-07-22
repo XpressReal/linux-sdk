@@ -1,0 +1,42 @@
+diff --git a/common/usb_hub.c b/common/usb_hub.c
+index 70279f301d..9a1c8bf631 100644
+--- a/common/usb_hub.c
++++ b/common/usb_hub.c
+@@ -200,7 +200,7 @@ static void usb_hub_power_on(struct usb_hub_device *hub)
+ 			          (unsigned)simple_strtol(env, NULL, 0));
+ #endif
+ 	debug("pgood_delay=%dms\n", pgood_delay);
+-
++	mdelay(pgood_delay + 1000);
+ 	/*
+ 	 * Do a minimum delay of the larger value of 100ms or pgood_delay
+ 	 * so that the power can stablize before the devices are queried
+@@ -372,6 +372,7 @@ int usb_hub_port_connect_change(struct usb_device *dev, int port)
+ 			return -ENOTCONN;
+ 	}
+ 
++	mdelay(200);
+ 	/* Reset the port */
+ 	ret = usb_hub_port_reset(dev, port, &portstatus);
+ 	if (ret < 0) {
+diff --git a/drivers/usb/host/xhci-ring.c b/drivers/usb/host/xhci-ring.c
+index b60661fe05..d4444bd4f7 100644
+--- a/drivers/usb/host/xhci-ring.c
++++ b/drivers/usb/host/xhci-ring.c
+@@ -21,6 +21,7 @@
+ #include <asm/unaligned.h>
+ #include <linux/bug.h>
+ #include <linux/errno.h>
++#include <linux/delay.h>
+ 
+ #include <usb/xhci.h>
+ 
+@@ -396,6 +397,8 @@ static void giveback_first_trb(struct usb_device *udev, int ep_index,
+ 
+ 	xhci_flush_cache((uintptr_t)start_trb, sizeof(struct xhci_generic_trb));
+ 
++	mdelay(1);  /*Some specific USB need more waiting time for response*/
++
+ 	/* Ringing EP doorbell here */
+ 	xhci_writel(&ctrl->dba->doorbell[udev->slot_id],
+ 				DB_VALUE(ep_index, 0));

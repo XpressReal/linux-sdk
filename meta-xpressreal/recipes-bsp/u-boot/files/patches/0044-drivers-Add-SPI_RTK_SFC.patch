@@ -1,0 +1,36 @@
+From 71ef8c98d022b94b8ff5b3bcb229d554286fca26 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 3 Jan 2024 20:08:29 +0800
+Subject: [PATCH] u-boot: add u-boot patch and drivers from openwrt 22.03
+
+---
+ drivers/mtd/spi/Kconfig  | 6 ++++++
+ drivers/mtd/spi/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/mtd/spi/Kconfig b/drivers/mtd/spi/Kconfig
+index abed392c28..795d40eae3 100644
+--- a/drivers/mtd/spi/Kconfig
++++ b/drivers/mtd/spi/Kconfig
+@@ -26,6 +26,12 @@ config SPI_FLASH_SANDBOX
+ 	  device. Typically the contents of the emulated SPI flash device is
+ 	  stored in a file on the host filesystem.
+ 
++config SPI_RTK_SFC
++	bool "Realtek SPI-NOR Flash Controller(SFC)"
++	depends on SPI_FLASH || DM_SPI_FLASH
++	help
++	  This enables support for Realtek SPI-NOR flash controller.
++
+ config SPI_FLASH
+ 	bool "SPI Flash Core Interface support"
+ 	select SPI_MEM
+diff --git a/drivers/mtd/spi/Makefile b/drivers/mtd/spi/Makefile
+index 409395382f..f139560e6b 100644
+--- a/drivers/mtd/spi/Makefile
++++ b/drivers/mtd/spi/Makefile
+@@ -22,3 +22,4 @@ obj-$(CONFIG_SPI_FLASH_DATAFLASH) += sf_dataflash.o
+ obj-$(CONFIG_$(SPL_TPL_)SPI_FLASH_MTD) += sf_mtd.o
+ obj-$(CONFIG_SPI_FLASH_SANDBOX) += sandbox.o
+ obj-$(CONFIG_$(SPL_TPL_)BOOTDEV_SPI_FLASH) += sf_bootdev.o
++obj-$(CONFIG_SPI_RTK_SFC) += rtk-sfc.o

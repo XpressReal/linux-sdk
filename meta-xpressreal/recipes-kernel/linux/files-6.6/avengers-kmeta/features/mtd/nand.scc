@@ -1,0 +1,3 @@
+patch 400-Add-nand-flash-controller-driver.patch
+
+kconf hardware nand.cfg

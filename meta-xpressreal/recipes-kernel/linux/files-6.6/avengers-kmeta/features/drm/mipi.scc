@@ -1,0 +1,3 @@
+patch 204-enable-mipi.patch
+
+kconf hardware mipi.cfg

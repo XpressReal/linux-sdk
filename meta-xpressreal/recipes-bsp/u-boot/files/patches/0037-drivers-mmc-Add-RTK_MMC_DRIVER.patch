@@ -1,0 +1,161 @@
+From a37dcbeb72c8bb28f2df7add77bc776841e6747a Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 21 Mar 2022 09:47:00 +0800
+Subject: [PATCH] drivers: mmc: Add RTK_MMC_DRIVER
+
+- Update cmd_mmc
+- common: Add cmd_sd
+- Add RTK_SD_DRIVER
+---
+ drivers/mmc/Kconfig  | 16 ++++++++++++++++
+ drivers/mmc/Makefile |  7 +++++++
+ drivers/mmc/mmc.c    | 23 ++++++++++++++++++++++-
+ include/mmc.h        |  8 ++++++++
+ 4 files changed, 53 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/Kconfig b/drivers/mmc/Kconfig
+index 17618c3bdc..0874f8c84d 100644
+--- a/drivers/mmc/Kconfig
++++ b/drivers/mmc/Kconfig
+@@ -887,6 +887,22 @@ config FSL_ESDHC_PIN_MUX
+ 	bool "Perform esdhc device-tree fixup"
+ 	depends on (FSL_ESDHC || FSL_ESDHC_IMX) && OF_LIBFDT
+ 
++config RTK_MMC_DRIVER
++	bool "open and build the RTK_MMC"
++	help
++	  Support for the build the RTK EMMC
++
++config RTK_SD_DRIVER
++	bool "open and build the RTK_SD"
++	help
++	  Support for the build the RTK SD
++
++config SPL_RTK_SD_DRIVER
++	bool "open and build the RTK_SD in SPL"
++	depends on SPL
++	help
++	  Support for the build the RTK SD
++
+ endmenu
+ 
+ config SYS_FSL_ERRATUM_ESDHC111
+diff --git a/drivers/mmc/Makefile b/drivers/mmc/Makefile
+index e9cf1fcc64..802d8c112a 100644
+--- a/drivers/mmc/Makefile
++++ b/drivers/mmc/Makefile
+@@ -19,6 +19,13 @@ obj-y += mmc_legacy.o
+ endif
+ 
+ obj-$(CONFIG_SUPPORT_EMMC_BOOT) += mmc_boot.o
++ifdef CONFIG_TARGET_RTD1319
++obj-$(CONFIG_RTK_MMC_DRIVER) += rtkemmc_rtd131x.o rtkemmc_generic.o
++endif
++ifdef CONFIG_TARGET_RTD1619B
++obj-$(CONFIG_RTK_MMC_DRIVER) += rtkemmc_rtd161xb.o
++endif
++obj-$(CONFIG_$(SPL_)RTK_SD_DRIVER) += rtksdmmc.o
+ 
+ ifdef CONFIG_SPL_BUILD
+ obj-$(CONFIG_SPL_MMC_BOOT) += fsl_esdhc_spl.o
+diff --git a/drivers/mmc/mmc.c b/drivers/mmc/mmc.c
+index d96db7a0f8..22d09ae05e 100644
+--- a/drivers/mmc/mmc.c
++++ b/drivers/mmc/mmc.c
+@@ -803,6 +803,10 @@ int mmc_send_ext_csd(struct mmc *mmc, u8 *ext_csd)
+ 
+ 	err = mmc_send_cmd(mmc, &cmd, &data);
+ 
++#ifdef MMC_DEBUG
++	mmc_show_ext_csd(ext_csd);
++#endif
++
+ 	return err;
+ }
+ 
+@@ -2495,6 +2499,9 @@ static int mmc_startup(struct mmc *mmc)
+ 		return err;
+ 
+ 	memcpy(mmc->cid, cmd.response, 16);
++#ifdef MMC_DEBUG
++	printf("[LY] cid[0]=0x%02x\n",mmc->cid[0]>>24);
++#endif
+ 
+ 	/*
+ 	 * For MMC cards, set the Relative Address.
+@@ -2530,6 +2537,11 @@ static int mmc_startup(struct mmc *mmc)
+ 	mmc->csd[2] = cmd.response[2];
+ 	mmc->csd[3] = cmd.response[3];
+ 
++#ifdef MMC_DEBUG
++	mmc_show_csd(mmc);
++	mmc_decode_cid(mmc);
++#endif
++
+ 	if (mmc->version == MMC_VERSION_UNKNOWN) {
+ 		int version = (cmd.response[0] >> 26) & 0xf;
+ 
+@@ -2559,9 +2571,12 @@ static int mmc_startup(struct mmc *mmc)
+ 	freq = fbase[(cmd.response[0] & 0x7)];
+ 	mult = multipliers[((cmd.response[0] >> 3) & 0xf)];
+ 
+-	mmc->legacy_speed = freq * mult;
++	mmc->legacy_speed = ((u64)(freq) * mult);
+ 	mmc_select_mode(mmc, MMC_LEGACY);
+ 
++#ifdef MMC_DEBUG
++	printf("0 [LY] freq=0x%08x, mult=0x%08x,mmc->tran_speed=%lld\n",freq,mult,mmc->tran_speed);
++#endif
+ 	mmc->dsr_imp = ((cmd.response[1] >> 12) & 0x1);
+ 	mmc->read_bl_len = 1 << ((cmd.response[1] >> 16) & 0xf);
+ #if CONFIG_IS_ENABLED(MMC_WRITE)
+@@ -2576,10 +2591,16 @@ static int mmc_startup(struct mmc *mmc)
+ 		csize = (mmc->csd[1] & 0x3f) << 16
+ 			| (mmc->csd[2] & 0xffff0000) >> 16;
+ 		cmult = 8;
++		#ifdef MMC_DEBUG
++		printf("1 [LY] csize=0x%lld, cmult=0x%lld\n",csize,cmult);
++		#endif
+ 	} else {
+ 		csize = (mmc->csd[1] & 0x3ff) << 2
+ 			| (mmc->csd[2] & 0xc0000000) >> 30;
+ 		cmult = (mmc->csd[2] & 0x00038000) >> 15;
++		#ifdef MMC_DEBUG
++		printf("1.1 [LY] csize=%lld, cmult=%lld\n",csize,cmult);
++		#endif
+ 	}
+ 
+ 	mmc->capacity_user = (csize + 1) << (cmult + 2);
+diff --git a/include/mmc.h b/include/mmc.h
+index 1022db3ffa..e7ce454371 100644
+--- a/include/mmc.h
++++ b/include/mmc.h
+@@ -80,6 +80,11 @@ struct bd_info;
+ #define MMC_MODE_1BIT		BIT(28)
+ #define MMC_MODE_SPI		BIT(27)
+ 
++#define MMC_MODE_HC             0x800
++
++#define MMC_MODE_WIDTH_BITS_SHIFT 8
++#define MMC_MODE_LEGACY			0x000
++#define MMC_MODE_HSDDR_52MHz 	0x004
+ 
+ #define SD_DATA_4BIT	0x00040000
+ 
+@@ -249,6 +254,8 @@ static inline bool mmc_is_tuning_cmd(uint cmdidx)
+  * EXT_CSD field definitions
+  */
+ 
++#define MMC_CMD_AC	(0 << 5)
++
+ #define EXT_CSD_CMD_SET_NORMAL		(1 << 0)
+ #define EXT_CSD_CMD_SET_SECURE		(1 << 1)
+ #define EXT_CSD_CMD_SET_CPSECURE	(1 << 2)
+@@ -417,6 +424,7 @@ struct mmc_cmd {
+ 	uint resp_type;
+ 	uint cmdarg;
+ 	uint response[4];
++	u32 flags;
+ };
+ 
+ struct mmc_data {

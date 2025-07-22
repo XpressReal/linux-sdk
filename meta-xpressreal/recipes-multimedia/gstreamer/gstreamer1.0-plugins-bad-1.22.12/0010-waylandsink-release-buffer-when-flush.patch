@@ -1,0 +1,62 @@
+From dbebf1efdf65a6d631a7a422fa4e7610afddc92c Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 18 Mar 2025 05:09:40 -0400
+Subject: [PATCH] waylandsink: release buffer when flush
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c        |  5 +++++
+ gst-libs/gst/wayland/gstwldisplay.c | 11 +++++++++++
+ gst-libs/gst/wayland/gstwldisplay.h |  3 +++
+ 3 files changed, 19 insertions(+)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 37ee173..6f047cc 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -592,6 +592,11 @@ gst_wayland_sink_event (GstBaseSink * bsink, GstEvent * event)
+         gst_wayland_sink_set_rotate_method (self, method, TRUE);
+       }
+ 
++      break;
++    case GST_EVENT_FLUSH_START:
++      gst_wl_display_force_release_buffer(self->display);
++      break;
++    case GST_EVENT_FLUSH_STOP:
+       break;
+     default:
+       break;
+diff --git a/gst-libs/gst/wayland/gstwldisplay.c b/gst-libs/gst/wayland/gstwldisplay.c
+index 1f83cb2..0ca03d4 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.c
++++ b/gst-libs/gst/wayland/gstwldisplay.c
+@@ -565,3 +565,14 @@ gst_wl_display_has_own_display (GstWlDisplay * self)
+ 
+   return priv->own_display;
+ }
++
++void gst_wl_display_force_release_buffer (GstWlDisplay *self)
++{
++  GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
++  g_mutex_lock (&priv->buffers_mutex);
++  g_hash_table_foreach (priv->buffers, gst_wl_ref_wl_buffer, NULL);
++  g_hash_table_foreach (priv->buffers,
++      (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
++  g_hash_table_remove_all (priv->buffers);
++  g_mutex_unlock (&priv->buffers_mutex);
++}
+diff --git a/gst-libs/gst/wayland/gstwldisplay.h b/gst-libs/gst/wayland/gstwldisplay.h
+index eb07e4f..0f50f22 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.h
++++ b/gst-libs/gst/wayland/gstwldisplay.h
+@@ -97,4 +97,7 @@ struct zwp_linux_dmabuf_v1 *gst_wl_display_get_dmabuf_v1 (GstWlDisplay * self);
+ GST_WL_API
+ gboolean gst_wl_display_has_own_display (GstWlDisplay * self);
+ 
++GST_WL_API
++void gst_wl_display_force_release_buffer (GstWlDisplay *self);
++
+ G_END_DECLS
+-- 
+2.34.1
+

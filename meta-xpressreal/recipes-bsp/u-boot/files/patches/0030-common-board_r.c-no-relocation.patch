@@ -1,0 +1,38 @@
+Index: u-boot-2022.01/common/board_r.c
+===================================================================
+--- u-boot-2022.01.orig/common/board_r.c
++++ u-boot-2022.01/common/board_r.c
+@@ -223,12 +223,17 @@ static int initr_malloc(void)
+ 	debug("Pre-reloc malloc() used %#lx bytes (%ld KB)\n", gd->malloc_ptr,
+ 	      gd->malloc_ptr / 1024);
+ #endif
++#ifndef CONFIG_NO_RELOCATION
+ 	/* The malloc area is immediately below the monitor copy in DRAM */
+ 	/*
+ 	 * This value MUST match the value of gd->start_addr_sp in board_f.c:
+ 	 * reserve_noncached().
+ 	 */
+ 	start = gd->relocaddr - TOTAL_MALLOC_LEN;
++#else
++	/* RTK disable Relocation */
++	start = CONFIG_HEAP_ADDR;
++#endif //CONFIG_NO_RELOCATION
+ 	gd_set_malloc_start(start);
+ 	mem_malloc_init((ulong)map_sysmem(start, TOTAL_MALLOC_LEN),
+ 			TOTAL_MALLOC_LEN);
+Index: u-boot-2022.01/common/board_f.c
+===================================================================
+--- u-boot-2022.01.orig/common/board_f.c
++++ u-boot-2022.01/common/board_f.c
+@@ -676,6 +676,10 @@ static int setup_reloc(void)
+ 	if (!(gd->flags & GD_FLG_SKIP_RELOC)) {
+ #ifdef CONFIG_TEXT_BASE
+-#ifdef ARM
++#ifdef CONFIG_ARM
++#ifdef CONFIG_NO_RELOCATION
++	gd->relocaddr = CONFIG_TEXT_BASE;
++	//gd->start_addr_sp = SYS_INIT_SP_ADDR;
++#endif //CONFIG_NO_RELOCATION
+ 		gd->reloc_off = gd->relocaddr - (unsigned long)__image_copy_start;
+ #elif defined(CONFIG_MICROBLAZE)
+ 		gd->reloc_off = gd->relocaddr - (u32)_start;

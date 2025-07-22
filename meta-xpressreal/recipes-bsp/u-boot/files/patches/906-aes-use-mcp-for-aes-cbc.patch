@@ -1,0 +1,53 @@
+Index: git/lib/aes/aes-decrypt.c
+===================================================================
+--- git.orig/lib/aes/aes-decrypt.c
++++ git/lib/aes/aes-decrypt.c
+@@ -6,15 +6,40 @@
+ #ifndef USE_HOSTCC
+ #include <common.h>
+ #include <malloc.h>
++#include <asm/arch/mcp.h>
+ #endif
+ #include <image.h>
+ #include <uboot_aes.h>
+ 
++#ifdef MCP_DEBUG
++void rtk_hexdump( const char * str, void * pBuf, unsigned int length );
++#endif
+ int image_aes_decrypt(struct image_cipher_info *info,
+ 		      const void *cipher, size_t cipher_len,
+ 		      void **data, size_t *size)
+ {
+ #ifndef USE_HOSTCC
++#ifdef CONFIG_ARCH_REALTEK
++	//*data = memalign(16, cipher_len);
++	//memcpy(*data, cipher, cipher_len);
++	*data = cipher;
++	*size = info->size_unciphered;
++#ifdef MCP_DEBUG
++	rtk_hexdump("key: ", info->key, 16);
++	rtk_hexdump("iv: ", info->iv, 16);
++	rtk_hexdump("cipher: ", cipher, 0x40);
++	printf("%s: cipher addr:%p, len:%u, dst addr:%p, uncipher_len:%u\n",
++		__func__, cipher, cipher_len, *data, info->size_unciphered);
++#endif
++	flush_cache((uintptr_t)info->key, info->cipher->key_len);
++	flush_cache((uintptr_t)*data, cipher_len);
++	//AES_CBC_decrypt(*data, cipher_len, *data, (unsigned int*)info->key, (unsigned int*)info->iv, 0);
++	MCP_AES_CBC_decrypt(*data, cipher_len, *data, (unsigned int*)info->key, (unsigned int*)info->iv, info->cipher->key_len);
++	invalidate_dcache_range((uintptr_t)*data, (uintptr_t)*data + *size);
++#ifdef MCP_DEBUG
++	rtk_hexdump("mcp out data: ", *data, 0x40);
++#endif
++#else
+ 	unsigned char key_exp[AES256_EXPAND_KEY_LENGTH];
+ 	unsigned int aes_blocks, key_len = info->cipher->key_len;
+ 
+@@ -36,6 +61,7 @@ int image_aes_decrypt(struct image_ciphe
+ 	aes_cbc_decrypt_blocks(key_len, key_exp, (u8 *)info->iv,
+ 			       (u8 *)cipher, *data, aes_blocks);
+ #endif
++#endif
+ 
+ 	return 0;
+ }

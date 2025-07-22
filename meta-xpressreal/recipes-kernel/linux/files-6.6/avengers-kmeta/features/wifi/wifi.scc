@@ -1,0 +1,3 @@
+patch 700-wifi-rtw88-default-disable-LPS-deep-mode.patch
+
+kconf hardware wifi.cfg

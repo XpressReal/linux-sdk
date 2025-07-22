@@ -1,0 +1,29 @@
+From c6ed9c00eeb24044e1a3e7639a7a97fe0188f7a7 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 21 Mar 2022 10:37:28 +0800
+Subject: [PATCH] lib: lzma: Skip uncompressedSize check if not set
+
+---
+ lib/lzma/LzmaTools.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/lib/lzma/LzmaTools.c b/lib/lzma/LzmaTools.c
+index 55f64cd289..d04e53bdca 100644
+--- a/lib/lzma/LzmaTools.c
++++ b/lib/lzma/LzmaTools.c
+@@ -98,11 +98,14 @@ int lzmaBuffToBuffDecompress(unsigned char *outStream, SizeT *uncompressedSize,
+     g_Alloc.Free = SzFree;
+ 
+     /* Short-circuit early if we know the buffer can't hold the results. */
+-    if (outSizeFull != (SizeT)-1 && *uncompressedSize < outSizeFull)
++    if (outSizeFull != (SizeT)-1 && *uncompressedSize && *uncompressedSize < outSizeFull)
+         return SZ_ERROR_OUTPUT_EOF;
+ 
+     /* Decompress */
++    if (*uncompressedSize)
+     outProcessed = min(outSizeFull, *uncompressedSize);
++    else
++    outProcessed = outSizeFull;
+ 
+     schedule();
+ 

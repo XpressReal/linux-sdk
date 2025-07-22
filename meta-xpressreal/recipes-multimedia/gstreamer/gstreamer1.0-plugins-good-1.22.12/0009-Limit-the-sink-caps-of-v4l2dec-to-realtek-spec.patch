@@ -1,0 +1,69 @@
+From 82e9eb984868a14ad98860cebc45da02c3f34cbb Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 25 Mar 2025 18:31:57 +0800
+Subject: [PATCH 1/1] Limit the sink caps to realtek spec.
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2object.c | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index c711c00..63f8c4a 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -1490,11 +1490,13 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+       break;
+     case V4L2_PIX_FMT_MPEG1:
+       structure = gst_structure_new ("video/mpeg",
+-          "mpegversion", G_TYPE_INT, 1, NULL);
++          "mpegversion", G_TYPE_INT, 1, "parsed",
++          G_TYPE_BOOLEAN, TRUE, NULL);
+       break;
+     case V4L2_PIX_FMT_MPEG2:
+       structure = gst_structure_new ("video/mpeg",
+-          "mpegversion", G_TYPE_INT, 2, NULL);
++          "mpegversion", G_TYPE_INT, 2, "parsed",
++          G_TYPE_BOOLEAN, TRUE, NULL);
+       break;
+     case V4L2_PIX_FMT_MPEG4:
+     case V4L2_PIX_FMT_XVID:
+@@ -1511,8 +1513,11 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+       break;
+     case V4L2_PIX_FMT_H264:    /* H.264 */
+       structure = gst_structure_new ("video/x-h264",
+-          "stream-format", G_TYPE_STRING, "byte-stream", "alignment",
+-          G_TYPE_STRING, "au", NULL);
++          "stream-format", G_TYPE_STRING, "byte-stream",
++          "alignment", G_TYPE_STRING, "au",
++          "chroma-format", G_TYPE_STRING, "4:2:0",
++          "bit-depth-luma", G_TYPE_UINT, 8,
++          "bit-depth-chroma", G_TYPE_UINT, 8, NULL);
+       break;
+     case V4L2_PIX_FMT_H264_NO_SC:
+       structure = gst_structure_new ("video/x-h264",
+@@ -1521,8 +1526,9 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+       break;
+     case V4L2_PIX_FMT_HEVC:    /* H.265 */
+       structure = gst_structure_new ("video/x-h265",
+-          "stream-format", G_TYPE_STRING, "byte-stream", "alignment",
+-          G_TYPE_STRING, "au", NULL);
++          "stream-format", G_TYPE_STRING, "byte-stream",
++          "alignment", G_TYPE_STRING, "au",
++          "chroma-format", G_TYPE_STRING, "4:2:0", NULL);
+       break;
+     case V4L2_PIX_FMT_VC1_ANNEX_G:
+     case V4L2_PIX_FMT_VC1_ANNEX_L:
+@@ -1556,7 +1562,8 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+       break;
+     case V4L2_PIX_FMT_VP9:
+       structure = gst_structure_new ("video/x-vp9",
+-          "alignment", G_TYPE_STRING, "frame", NULL);
++          "alignment", G_TYPE_STRING, "frame", "chroma-format",
++          G_TYPE_STRING, "4:2:0", NULL);
+       break;
+     case V4L2_PIX_FMT_AV1:
+       structure = gst_structure_new_empty ("video/x-av1");
+-- 
+2.34.1
+

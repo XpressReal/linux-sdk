@@ -1,0 +1,38 @@
+# Default server configuration
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/localhost/html;
+
+    index index.html index.htm;
+
+    server_name _;
+
+    # redirect server error pages to the static page /50x.html
+    error_page 500 502 503 504 /50x.html;
+
+    location /webdav {
+        alias /var/www/webdav;
+        # This maps the URL .../webdav to /var/www/webdav
+
+	client_body_temp_path /var/www/tmp;
+
+        dav_methods PUT DELETE MKCOL COPY MOVE;
+        dav_ext_methods PROPFIND OPTIONS;
+
+	dav_access user:rw group:rw all:r;
+        create_full_put_path on;
+	client_max_body_size 0;
+	autoindex on;
+
+        # Basic authentication setup
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/webdav.passwd;
+
+        # Deny all access unless authenticated
+        satisfy all;
+        allow all;  # This allows all authenticated users
+        deny all;   # This denies all other users
+    }
+}

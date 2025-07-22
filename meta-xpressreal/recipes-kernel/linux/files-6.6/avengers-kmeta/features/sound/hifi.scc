@@ -1,0 +1,5 @@
+patch 827-modify-hifiacc-to-acpuacc.patch
+patch 828-fix-available-buffer-update.patch
+patch 829-dts-use-HiFi-as-AO-instead.patch
+
+kconf hardware hifi.cfg

@@ -1,0 +1,21 @@
+From 045abe04a425fc97549345ee2df220e04a730710 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 19 Mar 2024 12:35:03 +0800
+Subject: [PATCH] u-boot: board.c: Use arm_smccc_smc instead of asm volatile
+
+---
+ arch/arm/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
+index 60819dc27f..702bdbc4f6 100644
+--- a/arch/arm/Kconfig
++++ b/arch/arm/Kconfig
+@@ -407,7 +407,6 @@ config SYS_ARCH_TIMER
+ config ARM_SMCCC
+ 	bool "Support for ARM SMC Calling Convention (SMCCC)"
+ 	depends on CPU_V7A || ARM64
+-	select ARM_PSCI_FW
+ 	help
+ 	  Say Y here if you want to enable ARM SMC Calling Convention.
+ 	  This should be enabled if U-Boot needs to communicate with system

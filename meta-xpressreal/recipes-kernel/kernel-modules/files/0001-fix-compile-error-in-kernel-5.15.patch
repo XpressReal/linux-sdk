@@ -1,0 +1,30 @@
+From d6a14f92b167931ac20a6978eff0e24ef2827a7d Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Mon, 22 Jan 2024 21:28:48 +0800
+Subject: [PATCH] fix compile error in kernel 5.15
+
+---
+ .../drivers/gpu/arm/midgard/backend/gpu/mali_kbase_devfreq.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_devfreq.c b/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_devfreq.c
+index 1ef2d701..9d18bb9d 100644
+--- a/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_devfreq.c
++++ b/driver/product/kernel/drivers/gpu/arm/midgard/backend/gpu/mali_kbase_devfreq.c
+@@ -34,6 +34,13 @@
+ #include <linux/pm_opp.h>
+ #include "mali_kbase_devfreq.h"
+ 
++#if !IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND)
++struct devfreq_simple_ondemand_data {
++	unsigned int upthreshold;
++	unsigned int downdifferential;
++};
++#endif
++
+ /**
+  * get_voltage() - Get the voltage value corresponding to the nominal frequency
+  *                 used by devfreq.
+-- 
+2.42.0
+
