@@ -1,0 +1,89 @@
+name: Build images
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Install Yocto Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio libacl1 locales python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libsdl1.2-dev python3-subunit zstd liblz4-tool
+
+      - name: 1. Checkout Poky from Yocto Project
+        run: |
+          echo "--- Cloning poky ---"
+          git clone -b scarthgap https://git.yoctoproject.org/poky
+
+      - name: 2. Checkout linux-sdk repo and move meta-xpressreal
+        uses: actions/checkout@v4
+        with:
+          path: linux-sdk-temp
+      - run: mv linux-sdk-temp/meta-xpressreal poky/
+
+      - name: 3. Clone Dependency Layers into poky/
+        working-directory: ./poky
+        run: |
+          echo "--- Cloning meta-openembedded ---"
+          git clone -b scarthgap git://git.openembedded.org/meta-openembedded
+
+          echo "--- Cloning meta-qt5 ---"
+          git clone -b scarthgap https://github.com/meta-qt5/meta-qt5.git
+
+          echo "--- Cloning meta-neural-network ---"
+          git clone -b scarthgap https://github.com/nnstreamer/meta-neural-network.git
+
+      - name: 4. Lock All Repos to Specific Commits
+        working-directory: ./poky
+        run: |
+          echo "--- Locking Poky to specific commit ---"
+          git checkout dabe9e157f
+
+          echo "--- Locking dependency layers to specific commits ---"
+          cd meta-openembedded && git checkout 2338409efc && cd ..
+          cd meta-qt5 && git checkout eb82841826 && cd ..
+          cd meta-neural-network && git checkout c14458c94e && cd ..
+
+          echo "--- Final directory structure inside poky: ---"
+          ls -l
+
+      - name: Initialize Build Environment using TEMPLATECONF
+        working-directory: ./poky
+        run: |
+          TEMPLATECONF=meta-xpressreal/conf/templates/default/ source oe-init-build-env build
+          echo "--- Generated bblayers.conf ---"
+          cat conf/bblayers.conf
+          echo "--- Generated local.conf ---"
+          cat conf/local.conf
+
+      - name: Cache Yocto Downloads and SSTATE
+        uses: actions/cache@v4
+        with:
+          path: |
+            poky/build/downloads
+            poky/build/sstate-cache
+          key: ${{ runner.os }}-yocto-scarthgap-${{ hashFiles('poky/build/conf/local.conf', 'poky/build/conf/bblayers.conf') }}
+          restore-keys: |
+            ${{ runner.os }}-yocto-scarthgap-
+
+      - name: Run BitBake Build
+        working-directory: ./poky
+        run: |
+          source oe-init-build-env build
+          bitbake core-image-minimal
+
+      - name: Create Release and Upload Artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            poky/build/tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.wic.xz
+            poky/build/tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.manifest
