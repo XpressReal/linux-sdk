@@ -17,6 +17,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio libacl1 locales python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libsdl1.2-dev python3-subunit zstd liblz4-tool
 
+      - name: Config git ident name
+        run: |
+          git config --global user.name "XpressReal SDK Builder"
+          git config --global user.email "builder@example.com"
+
       - name: 1. Checkout Poky from Yocto Project
         run: |
           echo "--- Cloning poky ---"
@@ -73,11 +78,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yocto-scarthgap-
 
-      - name: Run BitBake Build
+      - name: Run BitBake Build (core-image-minimal)
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           bitbake core-image-minimal
+          mkdir images
+          cp ./tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
+
+      - name: Run BitBake Build (debian image server)
+        working-directory: ./poky
+        run: |
+          source oe-init-build-env build
+          bitbake debian-image
+          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
+
+      - name: Run BitBake Build (ubuntu image server)
+        working-directory: ./poky
+        run: |
+          source oe-init-build-env build
+          echo 'OVERRIDES:append = ":ubuntu"' > temp-config.conf
+          bitbake --postread=temp-config.conf debian-image
+          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
+
+      - name: Run BitBake Build (debian image desktop)
+        working-directory: ./poky
+        run: |
+          source oe-init-build-env build
+          echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
+          bitbake --postread=temp-config.conf debian-image
+          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
+
+      - name: Run BitBake Build (ubuntu image desktop)
+        working-directory: ./poky
+        run: |
+          source oe-init-build-env build
+          echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
+          echo 'OVERRIDES:append = ":ubuntu"' >> temp-config.conf
+          bitbake --postread=temp-config.conf debian-image
+          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
 
       - name: Create Release and Upload Artifacts
         if: startsWith(github.ref, 'refs/tags/')
@@ -85,5 +124,8 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            poky/build/tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.wic.xz
-            poky/build/tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.manifest
+            poky/build/images/xpressreal-core-image-minimal.wic.xz
+            poky/build/images/xpressreal-debian-image-server.wic.xz
+            poky/build/images/xpressreal-ubuntu-image-server.wic.xz
+            poky/build/images/xpressreal-debian-image-desktop.wic.xz
+            poky/build/images/xpressreal-ubuntu-image-desktop.wic.xz
