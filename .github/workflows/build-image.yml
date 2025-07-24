@@ -33,7 +33,14 @@ jobs:
           path: linux-sdk-temp
       - run: mv linux-sdk-temp/meta-xpressreal poky/
 
-      - name: 3. Clone Dependency Layers into poky/
+      - name: 3. Download prebuilt rootfs
+        run: |
+          echo "--- Download prebuilt rootfs ---"
+          export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs"
+          export OUTPUT_DIR="./poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files"
+          for d in debian ubuntu; do for v in "" "weston-" "desktop-"; do echo "Downloading ${v}${d}-rootfs.tar.xz"; wget -q -O ${OUTPUT_DIR}/${v}${d}-rootfs.tar.xz ${ROOTFS_DL_URL}/${v}${d}-rootfs.tar.xz; done; done
+
+      - name: 4. Clone Dependency Layers into poky/
         working-directory: ./poky
         run: |
           echo "--- Cloning meta-openembedded ---"
@@ -45,7 +52,7 @@ jobs:
           echo "--- Cloning meta-neural-network ---"
           git clone -b scarthgap https://github.com/nnstreamer/meta-neural-network.git
 
-      - name: 4. Lock All Repos to Specific Commits
+      - name: 5. Lock All Repos to Specific Commits
         working-directory: ./poky
         run: |
           echo "--- Locking Poky to specific commit ---"
