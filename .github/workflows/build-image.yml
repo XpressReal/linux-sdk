@@ -23,17 +23,23 @@ jobs:
           git config --global user.email "builder@example.com"
 
       - name: 1. Checkout Poky from Yocto Project
+        if: ${{ hashFiles('poky/LICENSE') == '' }}
         run: |
           echo "--- Cloning poky ---"
           git clone -b scarthgap https://git.yoctoproject.org/poky
 
       - name: 2. Checkout linux-sdk repo and move meta-xpressreal
+        if: ${{ hashFiles('poky/meta-xpressreal/EULA.txt') == '' }}
         uses: actions/checkout@v4
         with:
           path: linux-sdk-temp
-      - run: mv linux-sdk-temp/meta-xpressreal poky/
+          
+      - name: Move meta-xpressreal
+        if: ${{ hashFiles('poky/meta-xpressreal/EULA.txt') == '' }}
+        run: mv linux-sdk-temp/meta-xpressreal poky/
 
       - name: 3. Download prebuilt rootfs
+        if: ${{ hashFiles('poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files/debian-rootfs.tar.xz') == '' }}
         run: |
           echo "--- Download prebuilt rootfs ---"
           export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs"
@@ -41,6 +47,7 @@ jobs:
           for d in debian ubuntu; do for v in "" "weston-" "desktop-"; do echo "Downloading ${v}${d}-rootfs.tar.xz"; wget -q -O ${OUTPUT_DIR}/${v}${d}-rootfs.tar.xz ${ROOTFS_DL_URL}/${v}${d}-rootfs.tar.xz; done; done
 
       - name: 4. Clone Dependency Layers into poky/
+        if: ${{ hashFiles('poky/LICENSE') == '' }}
         working-directory: ./poky
         run: |
           echo "--- Cloning meta-openembedded ---"
@@ -53,6 +60,7 @@ jobs:
           git clone -b scarthgap https://github.com/nnstreamer/meta-neural-network.git
 
       - name: 5. Lock All Repos to Specific Commits
+        if: ${{ hashFiles('poky/LICENSE') == '' }}
         working-directory: ./poky
         run: |
           echo "--- Locking Poky to specific commit ---"
@@ -67,6 +75,7 @@ jobs:
           ls -l
 
       - name: Initialize Build Environment using TEMPLATECONF
+        if: ${{ hashFiles('poky/build/conf/local.conf') == '' }}
         working-directory: ./poky
         run: |
           TEMPLATECONF=meta-xpressreal/conf/templates/default/ source oe-init-build-env build
@@ -86,6 +95,7 @@ jobs:
             ${{ runner.os }}-yocto-scarthgap-
 
       - name: Run BitBake Build (core-image-minimal)
+        if: ${{ hashFiles('poky/images/xpressreal-core-image-minimal.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -94,6 +104,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
 
       - name: Run BitBake Build (debian image server)
+        if: ${{ hashFiles('poky/images/xpressreal-debian-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -101,6 +112,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
 
       - name: Run BitBake Build (ubuntu image server)
+        if: ${{ hashFiles('poky/images/xpressreal-ubuntu-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -109,6 +121,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
 
       - name: Run BitBake Build (debian image desktop)
+        if: ${{ hashFiles('poky/images/xpressreal-debian-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -117,6 +130,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
 
       - name: Run BitBake Build (ubuntu image desktop)
+        if: ${{ hashFiles('poky/images/xpressreal-ubuntu-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
