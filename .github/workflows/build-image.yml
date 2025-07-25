@@ -95,7 +95,7 @@ jobs:
             ${{ runner.os }}-yocto-scarthgap-
 
       - name: Run BitBake Build (core-image-minimal)
-        if: ${{ hashFiles('poky/images/xpressreal-core-image-minimal.wic.xz') == '' }}
+        if: ${{ hashFiles('poky/build/images/xpressreal-core-image-minimal.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -104,7 +104,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
 
       - name: Run BitBake Build (debian image server)
-        if: ${{ hashFiles('poky/images/xpressreal-debian-image-server.wic.xz') == '' }}
+        if: ${{ hashFiles('poky/build/images/xpressreal-debian-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -112,7 +112,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
 
       - name: Run BitBake Build (ubuntu image server)
-        if: ${{ hashFiles('poky/images/xpressreal-ubuntu-image-server.wic.xz') == '' }}
+        if: ${{ hashFiles('poky/build/images/xpressreal-ubuntu-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -121,7 +121,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
 
       - name: Run BitBake Build (debian image desktop)
-        if: ${{ hashFiles('poky/images/xpressreal-debian-image-desktop.wic.xz') == '' }}
+        if: ${{ hashFiles('poky/build/images/xpressreal-debian-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
@@ -130,7 +130,7 @@ jobs:
           cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
 
       - name: Run BitBake Build (ubuntu image desktop)
-        if: ${{ hashFiles('poky/images/xpressreal-ubuntu-image-desktop.wic.xz') == '' }}
+        if: ${{ hashFiles('poky/build/images/xpressreal-ubuntu-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
