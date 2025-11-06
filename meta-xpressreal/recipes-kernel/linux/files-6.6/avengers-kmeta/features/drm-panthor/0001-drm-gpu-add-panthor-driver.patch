@@ -1,0 +1,38 @@
+From 89efd51399355161e403563ac3f47689d07b35fa Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Wed, 14 May 2025 13:05:11 +0800
+Subject: [PATCH 01/47] drm: gpu: add panthor driver
+
+---
+ drivers/gpu/drm/Kconfig  | 2 ++
+ drivers/gpu/drm/Makefile | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
+index 23d225e702a1..cbf86654597b 100644
+--- a/drivers/gpu/drm/Kconfig
++++ b/drivers/gpu/drm/Kconfig
+@@ -376,6 +376,8 @@ source "drivers/gpu/drm/lima/Kconfig"
+ 
+ source "drivers/gpu/drm/panfrost/Kconfig"
+ 
++source "drivers/gpu/drm/panthor/Kconfig"
++
+ source "drivers/gpu/drm/aspeed/Kconfig"
+ 
+ source "drivers/gpu/drm/mcde/Kconfig"
+diff --git a/drivers/gpu/drm/Makefile b/drivers/gpu/drm/Makefile
+index 4dfcc1c2f2d3..5cf944835255 100644
+--- a/drivers/gpu/drm/Makefile
++++ b/drivers/gpu/drm/Makefile
+@@ -190,6 +190,7 @@ obj-$(CONFIG_DRM_XEN) += xen/
+ obj-$(CONFIG_DRM_VBOXVIDEO) += vboxvideo/
+ obj-$(CONFIG_DRM_LIMA)  += lima/
+ obj-$(CONFIG_DRM_PANFROST) += panfrost/
++obj-$(CONFIG_DRM_PANTHOR) += panthor/
+ obj-$(CONFIG_DRM_ASPEED_GFX) += aspeed/
+ obj-$(CONFIG_DRM_MCDE) += mcde/
+ obj-$(CONFIG_DRM_TIDSS) += tidss/
+-- 
+2.34.1
+

@@ -1,0 +1,5 @@
+patch 700-Add-r8169soc-ethernet-driver.patch
+patch 701-Add-Realtek-Ethernet-drivers.patch
+patch 702-Add-Realtek-USB-drivers.patch
+
+kconf hardware rtknic.cfg

@@ -1,0 +1,121 @@
+From c68aaac193570ec1bddfeb9415ac6d3cbf7485b5 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 2 Sep 2025 20:11:58 -0400
+Subject: [PATCH] recipes-kernel: dma-buf: rheap: seperate VO and VIDEO pool
+
+---
+ drivers/dma-buf/heaps/rtk_heap_dma.c   |  4 ++--
+ drivers/dma-buf/heaps/rtk_media_heap.c | 22 ++++++++++++++++++++--
+ include/soc/realtek/memory.h           |  6 ++++++
+ 3 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/dma-buf/heaps/rtk_heap_dma.c b/drivers/dma-buf/heaps/rtk_heap_dma.c
+index 817de0c14ca3..259ce9b4d489 100644
+--- a/drivers/dma-buf/heaps/rtk_heap_dma.c
++++ b/drivers/dma-buf/heaps/rtk_heap_dma.c
+@@ -185,7 +185,7 @@ static void *dma_rtk_allocate(struct device *dev, struct rtk_heap *rtk_heap,
+ 	}
+ 
+ 	if ((IS_ENABLED(CONFIG_DMA_DIRECT_REMAP) && !dev_is_dma_coherent(dev))
+-		 || (IS_ENABLED(CONFIG_DMA_REMAP) && PageHighMem(pages)) || IS_ENABLED(CONFIG_ARM)) {
++		 || PageHighMem(pages) || IS_ENABLED(CONFIG_ARM)) {
+ 
+ 		/* only support contiguous physical allocation */
+ 		ret = dma_rtk_contiguous_remap(pages, size,
+@@ -321,7 +321,7 @@ static void dma_rheap_free(struct device *dev, size_t size,
+ 
+ 			rtk_heap = rheap_list->rtk_heap;
+ 
+-			if ((IS_ENABLED(CONFIG_DMA_REMAP) && is_vmalloc_addr(cpu_addr)) &&
++			if (is_vmalloc_addr(cpu_addr) &&
+ 			    !(attrs & DMA_ATTR_NO_KERNEL_MAPPING)) {
+ 				vunmap(cpu_addr);
+ 				pr_debug("%s remap free 0x%lx \n", __func__,
+diff --git a/drivers/dma-buf/heaps/rtk_media_heap.c b/drivers/dma-buf/heaps/rtk_media_heap.c
+index 1fa15c7a5988..c8da026c92ab 100644
+--- a/drivers/dma-buf/heaps/rtk_media_heap.c
++++ b/drivers/dma-buf/heaps/rtk_media_heap.c
+@@ -128,7 +128,7 @@ static struct rtk_heap_data rheap_data_v1[] = {
+ 		.flags = (RTK_FLAG_SCPUACC |
+ 			RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_VCPU_FWACC |
+ 			RTK_FLAG_ACPUACC | RTK_FLAG_PROTECTED_DYNAMIC |
+-			RTK_FLAG_PROTECTED_V2_VO_POOL |
++			RTK_FLAG_PROTECTED_V2_VO_POOL | RTK_FLAG_VO_U_POOL |
+ 			RTK_FLAG_SUPPORT_NONCACHED |
+ 			RTK_FLAG_SKIP_ZERO),
+ 		.devname = "vo_non-ve",
+@@ -198,6 +198,15 @@ static struct rtk_heap_data rheap_data_v1[] = {
+ 			RTK_FLAG_SKIP_ZERO),
+ 		.devname = "vo_non-vc-ac-ve",
+ 	},
++
++	{
++		.name = "vo5",
++		.flags = (RTK_FLAG_SCPUACC |
++			RTK_FLAG_CMA | RTK_FLAG_VO_POOL |
++			RTK_FLAG_SUPPORT_NONCACHED |
++			RTK_FLAG_SKIP_ZERO),
++		.devname = "vo_non-ve2",
++	},
+ #if 0
+ 	{
+ 		.name = "tee",
+@@ -232,7 +241,7 @@ static struct rtk_heap_data rheap_data_v2[] = {
+ 		.flags = (RTK_FLAG_SCPUACC |
+ 			RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_VCPU_FWACC |
+ 			RTK_FLAG_ACPUACC | RTK_FLAG_PROTECTED_DYNAMIC |
+-			RTK_FLAG_PROTECTED_V2_VO_POOL |
++			RTK_FLAG_PROTECTED_V2_VO_POOL | RTK_FLAG_VO_U_POOL |
+ 			RTK_FLAG_SUPPORT_NONCACHED |
+ 			RTK_FLAG_SKIP_ZERO),
+ 		.devname = "vo_non-ve",
+@@ -340,6 +349,15 @@ static struct rtk_heap_data rheap_data_v2[] = {
+ 			  RTK_FLAG_SUPPORT_NONCACHED),
+ 		.devname = "npu_model_secure12",
+ 	},
++
++	{
++		.name = "vo5",
++		.flags = (RTK_FLAG_SCPUACC |
++			RTK_FLAG_CMA | RTK_FLAG_VO_POOL |
++			RTK_FLAG_SUPPORT_NONCACHED |
++			RTK_FLAG_SKIP_ZERO),
++		.devname = "vo_non-ve2",
++	},
+ #if 0
+ 	{
+ 		.name = "tee",
+diff --git a/include/soc/realtek/memory.h b/include/soc/realtek/memory.h
+index 9e732ef5ae0e..3b5497d2425b 100644
+--- a/include/soc/realtek/memory.h
++++ b/include/soc/realtek/memory.h
+@@ -38,6 +38,8 @@
+ 	 RTK_FLAG_PROTECTED_EXT_BIT2)
+ 
+ #define RTK_FLAG_HIFIACC	(1U << 15)
++#define RTK_FLAG_VO_U_POOL (1U << 18)
++#define RTK_FLAG_VO_POOL (1U << 19)
+ 
+ #define RTK_FLAG_TOC_MASK						       \
+ 	(RTK_FLAG_HIFIACC)
+@@ -147,6 +149,8 @@
+ 	RTK_FLAG_VCPU_FWACC | \
+ 	RTK_FLAG_HIFIACC | \
+ 	RTK_FLAG_CMA | \
++	RTK_FLAG_VO_POOL | \
++	RTK_FLAG_VO_U_POOL | \
+ 	RTK_FLAG_SKIP_ZERO)
+ 
+ 
+@@ -183,6 +187,8 @@ static struct rtk_heap_table rtk_heap_flags[] = {
+ 	DUMP_FLAG(RTK_FLAG_NONCACHED),
+ 	DUMP_FLAG(RTK_FLAG_HIFIACC),
+ 	DUMP_FLAG(RTK_FLAG_SKIP_ZERO),
++	DUMP_FLAG(RTK_FLAG_VO_POOL),
++	DUMP_FLAG(RTK_FLAG_VO_U_POOL),
+ };
+ 
+ #define MAX_WORD 60
+-- 
+2.34.1
+

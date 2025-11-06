@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "prince.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:460800n8";
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 nr_cpus=1 clk_ignore_unused";
+	};
+};
+
+&arm_pmu {
+	interrupt-affinity = <&cpu0>, <&cpu1>;
+};
+
+&psci {
+	status = "disabled";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&{/} {
+	cpus {
+		cpu1: cpu@100 {
+			compatible = "arm,cortex-a76";
+
+			l2_1: l2-cache {
+				cache-size = <0x40000>;
+			};
+		};
+
+		/delete-node/cpu@200;
+		/delete-node/cpu@300;
+	};
+};

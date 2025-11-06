@@ -1,0 +1,65 @@
+From 9010b06621f9612b4b6ce9dadb6d3c3785dd2d8b Mon Sep 17 00:00:00 2001
+From: Edward Wu <edwardwu@realtek.com>
+Date: Tue, 12 Mar 2024 07:59:06 +0800
+Subject: [PATCH] kernel: drivers: media: revert to ve1 default behavior of
+ interrupt clear
+
+Change-Id: I9e445a4f4bf11ba3ea539a022c00ac90f38b664c
+---
+ drivers/soc/realtek/rtd13xx/rtk_ve/ve1/ve1.c             | 1 -
+ drivers/soc/realtek/rtd13xxd/rtk_ve/ve1/ve1.c            | 1 -
+ drivers/soc/realtek/rtd13xxe/rtk_ve/ve1/ve1.c            | 1 -
+ drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c            | 1 -
+ 4 files changed, 4 deletions(-)
+
+diff --git a/drivers/soc/realtek/rtd13xx/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/rtd13xx/rtk_ve/ve1/ve1.c
+index 20791fb2d..61846f3b5 100644
+--- a/drivers/soc/realtek/rtd13xx/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/rtd13xx/rtk_ve/ve1/ve1.c
+@@ -471,7 +471,6 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
+ 	vpu_int_sts_ve1 = ReadVpuRegister(BIT_INT_STS, core);
+ 	if (vpu_int_sts_ve1) {
+ 		interrupt_reason_ve1 = ReadVpuRegister(BIT_INT_REASON, core);
+-		WriteVpuRegister(BIT_INT_REASON, 0, core);
+ 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
+ 	}
+ 
+diff --git a/drivers/soc/realtek/rtd13xxd/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/rtd13xxd/rtk_ve/ve1/ve1.c
+index d2a9eff9d..77e70b884 100755
+--- a/drivers/soc/realtek/rtd13xxd/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/rtd13xxd/rtk_ve/ve1/ve1.c
+@@ -410,7 +410,6 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
+ 	vpu_int_sts_ve1 = ReadVpuRegister(BIT_INT_STS, core);
+ 	if (vpu_int_sts_ve1) {
+ 		interrupt_reason_ve1 = ReadVpuRegister(BIT_INT_REASON, core);
+-		WriteVpuRegister(BIT_INT_REASON, 0, core);
+ 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
+ 		if (interrupt_reason_ve1 == 0) {
+ 			pr_err("%s %d.DHCFAE-12940.interrupt_reason_ve1:%d\n",DEV_NAME,__LINE__,interrupt_reason_ve1);
+diff --git a/drivers/soc/realtek/rtd13xxe/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/rtd13xxe/rtk_ve/ve1/ve1.c
+index 5a89b07d5..50046de3f 100755
+--- a/drivers/soc/realtek/rtd13xxe/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/rtd13xxe/rtk_ve/ve1/ve1.c
+@@ -428,7 +428,6 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
+ 	vpu_int_sts_ve1 = ReadVpuRegister(BIT_INT_STS, core);
+ 	if (vpu_int_sts_ve1) {
+ 		interrupt_reason_ve1 = ReadVpuRegister(BIT_INT_REASON, core);
+-		WriteVpuRegister(BIT_INT_REASON, 0, core);
+ 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
+ 	}
+ 
+diff --git a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
+index 689a04a59..e9cb22d6c 100755
+--- a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
+@@ -411,7 +411,6 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
+ 	vpu_int_sts_ve1 = ReadVpuRegister(BIT_INT_STS, core);
+ 	if (vpu_int_sts_ve1) {
+ 		interrupt_reason_ve1 = ReadVpuRegister(BIT_INT_REASON, core);
+-		WriteVpuRegister(BIT_INT_REASON, 0, core);
+ 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
+ 		if (interrupt_reason_ve1 == 0) {
+ 			pr_err("%s %d.DHCFAE-12940.interrupt_reason_ve1:%d\n",DEV_NAME,__LINE__,interrupt_reason_ve1);
+-- 
+2.47.0
+

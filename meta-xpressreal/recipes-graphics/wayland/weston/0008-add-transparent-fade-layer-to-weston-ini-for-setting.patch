@@ -1,0 +1,59 @@
+From 1c79375ab5b361e1888d952fdbf3e8afba125066 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 21 Oct 2024 13:46:41 +0800
+Subject: [PATCH] add transparent-fade-layer to weston ini for setting
+ transparent fade layer
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c             | 1 +
+ desktop-shell/shell.c         | 8 ++++++++
+ include/libweston/libweston.h | 1 +
+ 3 files changed, 10 insertions(+)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index d81b96d..e134817 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3079,6 +3079,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 					   &config.use_sw_cursor, false);
+ 
+ 	weston_config_section_get_bool(section, "dmabuf-v1-overlay", &c->dmabuf_v1_overlay, false);
++	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 
+ 	if (without_input)
+ 		c->require_input = !without_input;
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index 084e602..184595d 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -3844,6 +3844,14 @@ shell_fade_create_view(struct desktop_shell *shell)
+ 	bool first = true;
+ 	int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+ 
++	if (compositor->transparent_fade_layer == true)
++	{
++		curtain_params.r = 1.0;
++		curtain_params.g = 1.0;
++		curtain_params.b = 1.0;
++		curtain_params.a = 0.0;
++	}
++
+ 	wl_list_for_each(shell_output, &shell->output_list, link) {
+ 		struct weston_output *op = shell_output->output;
+ 
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 0c9df3b..9365a51 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1520,6 +1520,7 @@ struct weston_compositor {
+ 	} output_capture;
+ 
+ 	bool dmabuf_v1_overlay;
++	bool transparent_fade_layer;
+ };
+ 
+ struct weston_solid_buffer_values {
+-- 
+2.34.1
+

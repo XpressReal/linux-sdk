@@ -1,0 +1,123 @@
+From 3b810cb44f2ee18b29c2edd6646138df7aadf8a8 Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Thu, 8 May 2025 07:49:18 +0000
+Subject: [PATCH 3/8] Modify face recognition flow
+
+---
+ tasks/face-processing/common/facedetectpipe.py  | 17 ++++++++---------
+ tasks/face-processing/common/facenet.py         | 10 ----------
+ .../common/facenet_create_embedding.py          |  0
+ .../example_face_recognition_tflite.py          | 14 ++------------
+ 4 files changed, 10 insertions(+), 31 deletions(-)
+ mode change 100755 => 100644 tasks/face-processing/common/facedetectpipe.py
+ mode change 100755 => 100644 tasks/face-processing/common/facenet_create_embedding.py
+ mode change 100755 => 100644 tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+old mode 100755
+new mode 100644
+index f0864c8..948afa2
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -143,7 +143,7 @@ class SecondaryPipe(Pipe):
+ 
+         # secondary pipeline (face crop + second model) GStreamer definition
+         video_caps = ('video/x-raw,'
+-                      'width={:d},height={:d},framerate={:d}/1,format=YUY2') \
++                      'width={:d},height={:d},framerate={:d}/1,format=NV12') \
+             .format(vw, vh, vr)
+ 
+         cmdline = 'appsrc name=appsrc_video is-live=true caps={:s} format=3 ' \
+@@ -156,13 +156,12 @@ class SecondaryPipe(Pipe):
+             format = 'RGB'
+         elif num_channels == 1:
+             format = 'GRAY8'
++        cmdline += ' videocrop name=video_crop ! videoconvertscale ! video/x-raw,format=RGB,width=160,height=160 ! '
+ 
+-        cmdline += '  tensor_converter ! '
+-
+-        custom_ops = self.nns_tfliter_custom_options()
+-        cmdline += ('  tensor_filter '
+-                    'framework=tensorflow-lite model={:s} {:s} ! ') \
+-            .format(secondary_model.get_model_path(), custom_ops)
++        cmdline += ' tensor_converter !  '
++        cmdline += (' tensor_filter '
++                    ' framework=vivante model={:s} ! ') \
++            .format("/root/network_binary_facenet.nb,/root/facenetuint8.so")
+         cmdline += ('  tensor_sink '
+                     'name=tsink_fr emit-signal=true sync=false qos=false')
+ 
+@@ -313,10 +312,10 @@ class FaceDetectPipe(Pipe):
+ 
+         cmdline += (' tensor_filter '
+                     ' framework=vivante model={:s} ! ') \
+-            .format("/root/network_binary.nb,/root/ultrafaceuint8.so")
++            .format("/root/network_binary_ultraface.nb,/root/ultrafaceuint8.so")
+         cmdline += ' tensor_sink name=tsink_fd '
+ 
+-        cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert  ! videoscale ! video/x-raw,format=RGB16,width=640,height=360 ! '
++        cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert ! video/x-raw,format=RGB16 ! '
+         # cairo overlay format restricted to BGRx, BGRA, RGB16
+         cmdline += ' cairooverlay name=cairooverlay ! '
+         cmdline += ' waylandsink sync=false '.format(vw, vh)
+diff --git a/tasks/face-processing/common/facenet.py b/tasks/face-processing/common/facenet.py
+index 1946bad..5ff7438 100644
+--- a/tasks/face-processing/common/facenet.py
++++ b/tasks/face-processing/common/facenet.py
+@@ -26,16 +26,6 @@ class FNModel:
+ 
+         self.match_threshold = match_threshold
+ 
+-        # model location
+-        if vela:
+-            name = 'facenet512_uint8_vela.tflite'
+-        else:
+-            name = 'facenet512_uint8.tflite'
+-        self.tflite_model = os.path.join(model_directory, name)
+-
+-        if not os.path.exists(self.tflite_model):
+-            raise FileExistsError(f'cannot find model [{self.tflite_model}]')
+-
+         if database_directory is not None:
+             if not os.path.exists(database_directory):
+                 os.mkdir(database_directory)
+diff --git a/tasks/face-processing/common/facenet_create_embedding.py b/tasks/face-processing/common/facenet_create_embedding.py
+old mode 100755
+new mode 100644
+diff --git a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+old mode 100755
+new mode 100644
+index 4bdf53a..1bb3732
+--- a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
++++ b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+@@ -316,16 +316,7 @@ class UI:
+ 
+ if __name__ == '__main__':
+ 
+-    imx = Imx()
+-    if imx.id() == SocId.IMX8MP:
+-        default_camera = '/dev/video3'
+-    elif imx.is_imx93():
+-        default_camera = '/dev/video0'
+-    elif imx.is_imx95():
+-        default_camera = '/dev/video13'
+-    else:
+-        name = imx.name()
+-        raise NotImplementedError(f'Platform not supported [{name}]')
++    default_camera = '/dev/video3'
+ 
+     parser = argparse.ArgumentParser(description='Face Identification')
+     parser.add_argument('--camera_device', '-c', type=str,
+@@ -350,8 +341,7 @@ if __name__ == '__main__':
+     models_dir = os.path.join(pwd, '../../../downloads/models/face-processing')
+     mface_db_dir = os.path.join(pwd, 'facenet_db')
+ 
+-    has_ethosu = imx.has_npu_ethos()
+-    model = facenet.FNModel(models_dir, mface_db_dir, vela=has_ethosu)
++    model = facenet.FNModel(models_dir, mface_db_dir)
+     secondary = SecondaryPipe(model, video_resolution=vr, video_fps=fps)
+ 
+     # main pipeline for face detection
+-- 
+2.25.1
+

@@ -1,0 +1,24 @@
+[Unit]
+Description=PiKVM WebRTC Streaming Service
+After=network.target kvmd.service
+Conflicts=kvmd-ustreamer.service
+
+[Service]
+User=root
+Group=root
+
+ExecStart=gst-launch-1.0 -v \
+  v4l2src device=/dev/video0 ! image/jpeg,width=1920,height=1080,framerate=30/1 ! \
+  v4l2jpegdec capture-io-mode=4 ! rtkhse ! video/x-raw,format=NV12 ! \
+  v4l2h264enc output-io-mode=5 ! rtph264pay config-interval=1 pt=96 ! \
+  udpsink host=127.0.0.1 port=5004 \
+  alsasrc device=hw:0,0 ! audioconvert ! audioresample ! audio/x-raw,rate=48000,channels=2 ! \
+  opusenc bitrate=64000 ! rtpopuspay pt=111 ! \
+  udpsink host=127.0.0.1 port=5006
+
+Restart=always
+RestartSec=5
+Environment="PATH=/usr/bin:/usr/local/bin"
+
+[Install]
+WantedBy=multi-user.target

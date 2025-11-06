@@ -1,0 +1,17 @@
+diff --git a/Makefile b/Makefile
+index 207f808..4f57c56 100644
+--- a/Makefile
++++ b/Makefile
+@@ -4,10 +4,10 @@ all: rtk_hciattach
+ OBJS := hciattach.o hciattach_rtk.o hciattach_h4.o rtb_fwc.o
+ 
+ rtk_hciattach: $(OBJS)
+-	$(CROSS_COMPILE)gcc -o rtk_hciattach $(OBJS)
++	$(CC) -o rtk_hciattach $(OBJS)
+ 
+ %.o: %.c
+-	$(CROSS_COMPILE)gcc -c $< -o $@ $(CFLAGS)
++	$(CC) -c $< -o $@ $(CFLAGS)
+ 
+ clean:
+ 	rm -f $(OBJS)  rtk_hciattach

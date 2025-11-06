@@ -1,0 +1,38 @@
+From 9abd6a3e382c7540fba026e1cd655215286d4d1e Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Sun, 6 Apr 2025 21:16:01 -0400
+Subject: [PATCH] weston: fix entering wrong view
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/state-propose.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
+index 8ac7f2d..6bef779 100644
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -739,8 +739,19 @@ drm_output_propose_state(struct weston_output *output_base,
+ 		/* if the view is completely occluded then ignore that
+ 		 * view; includes the case where occluded_region covers
+ 		 * the entire output */
++		bool is_video_buf = false;
++		if (weston_view_has_valid_buffer(ev)) {
++			struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
++			struct linux_dmabuf_buffer *dmabuf = NULL;
++			if (buffer->type == WESTON_BUFFER_DMABUF) {
++				dmabuf = buffer->dmabuf;
++				if (dmabuf != NULL && dmabuf->attributes.format == DRM_FORMAT_NV12)
++					is_video_buf = true;
++				}
++		}
++
+ 		totally_occluded = !pixman_region32_not_empty(&surface_overlap);
+-		if ((b->compositor->dmabuf_v1_overlay == false || ev->is_video_buf == false) && totally_occluded) {
++		if ((b->compositor->dmabuf_v1_overlay == false || is_video_buf == false) && totally_occluded) {
+ 			drm_debug(b, "\t\t\t\t[view] ignoring view %p "
+ 			             "(occluded on our output)\n", ev);
+ 			pixman_region32_fini(&surface_overlap);
+-- 
+2.34.1
+

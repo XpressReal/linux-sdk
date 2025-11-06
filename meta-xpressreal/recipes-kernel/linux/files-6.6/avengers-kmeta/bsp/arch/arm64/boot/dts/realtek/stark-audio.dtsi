@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/* PLEASE include this file inside a node */
+/ {
+        rtk_soc: rtk_soc {
+                compatible = "realtek,rtd1619b-hifi-afe";
+                remote-cpu = <1>; /* 0: AFW 1: HIFI */
+                realtek,krpc-agent = <&hifi_kernel_agent>;
+                status = "disabled";
+        };
+
+        rtk_asoc_machine: rtk_asoc_machine {
+                compatible = "realtek,rtd1619b-hifi-mc";
+                model = "rtk_hifi";
+                status = "disabled";
+        };
+};

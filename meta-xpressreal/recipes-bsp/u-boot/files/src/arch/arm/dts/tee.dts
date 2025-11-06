@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target = <&reserved_memory>;
+
+		__overlay__ {
+			tee: optee@10000000 {
+				reg = <0x10000000 0x02000000>; /* TEE: 32MB */
+			//reg = <0x0 0x10000000 0x0 0x04000000>; /* TEE: 64MB */
+				no-map;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&firmware>;
+
+		__overlay__ {
+			optee {
+				compatible = "linaro,optee-tz";
+				method = "smc";
+			};
+		};
+	};
+};
+

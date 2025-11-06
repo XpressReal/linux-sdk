@@ -1,0 +1,26 @@
+From d1cf82aa3e52a325e3167f463666fed089a24117 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 27 May 2025 17:20:04 +0800
+Subject: [PATCH 17/17] Fix got stuck issue after quick re-seek
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2videodec.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index fa8bd79..84d6ce4 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -1211,8 +1211,6 @@ gst_v4l2_video_dec_sink_event (GstVideoDecoder * decoder, GstEvent * event)
+ 
+   switch (type) {
+     case GST_EVENT_FLUSH_START:
+-      /* The processing thread should stop now, wait for it */
+-      gst_pad_stop_task (decoder->srcpad);
+       GST_DEBUG_OBJECT (self, "flush start done");
+       break;
+     default:
+-- 
+2.34.1
+

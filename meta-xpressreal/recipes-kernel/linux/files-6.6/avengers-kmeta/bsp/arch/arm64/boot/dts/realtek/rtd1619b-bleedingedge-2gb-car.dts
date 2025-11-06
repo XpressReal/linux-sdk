@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1619b-bleedingedge.dtsi"
+
+/ {
+	compatible = "realtek,bleeding-edge", "realtek,rtd1619b";
+	model = "Realtek Bleeding Edge EVB (2GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>; /* 2 GB */
+	};
+};
+
+&audio_out {
+	pinctrl-0 = <&spdif_pins>, <&ao_pins>, <&dmic_loc0_pins>;
+	i2s {
+		status = "okay";
+		channel = <2>;
+	};
+};
+
+&i2c_3 {
+	status = "disabled";
+};
+
+&tp {
+	status = "disabled";
+};
+
+&sound_compr {
+	status = "okay";
+};
+
+&rtk_vad {
+	status = "okay";
+};
+
+&display_subsystem {
+	ports = <&vo_out>, <&voext_out>;
+	status = "okay";
+};
+
+&voext {
+	status = "okay";
+	voext_out: port {
+		voext_dsi: endpoint {
+			remote-endpoint = <&dsi_voext>;
+		};
+	};
+};
+
+&hdmi {
+	hdcp = <0>;
+	ext-flags = <0x2>; /* RTK_EXT_DIS_AVMUTE */
+};
+
+&cvbs {
+	status = "disabled";
+};
+
+&dsi {
+	status = "okay";
+
+	pwms = <&pwm 0 37926>, <&pwm 1 37926>;
+	pwm-names = "pwm-0", "pwm-1";
+
+	display-timings {
+		native-mode = <&timing0>;
+		timing0: timing0 {
+
+		};
+	};
+
+	ports {
+		dsi_in: port@0 {
+			dsi_voext: endpoint {
+				remote-endpoint = <&voext_dsi>;
+			};
+		};
+	};
+};
+
+&pwm {
+	status = "okay";
+
+	pwm_0 {
+		enable = <1>;
+		duty_rate = <50>;
+	};
+
+	pwm_1 {
+		enable = <1>;
+		duty_rate = <50>;
+	};
+};
+
+&aut_rearcam {
+	status = "okay";
+};

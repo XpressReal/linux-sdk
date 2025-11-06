@@ -1,0 +1,29 @@
+From 0b06ebbfe09d77f71818be594a43cab380b072aa Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 27 Aug 2024 10:11:35 +0800
+Subject: [PATCH] recipes-kernel: dts: align with bleedingedge to get GPU work
+
+-solve the slow display issue in backinblack EVM
+--disalbe 1.0G CPU clock
+
+Change-Id: Ie546d7ab140c13b3194a44c013fb06a8d83b7d95
+---
+ arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi  | 1 +
+ 1 file changed, 1 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+index 1e7c18d1..28a8609c 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+@@ -143,7 +143,7 @@
+ 			opp-microvolt-fss = <0>;
+ 			opp-microvolt-bsv = <0>;
+ 			clock-latency-ns = <150000>;
+-			status = "okay";
++			status = "disabled";
+ 		};
+ 
+ 		opp1100: opp-1100000000 {
+-- 
+2.47.0
+

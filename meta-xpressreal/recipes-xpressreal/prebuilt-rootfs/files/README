@@ -1,0 +1,18 @@
+There are several prebuilt deb files for Realtek Stark platform:
+
+Please use dpkg -i to install these packages if needed.
+
+Debian12 Platform
+a. libgl1-mesa-dri_22.3.6-1.deb
+   Realtek DRM patch to support mesa within Debian12, this also enable Mali G57 support
+   Be sure to re-install this again if your GPU is not enabled.
+
+b. weston_10.0.1-1_arm64.deb and libweston-10-0_10.0.1-1_arm64.deb
+   Weson patch to support 4K video play back while keeping UI in 2K mode
+   Please install these two deb files if you want to enable 4K TV system
+   Be sure to enable this in /etc/xdg/weston/weston.ini as well
+
+Ubuntu 24.04.01
+a. libgl1-mesa-dri_24.0.9-0ubuntu0.2_arm64.deb
+   Realtek DRM patch to support mesa 24 for Ubuntu 24.04.01.
+   Be sure to re-install this again if your GPU is not enabled.

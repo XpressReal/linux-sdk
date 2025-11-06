@@ -1,0 +1,205 @@
+From e3006dbae168a45c0bf76d21c146176f14280dd3 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 27 May 2025 22:02:41 +0800
+Subject: [PATCH 18/18] Do not trigger format change while only HDR metadata
+ change
+Upstream-Status: Inappropriate [rtk specific]
+---
+ sys/v4l2/gstv4l2videodec.c | 145 +++++++++++++++++++++++++++++++++++++
+ sys/v4l2/gstv4l2videodec.h |   3 +
+ 2 files changed, 148 insertions(+)
+
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index 84d6ce4..58bfbe4 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -201,6 +201,7 @@ gst_v4l2_video_dec_start (GstVideoDecoder * decoder)
+   gst_v4l2_object_unlock (self->v4l2output);
+   g_atomic_int_set (&self->active, TRUE);
+   self->output_flow = GST_FLOW_OK;
++  self->pre_caps = NULL;
+ 
+   return TRUE;
+ }
+@@ -266,6 +267,138 @@ compatible_caps (GstV4l2VideoDec * self, GstCaps * new_caps)
+   return ret;
+ }
+ 
++static gboolean
++compare_hdr_field (const GstStructure *s1, const GstStructure *s2, const gchar *field)
++{
++  const GValue *v1 = gst_structure_get_value (s1, field);
++  const GValue *v2 = gst_structure_get_value (s2, field);
++
++  if (!v1 && !v2)
++    return TRUE;
++
++  if (!v1 || !v2)
++    return FALSE;
++
++  return gst_value_compare (v1, v2) == GST_VALUE_EQUAL;
++}
++
++static gboolean
++only_hdr_metadata_changed (GstCaps *old_caps, GstCaps *new_caps)
++{
++  gboolean updated = FALSE;
++
++  g_return_val_if_fail(GST_IS_CAPS(old_caps) && GST_IS_CAPS(new_caps), FALSE);
++
++  GstCaps *old_copy = gst_caps_copy (old_caps);
++  GstCaps *new_copy = gst_caps_copy (new_caps);
++
++  GstStructure *old_struct = gst_caps_get_structure (old_copy, 0);
++  GstStructure *new_struct = gst_caps_get_structure (new_copy, 0);
++
++  gst_structure_remove_field (old_struct, "mastering-display-info");
++  gst_structure_remove_field (old_struct, "content-light-level");
++  gst_structure_remove_field (new_struct, "mastering-display-info");
++  gst_structure_remove_field (new_struct, "content-light-level");
++
++  if (!gst_caps_is_equal (old_copy, new_copy)) {
++    gst_caps_unref (old_copy);
++    gst_caps_unref (new_copy);
++    return FALSE;
++  }
++
++  updated |= compare_hdr_field (gst_caps_get_structure (old_caps, 0),
++                        gst_caps_get_structure (new_caps, 0),
++                        "mastering-display-info");
++
++  updated |= compare_hdr_field (gst_caps_get_structure (old_caps, 0),
++                        gst_caps_get_structure (new_caps, 0),
++                        "content-light-level");
++
++  gst_caps_unref (old_copy);
++  gst_caps_unref (new_copy);
++
++  return updated;
++}
++
++static gboolean
++gst_v4l2_video_dec_set_hdr_controls (GstV4l2Object * v4l2object, GstCaps * caps)
++{
++  GstVideoMasteringDisplayInfo video_master_display_info;
++  GstVideoContentLightLevel video_content_light_level;
++  struct v4l2_ext_control ext_control[2];
++  struct v4l2_ctrl_hdr10_mastering_display hdr10_mastering_display;
++  struct v4l2_ctrl_hdr10_cll_info hdr10_cll_info;
++  int count = 0;
++
++  memset (&hdr10_cll_info, 0, sizeof (struct v4l2_ctrl_hdr10_cll_info));
++  memset (&hdr10_mastering_display,
++      0, sizeof (struct v4l2_ctrl_hdr10_mastering_display));
++
++  if (gst_video_mastering_display_info_from_caps (&video_master_display_info,
++          caps)) {
++    ext_control[count].id = V4L2_CID_COLORIMETRY_HDR10_MASTERING_DISPLAY;
++    ext_control[count].size =
++      sizeof (struct v4l2_ctrl_hdr10_mastering_display);
++
++     hdr10_mastering_display.display_primaries_x[2] =
++       video_master_display_info.display_primaries[0].x;
++     hdr10_mastering_display.display_primaries_y[2] =
++       video_master_display_info.display_primaries[0].y;
++     hdr10_mastering_display.display_primaries_x[0] =
++       video_master_display_info.display_primaries[1].x;
++     hdr10_mastering_display.display_primaries_y[0] =
++       video_master_display_info.display_primaries[1].y;
++     hdr10_mastering_display.display_primaries_x[1] =
++       video_master_display_info.display_primaries[2].x;
++     hdr10_mastering_display.display_primaries_y[1] =
++       video_master_display_info.display_primaries[2].y;
++     hdr10_mastering_display.white_point_x =
++       video_master_display_info.white_point.x;
++     hdr10_mastering_display.white_point_y =
++       video_master_display_info.white_point.y;
++     hdr10_mastering_display.min_display_mastering_luminance =
++       video_master_display_info.min_display_mastering_luminance;
++     hdr10_mastering_display.max_display_mastering_luminance =
++       video_master_display_info.max_display_mastering_luminance;
++
++     ext_control[count].id = V4L2_CID_COLORIMETRY_HDR10_MASTERING_DISPLAY;
++     ext_control[count].size =
++       sizeof (struct v4l2_ctrl_hdr10_mastering_display);
++     ext_control[count].ptr = &hdr10_mastering_display;
++     count++;
++  }
++
++
++  if (gst_video_content_light_level_from_caps (&video_content_light_level,
++          caps)) {
++    hdr10_cll_info.max_content_light_level =
++        video_content_light_level.max_content_light_level;
++    hdr10_cll_info.max_pic_average_light_level =
++        video_content_light_level.max_frame_average_light_level;
++
++    ext_control[count].id = V4L2_CID_COLORIMETRY_HDR10_CLL_INFO;
++    ext_control[count].size = sizeof (struct v4l2_ctrl_hdr10_cll_info);
++    ext_control[count].ptr = &hdr10_cll_info;
++    count++;
++  }
++
++  if (count != 0) {
++    struct v4l2_ext_controls ext_controls = {
++      .ctrl_class = V4L2_CTRL_CLASS_COLORIMETRY,
++      .count = count,
++      .controls = ext_control,
++    };
++
++    if (v4l2object->ioctl (v4l2object->video_fd, VIDIOC_S_EXT_CTRLS, &ext_controls) < 0) {
++      if (errno != ENOTTY) {
++        GST_WARNING ("Failed to set HDR10 metadata, err: %s", g_strerror (errno));
++      }
++    }
++  }
++
++  return TRUE;
++}
++
+ static gboolean
+ gst_v4l2_video_dec_set_format (GstVideoDecoder * decoder,
+     GstVideoCodecState * state)
+@@ -279,6 +412,16 @@ gst_v4l2_video_dec_set_format (GstVideoDecoder * decoder,
+   GST_DEBUG_OBJECT (self, "Setting format: %" GST_PTR_FORMAT, state->caps);
+ 
+   if (self->input_state && !dyn_resolution) {
++    /* The change of HDR10 doesn't need to reset pipeline. Only need to set ext ctrl
++     * (Realtek Specific) */
++    if (self->pre_caps &&
++		only_hdr_metadata_changed (self->pre_caps, state->caps)) {
++      if (!gst_v4l2_video_dec_set_hdr_controls (self->v4l2output, state->caps))
++        GST_WARNING_OBJECT (self, "Failed to update HDR controls.");
++
++      goto done;
++    }
++
+     if (compatible_caps (self, state->caps)) {
+       GST_DEBUG_OBJECT (self, "Compatible caps");
+       goto done;
+@@ -326,6 +469,8 @@ gst_v4l2_video_dec_set_format (GstVideoDecoder * decoder,
+     gst_v4l2_error (self, &error);
+ 
+ done:
++  gst_caps_replace (&self->pre_caps, state->caps);
++
+   return ret;
+ }
+ 
+diff --git a/sys/v4l2/gstv4l2videodec.h b/sys/v4l2/gstv4l2videodec.h
+index fbbfb60..601e3cd 100644
+--- a/sys/v4l2/gstv4l2videodec.h
++++ b/sys/v4l2/gstv4l2videodec.h
+@@ -69,6 +69,9 @@ struct _GstV4l2VideoDec
+ 
+   /* Capabilities */
+   gboolean supports_source_change;
++
++  /* Previous Caps (Realtek Specific) */
++  GstCaps *pre_caps;
+ };
+ 
+ struct _GstV4l2VideoDecClass
+-- 
+2.34.1
+

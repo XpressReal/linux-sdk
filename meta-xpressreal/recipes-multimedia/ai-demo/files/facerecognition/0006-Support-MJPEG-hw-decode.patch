@@ -1,0 +1,44 @@
+From 87022722a8aae8a9fd607b2909dbf61e5d9931b6 Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Thu, 22 May 2025 01:36:53 +0000
+Subject: [PATCH 6/8] Support MJPEG hw decode
+
+[note] minor changes: modify working directory name
+---
+ tasks/face-processing/common/facedetectpipe.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index 29beb52..00983d2 100644
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -161,7 +161,7 @@ class SecondaryPipe(Pipe):
+         cmdline += ' tensor_converter !  '
+         cmdline += (' tensor_filter '
+                     ' framework=vivante model={:s} ! ') \
+-            .format("/root/nnstreamer-demo/face-processing/sample/network_binary_facenet.nb,/root/nnstreamer-demo/face-processing/sample/facenetuint8.so")
++            .format("/root/ai-demo/face-processing/sample/network_binary_facenet.nb,/root/ai-demo/face-processing/sample/facenetuint8.so")
+         cmdline += ('  tensor_sink '
+                     'name=tsink_fr emit-signal=true sync=false qos=false')
+ 
+@@ -328,7 +328,7 @@ class FaceDetectPipe(Pipe):
+         if codec == 'H264':
+             cmdline += ' parsebin ! v4l2h264dec ! '
+         elif codec == 'MJPEG':
+-            cmdline += ' jpegdec ! videoconvert ! video/x-raw,format=NV12 ! '
++            cmdline += ' v4l2jpegdec ! '
+ 
+         cmdline += ' tee name=tvideo '
+ 
+@@ -339,7 +339,7 @@ class FaceDetectPipe(Pipe):
+ 
+         cmdline += (' tensor_filter '
+                     ' framework=vivante model={:s} ! ') \
+-            .format("/root/nnstreamer-demo/face-processing/sample/network_binary_ultraface.nb,/root/nnstreamer-demo/face-processing/sample/ultrafaceuint8.so")
++            .format("/root/ai-demo/face-processing/sample/network_binary_ultraface.nb,/root/ai-demo/face-processing/sample/ultrafaceuint8.so")
+         cmdline += ' tensor_sink name=tsink_fd '
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert ! video/x-raw,format=RGB16 ! '
+-- 
+2.25.1
+

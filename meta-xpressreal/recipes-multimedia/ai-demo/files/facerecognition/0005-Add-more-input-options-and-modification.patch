@@ -1,0 +1,209 @@
+From 15d0cf5a7e97f0a7914a806ed6c5131a57994da6 Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Fri, 16 May 2025 01:22:56 +0000
+Subject: [PATCH 5/8] Add more input options and modification
+
+[Note]
+1.add input argument WINDOW and CODEC
+2.integrate npp within main pipeline
+3.change V4l2IOMode from DMABUF_IMPORT(5) to DMABUF(4)
+---
+ .../face-processing/common/facedetectpipe.py  | 44 ++++++++++++-------
+ .../example_face_detection_tflite.py          | 12 ++++-
+ .../example_face_recognition_tflite.py        | 19 ++++++--
+ 3 files changed, 55 insertions(+), 20 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index b084312..29beb52 100644
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -156,12 +156,12 @@ class SecondaryPipe(Pipe):
+             format = 'RGB'
+         elif num_channels == 1:
+             format = 'GRAY8'
+-        cmdline += ' v4l2convert name=video_crop output-io-mode=5  extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=160,height=160 ! '
++        cmdline += ' v4l2convert name=video_crop output-io-mode=4  extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=160,height=160 ! '
+ 
+         cmdline += ' tensor_converter !  '
+         cmdline += (' tensor_filter '
+                     ' framework=vivante model={:s} ! ') \
+-            .format("/root/network_binary_facenet.nb,/root/facenetuint8.so")
++            .format("/root/nnstreamer-demo/face-processing/sample/network_binary_facenet.nb,/root/nnstreamer-demo/face-processing/sample/facenetuint8.so")
+         cmdline += ('  tensor_sink '
+                     'name=tsink_fr emit-signal=true sync=false qos=false')
+ 
+@@ -233,10 +233,6 @@ class SecondaryPipe(Pipe):
+         cright = vw - box[2]
+         logging.debug('push ROI: top:%d bottom:%d left:%d right:%d', ctop,
+                       cbottom, cleft, cright)
+-        #self.videocrop.set_property('top', ctop)
+-        #self.videocrop.set_property('bottom', cbottom)
+-        #self.videocrop.set_property('left', cleft)
+-        #self.videocrop.set_property('right', cright)
+         selection = f"cid,crop-output-x={box[0]},crop-output-y={box[1]},crop-output-w={box[2]},crop-output-h={box[3]}"
+         self.videocrop.set_property("selection-targets", Gst.Structure.from_string(selection)[0])
+ 
+@@ -252,7 +248,9 @@ class FaceDetectPipe(Pipe):
+                  flip=False,
+                  secondary_pipe=None,
+                  model_directory=None,
+-                 position=(0, 0)):
++                 position=(0, 0),
++                 window=(640, 480),
++                 codec='MJPEG'):
+         """Main GStreamer pipeline running face detection on video stream.
+ 
+         It is optionally sequencing a secondary pipeline provided with the
+@@ -274,6 +272,7 @@ class FaceDetectPipe(Pipe):
+         self.video_rate = video_fps
+         self.flip = flip
+         self.position = position
++        self.window = window
+ 
+         if not os.path.exists(self.camera_device):
+             raise FileExistsError(f'cannot find camera [{self.camera_device}]')
+@@ -309,31 +308,44 @@ class FaceDetectPipe(Pipe):
+         wx = self.position[0]
+         wy = self.position[1]
+ 
++        ww = self.window[0]
++        wh = self.window[1]
++
+         ufh, ufw, _ = self.ultraface.get_model_input_shape()
+ 
+-        video_caps = ('video/x-h264, '
+-                      'width={:d},height={:d},framerate={:d}/1') \
+-            .format(vw, vh, vr)
++        if codec == 'H264':
++            video_caps = ('video/x-h264, '
++                        'width={:d},height={:d},framerate={:d}/1') \
++                .format(vw, vh, vr)
++        elif codec == 'MJPEG':
++            video_caps = ('image/jpeg, '
++                        'width={:d},height={:d},framerate={:d}/1') \
++                .format(vw, vh, vr)
+ 
+         cmdline = 'v4l2src device={:s} ! '.format(self.camera_device)
+         cmdline += ' {:s} ! '.format(video_caps)
+-        cmdline += ' parsebin ! v4l2h264dec ! '
+-        cmdline += '  tee name=tvideo '
++
++        if codec == 'H264':
++            cmdline += ' parsebin ! v4l2h264dec ! '
++        elif codec == 'MJPEG':
++            cmdline += ' jpegdec ! videoconvert ! video/x-raw,format=NV12 ! '
++
++        cmdline += ' tee name=tvideo '
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+-        #cmdline += ' v4l2convert  output-io-mode=5 extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=320,height=240,colorimetry=BT.709 ! '
+-        cmdline += ' videoconvert ! videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
++        cmdline += ' v4l2convert  output-io-mode=4 extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=320,height=240,colorimetry=BT.709 ! '
++        #cmdline += ' videoconvert ! videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
+         cmdline += ' tensor_converter ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=uint8 !  '
+ 
+         cmdline += (' tensor_filter '
+                     ' framework=vivante model={:s} ! ') \
+-            .format("/root/network_binary_ultraface.nb,/root/ultrafaceuint8.so")
++            .format("/root/nnstreamer-demo/face-processing/sample/network_binary_ultraface.nb,/root/nnstreamer-demo/face-processing/sample/ultrafaceuint8.so")
+         cmdline += ' tensor_sink name=tsink_fd '
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert ! video/x-raw,format=RGB16 ! '
+         # cairo overlay format restricted to BGRx, BGRA, RGB16
+         cmdline += ' cairooverlay name=cairooverlay ! '
+-        cmdline += f" waylandsink render-rectangle=<{wx},{wy},{vw},{vh}> sync=false "
++        cmdline += f" waylandsink render-rectangle=<{wx},{wy},{ww},{wh}> sync=false "
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+         cmdline += ('  appsink '
+diff --git a/tasks/face-processing/face-detection/example_face_detection_tflite.py b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+index e6e9308..ff9eba5 100755
+--- a/tasks/face-processing/face-detection/example_face_detection_tflite.py
++++ b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+@@ -51,6 +51,11 @@ if __name__ == '__main__':
+     parser.add_argument('--position', '-p',
+                         type=parse_tuple,
+                         help='position of video display screen, e.g. --position=100,100 or --position="(100,100)"')
++    parser.add_argument('--window', '-w',
++                        type=parse_tuple,
++                        help='display window size, e.g. --window=640,480 or --window="(640,480)"')
++    parser.add_argument('--codec', '-k', type=str, choices=['H264', 'MJPEG'],
++                        default='MJPEG', help='video codec to be used, default=MJPEG')
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -63,9 +68,14 @@ if __name__ == '__main__':
+     vr = args.resolution if args.resolution else (640, 360)
+     fps = args.fps if args.fps else 30
+     pos = args.position if args.position else (0, 0)
++    win = args.window if args.window else vr
++    codec = args.codec.upper()
+     secondary = None
+ 
++    if win[0] > vr[0] or win[1] > vr[1]:
++        parser.error(f"Window size must be no bigger than resolution, got {win}")
++
+     pipe = FaceDetectPipe(camera_device=camera_device, video_resolution=vr,
+                           video_fps=fps, flip=flip, secondary_pipe=secondary,
+-                          position=pos)
++                          position=pos, window=win, codec=codec)
+     pipe.run()
+diff --git a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+index ae943f8..74f9a0e 100644
+--- a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
++++ b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+@@ -32,7 +32,7 @@ class FaceRecoPipe(FaceDetectPipe):
+ 
+     def __init__(self, camera_device, video_resolution=(640, 480),
+                  video_fps=30, flip=False, secondary_pipe=None, model_directory=None,
+-                 position=(0, 0)):
++                 position=(0, 0), window=(640, 480), codec='MJPEG'):
+         """Subclass FaceDetectPipe.
+ 
+         Derived class implements specific functions relevant to this example:
+@@ -56,7 +56,9 @@ class FaceRecoPipe(FaceDetectPipe):
+             flip,
+             secondary_pipe,
+             model_directory,
+-            position)
++            position,
++            window,
++            codec)
+ 
+         # reference to secondary pipe FaceNet model instance
+         self.facenet = self.secondary_pipe.model
+@@ -349,6 +351,11 @@ if __name__ == '__main__':
+     parser.add_argument('--position', '-p',
+                         type=parse_tuple,
+                         help='position of video display window, e.g. --position=100,100 or --position="(100,100)"')
++    parser.add_argument('--window', '-w',
++                        type=parse_tuple,
++                        help='display window size, e.g. --window=640,480 or --window="(640,480)"')
++    parser.add_argument('--codec', '-k', type=str, choices=['H264', 'MJPEG'],
++                        default='MJPEG', help='video codec to be used, default=MJPEG')
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -361,6 +368,11 @@ if __name__ == '__main__':
+     vr = args.resolution if args.resolution else (640, 360)
+     fps = args.fps if args.fps else 30
+     pos = args.position if args.position else (0, 0)
++    win = args.window if args.window else vr
++    codec = args.codec.upper()
++
++    if win[0] > vr[0] or win[1] > vr[1]:
++        parser.error(f"Window size must be no bigger than resolution, got {win}")
+ 
+     # secondary pipeline uses FaceNet model
+     pwd = os.path.dirname(os.path.abspath(__file__))
+@@ -373,5 +385,6 @@ if __name__ == '__main__':
+     # main pipeline for face detection
+     pipe = FaceRecoPipe(camera_device=camera_device, video_resolution=vr,
+                         video_fps=fps, flip=flip, secondary_pipe=secondary,
+-                        model_directory=models_dir, position=pos)
++                        model_directory=models_dir, position=pos, window=win,
++                        codec=codec)
+     pipe.run()
+-- 
+2.25.1
+

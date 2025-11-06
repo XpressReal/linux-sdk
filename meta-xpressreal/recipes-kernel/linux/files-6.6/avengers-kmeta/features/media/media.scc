@@ -1,0 +1,7 @@
+patch 840-Add-Realtek-media-related-drivers.patch
+patch 841-Add-irda-driver-for-Realtek-DHC-SoCs.patch
+patch 845-enable-rtk-rproc-driver.patch
+patch 845-01-kernel-rproc-add-avcert-load-flow.patch
+patch 845-02-remoteproc-stark-vcpu-Add-prepare-action-for-rpc_flag-init.patch
+
+kconf hardware media.cfg

@@ -1,0 +1,95 @@
+From b2414d46c00e767b1c91e569451780a63edbe940 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 9 Sep 2025 13:17:39 +0800
+Subject: [PATCH] kvmd: modify index.html to switch between legacy and webrc
+
+---
+ web/kvm/index.html   | 29 +++++++++++++++++++----------
+ web/login/index.html |  2 +-
+ 2 files changed, 20 insertions(+), 11 deletions(-)
+
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index 37a047e4..f26b62f1 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -239,8 +239,8 @@
+                     <div class="radio-box">
+                       <input type="radio" id="stream-mode-radio-janus" name="stream-mode-radio" value="janus">
+                       <label for="stream-mode-radio-janus">WebRTC<br>H.264</label>
+-                      <input type="radio" id="stream-mode-radio-media" name="stream-mode-radio" value="media">
+-                      <label for="stream-mode-radio-media">Direct<br>H.264</label>
++                      <!--input type="radio" id="stream-mode-radio-media" name="stream-mode-radio" value="media">
++                      <label for="stream-mode-radio-media">Direct<br>H.264</label-->
+                       <input type="radio" id="stream-mode-radio-mjpeg" name="stream-mode-radio" value="mjpeg" checked>
+                       <label for="stream-mode-radio-mjpeg">Legacy<br>MJPEG</label>
+                     </div>
+@@ -262,7 +262,8 @@
+                     </div>
+                   </td>
+             </tr>
+-            <tr class="feature-disabled" id="stream-audio">
++            <!--tr id="stream-audio"-->
++            <tr>
+                   <td>Audio volume:
+                   </td>
+                   <td class="value-slider">
+@@ -799,12 +800,14 @@
+           </table>
+           <table class="kv">
+             <tr>
+-                  <td>Delay between keys:
++                  <td>Slow typing:
+                   </td>
+-                  <td class="value-slider">
+-                    <input type="range" id="hid-pak-delay-slider">
++                  <td align="right">
++                    <div class="switch-box">
++                      <input type="checkbox" id="hid-pak-slow-switch">
++                      <label for="hid-pak-slow-switch"><span class="switch-inner"></span><span class="switch"></span></label>
++                    </div>
+                   </td>
+-                  <td class="value-number" id="hid-pak-delay-value"></td>
+             </tr>
+             <tr>
+                   <td>Hide input text:
+@@ -1012,9 +1015,15 @@
+         </div>
+       </div>
+       <div id="stream-info"></div>
++      <audio id="stream-audio" autoplay></audio>
++<!--div>
++  <label>Audio Volume：</label>
++  <input id="stream-audio-volume-slider" type="range" min="0" max="100" value="0">
++  <span id="stream-audio-volume-value">50%</span>
++</div-->
+       <button class="window-button-exit-full-tab">&#9660;</button>
+-      <div class="stream-box-offline" id="stream-box"><img id="stream-image" src="../share/png/blank-stream.png">
+-        <video class="hidden" id="stream-video" disablePictureInPicture="true" autoplay playsinline muted></video>
++      <div id="stream-box"><img id="stream-image" src="../share/png/blank-stream.png">
++        <video class="hidden" id="stream-video" disablePictureInPicture="true" autoplay playsinline></video>
+         <canvas class="hidden" id="stream-canvas"></canvas>
+         <div id="stream-fullscreen-active"></div>
+       </div>
+@@ -3005,4 +3014,4 @@
+       <li class="right"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></li>
+     </ul>
+   </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/web/login/index.html b/web/login/index.html
+index 7d7e12c2..95a8832d 100644
+--- a/web/login/index.html
++++ b/web/login/index.html
+@@ -25,7 +25,7 @@
+ <html lang="en">
+   <head>
+     <meta charset="utf-8">
+-    <title>PiKVM Login</title>
++    <title>Demo Login</title>
+     <link rel="apple-touch-icon" sizes="180x180" href="../share/apple-touch-icon.png">
+     <link rel="icon" type="image/png" sizes="32x32" href="../share/favicon-32x32.png">
+     <link rel="icon" type="image/png" sizes="16x16" href="../share/favicon-16x16.png">
+-- 
+2.34.1
+

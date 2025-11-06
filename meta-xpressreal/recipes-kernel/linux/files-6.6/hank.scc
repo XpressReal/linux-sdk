@@ -1,0 +1,7 @@
+define KMACHINE pymparticles-rtd1319
+define KTYPE standard
+define KARCH arm64
+
+include avengers.scc
+include features/rtknic/hank.scc
+kconf hardware hank.cfg

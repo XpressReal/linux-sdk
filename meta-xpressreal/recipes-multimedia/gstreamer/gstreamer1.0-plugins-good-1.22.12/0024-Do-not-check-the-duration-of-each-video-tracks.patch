@@ -1,0 +1,108 @@
+From 1c9c2dd3cc610e52ed0c4efae37e317a465f2ca6 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 29 Sep 2025 19:06:02 +0800
+Subject: [PATCH 1/1] Do not check the duration of each video tracks
+Upstream-Status: Inappropriate [rtk specific]
+---
+ gst/isomp4/qtdemux.c | 44 +++++++++++++++++++++++++++++++++++++++++++-
+ gst/isomp4/qtdemux.h |  1 +
+ 2 files changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/gst/isomp4/qtdemux.c b/gst/isomp4/qtdemux.c
+index a53d61e..e94f33a 100644
+--- a/gst/isomp4/qtdemux.c
++++ b/gst/isomp4/qtdemux.c
+@@ -242,6 +242,15 @@ struct _QtDemuxAavdEncryptionInfo
+   GstStructure *default_properties;
+ };
+ 
++#define DEFAULT_PROP_NOCHECK_HEADER_TIME TRUE
++
++enum
++{
++  PROP_0,
++  PROP_NOCHECK_HEADER_TIME,
++  PROP_LAST
++};
++
+ static const gchar *
+ qt_demux_state_string (enum QtDemuxState state)
+ {
+@@ -395,6 +404,30 @@ static void gst_qtdemux_reset (GstQTDemux * qtdemux, gboolean hard);
+ static void qtdemux_clear_protection_events_on_all_streams (GstQTDemux *
+     qtdemux);
+ 
++static void gst_qtdemux_set_property(GObject * object, guint prop_id, const GValue * value, GParamSpec * pspec)
++{
++  GstQTDemux *qtdemux = GST_QTDEMUX(object);
++  switch (prop_id) {
++    case PROP_NOCHECK_HEADER_TIME:
++      qtdemux->nocheck_header_time = g_value_get_boolean (value);
++      break;
++    default:
++      break;
++  }
++}
++
++static void gst_qtdemux_get_property(GObject * object, guint prop_id, GValue * value, GParamSpec * pspec)
++{
++  GstQTDemux *qtdemux = GST_QTDEMUX(object);
++  switch (prop_id) {
++    case PROP_NOCHECK_HEADER_TIME:
++      g_value_set_boolean (value, qtdemux->nocheck_header_time);
++      break;
++    default:
++      break;
++  }
++}
++
+ static void
+ gst_qtdemux_class_init (GstQTDemuxClass * klass)
+ {
+@@ -409,6 +442,14 @@ gst_qtdemux_class_init (GstQTDemuxClass * klass)
+   gobject_class->dispose = gst_qtdemux_dispose;
+   gobject_class->finalize = gst_qtdemux_finalize;
+ 
++  gobject_class->set_property = gst_qtdemux_set_property;
++  gobject_class->get_property = gst_qtdemux_get_property;
++
++  g_object_class_install_property (gobject_class, PROP_NOCHECK_HEADER_TIME,
++      g_param_spec_boolean ("nocheck-header-time", "No check Header time",
++          "No check header time", FALSE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
+   gstelement_class->change_state = GST_DEBUG_FUNCPTR (gst_qtdemux_change_state);
+ #if 0
+   gstelement_class->set_index = GST_DEBUG_FUNCPTR (gst_qtdemux_set_index);
+@@ -461,6 +502,7 @@ gst_qtdemux_init (GstQTDemux * qtdemux)
+   GST_OBJECT_FLAG_SET (qtdemux, GST_ELEMENT_FLAG_INDEXABLE);
+ 
+   gst_qtdemux_reset (qtdemux, TRUE);
++  qtdemux->nocheck_header_time = DEFAULT_PROP_NOCHECK_HEADER_TIME;
+ }
+ 
+ static void
+@@ -11267,7 +11309,7 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
+      * some of those trailers, nowadays, have prologue images that are
+      * themselves video tracks as well. I haven't really found a way to
+      * identify those yet, except for just looking at their duration. */
+-    if (tdur1 != 0 && (tdur2 * 10 / tdur1) < 2) {
++    if (!qtdemux->nocheck_header_time && (tdur1 != 0 && (tdur2 * 10 / tdur1) < 2)) {
+       GST_WARNING_OBJECT (qtdemux,
+           "Track shorter than 20%% (%" G_GUINT64_FORMAT "/%" G_GUINT32_FORMAT
+           " vs. %" G_GUINT64_FORMAT "/%" G_GUINT32_FORMAT ") of the stream "
+diff --git a/gst/isomp4/qtdemux.h b/gst/isomp4/qtdemux.h
+index 830ed2f..f8b3f30 100644
+--- a/gst/isomp4/qtdemux.h
++++ b/gst/isomp4/qtdemux.h
+@@ -276,6 +276,7 @@ struct _GstQTDemux {
+    * fields. */
+   gboolean received_seek;
+   gboolean first_moof_already_parsed;
++  gboolean nocheck_header_time;
+ };
+ 
+ struct _GstQTDemuxClass {
+-- 
+2.34.1
+

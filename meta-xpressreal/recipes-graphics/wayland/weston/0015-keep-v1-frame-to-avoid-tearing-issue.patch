@@ -1,0 +1,88 @@
+From e638fd9abcc55b23140bbd10c7e40396b6eddfad Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 6 Feb 2025 01:31:50 -0500
+Subject: [PATCH] keep v1 frame to avoid tearing issue
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c                     |  1 +
+ include/libweston/libweston.h         |  1 +
+ libweston/backend-drm/drm-internal.h  |  5 +++++
+ libweston/backend-drm/state-helpers.c | 21 ++++++++++++++++++---
+ 4 files changed, 25 insertions(+), 3 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 8550a5f..c34280c 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3079,6 +3079,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 					   &config.use_sw_cursor, false);
+ 
+ 	weston_config_section_get_bool(section, "dmabuf-v1-overlay", &c->dmabuf_v1_overlay, false);
++	weston_config_section_get_bool(section, "v1-keep-frame", &c->v1_keep_frame, false);
+ 	weston_config_section_get_bool(section, "full-damage", &c->full_damage, false);
+ 	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index fee5f33..6c03261 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1520,6 +1520,7 @@ struct weston_compositor {
+ 	} output_capture;
+ 
+ 	bool dmabuf_v1_overlay;
++	bool v1_keep_frame;
+ 	bool has_video_overlay;
+ 	bool transparent_fade_layer;
+ 	bool gbm_afbc;
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index ee2e88c..e26f6bd 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -551,6 +551,11 @@ struct drm_plane {
+ 	/*scanout plane need to use triple buffer*/
+ 	struct gbm_bo *prev_bo;
+ 
++	struct {
++		struct weston_buffer_reference buffer;
++		struct weston_buffer_release_reference release;
++	} prev_fb_ref;
++
+ 	int32_t src_x, src_y;
+ 	uint32_t src_w, src_h;
+ 	int32_t dest_x, dest_y;
+diff --git a/libweston/backend-drm/state-helpers.c b/libweston/backend-drm/state-helpers.c
+index b8fe7d8..80934ec 100644
+--- a/libweston/backend-drm/state-helpers.c
++++ b/libweston/backend-drm/state-helpers.c
+@@ -103,9 +103,24 @@ drm_plane_state_free(struct drm_plane_state *state, bool force)
+ 
+ 	if (force || state != state->plane->state_cur) {
+ 		drm_fb_unref(state->fb);
+-		weston_buffer_reference(&state->fb_ref.buffer, NULL,
+-					BUFFER_WILL_NOT_BE_ACCESSED);
+-		weston_buffer_release_reference(&state->fb_ref.release, NULL);
++		bool video_keep_frame = false;
++		if (state->fb != NULL) {
++			if (state->fb->type == BUFFER_DMABUF && state->plane->type == WDRM_PLANE_TYPE_OVERLAY && state->fb->backend->compositor->v1_keep_frame == true) {
++				weston_buffer_reference(&state->plane->prev_fb_ref.buffer, NULL,
++							BUFFER_WILL_NOT_BE_ACCESSED);
++				weston_buffer_release_reference(&state->plane->prev_fb_ref.release, NULL);
++				state->plane->prev_fb_ref.buffer = state->fb_ref.buffer;
++				state->plane->prev_fb_ref.release = state->fb_ref.release;
++				video_keep_frame = true;
++			}
++		}
++
++		if (video_keep_frame == false) {
++			weston_buffer_reference(&state->fb_ref.buffer, NULL,
++						BUFFER_WILL_NOT_BE_ACCESSED);
++			weston_buffer_release_reference(&state->fb_ref.release, NULL);
++		}
++
+ 		free(state);
+ 	}
+ }
+-- 
+2.34.1
+

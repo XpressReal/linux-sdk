@@ -1,0 +1,26 @@
+From c16852f80d7ba762b1d9ac46c4a2c4527abb4ce1 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Mon, 4 Aug 2025 10:21:09 +0800
+Subject: [PATCH] use __version__ instead of __about__.__version__
+
+-new bcrypt module doesn't support __about__.__version__
+---
+ bcrypt.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/passlib/handlers/bcrypt.py b/passlib/handlers/bcrypt.py
+index 3042784..f0e28d3 100644
+--- a/passlib/handlers/bcrypt.py
++++ b/passlib/handlers/bcrypt.py
+@@ -621,7 +621,7 @@ class _BcryptBackend(_BcryptCommon):
+         except ImportError: # pragma: no cover
+             return False
+         try:
+-            version = _bcrypt.__about__.__version__
++            version = _bcrypt.__version__
+         except:
+             log.warning("(trapped) error reading bcrypt version", exc_info=True)
+             version = '<unknown>'
+-- 
+2.34.1
+

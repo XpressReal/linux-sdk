@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1501.dtsi"
+#include <dt-bindings/soc/realtek,pm.h>
+
+/* debug console (J1) */
+&uart0 {
+	status = "okay";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	//realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port1 {
+	//realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	status = "okay";
+};
+
+&emmc {
+	hs400_force_tuning = <0x1>;
+	status = "okay";
+};
+
+&psci {
+	status = "disabled";
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&irda {
+	status = "okay";
+};
+
+&rtk_pm {
+	wakeup-flags = <NORMAL_MODE>;
+	wakeup-gpio-list = <18 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>,
+			   <31 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>;
+	wakeup-timer = <0>;
+	status = "okay";
+};
+
+&rtk_smcc {
+	status = "okay";
+};
+
+&i2c_1 {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+	krpc-second = <1>;
+};
+
+&dlsr_rproc {
+	status = "disabled";
+};
+
+&kr4_rproc {
+	status = "disabled";
+};
+
+&vcpu_rproc {
+	status = "disabled";
+};
+
+&hifi_rpmsg {
+	rproc = <&hifi_rproc>;
+};
+
+&vcpu_rpmsg {
+	status = "disabled";
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "okay";
+	};
+
+	riscv-fw@5000000 {
+		reg = <0x0 0x05000000 0x0 0x03a00000>;  /* riscv FW 58MB */
+		no-map;
+	};
+
+	cluster-hifi-vo@40000000 {
+		reg = <0x0 0x40000000 0x0 0x00040000>;  /* Cluster to Hifi vo 256kb */
+		no-map;
+	};
+
+	tee@10000000 {
+		status = "okay";
+	};
+
+	bootlogo_reserved: buffer@2f700000 {
+		status = "okay";
+	};
+
+	linux,cma {
+		alloc-ranges=<0x0 0x00000000 0x0 0x40000000>;
+		size = <0x0 0x04000000>; /* 64M */
+	};
+
+	cma_vo_dsc3:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x0c000000>;		    /* 192M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x20000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	cma_audio_ssc1:audio_ssc1 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_ao_ssc6:ao_ssc6 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_hifi_b1p5:hifi_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x04000000>;		    /* 64M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x00000000 0x0 0x20000000>;
+		reusable;
+	};
+
+	/delete-node/linux,cma_1;
+	/delete-node/linux,cma_2;
+	/delete-node/bl31-mem@10001000;
+};

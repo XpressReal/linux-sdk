@@ -1,0 +1,127 @@
+diff --git a/rtl8733bu/os_dep/linux/ioctl_cfg80211.c b/rtl8733bu/os_dep/linux/ioctl_cfg80211.c
+index 3136943b..5eaa1554 100644
+--- a/rtl8733bu/os_dep/linux/ioctl_cfg80211.c
++++ b/rtl8733bu/os_dep/linux/ioctl_cfg80211.c
+@@ -1163,7 +1163,7 @@ check_bss:
+ 		#endif
+ 
+ 		#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+-		#if defined(CONFIG_MLD_KERNEL_PATCH)
++		#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 		roam_info.links[0].bssid = cur_network->network.MacAddress;
+ 		#else	
+ 		roam_info.bssid = cur_network->network.MacAddress;
+@@ -1949,7 +1949,7 @@ exit:
+ }
+ 
+ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev
+-#ifdef CONFIG_MLD_KERNEL_PATCH
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 	, int link_id
+ #endif
+ 	, u8 key_index
+@@ -2114,7 +2114,7 @@ addkey_end:
+ }
+ 
+ static int cfg80211_rtw_get_key(struct wiphy *wiphy, struct net_device *ndev
+-#ifdef CONFIG_MLD_KERNEL_PATCH
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 	, int link_id
+ #endif
+ 	, u8 keyid
+@@ -2305,7 +2305,7 @@ exit:
+ }
+ 
+ static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev
+-#ifdef CONFIG_MLD_KERNEL_PATCH
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 	, int link_id
+ #endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+@@ -2328,7 +2328,7 @@ static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev
+ }
+ 
+ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy, struct net_device *ndev
+-#ifdef CONFIG_MLD_KERNEL_PATCH
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 	, int link_id
+ #endif
+ 	, u8 key_index
+@@ -2379,7 +2379,7 @@ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy, struct net_device *
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+ int cfg80211_rtw_set_default_mgmt_key(struct wiphy *wiphy, struct net_device *ndev
+-#ifdef CONFIG_MLD_KERNEL_PATCH
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ 	, int link_id
+ #endif
+ 	, u8 key_index)
+diff --git a/rtl8733bu/os_dep/linux/os_intfs.c b/rtl8733bu/os_dep/linux/os_intfs.c
+index 45216f35..4d2e22ea 100644
+--- a/rtl8733bu/os_dep/linux/os_intfs.c
++++ b/rtl8733bu/os_dep/linux/os_intfs.c
+@@ -2159,7 +2159,11 @@ int rtw_os_ndev_register(_adapter *adapter, const char *name)
+ 	u8 rtnl_lock_needed = rtw_rtnl_lock_needed(dvobj);
+ 
+ #ifdef CONFIG_RTW_NAPI
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll);
++#else
+ 	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll, RTL_NAPI_WEIGHT);
++#endif
+ #endif /* CONFIG_RTW_NAPI */
+ 
+ #if defined(CONFIG_IOCTL_CFG80211)
+diff --git a/rtl8733bu/os_dep/linux/rtw_proc.c b/rtl8733bu/os_dep/linux/rtw_proc.c
+index b49a9643..36af1469 100644
+--- a/rtl8733bu/os_dep/linux/rtw_proc.c
++++ b/rtl8733bu/os_dep/linux/rtw_proc.c
+@@ -37,6 +37,8 @@ inline struct proc_dir_entry *get_rtw_drv_proc(void)
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0))
+ #define PDE_DATA(inode) PDE((inode))->data
+ #define proc_get_parent_data(inode) PDE((inode))->parent->data
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
++#define PDE_DATA pde_data
+ #endif
+ 
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
+diff --git a/rtl8733bu/os_dep/linux/wifi_regd.c b/rtl8733bu/os_dep/linux/wifi_regd.c
+index 81e1dc75..a11e21b5 100644
+--- a/rtl8733bu/os_dep/linux/wifi_regd.c
++++ b/rtl8733bu/os_dep/linux/wifi_regd.c
+@@ -405,7 +405,7 @@ int rtw_regd_init(struct wiphy *wiphy)
+ 	wiphy->regulatory_flags &= ~REGULATORY_DISABLE_BEACON_HINTS;
+ #endif
+ 
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 39))
+ 	wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
+ #endif
+ 
+diff --git a/rtl8733bu/os_dep/osdep_service.c b/rtl8733bu/os_dep/osdep_service.c
+index bf4bc1fe..41467bbb 100644
+--- a/rtl8733bu/os_dep/osdep_service.c
++++ b/rtl8733bu/os_dep/osdep_service.c
+@@ -1309,7 +1309,11 @@ u32 _rtw_down_sema(_sema *sema)
+ inline void thread_exit(_completion *comp)
+ {
+ #ifdef PLATFORM_LINUX
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+ 	complete_and_exit(comp, 0);
++#else
++	kthread_complete_and_exit(comp, 0);
++#endif
+ #endif
+ 
+ #ifdef PLATFORM_FREEBSD
+@@ -2990,7 +2994,9 @@ u64 rtw_division64(u64 x, u64 y)
+ inline u32 rtw_random32(void)
+ {
+ #ifdef PLATFORM_LINUX
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	return get_random_u32();
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	return prandom_u32();
+ #elif (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18))
+ 	u32 random_int;

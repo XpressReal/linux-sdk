@@ -1,0 +1,137 @@
+From 4aebe3b5bdcf39d22b9b89fd88757f2949a11af3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 26 Aug 2025 02:29:47 -0400
+Subject: [PATCH] dts: use HiFi as AO instead
+
+---
+ .../boot/dts/realtek/rtd1619b-backinblack-2gb.dts      | 10 +++++-----
+ .../boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts     | 10 +++++-----
+ .../boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts     | 10 +++++-----
+ 3 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+index add7cbfe250b..0fcc5e3fa825 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+@@ -100,11 +100,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-pcm";
++	compatible = "realtek,rtk-alsa-hifi";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <0>; /* 0: AFW 1: HIFI */
++	remote-cpu = <1>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -112,11 +112,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
++	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+ };
+ 
+@@ -145,7 +145,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "disabled";
++		status = "okay";
+ 	};
+ 
+ 	ve3-rpmsg {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+index 842cbc8fb854..43b3dd5f99c7 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+@@ -52,11 +52,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-pcm";
++	compatible = "realtek,rtk-alsa-hifi";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <0>; /* 0: AFW 1: HIFI */
++	remote-cpu = <1>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -64,11 +64,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-    status = "disabled";
++    status = "okay";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
++	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+ };
+ 
+@@ -97,7 +97,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "disabled";
++		status = "okay";
+ 	};
+ 
+ 	ve3-rpmsg {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+index 1213bf6c9c84..cde2bbcc2541 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+@@ -57,11 +57,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-pcm";
++	compatible = "realtek,rtk-alsa-hifi";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <0>; /* 0: AFW 1: HIFI */
++	remote-cpu = <1>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -69,11 +69,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
++	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+ };
+ 
+@@ -102,7 +102,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "disabled";
++		status = "okay";
+ 	};
+ 
+ 	ve3-rpmsg {
+-- 
+2.34.1
+

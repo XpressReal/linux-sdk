@@ -1,0 +1,27 @@
+From 495d5208a445d6dc6f3f0b1db50422eec3346c78 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Thu, 19 Jun 2025 15:02:47 +0800
+Subject: [PATCH] WORKAROUND: regulator: tps6287x: set PGBLNKDVS to 1 for CPU
+ DVFS
+
+Change-Id: I8ed9a7ab19f35f35bbf47b59bc3b3f2be908f967
+---
+ drivers/regulator/tps6287x-regulator.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/regulator/tps6287x-regulator.c b/drivers/regulator/tps6287x-regulator.c
+index 5979183a94cb..6271f7b2f1ae 100644
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -138,6 +138,8 @@ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+ 		return PTR_ERR(rdev);
+ 	}
+ 
++	regmap_write(config.regmap, TPS6287X_CTRL3, 1);
++
+ 	dev_dbg(dev, "Probed regulator\n");
+ 
+ 	return 0;
+-- 
+2.47.0
+

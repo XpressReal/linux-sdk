@@ -1,0 +1,44 @@
+From ab649552f0f5e56bcdf078ae2146b3a15c108c8a Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 5 Jun 2025 23:19:31 -0400
+Subject: [PATCH] SW-9314: add NV16 and RGB888 to support mjpeg render
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/renderer-gl/gl-renderer.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
+index 591c764..b94be5a 100644
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -281,6 +281,17 @@ struct yuv_format_descriptor yuv_formats[] = {
+ 			.format = DRM_FORMAT_GR88,
+ 			.plane_index = 1
+ 		}}
++    }, {
++        .format = DRM_FORMAT_NV16,
++        .output_planes = 2,
++        .shader_variant = SHADER_VARIANT_Y_UV,
++        {{
++            .format = DRM_FORMAT_R8,
++            .plane_index = 0
++        }, {
++            .format = DRM_FORMAT_GR88,
++            .plane_index = 1
++        }}
+ 	}, {
+ 		.format = DRM_FORMAT_P010,
+ 		.output_planes = 2,
+@@ -4037,6 +4048,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV420);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV444);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV16);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB888);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
+-- 
+2.34.1
+

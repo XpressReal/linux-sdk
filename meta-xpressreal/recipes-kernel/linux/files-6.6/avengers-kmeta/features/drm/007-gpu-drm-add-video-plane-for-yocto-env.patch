@@ -1,0 +1,51 @@
+From 722afd2a85efd45c2108aade5e493ce86e990059 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 14 May 2025 03:33:52 -0400
+Subject: [PATCH] gpu: drm: add video plane for yocto env
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c  | 3 +++
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 6 +++---
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index e99bf80480cc..05dcbb193b69 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -685,6 +685,9 @@ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = 2 },
++	{ .layer_nr = VO_VIDEO_PLANE_V1,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = 1 },
+ };
+ #endif
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 19b6ab4baedb..ed51c15bdf56 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -530,7 +530,7 @@ static int rtk_plane_update_cursor(struct drm_plane *plane)
+ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ {
+ 	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
+-	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
++//	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
+ 	struct drm_framebuffer *fb = plane->state->fb;
+ 	struct drm_gem_object *gem[4];
+ 	struct rtk_gem_object *rtk_gem[4];
+@@ -621,8 +621,8 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 
+ 		index = s->display_idx;
+ 		obj->context = index;
+-		obj->pLock = rtk_fence->pLock_paddr+index;
+-		obj->pReceived = rtk_fence->pReceived_paddr+index;
++//		obj->pLock = rtk_fence->pLock_paddr+index;
++//		obj->pReceived = rtk_fence->pReceived_paddr+index;
+ 		obj->PTSH = decObj->PTSH;
+ 		obj->PTSL = decObj->PTSL;
+ 		obj->RPTSH = decObj->RPTSH;
+-- 
+2.34.1
+

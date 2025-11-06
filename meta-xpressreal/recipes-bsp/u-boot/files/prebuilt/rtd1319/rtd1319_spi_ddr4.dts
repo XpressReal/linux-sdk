@@ -1,0 +1,88 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	binman {
+		filename = "bind.bin";
+		allow-repack;
+		section@1 {
+			/* 640KB: 256k(u-boot-env),384(u-boot-spl)ro */
+			size = <0x000A0000>;
+			pad-byte = <0xff>;
+			fill@0 {
+				size = <0x40000>;
+				fill-byte = [ff];
+			};
+			fill@1 {
+				size = <0x800>;
+				fill-byte = [ff];
+			};
+			blob@1 {
+				filename = "bootarray_fw_table/spi_bootarray_fw_table.bin";
+				size = <0x400>;
+			};
+			blob@2 {
+				filename = "scs_certificate/SCS_Certificate.bin";
+				size = <0x400>;
+			};
+			blob@3 {
+				filename = "scs_param/0001/SCS_Params_Area_RTD1319_hwsetting_BOOT_2DDR4_8Gb_s2400.spi.bin";
+				size = <0x2200>;
+			};
+			blob@4 {
+				filename = "auxcode/Auxcode_Area.bin";
+				size = <0x14000>;
+			};
+			blob@5 {
+				filename = "u-boot-spl.bin_pad";
+				size = <0x22A00>; /* 134.5K/138.5K */
+			};
+			blob@6 {
+				filename = "atf_certificate/ATF_Certificate.bin";
+				size = <0x400>;
+			};
+			blob@7 {
+				filename = "pcpu_certificate/PCPU_Certificate.bin";
+				size = <0x400>;
+			};
+			fill@2 {
+				size = <0x400>;
+				fill-byte = [ff];
+			};
+			blob@8 {
+				filename = "afw_certificate/AFW_Certificate.bin";
+				size = <0x400>;
+			};
+			blob@9 {
+				filename = "rtk_param/RTK_Params_Area.smpv2.uboot.spi.bin";
+				size = <0x24c>; /* 588 */
+			};
+			blob@10 {
+				filename = "pcpu/PCPU_Code_Area.smpv2.bin";
+				size = <0x7000>;
+			};
+			blob@11 {
+				filename = "bl31/BL31_Area.smpv2.bin";
+				size = <0xF114>;
+			};
+			fill@3 {
+				size = <0xF0A0>;
+				fill-byte = [ff];
+			};
+		};
+		section@2 {
+			pad-byte = <0xff>;
+			blob@1 {
+				filename = "u-boot.img";
+			};
+		};
+		fdtmap {
+		};
+		image-header {
+			location = "end";
+		};
+	};
+};

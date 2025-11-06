@@ -1,0 +1,25 @@
+From b841b689d37d8f8cc20750dfff39b0a481f60121 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 30 Jun 2025 02:04:49 -0400
+Subject: [PATCH] snd: alsa: fix no avaiable buffer size
+
+---
+ sound/soc/realtek/common/snd-hifi-realtek.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/realtek/common/snd-hifi-realtek.h b/sound/soc/realtek/common/snd-hifi-realtek.h
+index 48552eabfb31..a528e62d43e0 100644
+--- a/sound/soc/realtek/common/snd-hifi-realtek.h
++++ b/sound/soc/realtek/common/snd-hifi-realtek.h
+@@ -43,7 +43,7 @@ extern struct rtk_krpc_ept_info *hifi_ept_info;
+ #define RTK_DMP_PLAYBACK_MAX_BUFFER_SIZE         (4096 * 1024)
+ #define RTK_DMP_PLAYBACK_MIN_PERIOD_SIZE         1024
+ #define RTK_DMP_PLAYBACK_MAX_PERIOD_SIZE         (2048 * 1024)
+-#define RTK_DMP_PLAYBACK_PERIODS_MIN             2
++#define RTK_DMP_PLAYBACK_PERIODS_MIN             4
+ #define RTK_DMP_PLAYBACK_PERIODS_MAX             4096
+ #define RTK_DMP_PLAYBACK_FIFO_SIZE               32
+ 
+-- 
+2.34.1
+

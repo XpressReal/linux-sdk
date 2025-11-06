@@ -1,0 +1,57 @@
+From 86a76c51ec135d0c9eb7588abc9def71683be058 Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Tue, 30 Sep 2025 16:16:26 +0800
+Subject: [PATCH] fix memory leak in qtdemux_parse_trak
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst/isomp4/qtdemux.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/gst/isomp4/qtdemux.c b/gst/isomp4/qtdemux.c
+index e94f33a..03dc19f 100644
+--- a/gst/isomp4/qtdemux.c
++++ b/gst/isomp4/qtdemux.c
+@@ -13067,6 +13067,9 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
+             goto corrupt_file;
+           }
+ 
++          if (entry->caps)
++            gst_caps_unref (entry->caps);
++
+           entry->caps = gst_codec_utils_opus_create_caps (rate, n_channels,
+               channel_mapping_family, stream_count, coupled_count,
+               channel_mapping);
+@@ -13461,6 +13464,9 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
+       entry->sampled = TRUE;
+       entry->sparse = TRUE;
+ 
++      if (entry->caps)
++        gst_caps_unref (entry->caps);
++
+       entry->caps =
+           qtdemux_sub_caps (qtdemux, stream, entry, fourcc, stsd_entry_data,
+           &codec);
+@@ -13504,6 +13510,9 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
+       entry->sampled = TRUE;
+       entry->sparse = TRUE;
+ 
++      if (entry->caps)
++        gst_caps_unref (entry->caps);
++
+       entry->caps =
+           qtdemux_meta_caps (qtdemux, stream, entry, fourcc, stsd_entry_data,
+           &codec);
+@@ -13521,6 +13530,9 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
+       /* everything in 1 sample */
+       entry->sampled = TRUE;
+ 
++      if (entry->caps)
++        gst_caps_unref (entry->caps);
++
+       entry->caps =
+           qtdemux_generic_caps (qtdemux, stream, entry, fourcc, stsd_entry_data,
+           &codec);
+-- 
+2.45.2
+

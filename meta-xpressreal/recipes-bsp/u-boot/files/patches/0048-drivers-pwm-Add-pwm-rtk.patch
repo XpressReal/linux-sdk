@@ -1,0 +1,49 @@
+From 7adb18c77ab1e547324eae322bfde6cc13997be8 Mon Sep 17 00:00:00 2001
+From: Eric Wang <ericwang@realtek.com>
+Date: Fri, 23 May 2025 14:09:30 +0800
+Subject: pwm: Add pwm-rtk driver
+Source: Realtek
+License: GPLV2
+Upstream-Status: Pending
+
+---
+ drivers/pwm/Kconfig  | 13 +++++++++++++
+ drivers/pwm/Makefile |  1 +
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/pwm/Kconfig b/drivers/pwm/Kconfig
+index 6e79868d0ef..209252d6631 100644
+--- a/drivers/pwm/Kconfig
++++ b/drivers/pwm/Kconfig
+@@ -68,6 +68,19 @@ config PWM_MTK
+ 	  This PWM is found on MT7622, MT7623, and MT7629. It supports a
+ 	  programmable period and duty cycle.
+ 
++config PWM_RTK
++	bool "Enable support for Realtek PWM"
++	depends on DM_PWM
++	help
++	  This PWM is found on DHC STB SoCs. It supports a programmable 
++          period and duty cycle.
++
++config PWM_RTK_CMD
++	bool "Enable support for Realtek PWM commands"
++	depends on PWM_RTK
++	help
++	  These PWM commands support to configure PWM functions.
++
+ config PWM_ROCKCHIP
+ 	bool "Enable support for the Rockchip PWM"
+ 	depends on DM_PWM
+diff --git a/drivers/pwm/Makefile b/drivers/pwm/Makefile
+index e4d10c8dc3e..c2d6945230d 100644
+--- a/drivers/pwm/Makefile
++++ b/drivers/pwm/Makefile
+@@ -24,3 +24,4 @@ obj-$(CONFIG_PWM_SIFIVE)	+= pwm-sifive.o
+ obj-$(CONFIG_PWM_TEGRA)		+= tegra_pwm.o
+ obj-$(CONFIG_PWM_SUNXI)		+= sunxi_pwm.o
+ obj-$(CONFIG_PWM_TI_EHRPWM)	+= pwm-ti-ehrpwm.o
++obj-$(CONFIG_PWM_RTK)			+= pwm-rtk.o
+-- 
+2.49.0
+

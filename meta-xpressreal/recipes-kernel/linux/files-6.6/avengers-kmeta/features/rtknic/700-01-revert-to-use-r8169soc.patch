@@ -1,0 +1,37 @@
+From 29dd60505774c045007b35e600fbfadcb15fe501 Mon Sep 17 00:00:00 2001
+Date: Tue, 29 Apr 2025 18:51:08 +0800
+Subject: [PATCH] revert to use r8169soc driver
+
+---
+ drivers/net/ethernet/realtek/Kconfig  | 2 +-
+ drivers/net/ethernet/realtek/Makefile | 1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/realtek/Kconfig b/drivers/net/ethernet/realtek/Kconfig
+index 7fdc4a66685e..9bb148d814db 100644
+--- a/drivers/net/ethernet/realtek/Kconfig
++++ b/drivers/net/ethernet/realtek/Kconfig
+@@ -117,7 +117,7 @@ config R8169SOC
+ 	tristate "Realtek STB SoC 8169soc ethernet support"
+ 	depends on ARCH_REALTEK
+ 	select CRC32
+-	select PHYLIB
++	select MII
+ 	help
+ 	  Say Y here if you have a embedded Realtek STB SoC Ethernet interface.
+ 
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index abca1c81c1c4..6aa0dd5a3183 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -8,7 +8,6 @@ obj-$(CONFIG_8139TOO) += 8139too.o
+ obj-$(CONFIG_ATP) += atp.o
+ r8169-objs += r8169_main.o r8169_firmware.o r8169_phy_config.o
+ obj-$(CONFIG_R8169) += r8169.o
+-r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
+ obj-$(CONFIG_R8169SOC) += r8169soc.o
+ obj-$(CONFIG_R8168) += r8168/
+ obj-$(CONFIG_R8125) += r8125/
+-- 
+2.34.1
+

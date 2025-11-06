@@ -1,0 +1,14 @@
+patch 001-Add-DRM-driver-for-Realtek-DHC-SoCs.patch
+patch 002-gpu-drm-realtek-add-atomic-nonblock-api.patch
+patch 003-support-raspberrypi-touchscreen.patch
+patch 004-add-innolux-n080jce-g41-1200x1920-panel.patch
+patch 005-add-patch-for-yocto.patch
+patch 006-gpu-drm-drm-frame-buffer-emulation-for-virtual-conso.patch
+patch 007-gpu-drm-add-video-plane-for-yocto-env.patch
+patch 008-gpu-drm-fix-black-screen-issue-when-change-tv-system.patch
+patch 009-gpu-drm-remove-1920x720-tv-mode-the-mode-is-only-nee.patch
+patch 010-gpu-drm-realtek-add-vic-4-16-95-to-default-modes-whe.patch
+patch 012-kernel-gpu-drm-do-not-use-CLUSTER-flow.patch
+patch 013-drm-sync-mixer-plane-to-chromebook.patch
+
+kconf hardware drm.cfg

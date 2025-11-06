@@ -1,0 +1,4 @@
+patch 400-Add-nand-flash-controller-driver.patch
+patch 401-Add-spi-nand-ecc-driver-for-kent.patch
+
+kconf hardware nand.cfg

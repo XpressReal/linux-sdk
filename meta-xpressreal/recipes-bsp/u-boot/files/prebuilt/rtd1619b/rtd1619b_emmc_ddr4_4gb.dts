@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1619b_emmc.dtsi"
+
+&binman {
+	filename = "bind_4gb.bin";
+};
+
+&scs_param {
+	filename = "scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_16Gb_sdp_s2666.ddr.bin";
+};

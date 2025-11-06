@@ -1,0 +1,44 @@
+From 84d60891bee02dde15a74c3530b5dc8c569ad775 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 30 Jul 2025 19:15:08 +0800
+Subject: [PATCH 2/2] otg: remove inquiry_string_cdrom since kernel 6.6 doesn't
+ have this
+
+---
+ kvmd/apps/otg/__init__.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/kvmd/apps/otg/__init__.py b/kvmd/apps/otg/__init__.py
+index 670c03c1..ebbf7bcd 100644
+--- a/kvmd/apps/otg/__init__.py
++++ b/kvmd/apps/otg/__init__.py
+@@ -210,7 +210,7 @@ class _GadgetConfig:
+         _write(join(func_path, "lun.0/ro"), int(not rw))
+         _write(join(func_path, "lun.0/removable"), int(removable))
+         _write(join(func_path, "lun.0/nofua"), int(not fua))
+-        _write(join(func_path, "lun.0/inquiry_string_cdrom"), inquiry_string_cdrom)
++        #_write(join(func_path, "lun.0/inquiry_string_cdrom"), inquiry_string_cdrom)
+         _write(join(func_path, "lun.0/inquiry_string"), inquiry_string_flash)
+         if user != "root":
+             _chown(join(func_path, "lun.0/cdrom"), user)
+@@ -311,7 +311,7 @@ def _cmd_start(config: Section) -> None:  # pylint: disable=too-many-statements,
+         gc.add_msd(
+             start=cod.msd.start,
+             user=config.otg.user,
+-            inquiry_string_cdrom=usb.make_inquiry_string(**cod.msd.default.inquiry_string.cdrom._unpack()),
++            inquiry_string_cdrom="RTK-CDROM",
+             inquiry_string_flash=usb.make_inquiry_string(**cod.msd.default.inquiry_string.flash._unpack()),
+             **cod.msd.default._unpack(ignore="inquiry_string"),
+         )
+@@ -321,7 +321,7 @@ def _cmd_start(config: Section) -> None:  # pylint: disable=too-many-statements,
+                 gc.add_msd(
+                     start=cod.drives.start,
+                     user="root",
+-                    inquiry_string_cdrom=usb.make_inquiry_string(**cod.drives.default.inquiry_string.cdrom._unpack()),
++                    inquiry_string_cdrom="RTK-CDROM",
+                     inquiry_string_flash=usb.make_inquiry_string(**cod.drives.default.inquiry_string.flash._unpack()),
+                     **cod.drives.default._unpack(ignore="inquiry_string"),
+                 )
+-- 
+2.34.1
+

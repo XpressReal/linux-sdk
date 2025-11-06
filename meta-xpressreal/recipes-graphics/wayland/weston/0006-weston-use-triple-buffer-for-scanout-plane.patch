@@ -1,0 +1,92 @@
+From 7bd4dc38f27d8fabb0eca2be441bda40f1f9f5ad Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 8 Oct 2024 14:04:03 +0800
+Subject: [PATCH] weston use triple buffer for scanout plane
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-internal.h |  6 ++++++
+ libweston/backend-drm/drm.c          |  2 ++
+ libweston/backend-drm/fb.c           | 14 +++++++++++++-
+ 3 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 48bc243..26b912f 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -418,6 +418,9 @@ struct drm_fb {
+ 
+ 	/* Used by dumb fbs */
+ 	void *map;
++
++	/*scanout plane need to use triple buffer*/
++	struct drm_plane *scanout_plane;
+ };
+ 
+ struct drm_buffer_fb {
+@@ -544,6 +547,9 @@ struct drm_plane {
+ 	struct wl_list link;
+ 
+ 	struct weston_drm_format_array formats;
++
++	/*scanout plane need to use triple buffer*/
++	struct gbm_bo *prev_bo;
+ };
+ 
+ struct drm_connector {
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 3a03f4c..4b41df1 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -426,6 +426,7 @@ drm_output_render(struct drm_output_state *state)
+ 		goto out;
+ 	}
+ 
++	fb->scanout_plane = scanout_plane;
+ 	scanout_state->fb = fb;
+ 	scanout_state->output = output;
+ 
+@@ -1110,6 +1111,7 @@ drm_plane_create(struct drm_device *device, const drmModePlane *kplane)
+ 		return NULL;
+ 	}
+ 
++	plane->prev_bo = NULL;
+ 	plane->device = device;
+ 	plane->state_cur = drm_plane_state_alloc(NULL, plane);
+ 	plane->state_cur->complete = true;
+diff --git a/libweston/backend-drm/fb.c b/libweston/backend-drm/fb.c
+index 8c200b8..50694ce 100644
+--- a/libweston/backend-drm/fb.c
++++ b/libweston/backend-drm/fb.c
+@@ -504,6 +504,7 @@ drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_device *device,
+ 	if (fb == NULL)
+ 		return NULL;
+ 
++	fb->scanout_plane = NULL;
+ 	fb->type = type;
+ 	fb->refcnt = 1;
+ 	fb->backend = device->backend;
+@@ -579,8 +580,19 @@ drm_fb_unref(struct drm_fb *fb)
+ 		gbm_bo_destroy(fb->bo);
+ 		break;
+ 	case BUFFER_GBM_SURFACE:
+-		gbm_surface_release_buffer(fb->gbm_surface, fb->bo);
++	{
++		if (fb->scanout_plane)
++		{
++			if (fb->scanout_plane->prev_bo) {
++				gbm_surface_release_buffer(fb->gbm_surface, fb->scanout_plane->prev_bo);
++			}
++
++			fb->scanout_plane->prev_bo = fb->bo;
++		} else {
++			gbm_surface_release_buffer(fb->gbm_surface, fb->bo);
++		}
+ 		break;
++	}
+ 	case BUFFER_DMABUF:
+ 		drm_fb_destroy_dmabuf(fb);
+ 		break;
+-- 
+2.34.1
+

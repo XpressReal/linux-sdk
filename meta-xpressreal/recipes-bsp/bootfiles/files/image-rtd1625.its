@@ -1,0 +1,134 @@
+/dts-v1/;
+
+/ {
+    description = "U-Boot fitImage for rtd1625 aarch64 kernel";
+    #address-cells = <1>;
+
+    images {
+        kernel-1 {
+            description = "Linux Kernel";
+            data = /incbin/("./kernel.lzo");
+            type = "kernel";
+            arch = "arm64";
+            os = "linux";
+            compression = "lzo";
+            load = <0x01200000>; /* ALIGN(0x01008000, SZ_2M); */
+            entry = <0x01200000>;
+            hash-1 {
+                algo = "sha256";
+            };
+            /* cipher {
+                algo = "aes256";
+                key-name-hint = "kernelkey";
+                //iv-name-hint = "aesiv"; // Remove this for IV in the FIT image
+            }; */
+        };
+        fdt-1 {
+            description = "Normal DTB";
+            data = /incbin/("./boot.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x03000000>;
+            hash-1 {
+                algo = "sha256";
+            };
+            /* cipher {
+                algo = "aes256";
+                key-name-hint = "ubootkey";
+            }; */
+        };
+        fdt-2 {
+            description = "Rescue DTB";
+            data = /incbin/("./rescue.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x03000000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+        fdt-phantom{
+            description = "Phantom";
+            data = /incbin/("./rtd1501s-phantom-8gb.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x03000000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+        ramdisk-1 {
+            description = "Rescue initrd";
+            data = /incbin/("./rescue.root.cpio.xz");
+            type = "ramdisk";
+            arch = "arm64";
+            os = "linux";
+            compression = "none";
+            load = <0x03100000>;
+            entry = <0x03100000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+    };
+    configurations {
+        default = "normal";
+        normal {
+            description = "Normal boot with FDT blob";
+            kernel = "kernel-1";
+            fdt = "fdt-1";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "kernel";
+                sign-images = "fdt", "kernel";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "kernel";
+            };
+        };
+        rescue {
+            description = "Rescue boot with FDT blob + initrd";
+            kernel = "kernel-1";
+            fdt = "fdt-2";
+            ramdisk = "ramdisk-1";
+            signature {
+                algo = "sha256,rsa2048";
+                key-name-hint = "prod";
+            };
+            signature-0 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "uboot";
+            };
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "kernel";
+                sign-images = "fdt", "kernel", "ramdisk";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "kernel", "ramdisk";
+            };
+        };
+        rtd1501s-phantom {
+            description = "rtd1501s-phantom";
+            kernel = "kernel-1";
+            fdt = "fdt-phantom";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "kernel";
+                sign-images = "fdt", "kernel";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "kernel";
+            };
+        };
+    };
+};

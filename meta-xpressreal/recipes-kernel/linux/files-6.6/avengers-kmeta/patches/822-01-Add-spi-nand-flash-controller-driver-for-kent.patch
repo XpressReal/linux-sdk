@@ -1,0 +1,59 @@
+From 8549837166b0648a4b70b617bf13eeed99306f2c Mon Sep 17 00:00:00 2001
+From: Jyan Chou <jyanchou@realtek.com>
+Date: Fri, 15 Nov 2024 18:05:29 +0800
+Subject: [PATCH 434/611] [NEW_FEATURE] flash:spinor:update rtk spi-nor driver
+ with spi-mem interface support
+
+Change-Id: I325b588ff1267bd54c83cdbd5eb217f63bedf28a
+---
+ drivers/spi/Kconfig      |   6 +
+ drivers/spi/Makefile     |   1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index ba8d62eb3944..5f4e1f54366f 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -1122,6 +1122,18 @@ config SPI_UNIPHIER
+ 
+ 	  If your SoC supports SCSSI, say Y here.
+ 
++config SPI_RTKNOR
++	tristate "SPI device driver support for RTK NOR"
++	depends on SPI_MASTER
++	help
++	  Enables SPI Nor controller driver for RTK SoC.
++
++config SPI_RTK_NAND
++	tristate "RTK SPI NAND controller"
++	depends on SPI_MASTER
++	help
++	  Enables SPI Nand controller driver for RTK SoC.
++
+ config SPI_XCOMM
+ 	tristate "Analog Devices AD-FMCOMMS1-EBZ SPI-I2C-bridge driver"
+ 	depends on I2C
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index ac043fc1cf7b..c6dcb6e49587 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_SPI_DW_BT1)		+= spi-dw-bt1.o
+ obj-$(CONFIG_SPI_DW_MMIO)		+= spi-dw-mmio.o
+ obj-$(CONFIG_SPI_DW_PCI)		+= spi-dw-pci.o
+ obj-$(CONFIG_SPI_DW_RTK)		+= spi-dw-rtk.o
++obj-$(CONFIG_SPI_RTKNOR)                += spi-rtknor.o
+ obj-$(CONFIG_SPI_EP93XX)		+= spi-ep93xx.o
+ obj-$(CONFIG_SPI_FALCON)		+= spi-falcon.o
+ obj-$(CONFIG_SPI_FSI)			+= spi-fsi.o
+@@ -154,7 +154,7 @@ obj-$(CONFIG_SPI_XTENSA_XTFPGA)		+= spi-xtensa-xtfpga.o
+ obj-$(CONFIG_SPI_ZYNQ_QSPI)		+= spi-zynq-qspi.o
+ obj-$(CONFIG_SPI_ZYNQMP_GQSPI)		+= spi-zynqmp-gqspi.o
+ obj-$(CONFIG_SPI_AMD)			+= spi-amd.o
+-
++obj-$(CONFIG_SPI_RTK_NAND)              += spi-rtk-sn.o
+ # SPI slave protocol handlers
+ obj-$(CONFIG_SPI_SLAVE_TIME)		+= spi-slave-time.o
+ obj-$(CONFIG_SPI_SLAVE_SYSTEM_CONTROL)	+= spi-slave-system-control.o
+-- 
+2.47.0
+

@@ -1,0 +1,402 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1920S Smallville EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include "rtd1920.dtsi"
+#include "rtd1920s-z0e.rds.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=10 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/";
+		stdout-path = "serial0:460800n8";
+	};
+
+	backlight_lcd0: backlight-lcd0 {
+		compatible = "pwm-backlight";
+		brightness-levels = <0 1023>;
+		default-brightness-level = <576>;
+		enable-gpios = <&gpio 17 GPIO_ACTIVE_HIGH>;
+		num-interpolated-steps = <1023>;
+		pinctrl-0 = <&pwm4_pins>;
+		pinctrl-names = "default";
+		power-supply = <&regulator_vcc3v3>;
+		pwms = <&pwm 4 500000>;
+		status = "okay";
+	};
+};
+
+&sdio {
+	wifi-rst-gpios = <&gpio 27 GPIO_ACTIVE_HIGH>;
+	wifi-rst-shared;
+	device-power-supply = <&wlan_supp>;
+};
+
+&pcie0 {
+	device-power-gpios = <&gpio 136 GPIO_ACTIVE_HIGH>;
+};
+
+&pcie1 {
+	device-power-supply = <&wlan_supp>;
+};
+
+&hdmi {
+	hdmi-supply = <&hdmi_supp>;
+	ext-flags = <0x8>;
+};
+
+&nic {
+	status = "disabled";
+};
+
+&{/} {
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1625-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <0>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp1000: opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <830000 830000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1100: opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <850000 850000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1200: opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <870000 870000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1300: opp-1300000000 {
+			opp-hz = /bits/ 64 <1300000000>;
+			opp-microvolt = <890000 890000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1400: opp-1400000000 {
+			opp-hz = /bits/ 64 <1400000000>;
+			opp-microvolt = <910000 910000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1500: opp-1500000000 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <930000 930000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1600: opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <990000 990000 1100000>;
+			clock-latency-ns = <150000>;
+			opp-suspend;
+			status = "okay";
+		};
+
+		opp1700: opp-1700000000 {
+			opp-hz = /bits/ 64 <1700000000>;
+			opp-microvolt = <1010000 1010000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1800: opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1030000 1030000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1900: opp-1900000000 {
+			opp-hz = /bits/ 64 <1900000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+};
+
+&gpio {
+	gpio-line-names = "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "AP_FLASH_WP_L";
+};
+
+&i2c_4 {
+        rt5650: rt5650@1a {
+                compatible = "realtek,rt5650";
+                reg = <0x1a>;
+                interrupt-parent = <&gpio>;
+                interrupts = <107 IRQ_TYPE_EDGE_BOTH>;
+                realtek,jd-mode = <2>;
+        };
+};
+
+&rtk_sof {
+        status = "okay";
+	intr-syscon = <&sb2>;
+	ipc-syscon = <&sb2_pmu>;
+};
+
+&rtk_asoc_machine {
+        pinctrl-names = "default";
+        pinctrl-0 = <&ao_i2s0_loc0_pins>, <&ao_i2s0_pins>, <&ao_i2s1_loc0_no_mck_pins>, <&ai_i2s0_d0_pins>, <&ai_dmic0_pins>;
+        realtek,audio-platform = <&rtk_sof>;
+        realtek,audio-codec = <&rt5650>;
+	realtek,hdmi-audio = <&hdmi>;
+	realtek,dp-audio = <&dp>;
+        realtek,dai-link = "RDAI_I2S","RDAI_I2S1","RDAI_DMIC","RDAI_HDMI","RDAI_DP";
+        status = "okay";
+};
+
+&rtk_pm {
+	wakeup-gpio-list = <50 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>;
+};
+
+&hifi_rpmsg {
+        skip-handshake;
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-850500000 {
+			opp-hz = /bits/ 64 <850500000>;
+			opp-hz-real = /bits/ 64 <850500000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&sdio {
+	status = "disabled";
+};
+
+&sdcard {
+	status = "disabled";
+};
+
+&i2c_3 {
+	touchpad@15 {
+		compatible = "elan,ekth3000";
+		reg = <0x15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&trackpad_pins>;
+		interrupt-parent = <&gpio>;
+		interrupts = <50 IRQ_TYPE_EDGE_FALLING>;
+		wakeup-source;
+	};
+};
+
+&spi_2 {
+	status = "okay";
+
+	cr50: cr50@0 {
+		compatible = "google,cr50";
+		reg = <0x0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gsc_pins>;
+		interrupt-parent = <&gpio>;
+		interrupts = <43 IRQ_TYPE_EDGE_RISING>;
+		spi-max-frequency = <16000000>;
+	};
+};
+
+&edp {
+	status = "okay";
+	vcc-gpios = <&gpio 134 GPIO_ACTIVE_HIGH>;
+};
+
+&dp {
+	status = "disabled";
+	/*extcon = <&usbc_extcon0>;*/
+};
+
+&ec_typec {
+	usb_c1: connector@1 {
+		compatible = "usb-c-connector";
+		reg = <1>;
+		label = "left2";
+		power-role = "dual";
+		data-role = "host";
+		try-power-role = "source";
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@1 {
+				reg = <1>;
+
+				typec_port1: endpoint { };
+			};
+		};
+	};
+};
+
+&regulator_vcc3v3{
+	status = "okay";
+};
+
+&cpu_thermal {
+	sustainable-power = <1000>;
+};
+
+&cpu_desired {
+	temperature = <90000>;
+	hysteresis = <0>;
+	type = "passive";
+};
+
+&gpio {
+	status = "okay";
+	touch-pin-reset {
+		gpio-hog;
+		gpios = <48 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "touch-pin-reset";
+	};
+
+	touch-pin-report-en {
+		gpio-hog;
+		gpios = <49 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "touch-pin-report-en";
+	};
+
+	touch-pin-power {
+		gpio-hog;
+		gpios = <44 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "touch-pin-power";
+	};
+};
+
+&i2c_6 {
+	clock-frequency = <400000>;
+	pinctrl-0 = <&i2c6_loc1_pins>, <&i2c6_loc1_sel_pins>;
+	status = "okay";
+
+	touchscreen@10 {
+		compatible = "hid-over-i2c";
+		reg = <0x10>;
+		interrupt-parent = <&gpio>;
+		interrupts = <164 IRQ_TYPE_EDGE_FALLING>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_164_pins>;
+
+		hid-descr-addr = <0x1>;
+		post-power-on-delay-ms = <100>;
+		status = "okay";
+	};
+};
+

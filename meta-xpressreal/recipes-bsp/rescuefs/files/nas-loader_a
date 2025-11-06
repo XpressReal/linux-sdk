@@ -1,0 +1,128 @@
+#!/bin/sh
+# This script is used to replace hotplug for NAS
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+FNAME="[nas-loader_a]"
+
+DIRP="/run/media"
+
+IMAGE_FILES="yocto.wic.xz yocto.wic"
+DL_IMAGE_FILE="/tmp/${IMAGE_FILES%% *}"
+
+MMC_IDX=`test -b /dev/mmcblk1 && echo 1 || echo 0`
+
+FourGB="`expr $(grep MemTotal: /proc/meminfo | cut -F 2) / 1024 \> 3072`"
+SUFFIX="`test $FourGB -eq 1 && echo _4gb`"
+BOOT_AREA_FILES="rtd1619b_emmc_bind${SUFFIX}.bin rtd1619b_emmc_bind.bin rtd1625_emmc_bind.bin"
+
+do_xz_install()
+{
+    ret=-1
+
+    if [ -e /usr/bin/pixz ];then
+        echo "[pixz -d < $1 > /dev/mmcblk${MMC_IDX}]"
+        pixz -d < $1 > /dev/mmcblk${MMC_IDX}
+        ret=$?
+    fi
+    if [ $ret != 0 ]; then
+        echo "[do pixz failed, change to xzcat]"
+        echo "[xzcat $1 > /dev/mmcblk${MMC_IDX}]"
+        xzcat $1 > /dev/mmcblk${MMC_IDX}
+    fi
+}
+
+upgrade() {
+    case "$2" in
+        "wic")
+            dd if=$1 of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
+            ;;
+        "xz")
+            do_xz_install $1
+            ;;
+        *)
+            echo "File format is not supported" > /dev/console
+	    return 1
+            ;;
+    esac
+
+    [ $? -eq 0 ] \
+    && resize_fs \
+    && upgrade_spl \
+    && reboot \
+    && return 0
+    return 1
+}
+
+resize_fs() {
+partprobe /dev/mmcblk${MMC_IDX}
+echo "Resizing eMMC partition /dev/mmcblk${MMC_IDX}p${MMC_PART} on with full capacity"
+MMC_PART=`cat /proc/partitions | grep mmcblk${MMC_IDX}p | wc -l`
+parted ---pretend-input-tty /dev/mmcblk${MMC_IDX} << EOF
+print
+Fix
+resizepart ${MMC_PART} -0
+quit
+EOF
+
+e2fsck -fy /dev/mmcblk${MMC_IDX}p${MMC_PART}
+resize2fs /dev/mmcblk${MMC_IDX}p${MMC_PART}
+
+return 0
+}
+
+upgrade_spl() {
+
+echo "Upgrade eMMC boot area 0 and 1"
+
+mkdir -p /mnt
+mount /dev/mmcblk${MMC_IDX}p1 /mnt || return 0
+
+for BOOT_AREA_FILE in $BOOT_AREA_FILES; do
+if [ -f /mnt/$BOOT_AREA_FILE ]; then
+
+if [ -b /dev/mmcblk0 ]; then
+echo 0 > /sys/block/mmcblk0boot0/force_ro; dd if=/mnt/$BOOT_AREA_FILE of=/dev/mmcblk0boot0 bs=4096
+echo 0 > /sys/block/mmcblk0boot1/force_ro; dd if=/mnt/$BOOT_AREA_FILE of=/dev/mmcblk0boot1 bs=4096
+fi
+break
+fi
+done
+
+umount /mnt
+
+sync;sync;sync
+
+return 0
+
+}
+
+netdl(){
+ifconfig eth0 &> /dev/null || return
+udhcpc -n || return
+mount -o remount,size=90% /tmp
+nc -l -p 16198 -w 5 > "$1" || return $?
+mkdir -p $DIRP/netdl
+mv "$1" $DIRP/netdl
+}
+
+netdl "$DL_IMAGE_FILE" || rm -f "$DL_IMAGE_FILE"
+
+while [ ! -f /tmp/.upgrading ]; do
+    for device in "$DIRP"/*; do
+        if [ -d "$device" ]; then
+
+            for file in $IMAGE_FILES; do
+                if [ -f "$device/$file" ]; then
+                    base_name="${file##*/}"
+                    ext_name="${base_name##*.}"
+
+                    echo "Found file: $file in $device" > /dev/console
+                    touch /tmp/.upgrading && upgrade "$device/$file" $ext_name && exit 0 || rm /tmp/.upgrading
+                fi
+            done
+        fi
+    done
+    sleep 1
+done
+

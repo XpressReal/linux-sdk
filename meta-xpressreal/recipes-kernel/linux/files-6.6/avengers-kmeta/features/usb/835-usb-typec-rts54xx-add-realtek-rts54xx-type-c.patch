@@ -1,0 +1,51 @@
+From ece8a3df8b9378b9de2e7ef09707dd8a79df38bb Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Fri, 24 Jan 2025 17:14:45 +0800
+Subject: [PATCH 457/611] [FEATURE] usb: typec: rts54xx: add realtek rts54xx
+ type c pd controller driver
+
+[PLATFORM] Kent (RTD1861)
+[TEST] Kent (RTD1861/RTD1920)
+[JIRA] SW-8491
+
+Change-Id: I53d0e74897980b8b23da78959d8468299a3a0c09
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/typec/Kconfig   |   10 +
+ drivers/usb/typec/Makefile  |    1 +
+ create mode 100644 drivers/usb/typec/rts54xx.c
+
+diff --git a/drivers/usb/typec/Kconfig b/drivers/usb/typec/Kconfig
+index 2f80c2792dbd..2c5e70003e34 100644
+--- a/drivers/usb/typec/Kconfig
++++ b/drivers/usb/typec/Kconfig
+@@ -110,6 +110,16 @@ config TYPEC_WUSB3801
+ 	  If you choose to build this driver as a dynamically linked module, the
+ 	  module will be called wusb3801.ko.
+ 
++config TYPEC_RTS54XX
++	tristate "Realtek RTS54xx Type-C driver"
++	depends on I2C
++	help
++	  This driver for support Realtek RTS54xx Type-C controller over I2C
++	  interface.
++
++	  To compile the driver as a module, choose M here: the module will be
++	  called rts54xx.
++
+ source "drivers/usb/typec/mux/Kconfig"
+ 
+ source "drivers/usb/typec/altmodes/Kconfig"
+diff --git a/drivers/usb/typec/Makefile b/drivers/usb/typec/Makefile
+index 7a368fea61bc..e9d3835b440f 100644
+--- a/drivers/usb/typec/Makefile
++++ b/drivers/usb/typec/Makefile
+@@ -11,4 +11,5 @@ obj-$(CONFIG_TYPEC_HD3SS3220)	+= hd3ss3220.o
+ obj-$(CONFIG_TYPEC_STUSB160X) 	+= stusb160x.o
+ obj-$(CONFIG_TYPEC_RT1719)	+= rt1719.o
+ obj-$(CONFIG_TYPEC_WUSB3801)	+= wusb3801.o
++obj-$(CONFIG_TYPEC_RTS54XX) 	+= rts54xx.o
+ obj-$(CONFIG_TYPEC)		+= mux/
+-- 
+2.47.0
+

@@ -1,0 +1,6 @@
+define KMACHINE bleedingedge-rtd1619b
+define KTYPE standard
+define KARCH arm64
+
+include avengers.scc
+kconf hardware stark.cfg

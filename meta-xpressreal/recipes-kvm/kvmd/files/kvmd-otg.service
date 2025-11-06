@@ -1,0 +1,14 @@
+[Unit]
+Description=PiKVM - OTG setup
+After=systemd-modules-load.service
+Before=kvmd.service
+
+[Service]
+Type=oneshot
+#ExecStartPre=/usr/bin/mkdir -p /run/kvmd
+ExecStart=/usr/bin/kvmd-otg start
+ExecStop=/usr/bin/kvmd-otg stop
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,148 @@
+From 6f35205c9f514ecd23e1ee7afdceafbcd23bb785 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Mon, 1 Apr 2024 11:08:44 +0800
+Subject: [PATCH] kernel: drivers: clk: add pll_scpu in rtd1619b-cc
+
+Change-Id: I460c4c6099b033117e57df61e19d5b94e1b3467f
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi | 16 +++------
+ drivers/clk/realtek/clk-rtd1619b-cc.c     | 43 +++++++++++++++++++++++
+ 2 files changed, 47 insertions(+), 12 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 72ef2cfc3148..061d04599327 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -250,7 +250,7 @@ cpu0: cpu@0 {
+ 			reg = <0x0>;
+ 			enable-method = "psci";
+ 			next-level-cache = <&l2_0>;
+-			clocks = <&tee_clk>;
++			clocks = <&cc RTD1619B_CRT_PLL_SCPU>;
+ 
+ 			l2_0: l2-cache {
+ 				compatible = "cache";
+@@ -269,7 +269,7 @@ cpu1: cpu@100 {
+ 			reg = <0x100>;
+ 			enable-method = "psci";
+ 			next-level-cache = <&l2_1>;
+-			clocks = <&tee_clk>;
++			clocks = <&cc RTD1619B_CRT_PLL_SCPU>;
+ 
+ 			l2_1: l2-cache {
+ 				compatible = "cache";
+@@ -288,7 +288,7 @@ cpu2: cpu@200 {
+ 			reg = <0x200>;
+ 			enable-method = "psci";
+ 			next-level-cache = <&l2_2>;
+-			clocks = <&tee_clk>;
++			clocks = <&cc RTD1619B_CRT_PLL_SCPU>;
+ 
+ 			l2_2: l2-cache {
+ 				compatible = "cache";
+@@ -307,7 +307,7 @@ cpu3: cpu@300 {
+ 			reg = <0x300>;
+ 			enable-method = "psci";
+ 			next-level-cache = <&l2_3>;
+-			clocks = <&tee_clk>;
++			clocks = <&cc RTD1619B_CRT_PLL_SCPU>;
+ 
+ 			l2_3: l2-cache {
+ 				compatible = "cache";
+@@ -1178,14 +1178,6 @@ ac: rtd1xxx-ac.0 {
+ 		compatible = "realtek,rtd1xxx-ac";
+ 	};
+ 
+-	tee_clk: tee-clocks {
+-		compatible = "realtek,tee-clock-controller";
+-		#clock-cells = <0>;
+-
+-		assigned-clocks = <&tee_clk>;
+-		assigned-clock-rates = <1500000000>;
+-        };
+-
+ 	rtk_vad: rtk-vad {
+ 		compatible = "realtek,rtk-vad";
+ 		realtek,krpc-agent = <&hifi_kernel_agent>;
+diff --git a/drivers/clk/realtek/clk-rtd1619b-cc.c b/drivers/clk/realtek/clk-rtd1619b-cc.c
+index e0915d6d3a90..044984934dc2 100644
+--- a/drivers/clk/realtek/clk-rtd1619b-cc.c
++++ b/drivers/clk/realtek/clk-rtd1619b-cc.c
+@@ -13,12 +13,38 @@
+ #include <dt-bindings/reset/rtd1619b-reset.h>
+ #include "common.h"
+ 
++#define DIV_DV(_r, _d, _v)    { .rate = _r, .div = _d, .val = _v, }
+ #define FREQ_NF_MASK          (0x7FFFF)
+ #define FREQ_NF(_r, _n, _f)   { .rate = _r, .val = ((_n) << 11) | (_f), }
+ #define FREQ_MNO_MASK         (0xe3FF0)
+ #define FREQ_MNO(_r, _m, _n, _o) \
+ 	{ .rate = _r, .val = ((_m) << 4) | ((_n) << 12) | ((_o) << 17), }
+ 
++static const struct div_table scpu_div_tbl[] = {
++	DIV_DV(1000000000,  1, 0x00),
++	DIV_DV(500000000,   2, 0x88),
++	DIV_DV(250000000,   4, 0x90),
++	DIV_DV(200000000,   8, 0xA0),
++	DIV_DV(100000000,  10, 0xA8),
++	DIV_TABLE_END
++};
++
++static const struct freq_table scpu_tbl[] = {
++	FREQ_NF(1000000000, 34,   75),
++	FREQ_NF(1100000000, 37, 1517),
++	FREQ_NF(1200000000, 41,  910),
++	FREQ_NF(1200000000, 41,    0),
++	FREQ_NF(1300000000, 45,  303),
++	FREQ_NF(1400000000, 48, 1745),
++	FREQ_NF(1500000000, 52, 1137),
++	FREQ_NF(1600000000, 56,  530),
++	FREQ_NF(1700000000, 60,    0),
++	FREQ_NF(1800000000, 63, 1365),
++	FREQ_NF(1900000000, 67,  758),
++	FREQ_NF(2000000000, 71,  151),
++	FREQ_TABLE_END
++};
++
+ static const struct freq_table acpu_tbl[] = {
+ 	FREQ_NF(550000000, 37, 1517),
+ 	FREQ_NF(594000000, 41, 0),
+@@ -73,6 +99,21 @@ static struct clk_pll2 pll_acpu = {
+ 	.power_val_on = 0x3,
+ };
+ 
++static struct clk_pll_div pll_scpu = {
++	.div_ofs = 0x108,
++	.div_shift  = 8,
++	.div_width  = 8,
++	.div_tbl    = scpu_div_tbl,
++	.clkp       = {
++		.ssc_ofs   = 0x500,
++		.pll_ofs   = CLK_OFS_INVALID,
++		.pll_type  = CLK_PLL_TYPE_NF_SSC,
++		.freq_tbl  = scpu_tbl,
++		.freq_mask = FREQ_NF_MASK,
++		.clkr.hw.init = CLK_HW_INIT("pll_scpu", "osc27m", &clk_pll_div_ops, CLK_IGNORE_UNUSED | CLK_GET_RATE_NOCACHE),
++	},
++};
++
+ static const struct freq_table bus_tbl[] = {
+ 	FREQ_NF(459000000, 0x1f, 0x000),
+ 	FREQ_NF(486000000, 0x21, 0x000),
+@@ -855,11 +896,13 @@ static struct clk_regmap *rtd1619b_cc_clks[] = {
+ 	&clk_ve3_bpu.clkr,
+ 	&pll_acpu.clkr,
+ 	&clk_en_acpu.clkr,
++	&pll_scpu.clkp.clkr,
+ };
+ 
+ static struct clk_hw_onecell_data rtd1619b_cc_hw_data = {
+ 	.num = RTD1619B_CRT_CLK_MAX,
+ 	.hws = {
++		[RTD1619B_CRT_PLL_SCPU] = &__clk_pll_div_hw(&pll_scpu),
+ 		[RTD1619B_CRT_PLL_BUS] = &__clk_pll_hw(&pll_bus),
+ 		[RTD1619B_CRT_PLL_DCSB] = &__clk_pll_hw(&pll_dcsb),
+ 		[RTD1619B_CRT_CLK_SYS] = &clk_sys.hw,
+-- 
+2.47.0
+

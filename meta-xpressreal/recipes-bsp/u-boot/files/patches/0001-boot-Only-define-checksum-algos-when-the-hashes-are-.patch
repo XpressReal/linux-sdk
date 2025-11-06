@@ -1,0 +1,58 @@
+From 14e110a1a439228e223b391a1fc83ec18753335d Mon Sep 17 00:00:00 2001
+From: Sean Anderson <sean.anderson@seco.com>
+Date: Thu, 15 Feb 2024 12:12:18 -0500
+Subject: [PATCH] boot: Only define checksum algos when the hashes are enabled
+
+Don't define checksum algos when the underlying hashes are not enabled.
+This allows disabling these hashes in SPL (or U-Boot).
+
+Fixes: d16b38f4270 ("Add support for SHA384 and SHA512")
+Fixes: 646257d1f40 ("rsa: add sha256-rsa2048 algorithm")
+Signed-off-by: Sean Anderson <sean.anderson@seco.com>
+---
+ boot/image-sig.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/boot/image-sig.c b/boot/image-sig.c
+index b5692d58b24..0421a61b040 100644
+--- a/boot/image-sig.c
++++ b/boot/image-sig.c
+@@ -17,6 +17,7 @@ DECLARE_GLOBAL_DATA_PTR;
+ #define IMAGE_MAX_HASHED_NODES		100
+ 
+ struct checksum_algo checksum_algos[] = {
++#if CONFIG_IS_ENABLED(SHA1)
+ 	{
+ 		.name = "sha1",
+ 		.checksum_len = SHA1_SUM_LEN,
+@@ -24,6 +25,8 @@ struct checksum_algo checksum_algos[] = {
+ 		.der_prefix = sha1_der_prefix,
+ 		.calculate = hash_calculate,
+ 	},
++#endif
++#if CONFIG_IS_ENABLED(SHA256)
+ 	{
+ 		.name = "sha256",
+ 		.checksum_len = SHA256_SUM_LEN,
+@@ -31,7 +34,8 @@ struct checksum_algo checksum_algos[] = {
+ 		.der_prefix = sha256_der_prefix,
+ 		.calculate = hash_calculate,
+ 	},
+-#ifdef CONFIG_SHA384
++#endif
++#if CONFIG_IS_ENABLED(SHA384)
+ 	{
+ 		.name = "sha384",
+ 		.checksum_len = SHA384_SUM_LEN,
+@@ -40,7 +44,7 @@ struct checksum_algo checksum_algos[] = {
+ 		.calculate = hash_calculate,
+ 	},
+ #endif
+-#ifdef CONFIG_SHA512
++#if CONFIG_IS_ENABLED(SHA512)
+ 	{
+ 		.name = "sha512",
+ 		.checksum_len = SHA512_SUM_LEN,
+-- 
+2.46.2
+

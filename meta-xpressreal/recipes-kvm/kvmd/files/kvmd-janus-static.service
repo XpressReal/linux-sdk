@@ -1,0 +1,19 @@
+[Unit]
+Description=PiKVM - Janus WebRTC Gateway (Static Config)
+After=network.target network-online.target kvmd.service
+
+[Service]
+User=root
+Group=root
+Type=simple
+Restart=always
+RestartSec=3
+
+#ExecStart=/usr/bin/janus --disable-colors --plugins-folder=/usr/lib/ustreamer/janus --configs-folder=/etc/kvmd/janus
+#ExecStart=/usr/bin/janus --disable-colors --plugins-folder=/usr/lib/janus/plugins --configs-folder=/etc/kvmd/janus
+ExecStart=/usr/bin/janus --disable-colors --plugins-folder=/usr/lib/janus/plugins --configs-folder=/etc/janus
+TimeoutStopSec=10
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

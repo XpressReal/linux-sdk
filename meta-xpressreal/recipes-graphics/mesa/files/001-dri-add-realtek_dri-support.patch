@@ -1,0 +1,37 @@
+From 41de05d81fce84292b52d1b74a6e084e630be7d2 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 15 May 2025 00:39:18 -0400
+Subject: [PATCH] dri-add-realtek_dri-support
+
+---
+ src/gallium/targets/dri/meson.build | 1 +
+ src/gallium/targets/dri/target.c    | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/src/gallium/targets/dri/meson.build b/src/gallium/targets/dri/meson.build
+index 5b45516..8764bad 100644
+--- a/src/gallium/targets/dri/meson.build
++++ b/src/gallium/targets/dri/meson.build
+@@ -104,6 +104,7 @@ foreach d : [[with_gallium_kmsro, [
+                'sun4i-drm_dri.so',
+                'udl_dri.so',
+                'zynqmp-dpsub_dri.so',
++               'realtek_dri.so',
+              ]],
+              [with_gallium_radeonsi, 'radeonsi_dri.so'],
+              [with_gallium_nouveau, 'nouveau_dri.so'],
+diff --git a/src/gallium/targets/dri/target.c b/src/gallium/targets/dri/target.c
+index 0915a84..59e969f 100644
+--- a/src/gallium/targets/dri/target.c
++++ b/src/gallium/targets/dri/target.c
+@@ -135,6 +135,7 @@ DEFINE_LOADER_DRM_ENTRYPOINT(stm)
+ DEFINE_LOADER_DRM_ENTRYPOINT(sun4i_drm)
+ DEFINE_LOADER_DRM_ENTRYPOINT(udl)
+ DEFINE_LOADER_DRM_ENTRYPOINT(zynqmp_dpsub)
++DEFINE_LOADER_DRM_ENTRYPOINT(realtek)
+ #endif
+ 
+ #if defined(GALLIUM_LIMA)
+-- 
+2.34.1
+

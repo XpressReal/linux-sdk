@@ -1,0 +1,353 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek Kent SoC family
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include <dt-bindings/clock/rtd1625-clk.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/reset/rtd1625-reset.h>
+//#include <dt-bindings/soc/realtek,mem-flag.h>
+//#include <dt-bindings/soc/realtek,pm.h>
+//#include <dt-bindings/thermal/thermal.h>
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	/*
+	* Please keep device node sorted by ascending.
+	*/
+
+	config {
+		u-boot,mmc-env-offset = <0x200000>;		/* @  2MB */
+		u-boot,mmc-env-offset-redundant = <0x200000>;	/* @  2MB */
+	};
+
+	aliases {
+		mmc0 = &emmc;
+	};
+
+	clocks {
+		osc27m: osc {
+			compatible = "fixed-clock";
+			clock-frequency = <27000000>;
+			clock-output-names = "osc27m";
+			#clock-cells = <0>;
+		};
+	};
+
+	firmware: firmware {
+	};
+
+	cipher: cipher{
+		bootph-all;
+	};
+
+	psci: psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	regulator_vcc1v8: regulator-vcc1v8 {
+		compatible = "regulator-fixed";
+		regulator-max-microvolt = <1800000>;
+		regulator-min-microvolt = <1800000>;
+		regulator-name = "vcc1v8";
+		status = "disabled";
+	};
+
+	reserved_memory: reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+	};
+
+	soc: soc@0 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x00000000 0x00000000 0x00000000 0x00040000>, /* boot code */
+			 <0x00040000 0x00000000 0x00040000 0x00020000>, /* PCIE IO*/
+			 <0x98000000 0x00000000 0x98000000 0x00ef0000>, /* rbus */
+			 <0xa0000000 0x00000000 0xa0000000 0x10000000>, /* PCIE*/
+			 <0xff000000 0x00000000 0xff000000 0x00200000>; /* GIC */
+
+		/*
+		* Please keep device node sorted by address.
+		*/
+
+		rbus: rbus@98000000 {
+			compatible = "simple-bus";
+			reg = <0x98000000 0x00ef0000>;
+			ranges = <0x00000000 0x98000000 0x00ef0000>,
+				 <0x10040000 0x00040000 0x00020000>, /* PCIE IO*/
+				 <0xa0000000 0xa0000000 0x10000000>; /* PCIE*/
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			crt: syscon@0 {
+				compatible = "realtek,rtd1625-crt", "syscon", "simple-mfd";
+				reg = <0x0 0x1000>;
+				ranges = <0x0 0x0 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			iso: syscon@7000 {
+				compatible = "realtek,syscon", "syscon", "simple-mfd";
+				reg = <0x7000 0x1000>;
+				ranges = <0x0 0x7000 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			usb_manager: rtk-usb-manager@7088 {
+				compatible = "realtek,usb-manager";
+				reg = <0x7088 0x10>;
+				ranges;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				status = "disabled";
+			};
+
+			sb2: syscon@1a000 {
+				compatible = "realtek,rtd1625-sysbrg2", "syscon", "simple-mfd";
+				reg = <0x1a000 0x1000>;
+				ranges = <0x0 0x1a000 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			misc: syscon@1b000 {
+				compatible = "realtek,syscon", "syscon", "simple-mfd";
+				reg = <0x1b000 0x1000>;
+				ranges = <0x0 0x1b000 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			gpio: gpio@31100 {
+				compatible = "realtek,rtd1625-iso-gpio";
+				reg = <0x31100 0x398>,
+				      <0x31000 0x100>;
+				interrupt-controller;
+				//interrupt-parent = <&iso_irq_mux>;
+				interrupts = <19>, <20>;
+				gpio-controller;
+				#address-cells = <0>;
+				#gpio-cells = <2>;
+				#interrupt-cells = <2>;
+				status = "disabled";
+			};
+
+			cbus_wrapper: syscon@37500 {
+				compatible = "syscon", "simple-mfd";
+				reg = <0x37500 0x10>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				ranges = <0x0 0x37500 0x10>;
+			};
+
+			iso_pinctrl: pinctrl@4e000 {
+				compatible = "realtek,rtd1625-iso-pinctrl", "syscon";
+				reg = <0x4e000 0x1b0>;
+				ranges = <0x0 0x4e000 0x1b0>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#gpio-range-cells = <3>;
+				#size-cells = <1>;
+			};
+
+			m2tmx: syscon@4f000 {
+				compatible = "syscon", "simple-mfd";
+				reg = <0x4f000 0x1000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges = <0x0 0x4f000 0x1000>;
+			};
+
+			main2_pinctrl: pinctrl@4f200 {
+				compatible = "realtek,rtd1625-main2-pinctrl", "syscon";
+				reg = <0x4f200 0x50>;
+				ranges = <0x0 0x4f200 0x50>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#gpio-range-cells = <3>;
+				#size-cells = <1>;
+			};
+
+			sb2_pmu: syscon@8a000 {
+				compatible = "syscon", "simple-mfd";
+				reg = <0x8a000 0x1000>;
+				ranges = <0x0 0x8a000 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			iso_sys: syscon@129000 {
+				compatible = "realtek,isosys", "simple-bus", "syscon";
+				reg = <0x129000 0x1000>;
+				ranges = <0x0 0x129000 0x1000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			iso_mis: syscon@140000 {
+				compatible = "realtek,syscon", "syscon", "simple-mfd";
+				reg = <0x140000 0x1000>;
+				ranges = <0x0 0x140000 0x1000>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			isom_pinctrl: pinctrl@146200 {
+				compatible = "realtek,rtd1625-isom-pinctrl", "syscon";
+				reg = <0x146200 0x34>;
+				ranges = <0x0 0x146200 0x34>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#gpio-range-cells = <3>;
+				#size-cells = <1>;
+			};
+
+			nor_flash: spi@14b000 {
+				compatible = "realtek,rtd1625-sfc";
+				reg = <0x14b000 0x00050>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi_pins>;
+				clock-names = "nor";
+				clocks = <&cc RTD1625_CRT_CLK_EN_MD>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+				flash@0 {
+					compatible = "jedec,spi-nor";
+					spi-rx-bus-width = <2>;
+					spi-tx-bus-width = <2>;
+					reg = <0>;
+					spi-max-frequency = <40000000>;
+				};
+			};
+
+			emmc: emmc@14c000 {
+				compatible = "rtd161xb-dw-cqe-emmc";
+				reg = <0x0014c000 0x00600>,
+				      <0x0014d000 0x00060>;
+				reg-names = "emmc","cqhci";
+				realtek,m2tmx = <&m2tmx>;
+				clock-freq-min-max = <300000 400000000>;
+				clock-frequency = <400000>;
+				vmmc-supply = <&regulator_vcc1v8>;
+				clock-names = "biu", "ciu", "vp0", "vp1";
+				clocks = <&cc RTD1625_CRT_CLK_EN_EMMC>,
+					 <&cc RTD1625_CRT_CLK_EN_EMMC_IP>,
+					 <&cc RTD1625_CRT_PLL_EMMC_VP0>,
+					 <&cc RTD1625_CRT_PLL_EMMC_VP1>;
+				interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+				pinctrl-0 = <&emmc_sdr50_pins>;
+				pinctrl-1 = <&emmc_sdr50_pins>;
+				pinctrl-2 = <&emmc_ddr50_pins>;
+				pinctrl-3 = <&emmc_hs200_pins>;
+				pinctrl-4 = <&emmc_hs400_pins>;
+				pinctrl-5 = <&emmc_tune0_pins>;
+				pinctrl-6 = <&emmc_tune1_pins>;
+				pinctrl-7 = <&emmc_tune2_pins>;
+				pinctrl-8 = <&emmc_tune3_pins>;
+				pinctrl-9 = <&emmc_tune4_pins>;
+				pinctrl-names = "default", "sdr50", "ddr50",
+						"hs200", "hs400", "tune0",
+						"tune1", "tune2", "tune3",
+						"tune4";
+				reset-names = "reset";
+				resets = <&cc RTD1625_CRT_RSTN_EMMC>;
+				speed-step = <3>;
+				dma_64bit = <1>;
+				cqe = <1>;
+				rdq-ctrl = <0>;
+				status = "disabled";
+			};
+
+			ve4_pinctrl: pinctrl@14e000 {
+				compatible = "realtek,rtd1625-ve4-pinctrl", "syscon";
+				reg = <0x14e000 0x84>;
+				ranges = <0x0 0x14e000 0x84>;
+				reg-io-width = <4>;
+				#address-cells = <1>;
+				#gpio-range-cells = <3>;
+				#size-cells = <1>;
+			};
+
+		};
+
+		gic: interrupt-controller@ff100000 {
+			compatible = "arm,gic-v3";
+			reg = <0xff100000 0x10000>,
+			      <0xff140000 0x80000>;
+			interrupt-controller;
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#interrupt-cells = <3>;
+			#size-cells = <1>;
+		};
+	};
+
+	pwr_ur_top: pwr-ur-top {
+		#power-domain-cells = <0>;
+		compatible = "realtek,simple-pd";
+		clocks = <&cc RTD1625_CRT_CLK_EN_UR_TOP>;
+		resets = <&cc RTD1625_CRT_RSTN_UR_TOP>;
+		label = "ur-top";
+	};
+};
+
+&crt {
+	cc: clock-controller@0 {
+		compatible = "realtek,rtd1625-crt-clk";
+		reg = <0 0x1000>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+	};
+
+	sys_tm: thermal-sensor@900 {
+		compatible = "realtek,rtd1625-sys-thermal-sensor";
+		reg = <0x900 0x20>;
+		#thermal-sensor-cells = <0>;
+	};
+
+};
+
+&iso {
+	uart0: serial@800 {
+		compatible = "snps,dw-apb-uart";
+		reg = <0x800 0x100>;
+		clock-frequency = <432000000>;
+		interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+		reg-io-width = <4>;
+		reg-shift = <2>;
+		status = "disabled";
+	};
+};
+
+&sb2 {
+	sb2_lock0: hwlock@0 {
+		compatible = "realtek,sb2-hwlock";
+		reg = <0x0 0x4>;
+		#hwlock-cells = <1>;
+	};
+};
+
+#include "kent-pinctrl.dtsi"
+#include "kent-usb.dtsi"
+
+#include "sign.dtsi"

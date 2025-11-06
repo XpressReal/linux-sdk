@@ -1,0 +1,66 @@
+From 8fa7fc8372b1425aafd262759e2f746b6afd379b Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 21 Jul 2025 10:06:57 +0800
+Subject: [PATCH 1/1] Support P010
+Upstream-Status: Inappropriate [rtk specific]
+---
+ sys/v4l2/ext/videodev2.h | 1 +
+ sys/v4l2/gstv4l2object.c | 9 +++++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/sys/v4l2/ext/videodev2.h b/sys/v4l2/ext/videodev2.h
+index a940058..ca7fa9e 100644
+--- a/sys/v4l2/ext/videodev2.h
++++ b/sys/v4l2/ext/videodev2.h
+@@ -595,6 +595,7 @@ struct v4l2_pix_format {
+ #define V4L2_PIX_FMT_NV61    v4l2_fourcc('N', 'V', '6', '1') /* 16  Y/CrCb 4:2:2  */
+ #define V4L2_PIX_FMT_NV24    v4l2_fourcc('N', 'V', '2', '4') /* 24  Y/CbCr 4:4:4  */
+ #define V4L2_PIX_FMT_NV42    v4l2_fourcc('N', 'V', '4', '2') /* 24  Y/CrCb 4:4:4  */
++#define V4L2_PIX_FMT_P010    v4l2_fourcc('P', '0', '1', '0') /* 24  Y/CbCr 4:2:0 10-bit per component */
+ 
+ /* two non contiguous planes - one Y, one Cr + Cb interleaved  */
+ #define V4L2_PIX_FMT_NV12M   v4l2_fourcc('N', 'M', '1', '2') /* 12  Y/CbCr 4:2:0  */
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index c601709..ef6d490 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -165,6 +165,7 @@ static const GstV4L2FormatDesc gst_v4l2_formats[] = {
+   {V4L2_PIX_FMT_NV24, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV42, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_MM21, TRUE, GST_V4L2_RAW},
++  {V4L2_PIX_FMT_P010, TRUE, GST_V4L2_RAW},
+ 
+   /* Bayer formats - see http://www.siliconimaging.com/RGB%20Bayer.htm */
+   {V4L2_PIX_FMT_SBGGR8, TRUE, GST_V4L2_RAW},
+@@ -1432,6 +1433,9 @@ gst_v4l2_object_v4l2fourcc_to_video_format (guint32 fourcc)
+     case V4L2_PIX_FMT_NV24:
+       format = GST_VIDEO_FORMAT_NV24;
+       break;
++    case V4L2_PIX_FMT_P010:
++      format = GST_VIDEO_FORMAT_P010_10LE;
++      break;
+     default:
+       format = GST_VIDEO_FORMAT_UNKNOWN;
+       break;
+@@ -1589,6 +1593,7 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+     case V4L2_PIX_FMT_UYVY:
+     case V4L2_PIX_FMT_YUV422P:
+     case V4L2_PIX_FMT_YVYU:
++    case V4L2_PIX_FMT_P010:
+     case V4L2_PIX_FMT_YUV411P:{
+       GstVideoFormat format;
+       format = gst_v4l2_object_v4l2fourcc_to_video_format (fourcc);
+@@ -1891,6 +1896,10 @@ gst_v4l2_object_get_caps_info (GstV4l2Object * v4l2object, GstCaps * caps,
+         fourcc = V4L2_PIX_FMT_NV12;
+         fourcc_nc = V4L2_PIX_FMT_NV12M;
+         break;
++      case GST_VIDEO_FORMAT_P010_10LE:
++        fourcc = V4L2_PIX_FMT_P010;
++        fourcc_nc = V4L2_PIX_FMT_P010;
++        break;
+       case GST_VIDEO_FORMAT_NV12_64Z32:
+         fourcc_nc = V4L2_PIX_FMT_NV12MT;
+         break;
+-- 
+2.34.1
+

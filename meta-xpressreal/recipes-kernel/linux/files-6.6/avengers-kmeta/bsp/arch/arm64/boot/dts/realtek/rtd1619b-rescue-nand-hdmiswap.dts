@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2019-2021 Realtek Semiconductor Corp.
+ */
+
+#include "rtd1619b-rescue-nand.dts"
+
+&hdmi {
+	swap-config = <0xf14>;
+};

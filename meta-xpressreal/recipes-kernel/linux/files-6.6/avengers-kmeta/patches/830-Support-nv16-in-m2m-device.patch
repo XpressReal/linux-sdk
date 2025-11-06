@@ -1,0 +1,408 @@
+From d762725ee1dfa429872b0e0cba726283c49c3d19 Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Mon, 16 Jun 2025 16:58:52 +0800
+Subject: [PATCH] Support nv16 in m2m device
+
+---
+ drivers/media/platform/rtk_npp/npp_ctrl.h |   3 +-
+ drivers/media/platform/rtk_npp/npp_m2m.c  | 293 +++++++++++++++++++++-
+ 2 files changed, 283 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/media/platform/rtk_npp/npp_ctrl.h b/drivers/media/platform/rtk_npp/npp_ctrl.h
+index 4b95150381a8..dd031e72b103 100644
+--- a/drivers/media/platform/rtk_npp/npp_ctrl.h
++++ b/drivers/media/platform/rtk_npp/npp_ctrl.h
+@@ -461,7 +461,8 @@ enum NPP_YUV_FORMAT {
+ 	PACKED_UYVY,
+ 	PACKED_VYUY,
+ 	NV12_UV,
+-	NV21_VU
++	NV21_VU,
++	NV16
+ };
+ 
+ enum NPP_YUV_SAMPLE {
+diff --git a/drivers/media/platform/rtk_npp/npp_m2m.c b/drivers/media/platform/rtk_npp/npp_m2m.c
+index 26d8c9312ab2..5d2384a3b3a6 100644
+--- a/drivers/media/platform/rtk_npp/npp_m2m.c
++++ b/drivers/media/platform/rtk_npp/npp_m2m.c
+@@ -149,6 +149,16 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.height = 256,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 180,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 192,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 320,
+ 		.spec.fmt.pix_mp.height = 240,
+@@ -189,6 +199,21 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.height = 256,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 272,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 288,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 320,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 512,
+ 		.spec.fmt.pix_mp.height = 256,
+@@ -229,6 +254,11 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.height = 512,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 448,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 800,
+ 		.spec.fmt.pix_mp.height = 600,
+@@ -239,16 +269,66 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.height = 608,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 832,
++		.spec.fmt.pix_mp.height = 448,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 832,
+ 		.spec.fmt.pix_mp.height = 640,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 848,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 864,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 896,
++		.spec.fmt.pix_mp.height = 512,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 896,
+ 		.spec.fmt.pix_mp.height = 640,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 544,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 576,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 720,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 736,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 768,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1024,
++		.spec.fmt.pix_mp.height = 576,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 1280,
+ 		.spec.fmt.pix_mp.height = 720,
+@@ -264,6 +344,26 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.height = 768,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
++	{
++		.spec.fmt.pix.width = 1440,
++		.spec.fmt.pix.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix.width = 1440,
++		.spec.fmt.pix.height = 1088,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix.width = 1472,
++		.spec.fmt.pix.height = 1088,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix.width = 1600,
++		.spec.fmt.pix.height = 896,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
+ 	{
+ 		.spec.fmt.pix_mp.width = 1920,
+ 		.spec.fmt.pix_mp.height = 1080,
+@@ -328,6 +428,171 @@ static struct npp_fmt out_fmt[] = {
+ 		.spec.fmt.pix_mp.width = 1920,
+ 		.spec.fmt.pix_mp.height = 1080,
+ 		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV21,
++	},
++	{
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 90,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 96,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 120,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 128,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 176,
++		.spec.fmt.pix_mp.height = 144,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 180,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 192,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 240,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 352,
++		.spec.fmt.pix_mp.height = 288,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 432,
++		.spec.fmt.pix_mp.height = 240,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 272,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 288,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 360,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 368,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 448,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 600,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 608,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 848,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 864,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 544,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 720,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1024,
++		.spec.fmt.pix_mp.height = 576,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1280,
++		.spec.fmt.pix_mp.height = 720,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1440,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1440,
++		.spec.fmt.pix_mp.height = 1088,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1600,
++		.spec.fmt.pix_mp.height = 896,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1088,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 2560,
++		.spec.fmt.pix_mp.height = 1440,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 3840,
++		.spec.fmt.pix_mp.height = 2160,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 224,
++		.spec.fmt.pix_mp.height = 224,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
++	},
++	{
++		.spec.fmt.pix_mp.width = 768,
++		.spec.fmt.pix_mp.height = 576,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV16,
+ 	}
+ };
+ 
+@@ -528,6 +793,9 @@ static void init_out_fmt(void)
+ 			 (width*height*3)/2 + mipi_csi_y_header_size+mipi_csi_c_header_size);*/
+ 			bytesperline = width;
+ 			sizeimage = width*height*3/2;
++		} else if (pixelformat == V4L2_PIX_FMT_NV16){
++			bytesperline = width;
++			sizeimage = width*height*2;
+ 		} else {
+ 			bytesperline = width*2;
+ 			sizeimage = width*height*2;
+@@ -1128,21 +1396,18 @@ static int npp_queue_info(struct vb2_queue *vq, int *bufcnt, int *sizeimage)
+ 		if (sizeimage) {
+ 			*sizeimage = (vq->memory == V4L2_MEMORY_DMABUF) ?
+ 			 4096 : nppctx->out.fmt.pix_mp.plane_fmt[0].sizeimage;
+-			if (vq->memory == V4L2_MEMORY_USERPTR &&
+-				(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
+-				 nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21)) {
++
++			if(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
++				nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21) {
+ 				if (drvctx->params.mipi_csi_param.mipi_csi_input == 0)
+ 					*sizeimage = (nppctx->out.fmt.pix_mp.width *
+-				 nppctx->out.fmt.pix_mp.height *
+-				 3) / 2;
++				nppctx->out.fmt.pix_mp.height *
++				3) / 2;
+ 			}
+-			if (vq->memory == V4L2_MEMORY_DMABUF &&
+-				(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
+-				 nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21)) {
++			else if(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV16 ) {
+ 				if (drvctx->params.mipi_csi_param.mipi_csi_input == 0)
+-					*sizeimage = (nppctx->out.fmt.pix_mp.width *
+-				 nppctx->out.fmt.pix_mp.height *
+-				 3) / 2;
++					*sizeimage = nppctx->out.fmt.pix_mp.width *
++				nppctx->out.fmt.pix_mp.height * 2;
+ 			}
+ 		}
+ 
+@@ -1452,6 +1717,9 @@ static int npp_run(struct v4l2_fh *fh)
+ 	case V4L2_PIX_FMT_NV21:
+ 		src_input.yuv_format = NV21_VU;
+ 		break;
++	case V4L2_PIX_FMT_NV16:
++		src_input.yuv_format = NV16;
++		break;
+ 	default:
+ 		pr_err("%s, Unsupported format=%c%c%c%c\n", __func__,
+ 			(nppctx->out.fmt.pix_mp.pixelformat & 0xff),
+@@ -1478,7 +1746,8 @@ static int npp_run(struct v4l2_fh *fh)
+ 	|| src_input.yuv_format == NV21_VU)
+ 	? YUV_420 : YUV_422;
+ 	src_input.bit_depth = 8;
+-	src_input.pitch = (src_input.yuv_sample == YUV_420)
++	src_input.pitch = (src_input.yuv_format == NV12_UV
++	|| src_input.yuv_format == NV21_VU || src_input.yuv_format == NV16)
+ 	 ? (nppctx->out.fmt.pix_mp.width) : (nppctx->out.fmt.pix_mp.width * 2);
+ 	pr_info("%s, width(%d), height(%d), yuv_sample(%d), bit_depth(%d)\n",
+ 	 __func__, src_input.src_width, src_input.src_height,
+-- 
+2.45.2
+

@@ -1,0 +1,130 @@
+
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/* PLEASE include this file inside a node */
+/ {
+	sound: sound {
+		compatible = "realtek,rtk-alsa-hifi";
+		loopback-secure-buf = <1>;
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	sound1: sound1 {
+		compatible = "realtek,rtk-alsa-hifi-ao1";
+		loopback-secure-buf = <1>;
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	sound_compr: sound_compr {
+		compatible = "realtek,rtk-alsa-compress";
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	sound_compr1: sound_compr1 {
+		compatible = "realtek,rtk-alsa-compress-ao1";
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	audio_in: audio-in {
+		compatible = "realtek,audio-in-adc";
+		remote-cpu = <1>; /* 0: AFW 1: HIFI */
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	audio_out: audio-out {
+		compatible = "realtek,audio-out";
+		remote-cpu = <1>; /* 0: AFW 1: HIFI */
+		realtek,krpc-agent = <&kr4_kernel_agent>,
+				     <&hifi_kernel_agent>;
+		status = "disabled";
+
+		dac {
+			compatible = "realtek,audio-out-dac";
+			status = "disabled";
+		};
+		spdif {
+			compatible = "realtek,audio-out-spdif";
+			status = "disabled";
+		};
+		i2s {
+			compatible = "realtek,audio-out-i2s";
+			status = "disabled";
+		};
+		hdmi {
+			compatible = "realtek,audio-out-hdmi";
+			status = "disabled";
+		};
+		global {
+			compatible = "realtek,audio-out-global";
+			status = "okay";
+		};
+		tdm {
+			compatible = "realtek,audio-out-tdm";
+			status = "disabled";
+		};
+		tdm1 {
+			compatible = "realtek,audio-out-tdm1";
+			status = "disabled";
+		};
+		tdm2 {
+			compatible = "realtek,audio-out-tdm2";
+			status = "disabled";
+		};
+		i2s1 {
+			compatible = "realtek,audio-out-i2s1";
+			status = "disabled";
+		};
+		i2s2 {
+			compatible = "realtek,audio-out-i2s2";
+			status = "disabled";
+		};
+		btpcm {
+			compatible = "realtek,audio-out-btpcm";
+			status = "disabled";
+		};
+		btpcm_test {
+			compatible = "realtek,audio-out-btpcm-test";
+			status = "disabled";
+		};
+
+	};
+
+	rtk_vad: rtk-vad {
+		compatible = "realtek,rtk-vad";
+		realtek,krpc-agent = <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	rtk_sof: rtk_sof {
+		compatible = "realtek,rtd1920s-hifi";
+		realtek,krpc-agent = <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	rtk_soc: rtk_soc {
+		compatible = "realtek,rtd1920s-hifi-afe";
+                remote-cpu = <1>; /* 0: AFW 1: HIFI */
+		realtek,krpc-agent = <&hifi_kernel_agent>;
+		status = "disabled";
+	};
+
+	rtk_asoc_machine: rtk_asoc_machine {
+		compatible = "realtek,rtd1920s-hifi-mc";
+		model = "rtk_hifi";
+		status = "disabled";
+	};
+};
+

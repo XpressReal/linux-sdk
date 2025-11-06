@@ -1,0 +1,61 @@
+From 9af56b1b465769ef4a2d80bc41e5b173302f9661 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Thu, 14 Aug 2025 14:31:23 +0800
+Subject: [PATCH 5/5] Add robust PTS fallback for frames with missing
+ timestamps
+Upstream-Status: Inappropriate [rtk specific]
+---
+ gst-libs/gst/video/gstvideodecoder.c | 37 ++++++++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/gst-libs/gst/video/gstvideodecoder.c b/gst-libs/gst/video/gstvideodecoder.c
+index b99e7e1..3e537f5 100644
+--- a/gst-libs/gst/video/gstvideodecoder.c
++++ b/gst-libs/gst/video/gstvideodecoder.c
+@@ -3217,6 +3217,43 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+       GST_LOG_OBJECT (decoder,
+           "Setting DTS as PTS %" GST_TIME_FORMAT " for frame...",
+           GST_TIME_ARGS (frame->pts));
++    } else {
++      GstClockTime new_pts = GST_CLOCK_TIME_NONE;
++      GstClockTime guess_duration = GST_SECOND / 30;
++
++      if (priv->output_state->info.fps_n != 0 && priv->output_state->info.fps_d != 0)
++          guess_duration = GST_SECOND * priv->output_state->info.fps_d / priv->output_state->info.fps_n;
++
++      if (frame->dts != GST_CLOCK_TIME_NONE) {
++          new_pts = frame->dts;
++
++          if (GST_CLOCK_TIME_IS_VALID(priv->last_timestamp_out) &&
++              new_pts <= priv->last_timestamp_out) {
++              new_pts = priv->last_timestamp_out + guess_duration;
++              GST_INFO_OBJECT(decoder,
++                  "DTS not monotonic, fallback to last_pts + guess_duration: %" GST_TIME_FORMAT,
++                  GST_TIME_ARGS(new_pts));
++          } else {
++              GST_INFO_OBJECT(decoder,
++                  "Using DTS as PTS: %" GST_TIME_FORMAT,
++                  GST_TIME_ARGS(new_pts));
++          }
++      } else if (GST_CLOCK_TIME_IS_VALID(priv->last_timestamp_out)) {
++          new_pts = priv->last_timestamp_out + guess_duration;
++          GST_INFO_OBJECT(decoder,
++              "No DTS, fallback to last_pts + guess_duration: %" GST_TIME_FORMAT,
++              GST_TIME_ARGS(new_pts));
++      } else {
++          new_pts = decoder->output_segment.start;
++          GST_INFO_OBJECT(decoder,
++              "No DTS and no last_pts, fallback to segment start: %" GST_TIME_FORMAT,
++              GST_TIME_ARGS(new_pts));
++      }
++
++      frame->pts = new_pts;
++
++      if (frame->duration == GST_CLOCK_TIME_NONE)
++          frame->duration = guess_duration;
+     }
+   }
+ 
+-- 
+2.34.1
+

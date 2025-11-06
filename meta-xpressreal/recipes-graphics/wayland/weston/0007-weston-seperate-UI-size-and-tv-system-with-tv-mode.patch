@@ -1,0 +1,259 @@
+From a4f7fb6aed97bc2b6ece2e9f1e13ed1f3ceb0da4 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 8 Oct 2024 14:32:35 +0800
+Subject: [PATCH] weston: seperate UI size and tv system with tv mode
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c                    | 23 +++++++++++---
+ include/libweston/backend-drm.h      |  4 +++
+ include/libweston/libweston.h        |  1 +
+ libweston/backend-drm/drm-internal.h |  5 +++
+ libweston/backend-drm/drm.c          |  1 +
+ libweston/backend-drm/kms.c          | 36 +++++++++++++++++-----
+ libweston/backend-drm/modes.c        | 46 ++++++++++++++++++++++++++++
+ 7 files changed, 103 insertions(+), 13 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 2f77dca..d81b96d 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -2119,6 +2119,7 @@ drm_backend_output_configure(struct weston_output *output,
+ 	uint32_t max_bpc = 0;
+ 	bool max_bpc_specified = false;
+ 	char *s;
++	char *tv_modeline = NULL;
+ 	char *modeline = NULL;
+ 	char *gbm_format = NULL;
+ 	char *content_type = NULL;
+@@ -2131,6 +2132,8 @@ drm_backend_output_configure(struct weston_output *output,
+ 	}
+ 
+ 	weston_config_section_get_string(section, "mode", &s, "preferred");
++	weston_config_section_get_string(section, "tv-mode", &tv_modeline, NULL);
++
+ 	if (weston_config_section_get_uint(section, "max-bpc", &max_bpc, 16) == 0)
+ 		max_bpc_specified = true;
+ 
+@@ -2149,13 +2152,23 @@ drm_backend_output_configure(struct weston_output *output,
+ 	}
+ 	free(s);
+ 
+-	if (api->set_mode(output, mode, modeline) < 0) {
+-		weston_log("Cannot configure output \"%s\" using weston_drm_output_api.\n",
+-			   output->name);
+-		free(modeline);
+-		return -1;
++	if (tv_modeline != NULL && api->set_mode_with_tv_mode) {
++		if (api->set_mode_with_tv_mode(output, mode, modeline, tv_modeline) < 0) {
++			weston_log("Cannot configure an output using weston_drm_output_api.\n");
++			free(modeline);
++			free(tv_modeline);
++			return -1;
++		}
++	} else {
++		if (api->set_mode(output, mode, modeline) < 0) {
++			weston_log("Cannot configure an output using weston_drm_output_api.\n");
++			free(modeline);
++			return -1;
++		}
+ 	}
+ 	free(modeline);
++	if (tv_modeline != NULL)
++		free(tv_modeline);
+ 
+ 	api->set_max_bpc(output, max_bpc);
+ 
+diff --git a/include/libweston/backend-drm.h b/include/libweston/backend-drm.h
+index 0d1f364..e4a76bf 100644
+--- a/include/libweston/backend-drm.h
++++ b/include/libweston/backend-drm.h
+@@ -104,6 +104,10 @@ struct weston_drm_output_api {
+ 	 */
+ 	int (*set_content_type)(struct weston_output *output,
+ 				const char *content_type);
++
++	int (*set_mode_with_tv_mode)(struct weston_output *output,
++				enum weston_drm_backend_output_mode mode,
++				const char *modeline, const char *tv_modeline);
+ };
+ 
+ static inline const struct weston_drm_output_api *
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 73e110a..0c9df3b 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -533,6 +533,7 @@ struct weston_output {
+ 
+ 	struct weston_mode *native_mode;
+ 	struct weston_mode *current_mode;
++	struct weston_mode *tv_current_mode;
+ 	struct weston_mode *original_mode;
+ 	struct wl_list mode_list;
+ 
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 26b912f..dcb8271 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -821,6 +821,11 @@ drm_output_set_mode(struct weston_output *base,
+ 		    enum weston_drm_backend_output_mode mode,
+ 		    const char *modeline);
+ 
++int
++drm_output_set_mode_with_tv_mode(struct weston_output *base,
++			enum weston_drm_backend_output_mode mode,
++			const char *modeline, const char *tv_modeline);
++
+ void
+ drm_property_info_populate(struct drm_device *device,
+ 		           const struct drm_property_info *src,
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 4b41df1..5f1b85e 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -3863,6 +3863,7 @@ static const struct weston_drm_output_api api = {
+ 	drm_output_set_seat,
+ 	drm_output_set_max_bpc,
+ 	drm_output_set_content_type,
++	drm_output_set_mode_with_tv_mode,
+ };
+ 
+ static struct drm_backend *
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index ba1c169..4f4795b 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -846,7 +846,11 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
+ 	/* The legacy SetCrtc API doesn't support fences */
+ 	assert(scanout_state->in_fence_fd == -1);
+ 
+-	mode = to_drm_mode(output->base.current_mode);
++	if (output->base.tv_current_mode != NULL)
++		mode = to_drm_mode(output->base.tv_current_mode);
++	else
++		mode = to_drm_mode(output->base.current_mode);
++
+ 	if (device->state_invalid ||
+ 	    !scanout_plane->state_cur->fb ||
+ 	    scanout_plane->state_cur->fb->strides[0] !=
+@@ -1153,13 +1157,22 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 	struct drm_crtc *crtc = output->crtc;
+ 	struct drm_plane_state *plane_state;
+ 	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
++	struct drm_mode *tv_current_mode = NULL;
+ 	struct drm_head *head;
+ 	struct drm_head *tmp;
+ 	struct drm_writeback_state *wb_state = output->wb_state;
+ 	enum writeback_screenshot_state wb_screenshot_state =
+ 		drm_output_get_writeback_state(output);
++	float w_ratio = 1;
++	float h_ratio = 1;
+ 	int ret = 0;
+ 
++	if (output->base.tv_current_mode != NULL) {
++		tv_current_mode = to_drm_mode(output->base.tv_current_mode);
++		w_ratio = (float)tv_current_mode->base.width / (float)current_mode->base.width;
++		h_ratio = (float)tv_current_mode->base.height / (float)current_mode->base.height;
++	}
++
+ 	drm_debug(b, "\t\t[atomic] %s output %lu (%s) state\n",
+ 		  (*flags & DRM_MODE_ATOMIC_TEST_ONLY) ? "testing" : "applying",
+ 		  (unsigned long) output->base.id, output->base.name);
+@@ -1175,12 +1188,19 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 	}
+ 
+ 	if (state->dpms == WESTON_DPMS_ON) {
+-		ret = drm_mode_ensure_blob(device, current_mode);
++		if (tv_current_mode == NULL)
++			ret = drm_mode_ensure_blob(device, current_mode);
++		else
++			ret = drm_mode_ensure_blob(device, tv_current_mode);
++
+ 		if (ret != 0)
+ 			return ret;
+ 
+-		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID,
+-				     current_mode->blob_id);
++		if (tv_current_mode == NULL)
++			ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, current_mode->blob_id);
++		else
++			ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, tv_current_mode->blob_id);
++
+ 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
+ 
+ 		if (!output->deprecated_gamma_is_set) {
+@@ -1275,13 +1295,13 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_SRC_H,
+ 				      plane_state->src_h);
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X,
+-				      plane_state->dest_x);
++				      plane_state->dest_x * w_ratio);
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y,
+-				      plane_state->dest_y);
++				      plane_state->dest_y * h_ratio);
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W,
+-				      plane_state->dest_w);
++				      plane_state->dest_w * w_ratio);
+ 		ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H,
+-				      plane_state->dest_h);
++				      plane_state->dest_h * h_ratio);
+ 		if (plane->props[WDRM_PLANE_FB_DAMAGE_CLIPS].prop_id != 0)
+ 			ret |= plane_add_prop(req, plane, WDRM_PLANE_FB_DAMAGE_CLIPS,
+ 					      plane_state->damage_blob_id);
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 7b43119..b215dc6 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -899,3 +899,49 @@ drm_output_set_mode(struct weston_output *base,
+ 
+ 	return 0;
+ }
++
++int
++drm_output_set_mode_with_tv_mode(struct weston_output *base,
++		enum weston_drm_backend_output_mode mode,
++		const char *modeline, const char *tv_modeline)
++{
++	struct drm_output *output = to_drm_output(base);
++	struct drm_device *device = output->device;
++	struct drm_head *head = to_drm_head(weston_output_get_first_head(base));
++
++	struct drm_mode *current;
++	struct drm_mode *tv_current;
++	drmModeModeInfo dummy_mode;
++
++	if (tv_modeline == NULL)
++		return -1;
++
++	if (output->virtual)
++		return -1;
++
++	if (drm_output_update_modelist_from_heads(output) < 0)
++		return -1;
++
++	current = drm_output_choose_initial_mode(device, output, mode, modeline,
++						&head->inherited_mode);
++
++	tv_current = drm_output_choose_initial_mode(device, output, mode, tv_modeline,
++						&dummy_mode);
++
++	if (!current)
++		return -1;
++
++	if (!tv_current)
++		return -1;
++
++	output->base.current_mode = &current->base;
++	output->base.current_mode->flags |= WL_OUTPUT_MODE_CURRENT;
++
++	output->base.tv_current_mode = &tv_current->base;
++	/* Set native_ fields, so weston_output_mode_switch_to_native() works */
++	output->base.native_mode = output->base.current_mode;
++	output->base.native_scale = output->base.current_scale;
++
++	return 0;
++}
++
+-- 
+2.34.1
+

@@ -1,0 +1,879 @@
+diff --git a/rtl8822be/core/rtw_br_ext.c b/rtl8822be/core/rtw_br_ext.c
+index 9a0effd8..250b4fa8 100644
+--- a/rtl8822be/core/rtw_br_ext.c
++++ b/rtl8822be/core/rtw_br_ext.c
+@@ -17,7 +17,10 @@
+ #ifdef __KERNEL__
+ 	#include <linux/if_arp.h>
+ 	#include <net/ip.h>
++	#include <linux/version.h>
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
+ 	#include <net/ipx.h>
++#endif
+ 	#include <linux/atalk.h>
+ 	#include <linux/udp.h>
+ 	#include <linux/if_pppox.h>
+@@ -889,6 +892,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
+ 		}
+ 	}
+ 
++#ifdef _NET_INET_IPX_H
+ 	/*---------------------------------------------------*/
+ 	/*         Handle IPX and Apple Talk frame          */
+ 	/*---------------------------------------------------*/
+@@ -1109,6 +1113,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
+ 
+ 		return -1;
+ 	}
++#endif
+ 
+ 	/*---------------------------------------------------*/
+ 	/*                Handle PPPoE frame                */
+diff --git a/rtl8822be/hal/rtl8822b/pci/rtl8822be_halmac.c b/rtl8822be/hal/rtl8822b/pci/rtl8822be_halmac.c
+index 572e14f7..efea8795 100644
+--- a/rtl8822be/hal/rtl8822b/pci/rtl8822be_halmac.c
++++ b/rtl8822be/hal/rtl8822b/pci/rtl8822be_halmac.c
+@@ -18,7 +18,7 @@
+ #include "../rtl8822b.h"	/* rtl8822b_get_tx_desc_size() */
+ #include "rtl8822be.h"
+ 
+-static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
++static u8 pci_write_port_not_xmitframe(void *d,  u32 size, dma_addr_t mapping,  u8 qsel)
+ {
+ 	struct dvobj_priv *pobj = (struct dvobj_priv *)d;
+ 	struct pci_dev *pdev = pobj->ppcidev;
+@@ -26,16 +26,10 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ 	u8 *txbd;
+ 	dma_addr_t txbd_dma;
+ 	u8 ret = _SUCCESS;
+-	dma_addr_t mapping;
+ 	u16 tx_page_size = 128;
+ 	u16 tx_page_used = 0;
+ 	int i;
+ 
+-
+-	/* map TX DESC buf_addr (including TX DESC + tx data) */
+-	mapping = pci_map_single(pdev, pBuf,
+-		 size + TX_WIFI_INFO_SIZE, PCI_DMA_TODEVICE);
+-
+ 	/* Calculate page size.
+ 	 * Total buffer length including TX_WIFI_INFO and PacketLen */
+ 	if (tx_page_size > 0) {
+@@ -44,12 +38,11 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ 			tx_page_used++;
+ 	}
+ 
+-	txbd = pci_alloc_consistent(pdev, sizeof(struct tx_buf_desc), &txbd_dma);
++	txbd = dma_alloc_coherent(&pdev->dev,
++		sizeof(struct tx_buf_desc), &txbd_dma, GFP_ATOMIC);
+ 
+ 	if (!txbd) {
+-		pci_unmap_single(pdev, mapping,
+-			size + TX_WIFI_INFO_SIZE, PCI_DMA_FROMDEVICE);
+-
++		ret = _FAIL;
+ 		return _FALSE;
+ 	}
+ 	/* BD init */
+@@ -87,6 +80,9 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ 	SET_TX_BD_PSB(txbd, tx_page_used);
+ 	/* starting addr of TXDESC */
+ 	SET_TX_BD_PHYSICAL_ADDR0_LOW(txbd, mapping);
++#ifdef CONFIG_64BIT_DMA
++	SET_TX_BD_PHYSICAL_ADDR0_HIGH(txbd, (u32)(mapping >> 32));
++#endif
+ 
+ 	/*
+ 	 * It is assumed that in linux implementation, packet is coalesced
+@@ -97,6 +93,10 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ 	SET_TXBUFFER_DESC_AMSDU_WITH_OFFSET(txbd, 1, 0);
+ 	SET_TXBUFFER_DESC_ADD_LOW_WITH_OFFSET(txbd, 1,
+ 		mapping + TX_WIFI_INFO_SIZE); /* pkt */
++#ifdef CONFIG_64BIT_DMA
++	SET_TXBUFFER_DESC_ADD_HIGH_WITH_OFFSET(txbd, 1,
++		(u32)((mapping + TX_WIFI_INFO_SIZE) >> 32)); /* pkt */
++#endif
+ 
+ 	wmb();
+ 
+@@ -111,10 +111,8 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ 
+ 	udelay(100);
+ 
+-	pci_free_consistent(pdev, sizeof(struct tx_buf_desc), txbd, txbd_dma);
+-
+-	pci_unmap_single(pdev, mapping, size + TX_WIFI_INFO_SIZE,
+-		PCI_DMA_FROMDEVICE);
++DMA_FREE:
++	dma_free_coherent(&pdev->dev, sizeof(struct tx_buf_desc), txbd, txbd_dma);
+ 
+ 	return ret;
+ }
+@@ -122,9 +120,11 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf,  u8 qsel)
+ static u8 pci_write_data_not_xmitframe(void *d, u8 *pBuf, u32 size, u8 qsel)
+ {
+ 	struct dvobj_priv *pobj = (struct dvobj_priv *)d;
++	struct pci_dev *pdev = pobj->ppcidev;
+ 	PADAPTER padapter = dvobj_get_primary_adapter(pobj);
+ 	struct halmac_adapter *halmac = dvobj_to_halmac((struct dvobj_priv *)d);
+ 	struct halmac_api *api = HALMAC_GET_API(halmac);
++	dma_addr_t mapping;
+ 	u32 desclen = 0;
+ 	u32 len = 0;
+ 	u8 *buf = NULL;
+@@ -139,12 +139,21 @@ static u8 pci_write_data_not_xmitframe(void *d, u8 *pBuf, u32 size, u8 qsel)
+ 	desclen = rtl8822b_get_tx_desc_size(padapter);
+ 	len = desclen + size;
+ 
++#ifdef CONFIG_PCIE_DMA_COHERENT
++	buf = dma_alloc_coherent(&pdev->dev, len, &mapping, GFP_KERNEL);
++
++	if (!buf) {
++		RTW_ERR("%s: dma alloc coherent buffer fail!\n", __func__);
++		return _FALSE;
++	}
++#else
+ 	buf = rtw_zmalloc(len);
+ 
+ 	if (!buf) {
+ 		RTW_ERR("%s: alloc buffer fail!\n", __func__);
+ 		return _FALSE;
+ 	}
++#endif
+ 
+ 	/* copy data */
+ 	_rtw_memcpy(buf + desclen, pBuf, size);
+@@ -164,14 +173,23 @@ static u8 pci_write_data_not_xmitframe(void *d, u8 *pBuf, u32 size, u8 qsel)
+ 
+ 	api->halmac_fill_txdesc_checksum(halmac, buf);
+ 
+-	ret = pci_write_port_not_xmitframe(d, size, buf, qsel);
++#ifndef CONFIG_PCIE_DMA_COHERENT
++	/* map TX DESC buf_addr (including TX DESC + tx data) */
++	mapping = dma_map_single(&pdev->dev, buf, len, DMA_TO_DEVICE);
++#endif
++	ret = pci_write_port_not_xmitframe(d, size, mapping, qsel);
+ 
+ 	if (ret == _SUCCESS)
+ 		ret = _TRUE;
+ 	else
+ 		ret = _FALSE;
+ 
++#ifdef CONFIG_PCIE_DMA_COHERENT
++	dma_free_coherent(&pdev->dev, len, buf, mapping);
++#else
++	dma_unmap_single(&pdev->dev, mapping, len, DMA_FROM_DEVICE);
+ 	rtw_mfree(buf, len);
++#endif
+ 
+ 	return _TRUE;
+ }
+@@ -239,8 +257,8 @@ static u8 pci_write_data_rsvd_page_xmitframe(void *d, u8 *pBuf, u32 size)
+ 	} while (!bcn_valid && DLBcnCount <= 100 && !RTW_CANNOT_RUN(padapter));
+ 
+ 	txbd = (u8 *)(&ring->buf_desc[0]);
+-	pci_unmap_single(pdev, GET_TX_BD_PHYSICAL_ADDR0_LOW(txbd),
+-		pxmitbuf->len, PCI_DMA_TODEVICE);
++
++	dma_unmap_single(&pdev->dev, GET_TX_BD_PHYSICAL_ADDR0_LOW(txbd), pxmitbuf->len, DMA_TO_DEVICE);
+ 
+ 	return _TRUE;
+ }
+diff --git a/rtl8822be/hal/rtl8822b/pci/rtl8822be_ops.c b/rtl8822be/hal/rtl8822b/pci/rtl8822be_ops.c
+index e7f8532b..31ae8695 100644
+--- a/rtl8822be/hal/rtl8822b/pci/rtl8822be_ops.c
++++ b/rtl8822be/hal/rtl8822b/pci/rtl8822be_ops.c
+@@ -85,9 +85,9 @@ static void rtl8822be_reset_bd(_adapter *padapter)
+ 
+ 				pxmitbuf = rtl8822be_dequeue_xmitbuf(ring);
+ 				if (pxmitbuf) {
+-					pci_unmap_single(pdvobjpriv->ppcidev,
++					dma_unmap_single(&pdvobjpriv->ppcidev->dev,
+ 						GET_TX_BD_PHYSICAL_ADDR0_LOW(tx_bd),
+-						pxmitbuf->len, PCI_DMA_TODEVICE);
++						pxmitbuf->len, DMA_TO_DEVICE);
+ 					rtw_free_xmitbuf(t_priv, pxmitbuf);
+ 				} else {
+ 					RTW_INFO("%s(): qlen(%d) is not zero, but have xmitbuf in pending queue\n",
+@@ -440,10 +440,10 @@ static void rtl8822be_unmap_beacon_icf(PADAPTER Adapter)
+ 	}
+ //	RTW_INFO("FREE pxmitbuf: %p, buf_desc: %p, sz: %d\n", pxmitbuf, tx_bufdesc, pxmitbuf->len);
+ 
+-	pci_unmap_single(pdvobjpriv->ppcidev,
++	dma_unmap_single(&pdvobjpriv->ppcidev->dev,
+ 			 GET_TX_BD_PHYSICAL_ADDR0_LOW(tx_bufdesc),
+ 			 pxmitbuf->len,
+-			 PCI_DMA_TODEVICE);
++			 DMA_TO_DEVICE);
+ }
+ 
+ u32 rtl8822be_init_bd(_adapter *padapter)
+diff --git a/rtl8822be/hal/rtl8822b/pci/rtl8822be_recv.c b/rtl8822be/hal/rtl8822b/pci/rtl8822be_recv.c
+index 0e56536d..b2bfa2ea 100644
+--- a/rtl8822be/hal/rtl8822b/pci/rtl8822be_recv.c
++++ b/rtl8822be/hal/rtl8822b/pci/rtl8822be_recv.c
+@@ -211,10 +211,10 @@ static void rtl8822be_rx_mpdu(_adapter *padapter)
+ 			_rtw_init_listhead(&precvframe->u.hdr.list);
+ 			precvframe->u.hdr.len = 0;
+ 
+-			pci_unmap_single(pdvobjpriv->ppcidev,
++			dma_unmap_single(&pdvobjpriv->ppcidev->dev,
+ 					 *((dma_addr_t *)skb->cb),
+ 					 r_priv->rxbuffersize,
+-					 PCI_DMA_FROMDEVICE);
++					 DMA_FROM_DEVICE);
+ 
+ 			rtl8822b_query_rx_desc(precvframe, skb->data);
+ 			pattrib = &precvframe->u.hdr.attrib;
+@@ -247,10 +247,10 @@ static void rtl8822be_rx_mpdu(_adapter *padapter)
+ 
+ 				RTW_INFO("rtl8822be_rx_mpdu:can't allocate memory for skb copy\n");
+ 				*((dma_addr_t *) skb->cb) =
+-					pci_map_single(pdvobjpriv->ppcidev,
++					dma_map_single(&pdvobjpriv->ppcidev->dev,
+ 						       skb_tail_pointer(skb),
+ 						       r_priv->rxbuffersize,
+-						       PCI_DMA_FROMDEVICE);
++						       DMA_FROM_DEVICE);
+ 				goto done;
+ 			}
+ 
+@@ -270,10 +270,10 @@ static void rtl8822be_rx_mpdu(_adapter *padapter)
+ 						   pfree_recv_queue);
+ 			}
+ 			*((dma_addr_t *) skb->cb) =
+-				pci_map_single(pdvobjpriv->ppcidev,
++				dma_map_single(&pdvobjpriv->ppcidev->dev,
+ 					       skb_tail_pointer(skb),
+ 					       r_priv->rxbuffersize,
+-					       PCI_DMA_FROMDEVICE);
++					       DMA_FROM_DEVICE);
+ 		}
+ done:
+ 
+@@ -375,10 +375,10 @@ int rtl8822be_init_rxbd_ring(_adapter *padapter)
+ 	/* rx_queue_idx 1:RX_CMD_QUEUE */
+ 	for (rx_queue_idx = 0; rx_queue_idx < 1; rx_queue_idx++) {
+ 		r_priv->rx_ring[rx_queue_idx].buf_desc =
+-			pci_alloc_consistent(pdev,
++			dma_alloc_coherent(&pdev->dev,
+ 			     sizeof(*r_priv->rx_ring[rx_queue_idx].buf_desc) *
+ 					     r_priv->rxringcount,
+-				     &r_priv->rx_ring[rx_queue_idx].dma);
++				     &r_priv->rx_ring[rx_queue_idx].dma, GFP_ATOMIC);
+ 
+ 		if (!r_priv->rx_ring[rx_queue_idx].buf_desc ||
+ 		    (unsigned long)r_priv->rx_ring[rx_queue_idx].buf_desc &
+@@ -421,9 +421,9 @@ realloc_skb:
+ 
+ 			/* just set skb->cb to mapping addr
+ 			 * for pci_unmap_single use */
+-			*mapping = pci_map_single(pdev, skb_tail_pointer(skb),
++			*mapping = dma_map_single(&pdev->dev, skb_tail_pointer(skb),
+ 						  r_priv->rxbuffersize,
+-						  PCI_DMA_FROMDEVICE);
++						  DMA_FROM_DEVICE);
+ 
+ 			/* Reset FS, LS, Total len */
+ 			SET_RX_BD_LS(rx_desc, 0);
+@@ -462,14 +462,14 @@ void rtl8822be_free_rxbd_ring(_adapter *padapter)
+ 			if (!skb)
+ 				continue;
+ 
+-			pci_unmap_single(pdev,
++			dma_unmap_single(&pdev->dev,
+ 					 *((dma_addr_t *) skb->cb),
+ 					 r_priv->rxbuffersize,
+-					 PCI_DMA_FROMDEVICE);
++					 DMA_FROM_DEVICE);
+ 			kfree_skb(skb);
+ 		}
+ 
+-		pci_free_consistent(pdev,
++		dma_free_coherent(&pdev->dev,
+ 			    sizeof(*r_priv->rx_ring[rx_queue_idx].buf_desc) *
+ 				    r_priv->rxringcount,
+ 				    r_priv->rx_ring[rx_queue_idx].buf_desc,
+diff --git a/rtl8822be/hal/rtl8822b/pci/rtl8822be_xmit.c b/rtl8822be/hal/rtl8822b/pci/rtl8822be_xmit.c
+index 234965f2..15d1438c 100644
+--- a/rtl8822be/hal/rtl8822b/pci/rtl8822be_xmit.c
++++ b/rtl8822be/hal/rtl8822b/pci/rtl8822be_xmit.c
+@@ -295,8 +295,8 @@ static void rtl8822be_update_txbd(struct xmit_frame *pxmitframe,
+ 	u16 page_size_length = 0;
+ 
+ 	/* map TX DESC buf_addr (including TX DESC + tx data) */
+-	mapping = pci_map_single(pdvobjpriv->ppcidev, pxmitframe->buf_addr ,
+-				 sz + TX_WIFI_INFO_SIZE, PCI_DMA_TODEVICE);
++	mapping = dma_map_single(&pdvobjpriv->ppcidev->dev, pxmitframe->buf_addr ,
++				 sz + TX_WIFI_INFO_SIZE, DMA_TO_DEVICE);
+ 
+ 	/* Calculate page size.
+ 	 * Total buffer length including TX_WIFI_INFO and PacketLen */
+@@ -1281,7 +1281,8 @@ int rtl8822be_init_txbd_ring(_adapter *padapter, unsigned int q_idx,
+ 
+ 	RTW_INFO("%s entries num:%d\n", __func__, entries);
+ 
+-	txbd = pci_alloc_consistent(pdev, sizeof(*txbd) * entries, &dma);
++	txbd = dma_alloc_coherent(&pdev->dev,
++				  sizeof(*txbd) * entries, &dma, GFP_ATOMIC);
+ 
+ 	if (!txbd || (unsigned long)txbd & 0xFF) {
+ 		RTW_INFO("Cannot allocate TXBD (q_idx = %d)\n", q_idx);
+@@ -1322,9 +1323,9 @@ void rtl8822be_free_txbd_ring(_adapter *padapter, unsigned int prio)
+ 		pxmitbuf = rtl8822be_dequeue_xmitbuf(ring);
+ 
+ 		if (pxmitbuf) {
+-			pci_unmap_single(pdev,
++			dma_unmap_single(&pdev->dev,
+ 				GET_TX_BD_PHYSICAL_ADDR0_LOW(txbd),
+-				pxmitbuf->len, PCI_DMA_TODEVICE);
++				pxmitbuf->len, DMA_TO_DEVICE);
+ 
+ 			rtw_free_xmitbuf(t_priv, pxmitbuf);
+ 
+@@ -1335,7 +1336,7 @@ void rtl8822be_free_txbd_ring(_adapter *padapter, unsigned int prio)
+ 		}
+ 	}
+ 
+-	pci_free_consistent(pdev, sizeof(*ring->buf_desc) * ring->entries,
++	dma_free_coherent(&pdev->dev, sizeof(*ring->buf_desc) * ring->entries,
+ 			    ring->buf_desc, ring->dma);
+ 	ring->buf_desc = NULL;
+ 
+@@ -1465,9 +1466,9 @@ void rtl8822be_tx_isr(PADAPTER Adapter, int prio)
+ 		pxmitbuf = rtl8822be_dequeue_xmitbuf(ring);
+ 
+ 		if (pxmitbuf) {
+-			pci_unmap_single(pdvobjpriv->ppcidev,
++			dma_unmap_single(&pdvobjpriv->ppcidev->dev,
+ 				GET_TX_BD_PHYSICAL_ADDR0_LOW(tx_desc),
+-				pxmitbuf->len, PCI_DMA_TODEVICE);
++				pxmitbuf->len, DMA_TO_DEVICE);
+ 			rtw_sctx_done(&pxmitbuf->sctx);
+ 			rtw_free_xmitbuf(&(pxmitbuf->padapter->xmitpriv),
+ 					 pxmitbuf);
+@@ -1540,7 +1541,7 @@ void rtl8822be_tx_isr(PADAPTER Adapter, int prio)
+ 		if (pxmitbuf) {
+ 			pci_unmap_single(pdvobjpriv->ppcidev,
+ 				 GET_TX_BD_PHYSICAL_ADDR0_LOW(tx_desc),
+-					 pxmitbuf->len, PCI_DMA_TODEVICE);
++					 pxmitbuf->len, DMA_TO_DEVICE);
+ 			rtw_sctx_done(&pxmitbuf->sctx);
+ 			rtw_free_xmitbuf(&(pxmitbuf->padapter->xmitpriv),
+ 					 pxmitbuf);
+diff --git a/rtl8822be/os_dep/linux/ioctl_cfg80211.c b/rtl8822be/os_dep/linux/ioctl_cfg80211.c
+index de3218d0..fcfc13dc 100644
+--- a/rtl8822be/os_dep/linux/ioctl_cfg80211.c
++++ b/rtl8822be/os_dep/linux/ioctl_cfg80211.c
+@@ -431,13 +431,38 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct cfg80211_chan_def chdef;
+ 
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	u16 punct_bitmap = 0; /*TBD*/
++#endif
++
+ 	ret = rtw_chbw_to_cfg80211_chan_def(wiphy, &chdef, ch, bw, offset, ht);
+ 	if (ret != _SUCCESS)
+ 		goto exit;
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+ 	if (started) {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 144))
++		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, punct_bitmap);
++#else
++		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);
++#endif
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0))
++
++		/* --- cfg80211_ch_switch_started_notfiy() ---
++		 *  A new parameter, bool quiet, is added from Linux kernel v5.11,
++		 *  to see if block-tx was requested by the AP. since currently,
++		 *  the API is used for station before connected in rtw_chk_start_clnt_join()
++		 *  the quiet is set to false here first. May need to refine it if
++		 *  called by others with block-tx.
++		 */
++
++		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, false);
++#else
+ 		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0);
++#endif
+ 		goto exit;
+ 	}
+ #endif
+@@ -445,7 +470,17 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
+ 	if (!rtw_cfg80211_allow_ch_switch_notify(adapter))
+ 		goto exit;
+ 
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 144))
++	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, punct_bitmap);
++#else
++	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);
++#endif
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2))
++	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);
++#else
+ 	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef);
++#endif
+ 
+ #else
+ 	int freq = rtw_ch2freq(ch);
+@@ -932,35 +967,6 @@ exit:
+ 
+ }
+ 
+-/*
+- * Return _TRUE if netwrok is valid in wdev, otherwise _FALSE for not found.
+- */
+-static int _cfg80211_check_bss(struct _ADAPTER *a)
+-{
+-	struct wireless_dev *wdev;
+-	struct _WLAN_BSSID_EX *network;
+-
+-
+-	wdev = a->rtw_wdev;
+-	network = &a->mlmeextpriv.mlmext_info.network;
+-
+-	if ((!wdev->ssid_len) || (wdev->ssid_len != network->Ssid.SsidLength)
+-	    || (_rtw_memcmp(wdev->ssid, network->Ssid.Ssid,
+-			    network->Ssid.SsidLength) == _FALSE)) {
+-		RTW_PRINT(FUNC_ADPT_FMT ": bssid:"MAC_FMT"\n",
+-			  FUNC_ADPT_ARG(a), MAC_ARG(network->MacAddress));
+-		RTW_PRINT(FUNC_ADPT_FMT ": ssid:[%s] len=%d\n",
+-			  FUNC_ADPT_ARG(a), network->Ssid.Ssid,
+-			  network->Ssid.SsidLength);
+-		RTW_PRINT(FUNC_ADPT_FMT ": (wdev) ssid:[%s] len=%d\n",
+-			  FUNC_ADPT_ARG(a), wdev->ssid, wdev->ssid_len);
+-
+-		return _FALSE;
+-	}
+-
+-	return _TRUE;
+-}
+-
+ /*
+ 	Check the given bss is valid by kernel API cfg80211_get_bss()
+ 	@padapter : the given adapter
+@@ -1130,7 +1136,7 @@ int rtw_cfg80211_indicate_connect(_adapter *padapter)
+ 	}
+ 
+ check_bss:
+-	if (_cfg80211_check_bss(padapter) == _FALSE) {
++	if (!rtw_cfg80211_check_bss(padapter)) {
+ 		RTW_ERR(FUNC_ADPT_FMT ": BSS not found!! Skip!\n",
+ 			FUNC_ADPT_ARG(padapter));
+ 
+@@ -1158,7 +1164,11 @@ check_bss:
+ 		#endif
+ 
+ 		#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++		#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || defined(CONFIG_MLD_KERNEL_PATCH)
++		roam_info.links[0].bssid = cur_network->network.MacAddress;
++		#else	
+ 		roam_info.bssid = cur_network->network.MacAddress;
++		#endif
+ 		roam_info.req_ie = pmlmepriv->assoc_req + sizeof(struct rtw_ieee80211_hdr_3addr) + 2;
+ 		roam_info.req_ie_len = pmlmepriv->assoc_req_len - sizeof(struct rtw_ieee80211_hdr_3addr) - 2;
+ 		roam_info.resp_ie = pmlmepriv->assoc_rsp + sizeof(struct rtw_ieee80211_hdr_3addr) + 6;
+@@ -1723,6 +1733,9 @@ exit:
+ }
+ 
+ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, int link_id
++#endif
+ 	, u8 key_index
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool pairwise
+@@ -1867,6 +1880,9 @@ addkey_end:
+ }
+ 
+ static int cfg80211_rtw_get_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, int link_id
++#endif
+ 	, u8 keyid
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool pairwise
+@@ -2031,11 +2047,14 @@ exit:
+ 	return ret;
+ }
+ 
+-static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev,
++static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, int link_id
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+-				u8 key_index, bool pairwise, const u8 *mac_addr)
++	, u8 key_index, bool pairwise, const u8 *mac_addr)
+ #else	/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) */
+-				u8 key_index, const u8 *mac_addr)
++	, u8 key_index, const u8 *mac_addr)
+ #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) */
+ {
+ 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+@@ -2051,8 +2070,11 @@ static int cfg80211_rtw_del_key(struct wiphy *wiphy, struct net_device *ndev,
+ 	return 0;
+ }
+ 
+-static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
+-	struct net_device *ndev, u8 key_index
++static int cfg80211_rtw_set_default_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, int link_id
++#endif
++	, u8 key_index
+ 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)) || defined(COMPAT_KERNEL_RELEASE)
+ 	, bool unicast, bool multicast
+ 	#endif
+@@ -2099,8 +2121,11 @@ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
+ }
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30))
+-int cfg80211_rtw_set_default_mgmt_key(struct wiphy *wiphy,
+-	struct net_device *ndev, u8 key_index)
++int cfg80211_rtw_set_default_mgmt_key(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, int link_id
++#endif
++	, u8 key_index)
+ {
+ #define SET_DEF_KEY_PARAM_FMT " key_index=%d"
+ #define SET_DEF_KEY_PARAM_ARG , key_index
+@@ -5326,7 +5351,11 @@ static int cfg80211_rtw_change_beacon(struct wiphy *wiphy, struct net_device *nd
+ 	return ret;
+ }
+ 
+-static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev)
++static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)) || defined(CONFIG_MLD_KERNEL_PATCH)
++	, unsigned int link_id
++#endif
++)
+ {
+ 	_adapter *adapter = (_adapter *)rtw_netdev_priv(ndev);
+ 
+@@ -7768,6 +7797,7 @@ exit:
+ 	return ret;
+ }
+ 
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
+ static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
+ 	struct wireless_dev *wdev,
+@@ -7822,6 +7852,49 @@ static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
+ exit:
+ 	return;
+ }
++#else
++static void cfg80211_rtw_update_mgmt_frame_register(
++	struct wiphy *wiphy,
++	struct wireless_dev *wdev,
++	struct mgmt_frame_regs *upd)
++{
++	struct net_device *ndev;
++	_adapter *padapter;
++	struct rtw_wdev_priv *pwdev_priv;
++	u32 rtw_stypes_mask = 0;
++	u32 rtw_mstypes_mask = 0;
++
++	ndev = wdev_to_ndev(wdev);
++
++	if (ndev == NULL)
++		goto exit;
++
++	padapter = (_adapter *)rtw_netdev_priv(ndev);
++	pwdev_priv = adapter_wdev_data(padapter);
++
++	/* Driver only supports Auth and Probe request */
++	rtw_stypes_mask = BIT(IEEE80211_STYPE_AUTH >> 4) |
++			  BIT(IEEE80211_STYPE_PROBE_REQ >> 4);
++
++#ifdef CONFIG_DEBUG_CFG80211
++	RTW_INFO(FUNC_ADPT_FMT " global_stypes:0x%08x interface_stypes:0x%08x\n",
++		FUNC_ADPT_ARG(padapter), upd->global_stypes, upd->interface_stypes);
++	RTW_INFO(FUNC_ADPT_FMT " global_mcast_stypes:0x%08x interface_mcast_stypes:0x%08x\n",
++		FUNC_ADPT_ARG(padapter), upd->global_mcast_stypes, upd->interface_mcast_stypes);
++	RTW_INFO(FUNC_ADPT_FMT " old_regs:0x%08x new_regs:0x%08x\n",
++		FUNC_ADPT_ARG(padapter), pwdev_priv->mgmt_regs,
++		(upd->interface_stypes & rtw_stypes_mask));
++#endif
++	if (pwdev_priv->mgmt_regs !=
++			(upd->interface_stypes & rtw_stypes_mask)) {
++		pwdev_priv->mgmt_regs = (upd->interface_stypes & rtw_stypes_mask);
++	}
++
++exit:
++	return;
++}
++#endif
++
+ 
+ #if defined(CONFIG_TDLS) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
+ static int cfg80211_rtw_tdls_mgmt(struct wiphy *wiphy,
+@@ -10201,7 +10274,11 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+ 	.mgmt_tx = cfg80211_rtw_mgmt_tx,
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
+ 	.mgmt_frame_register = cfg80211_rtw_mgmt_frame_register,
++#else
++	.update_mgmt_frame_registrations = cfg80211_rtw_update_mgmt_frame_register,
++#endif
+ #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35))
+ 	.action = cfg80211_rtw_mgmt_tx,
+ #endif
+@@ -10418,7 +10495,12 @@ void rtw_wdev_unregister(struct wireless_dev *wdev)
+ 	rtw_cfg80211_indicate_scan_done(adapter, _TRUE);
+ 
+ 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)) || defined(COMPAT_KERNEL_RELEASE)
+-	if (wdev->current_bss) {
++	#if (defined(CONFIG_MLD_KERNEL_PATCH) || (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2)))
++	if (wdev->valid_links && wdev->links[0].client.current_bss)
++	#else
++	if (wdev->current_bss)
++	#endif
++	{
+ 		RTW_INFO(FUNC_ADPT_FMT" clear current_bss by cfg80211_disconnected\n", FUNC_ADPT_ARG(adapter));
+ 		rtw_cfg80211_indicate_disconnect(adapter, 0, 1);
+ 	}
+diff --git a/rtl8822be/os_dep/linux/ioctl_cfg80211.h b/rtl8822be/os_dep/linux/ioctl_cfg80211.h
+index 8a1d542c..45c63bc5 100644
+--- a/rtl8822be/os_dep/linux/ioctl_cfg80211.h
++++ b/rtl8822be/os_dep/linux/ioctl_cfg80211.h
+@@ -168,8 +168,14 @@ struct rtw_wdev_priv {
+ 	bool block_scan;
+ 	bool power_mgmt;
+ 
+-	/* report mgmt_frame registered */
+-	u16 report_mgmt;
++	/**
++	 * mgmt_regs: bitmap of management frame subtypes registered for the
++	 * 	given interface
++	 * mcast_mgmt_regs: mcast RX is needed on this interface for these
++	 * 	subtypes
++	 */
++	u32 mgmt_regs;
++	/* u32 mcast_mgmt_regs; */
+ 
+ 	u8 is_mgmt_tx;
+ 	u16 mgmt_tx_cookie;
+@@ -263,9 +269,13 @@ struct rtw_wiphy_data {
+ #define FUNC_WIPHY_FMT "%s("WIPHY_FMT")"
+ #define FUNC_WIPHY_ARG(wiphy) __func__, WIPHY_ARG(wiphy)
+ 
+-#define SET_CFG80211_REPORT_MGMT(w, t, v) (w->report_mgmt |= BIT(t >> 4))
+-#define CLR_CFG80211_REPORT_MGMT(w, t, v) (w->report_mgmt &= (~BIT(t >> 4)))
+-#define GET_CFG80211_REPORT_MGMT(w, t) ((w->report_mgmt & BIT(t >> 4)) > 0)
++#define SET_CFG80211_MGMT_REGS(w, t) (w |= BIT(t >> 4))
++#define CLR_CFG80211_MGMT_REGS(w, t) (w &= (~BIT(t >> 4)))
++#define GET_CFG80211_MGMT_REGS(w, t) ((w & BIT(t >> 4)) > 0)
++
++#define SET_CFG80211_REPORT_MGMT(w, t) (SET_CFG80211_MGMT_REGS(w->mgmt_regs, t))
++#define CLR_CFG80211_REPORT_MGMT(w, t) (CLR_CFG80211_MGMT_REGS(w->mgmt_regs, t))
++#define GET_CFG80211_REPORT_MGMT(w, t) (GET_CFG80211_MGMT_REGS(w->mgmt_regs, t))
+ 
+ struct wiphy *rtw_wiphy_alloc(_adapter *padapter, struct device *dev);
+ void rtw_wiphy_free(struct wiphy *wiphy);
+diff --git a/rtl8822be/os_dep/linux/os_intfs.c b/rtl8822be/os_dep/linux/os_intfs.c
+index 0efd9372..1f496928 100644
+--- a/rtl8822be/os_dep/linux/os_intfs.c
++++ b/rtl8822be/os_dep/linux/os_intfs.c
+@@ -1905,7 +1905,11 @@ int rtw_os_ndev_register(_adapter *adapter, const char *name)
+ 	u8 rtnl_lock_needed = rtw_rtnl_lock_needed(dvobj);
+ 
+ #ifdef CONFIG_RTW_NAPI
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll);
++#else
+ 	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll, RTL_NAPI_WEIGHT);
++#endif
+ #endif /* CONFIG_RTW_NAPI */
+ 
+ #if defined(CONFIG_IOCTL_CFG80211)
+diff --git a/rtl8822be/os_dep/linux/pci_intf.c b/rtl8822be/os_dep/linux/pci_intf.c
+index d7e7f81c..f6d60d18 100755
+--- a/rtl8822be/os_dep/linux/pci_intf.c
++++ b/rtl8822be/os_dep/linux/pci_intf.c
+@@ -765,9 +765,9 @@ static struct dvobj_priv	*pci_dvobj_init(struct pci_dev *pdev, const struct pci_
+ 	}
+ 
+ #ifdef CONFIG_64BIT_DMA
+-	if (!pci_set_dma_mask(pdev, DMA_BIT_MASK(64))) {
++	if (!dma_set_mask(&pdev->dev, DMA_BIT_MASK(64))) {
+ 		RTW_INFO("RTL819xCE: Using 64bit DMA\n");
+-		err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
++		err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(64));
+ 		if (err != 0) {
+ 			RTW_ERR("Unable to obtain 64bit DMA for consistent allocations\n");
+ 			goto disable_picdev;
+@@ -776,8 +776,8 @@ static struct dvobj_priv	*pci_dvobj_init(struct pci_dev *pdev, const struct pci_
+ 	} else
+ #endif
+ 	{
+-		if (!pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
+-			err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
++		if (!dma_set_mask(&pdev->dev, DMA_BIT_MASK(32))) {
++			err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
+ 			if (err != 0) {
+ 				RTW_ERR("Unable to obtain 32bit DMA for consistent allocations\n");
+ 				goto disable_picdev;
+diff --git a/rtl8822be/os_dep/linux/recv_linux.c b/rtl8822be/os_dep/linux/recv_linux.c
+index 11c0d47c..e81579da 100644
+--- a/rtl8822be/os_dep/linux/recv_linux.c
++++ b/rtl8822be/os_dep/linux/recv_linux.c
+@@ -355,8 +355,13 @@ static int napi_recv(_adapter *padapter, int budget)
+ 
+ #ifdef CONFIG_RTW_GRO
+ 		if (pregistrypriv->en_gro) {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
++			rtw_napi_gro_receive(&padapter->napi, pskb);
++			rx_ok = _TRUE;
++#else
+ 			if (rtw_napi_gro_receive(&padapter->napi, pskb) != GRO_DROP)
+ 				rx_ok = _TRUE;
++#endif
+ 			goto next;
+ 		}
+ #endif /* CONFIG_RTW_GRO */
+diff --git a/rtl8822be/os_dep/linux/rtw_proc.c b/rtl8822be/os_dep/linux/rtw_proc.c
+index f69c5de9..bd1026f2 100644
+--- a/rtl8822be/os_dep/linux/rtw_proc.c
++++ b/rtl8822be/os_dep/linux/rtw_proc.c
+@@ -37,6 +37,8 @@ inline struct proc_dir_entry *get_rtw_drv_proc(void)
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0))
+ #define PDE_DATA(inode) PDE((inode))->data
+ #define proc_get_parent_data(inode) PDE((inode))->parent->data
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
++#define PDE_DATA pde_data
+ #endif
+ 
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
+diff --git a/rtl8822be/os_dep/osdep_service.c b/rtl8822be/os_dep/osdep_service.c
+index fdc45172..f09daca6 100644
+--- a/rtl8822be/os_dep/osdep_service.c
++++ b/rtl8822be/os_dep/osdep_service.c
+@@ -1299,7 +1299,11 @@ u32 _rtw_down_sema(_sema *sema)
+ inline void thread_exit(_completion *comp)
+ {
+ #ifdef PLATFORM_LINUX
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+ 	complete_and_exit(comp, 0);
++#else
++	kthread_complete_and_exit(comp, 0);
++#endif
+ #endif
+ 
+ #ifdef PLATFORM_FREEBSD
+@@ -2221,19 +2225,23 @@ static int isFileReadable(const char *path, u32 *sz)
+ {
+ 	struct file *fp;
+ 	int ret = 0;
++	#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 	mm_segment_t oldfs;
++	#endif
+ 	char buf;
+ 
+ 	fp = filp_open(path, O_RDONLY, 0);
+ 	if (IS_ERR(fp))
+ 		ret = PTR_ERR(fp);
+ 	else {
++		#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 		oldfs = get_fs();
+ 		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+ 		set_fs(KERNEL_DS);
+ 		#else
+ 		set_fs(get_ds());
+ 		#endif
++		#endif
+ 
+ 		if (1 != readFile(fp, &buf, 1))
+ 			ret = PTR_ERR(fp);
+@@ -2246,7 +2254,9 @@ static int isFileReadable(const char *path, u32 *sz)
+ 			#endif
+ 		}
+ 
++		#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 		set_fs(oldfs);
++		#endif
+ 		filp_close(fp, NULL);
+ 	}
+ 	return ret;
+@@ -2262,7 +2272,9 @@ static int isFileReadable(const char *path, u32 *sz)
+ static int retriveFromFile(const char *path, u8 *buf, u32 sz)
+ {
+ 	int ret = -1;
++	#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 	mm_segment_t oldfs;
++	#endif
+ 	struct file *fp;
+ 
+ 	if (path && buf) {
+@@ -2270,14 +2282,20 @@ static int retriveFromFile(const char *path, u8 *buf, u32 sz)
+ 		if (0 == ret) {
+ 			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
+ 
++			#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 			oldfs = get_fs();
+ 			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+ 			set_fs(KERNEL_DS);
+ 			#else
+ 			set_fs(get_ds());
+ 			#endif
++			#endif
++
+ 			ret = readFile(fp, buf, sz);
++
++			#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 			set_fs(oldfs);
++			#endif
+ 			closeFile(fp);
+ 
+ 			RTW_INFO("%s readFile, ret:%d\n", __FUNCTION__, ret);
+@@ -2301,7 +2319,9 @@ static int retriveFromFile(const char *path, u8 *buf, u32 sz)
+ static int storeToFile(const char *path, u8 *buf, u32 sz)
+ {
+ 	int ret = 0;
++	#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 	mm_segment_t oldfs;
++	#endif
+ 	struct file *fp;
+ 
+ 	if (path && buf) {
+@@ -2309,14 +2329,20 @@ static int storeToFile(const char *path, u8 *buf, u32 sz)
+ 		if (0 == ret) {
+ 			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
+ 
++			#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 			oldfs = get_fs();
+ 			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+ 			set_fs(KERNEL_DS);
+ 			#else
+ 			set_fs(get_ds());
+ 			#endif
++			#endif
++
+ 			ret = writeFile(fp, buf, sz);
++
++			#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+ 			set_fs(oldfs);
++			#endif
+ 			closeFile(fp);
+ 
+ 			RTW_INFO("%s writeFile, ret:%d\n", __FUNCTION__, ret);
+@@ -2672,7 +2698,9 @@ u64 rtw_division64(u64 x, u64 y)
+ inline u32 rtw_random32(void)
+ {
+ #ifdef PLATFORM_LINUX
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++	return get_random_u32();
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	return prandom_u32();
+ #elif (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18))
+ 	u32 random_int;

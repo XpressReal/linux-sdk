@@ -1,0 +1,57 @@
+From 62c24561a4256c2ea23ff90fa09b8e857b3c8f17 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Fri, 4 Jul 2025 16:37:01 +0800
+Subject: [PATCH] remoteproc: stark: vcpu: add prepare action for rpc_flag init
+
+Change-Id: Ib801362eec15293618f11b0b6292e41cdbe30edc
+---
+
+diff --git a/drivers/remoteproc/rtk_fw_remoteproc.c b/drivers/remoteproc/rtk_fw_remoteproc.c
+index 0f29e3a6d742..d7066d129274 100644
+--- a/drivers/remoteproc/rtk_fw_remoteproc.c
++++ b/drivers/remoteproc/rtk_fw_remoteproc.c
+@@ -281,6 +281,15 @@ static int rtd1619b_acpu_get_resource(struct rtk_fw_rproc *rtk_rproc)
+ 
+ }
+ 
++static int rtd1619b_vcpu_prepare(struct rproc *rproc)
++{
++	struct rtk_ipc_shm __iomem *ipc = (void __iomem *)IPC_SHM_VIRT;
++
++	ipc->video_rpc_flag = 0xffffffff;
++
++	return 0;
++}
++
+ static int rtd1619b_vcpu_start(struct rproc *rproc)
+ {
+ 	struct rtk_fw_rproc *rtk_rproc = rproc->priv;
+@@ -288,8 +297,6 @@ static int rtd1619b_vcpu_start(struct rproc *rproc)
+ 	int timeout = 50;
+ 	int ret = 0;
+ 
+-	ipc->video_rpc_flag = 0xffffffff;
+-
+ 	dev_info(rtk_rproc->dev, "vfw bring up\n");
+ 
+ 	regmap_write(rtk_rproc->misc_regmap, VCPU_STARTUP_FLAG, VCPU_MAGIC1);
+@@ -304,7 +311,7 @@ static int rtd1619b_vcpu_start(struct rproc *rproc)
+ 		goto err;
+ 	}
+ 
+-	while (ipc->video_rpc_flag && timeout) {
++	while ((ipc->video_rpc_flag == 0xffffffff) && timeout) {
+ 		timeout--;
+ 		mdelay(10);
+ 	}
+@@ -801,6 +808,7 @@ static const struct rproc_ops rtd1619b_acpu_ops = {
+ 
+ static const struct rproc_ops rtd1619b_vcpu_ops = {
+ 	.load = trust_fw_load,
++	.prepare = rtd1619b_vcpu_prepare,
+ 	.start = rtd1619b_vcpu_start,
+ 	.stop = rtd1619b_vcpu_stop,
+ };
+-- 
+2.47.0
+

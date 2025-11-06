@@ -1,0 +1,73 @@
+From 6b4b598e61dc27da711d2fc384b011af58140e91 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 20 Aug 2025 02:43:55 -0400
+Subject: [PATCH] weston: auto select match mode
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/modes.c | 38 +++++++++++++++++++++++++----------
+ 1 file changed, 27 insertions(+), 11 deletions(-)
+
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 4a57c20..ff306c8 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -966,15 +966,9 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 	struct drm_device *device = output->device;
+ 	struct drm_head *head = to_drm_head(weston_output_get_first_head(base));
+ 
+-	struct drm_mode *current;
+-	struct drm_mode *tv_current;
+-	drmModeModeInfo force_2k_mode = { .hdisplay = 1920,
+-	                                  .vdisplay = 1080,
+-	                                  .flags = 0x100005,
+-	                                  .clock = 148500,
+-	                                  .htotal = 2200,
+-	                                  .vtotal = 1125,
+-	                                  .vscan = 0 };
++	struct drm_mode *current = NULL;
++	struct drm_mode *tv_current = NULL;
++	struct drm_mode *drm_mode = NULL;
+ 
+ 	if (tv_modeline == NULL)
+ 		return -1;
+@@ -985,12 +979,34 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 	if (drm_output_update_modelist_from_heads(output) < 0)
+ 		return -1;
+ 
++	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
++		if (drm_mode->base.width * drm_mode->base.height > 1920*1080) {
++			continue;
++		}
++
++		if (current == NULL)
++			current = drm_mode;
++
++		if (drm_mode->base.width >= current->base.width) {
++			if (drm_mode->base.width > current->base.width)
++				current = drm_mode;
++
++			if (drm_mode->base.refresh >= current->base.refresh) {
++				if (drm_mode->base.refresh > current->base.refresh)
++					current = drm_mode;
++
++				if ((drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) == 0) {
++					current = drm_mode;
++				}
++			}
++		}
++	}
++
+ //	current = drm_output_choose_initial_mode(device, output, mode, modeline,
+ //						&head->inherited_mode);
+-	current = drm_output_force_add_mode(&force_2k_mode);
+ 
+ 	tv_current = drm_output_choose_initial_mode(device, output, mode, tv_modeline,
+-						&force_2k_mode);
++						&current->mode_info);
+ 
+ 	if (!current)
+ 		return -1;
+-- 
+2.34.1
+

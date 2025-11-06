@@ -1,0 +1,30 @@
+From f5602eed939e72b922532e67aa1f05a89abb61bd Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 7 Mar 2025 14:39:23 +0800
+Subject: [PATCH 1/1] Support AV1 for riff
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst-libs/gst/riff/riff-media.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/gst-libs/gst/riff/riff-media.c b/gst-libs/gst/riff/riff-media.c
+index 74f99d6..02b1d0c 100644
+--- a/gst-libs/gst/riff/riff-media.c
++++ b/gst-libs/gst/riff/riff-media.c
+@@ -955,6 +955,12 @@ gst_riff_create_video_caps (guint32 codec_fcc,
+ 
+       break;
+ 
++    case GST_MAKE_FOURCC ('a', 'v', '0', '1'):
++      caps = gst_caps_new_empty_simple ("video/x-av1");
++      if (codec_name)
++        *codec_name = g_strdup ("AOMedia Video 1");
++
++      break;
+     default:
+       GST_WARNING ("Unknown video fourcc %" GST_FOURCC_FORMAT,
+           GST_FOURCC_ARGS (codec_fcc));
+-- 
+2.34.1
+

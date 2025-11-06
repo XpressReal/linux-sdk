@@ -1,0 +1,26 @@
+From c3e307f4e91ce7718b592e1404bc230f4f4228fa Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 30 Jul 2025 19:11:44 +0800
+Subject: [PATCH 1/2] tools.py: fix too few arguments for typing.Generator in
+ python3.12
+
+---
+ kvmd/tools.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kvmd/tools.py b/kvmd/tools.py
+index b38ce6c6..6cc477d7 100644
+--- a/kvmd/tools.py
++++ b/kvmd/tools.py
+@@ -86,7 +86,7 @@ def build_cmd(cmd: list[str], cmd_remove: list[str], cmd_append: list[str]) -> l
+ 
+ 
+ # =====
+-def passwds_splitted(text: str) -> Generator[tuple[int, str]]:
++def passwds_splitted(text: str) -> Generator[tuple[int, str], None, None]:
+     for (lineno, line) in enumerate(text.split("\n")):
+         line = line.rstrip("\r")
+         ls = line.strip()
+-- 
+2.34.1
+

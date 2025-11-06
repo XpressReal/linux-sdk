@@ -1,0 +1,84 @@
+From 6f5b35dc19f24c7ef60c666fc3152b056871d7dc Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 7 Apr 2025 01:37:48 -0400
+Subject: [PATCH] gstwaylandsink: to handle trick play behavior
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c        | 10 +++++++++-
+ gst-libs/gst/wayland/gstwlbuffer.c  |  1 -
+ gst-libs/gst/wayland/gstwldisplay.c | 22 +++++++++++++++++-----
+ gst-libs/gst/wayland/gstwldisplay.h |  2 +-
+ 4 files changed, 27 insertions(+), 8 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 6f047cc..1aea27f 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -594,7 +594,15 @@ gst_wayland_sink_event (GstBaseSink * bsink, GstEvent * event)
+ 
+       break;
+     case GST_EVENT_FLUSH_START:
+-      gst_wl_display_force_release_buffer(self->display);
++      GstVideoFormat format;
++      format = GST_VIDEO_INFO_FORMAT (&self->video_info);
++      if (self != NULL && self->display != NULL && self->window != NULL && format == GST_VIDEO_FORMAT_BGRA) {
++        gst_wayland_sink_clear_buf(self);
++      }
++
++      if (self != NULL && self->display != NULL && self->window != NULL && format == GST_VIDEO_FORMAT_NV12) {
++        gst_wl_display_force_release_buffer(self->display, self->last_buffer);
++      }
+       break;
+     case GST_EVENT_FLUSH_STOP:
+       break;
+diff --git a/gst-libs/gst/wayland/gstwldisplay.c b/gst-libs/gst/wayland/gstwldisplay.c
+index 0ca03d4..08ab21a 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.c
++++ b/gst-libs/gst/wayland/gstwldisplay.c
+@@ -566,13 +566,25 @@ gst_wl_display_has_own_display (GstWlDisplay * self)
+   return priv->own_display;
+ }
+ 
+-void gst_wl_display_force_release_buffer (GstWlDisplay *self)
++void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer)
+ {
+   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
+   g_mutex_lock (&priv->buffers_mutex);
+-  g_hash_table_foreach (priv->buffers, gst_wl_ref_wl_buffer, NULL);
+-  g_hash_table_foreach (priv->buffers,
+-      (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
+-  g_hash_table_remove_all (priv->buffers);
++  if (last_buffer != NULL) {
++    GstMemory *mem0 = NULL;
++    GstWlBuffer *wlbuf = NULL;
++    mem0 = gst_buffer_peek_memory (last_buffer, 0);
++    if (mem0 != NULL) {
++      wlbuf = g_hash_table_lookup (priv->buffers, mem0);
++      if (wlbuf != NULL) {
++        g_hash_table_remove (priv->buffers, mem0);
++        g_hash_table_foreach (priv->buffers, gst_wl_ref_wl_buffer, NULL);
++        g_hash_table_foreach (priv->buffers,
++            (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
++        g_hash_table_remove_all (priv->buffers);
++        g_hash_table_replace (priv->buffers, mem0, wlbuf);
++      }
++    }
++  }
+   g_mutex_unlock (&priv->buffers_mutex);
+ }
+diff --git a/gst-libs/gst/wayland/gstwldisplay.h b/gst-libs/gst/wayland/gstwldisplay.h
+index 0f50f22..c809ecd 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.h
++++ b/gst-libs/gst/wayland/gstwldisplay.h
+@@ -98,6 +98,6 @@ GST_WL_API
+ gboolean gst_wl_display_has_own_display (GstWlDisplay * self);
+ 
+ GST_WL_API
+-void gst_wl_display_force_release_buffer (GstWlDisplay *self);
++void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer);
+ 
+ G_END_DECLS
+-- 
+2.34.1
+

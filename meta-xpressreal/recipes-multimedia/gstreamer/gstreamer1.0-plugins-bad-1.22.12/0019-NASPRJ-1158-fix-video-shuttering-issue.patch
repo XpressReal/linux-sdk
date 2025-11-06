@@ -1,0 +1,66 @@
+From 8e047d16d13ee33198f559c498a18b7fd809c28d Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 29 Jul 2025 23:08:51 -0400
+Subject: [PATCH] NASPRJ-1158: fix video shuttering issue
+
+[Root Cause] Bad Streaming. The streaming have bad pcr info
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ gst/mpegtsdemux/mpegtspacketizer.c | 32 +++++++++++++++++++-----------
+ 1 file changed, 20 insertions(+), 12 deletions(-)
+
+diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
+index 9ee5672..f441317 100644
+--- a/gst/mpegtsdemux/mpegtspacketizer.c
++++ b/gst/mpegtsdemux/mpegtspacketizer.c
+@@ -1884,26 +1884,34 @@ _set_current_group (MpegTSPCR * pcrtable,
+       /* In offset-mode, a PCR wraparound is only actually consistent if
+        * we have a very high confidence (99% right now, might need to change
+        * later) */
+-      if (lastpcr - pcr > (PCR_MAX_VALUE * 99 / 100)) {
+-        GST_WARNING ("WRAPAROUND detected. diff %" GST_TIME_FORMAT,
+-            GST_TIME_ARGS (PCRTIME_TO_GSTTIME (lastpcr - pcr)));
+-        /* The previous group closed at PCR_MAX_VALUE */
+-        pcr_offset += PCR_MAX_VALUE - prev->first_pcr + pcr;
++      if (prev->values[prev->last_value].pcr != 0 && pcr > prev->first_pcr) {
++        pcr_offset += pcr - prev->first_pcr;
+       } else {
+-        GST_WARNING ("RESET detected. diff %" GST_TIME_FORMAT,
+-            GST_TIME_ARGS (PCRTIME_TO_GSTTIME (lastpcr - pcr)));
+-        /* The previous group closed at the raw last_pcr diff (+100ms for safety) */
+-        pcr_offset += prev->values[prev->last_value].pcr + 100 * PCR_MSECOND;
++        if (lastpcr - pcr > (PCR_MAX_VALUE * 99 / 100)) {
++          GST_WARNING ("WRAPAROUND detected. diff %" GST_TIME_FORMAT,
++              GST_TIME_ARGS (PCRTIME_TO_GSTTIME (lastpcr - pcr)));
++          /* The previous group closed at PCR_MAX_VALUE */
++          pcr_offset += PCR_MAX_VALUE - prev->first_pcr + pcr;
++        } else {
++          GST_WARNING ("RESET detected. diff %" GST_TIME_FORMAT,
++              GST_TIME_ARGS (PCRTIME_TO_GSTTIME (lastpcr - pcr)));
++          /* The previous group closed at the raw last_pcr diff (+100ms for safety) */
++          pcr_offset += prev->values[prev->last_value].pcr + 100 * PCR_MSECOND;
++        }
+       }
+     } else if (lastpcr < pcr - 500 * PCR_MSECOND) {
+       GST_WARNING ("GAP detected. diff %" GST_TIME_FORMAT,
+           GST_TIME_ARGS (PCRTIME_TO_GSTTIME (pcr - lastpcr)));
+       /* The previous group closed at the raw last_pcr diff (+500ms for safety) */
+-      pcr_offset += prev->values[prev->last_value].pcr + 500 * PCR_MSECOND;
+-    } else
++      if (pcr > prev->first_pcr) {
++        pcr_offset += pcr - prev->first_pcr;
++      } else {
++        pcr_offset += prev->values[prev->last_value].pcr + 500 * PCR_MSECOND;
++      }
++    } else {
+       /* Normal continuation (contiguous in time) */
+       pcr_offset += pcr - prev->first_pcr;
+-
++    }
+   } else if (prev != NULL)
+     /* If we are not contiguous and it's not the first group, the pcr_offset
+      * will be estimated */
+-- 
+2.34.1
+

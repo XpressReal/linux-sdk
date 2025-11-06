@@ -1,0 +1,164 @@
+From baaa13101dbac4bbda91b75186113fe297d2f93d Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Thu, 8 May 2025 14:51:01 +0800
+Subject: [PATCH] recipes-kernel: dts: get optee properties from u-boot
+
+- remove /firmware/optee
+- remove /reserved-memory/tee@10000000
+-- will be updated as /reserved-memory/optee@10000000
+- kent: rescue: keep bl31-mem
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi                    | 9 ---------
+ arch/arm64/boot/dts/realtek/rtd1501-rescue.dtsi          | 5 -----
+ arch/arm64/boot/dts/realtek/rtd1501.dtsi                 | 4 ----
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts     | 4 ----
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi                | 9 ---------
+ arch/arm64/boot/dts/realtek/rtd1920-rescue.dtsi          | 5 -----
+ arch/arm64/boot/dts/realtek/rtd1920.dtsi                 | 4 ----
+ .../boot/dts/realtek/rtd1920s-smallville-4gb-bringup.dts | 4 ----
+ 8 files changed, 44 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index dec8a4d1a241..1ad10f898d0b 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -190,10 +190,6 @@ CPU_SLEEP: cpu-sleep-0-0 {
+ 	};
+ 
+ 	firmware: firmware {
+-		optee {
+-			compatible = "linaro,optee-tz";
+-			method = "smc";
+-		};
+ 	};
+ 
+ 	gic_extension: gic-extension {
+@@ -309,11 +305,6 @@ hifi: hifi@f800000 {
+ 			no-map;
+ 		};
+ 
+-		tee: tee@10000000 {
+-			reg = <0x0 0x10000000 0x0 0x04000000>; /* TEE: 64MB */
+-			no-map;
+-		};
+-
+ 		bootlogo_reserved: buffer@2f700000 {
+ 			reg = <0x0 0x2f700000 0x0 0x00900000>;
+ 		};
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501-rescue.dtsi b/arch/arm64/boot/dts/realtek/rtd1501-rescue.dtsi
+index cb0ea44a97c5..3bbb9da3fd28 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501-rescue.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501-rescue.dtsi
+@@ -118,10 +118,6 @@ cluster-hifi-vo@40000000 {
+ 		no-map;
+ 	};
+ 
+-	tee@10000000 {
+-		status = "okay";
+-	};
+-
+ 	bootlogo_reserved: buffer@2f700000 {
+ 		status = "okay";
+ 	};
+@@ -168,5 +164,4 @@ cma_hifi_b1p5:hifi_b1p5 {
+ 
+ 	/delete-node/linux,cma_1;
+ 	/delete-node/linux,cma_2;
+-	/delete-node/bl31-mem@10001000;
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501.dtsi b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+index 1248ff4d2fd3..82ee7945a433 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+@@ -219,10 +219,6 @@ riscv_fw: riscv-fw@5000000 {
+ 		no-map;
+ 	};
+ 
+-	tee: tee@10000000 {
+-		status = "disabled";
+-	};
+-
+ 	bl31_mem: bl31-mem@10001000 {
+ 		reg = <0x0 0x10001000 0x0 0x40000>;
+ 		no-map;
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 41fb89fd02cf..6afbd39f92af 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -67,11 +67,6 @@ hifi: hifi@f800000 {
+ 			no-map;
+ 		};
+ 
+-		tee: tee@10000000 {
+-			reg = <0x10000000 0x04000000>; /* TEE: 64MB */
+-			no-map;
+-		};
+-
+ 		vo_reserved: vo_reserved@4800000 {
+ 			reg = <0x04800000 0x7d000>;
+ 			no-map;
+@@ -335,10 +330,6 @@ psci: psci {
+ 	};
+ 
+ 	firmware {
+-		optee {
+-			compatible = "linaro,optee-tz";
+-			method = "smc";
+-		};
+ 	};
+ 
+ 	soc@0 {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920-rescue.dtsi b/arch/arm64/boot/dts/realtek/rtd1920-rescue.dtsi
+index f2203379d0ad..c4706f2dc385 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920-rescue.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920-rescue.dtsi
+@@ -118,10 +118,6 @@ cluster-hifi-vo@40000000 {
+ 		no-map;
+ 	};
+ 
+-	tee@10000000 {
+-		status = "okay";
+-	};
+-
+ 	bootlogo_reserved: buffer@2f700000 {
+ 		status = "okay";
+ 	};
+@@ -174,5 +170,4 @@ cma_hifi_b1p5:hifi_b1p5 {
+ 
+ 	/delete-node/linux,cma_1;
+ 	/delete-node/linux,cma_2;
+-	/delete-node/bl31-mem@10001000;
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920.dtsi b/arch/arm64/boot/dts/realtek/rtd1920.dtsi
+index d59966427f52..506782144ac3 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920.dtsi
+@@ -221,10 +221,6 @@ riscv_fw: riscv-fw@5000000 {
+ 		no-map;
+ 	};
+ 
+-	tee: tee@10000000 {
+-		status = "disabled";
+-	};
+-
+ 	bl31_mem: bl31-mem@10001000 {
+ 		reg = <0x0 0x10001000 0x0 0x40000>;
+ 		no-map;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920s-smallville-4gb-bringup.dts b/arch/arm64/boot/dts/realtek/rtd1920s-smallville-4gb-bringup.dts
+index d725cc7ed308..64c15ec3baf3 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920s-smallville-4gb-bringup.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1920s-smallville-4gb-bringup.dts
+@@ -100,10 +100,6 @@ cluster-hifi-vo@40000000 {
+ 		no-map;
+ 	};
+ 
+-	tee@10000000 {
+-		status = "okay";
+-	};
+-
+ 	bootlogo_reserved: buffer@2f700000 {
+ 		status = "okay";
+ 	};
+-- 
+2.47.0
+

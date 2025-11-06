@@ -1,0 +1,273 @@
+From 639d56f45677ad3944a48468f1d313712aa42e35 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 22 May 2025 21:35:01 -0400
+Subject: [PATCH] gstwaylandsink: keep 2 frame for interlace video
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c        | 78 ++++++++++++++++++++++++++---
+ ext/wayland/gstwaylandsink.h        |  7 +++
+ gst-libs/gst/wayland/gstwldisplay.c | 57 ++++++++++++++++-----
+ gst-libs/gst/wayland/gstwldisplay.h |  2 +-
+ 4 files changed, 124 insertions(+), 20 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 1aea27f..8c2f2ce 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -212,6 +212,14 @@ gst_wayland_sink_init (GstWaylandSink * self)
+   self->silent = DEFAULT_PROP_SILENT;
+   self->set_rect = FALSE;
+   self->need_clear = FALSE;
++  self->keep_count = 1;
++  self->cap_is_interlace = FALSE;
++  self->videoinfo_is_interlace = FALSE;
++  self->videoinfo_over_2k = FALSE;
++
++  for (int i = 0; i < MAX_KEEP_FRAME; i++)
++    self->keep_buffer[i] = NULL;
++
+   g_mutex_init (&self->display_lock);
+   g_mutex_init (&self->render_lock);
+ }
+@@ -399,6 +407,12 @@ gst_wayland_sink_finalize (GObject * object)
+ 
+   GST_DEBUG_OBJECT (self, "Finalizing the sink..");
+ 
++  for (int i = 0; i < self->keep_count; i++)
++  {
++    if (self->keep_buffer[i])
++      gst_buffer_unref(self->keep_buffer[i]);
++  }
++
+   if (self->last_buffer)
+     gst_buffer_unref (self->last_buffer);
+   if (self->display)
+@@ -509,6 +523,13 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+ 
+   switch (transition) {
+     case GST_STATE_CHANGE_PAUSED_TO_READY:
++      if (self->format == GST_VIDEO_FORMAT_NV12) {
++        for (int i = 0; i < self->keep_count; i++)
++        {
++          gst_buffer_replace(&self->keep_buffer[i], NULL);
++        }
++      }
++
+       gst_buffer_replace (&self->last_buffer, NULL);
+       if (self->window) {
+         if (gst_wl_window_is_toplevel (self->window)) {
+@@ -594,14 +615,12 @@ gst_wayland_sink_event (GstBaseSink * bsink, GstEvent * event)
+ 
+       break;
+     case GST_EVENT_FLUSH_START:
+-      GstVideoFormat format;
+-      format = GST_VIDEO_INFO_FORMAT (&self->video_info);
+-      if (self != NULL && self->display != NULL && self->window != NULL && format == GST_VIDEO_FORMAT_BGRA) {
++      if (self != NULL && self->display != NULL && self->window != NULL && self->format == GST_VIDEO_FORMAT_BGRA) {
+         gst_wayland_sink_clear_buf(self);
+       }
+ 
+-      if (self != NULL && self->display != NULL && self->window != NULL && format == GST_VIDEO_FORMAT_NV12) {
+-        gst_wl_display_force_release_buffer(self->display, self->last_buffer);
++      if (self != NULL && self->display != NULL && self->window != NULL && self->format == GST_VIDEO_FORMAT_NV12) {
++        gst_wl_display_force_release_buffer(self->display, self->last_buffer, self->keep_buffer, self->keep_count);
+       }
+       break;
+     case GST_EVENT_FLUSH_STOP:
+@@ -721,7 +740,32 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   if (!gst_video_info_from_caps (&self->video_info, caps))
+     goto invalid_format;
+ 
+-  format = GST_VIDEO_INFO_FORMAT (&self->video_info);
++  self->format = format = GST_VIDEO_INFO_FORMAT (&self->video_info);
++
++  self->videoinfo_is_interlace = GST_VIDEO_INFO_IS_INTERLACED(&self->video_info);
++
++  int width, height;
++  width = GST_VIDEO_INFO_WIDTH(&self->video_info);
++  height = GST_VIDEO_INFO_HEIGHT(&self->video_info);
++  if (width > 1920 && height > 1080)
++    self->videoinfo_over_2k = TRUE;
++
++  GstStructure *structure = NULL;
++  const gchar *s = NULL;
++
++  structure = gst_caps_get_structure (caps, 0);
++
++  if (structure != NULL && gst_structure_has_name (structure, "video/x-raw")) {
++    s = gst_structure_get_string (structure, "interlace-mode");
++    if (s != NULL) {
++       if (strncmp(s, "progressive", strlen("progressive")))
++         self->cap_is_interlace = TRUE;
++    }
++  }
++
++  if (self->videoinfo_over_2k == FALSE && self->format == GST_VIDEO_FORMAT_NV12)
++    self->keep_count = 2;
++
+   self->video_info_changed = TRUE;
+ 
+   /* create a new pool for the new caps */
+@@ -853,11 +897,25 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+ 
+   GstFlowReturn ret = GST_FLOW_OK;
+   if (self->silent == TRUE) {
++    if (self->format == GST_VIDEO_FORMAT_NV12) {
++      for (int i = (self->keep_count - 1); i >= 1; i--) {
++        gst_buffer_replace (&self->keep_buffer[i], self->keep_buffer[i - 1]);
++      }
++
++      gst_buffer_replace (&self->keep_buffer[0], self->last_buffer);
++    }
+     gst_buffer_replace (&self->last_buffer, buffer);
+     return ret;
+   }
+ 
+   if (self->need_clear == TRUE) {
++    if (self->format == GST_VIDEO_FORMAT_NV12) {
++      for (int i = (self->keep_count - 1); i >= 1; i--) {
++        gst_buffer_replace (&self->keep_buffer[i], self->keep_buffer[i - 1]);
++      }
++
++      gst_buffer_replace (&self->keep_buffer[0], self->last_buffer);
++    }
+     gst_buffer_replace (&self->last_buffer, buffer);
+     self->need_clear = FALSE;
+     return ret;
+@@ -917,6 +975,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+   mem = gst_buffer_peek_memory (buffer, 0);
+ 
+   old_vinfo = self->video_info;
++
+   vmeta = gst_buffer_get_video_meta (buffer);
+   if (vmeta) {
+     gint i;
+@@ -1036,6 +1095,13 @@ render:
+     goto done;
+   }
+ 
++  if (self->format == GST_VIDEO_FORMAT_NV12) {
++    for (int i = (self->keep_count - 1); i >= 1; i--) {
++      gst_buffer_replace (&self->keep_buffer[i], self->keep_buffer[i - 1]);
++    }
++
++    gst_buffer_replace (&self->keep_buffer[0], self->last_buffer);
++  }
+   gst_buffer_replace (&self->last_buffer, to_render);
+   render_last_buffer (self, FALSE);
+ 
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index 2407c8c..9ed641e 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -40,6 +40,7 @@ G_BEGIN_DECLS
+ #define GST_WAYLAND_SINK_GET_CLASS(inst) \
+         (G_TYPE_INSTANCE_GET_CLASS ((inst), GST_TYPE_WAYLAND_SINK, GstWaylandSinkClass))
+ 
++#define MAX_KEEP_FRAME 5
+ typedef struct _GstWaylandSink GstWaylandSink;
+ typedef struct _GstWaylandSinkClass GstWaylandSinkClass;
+ 
+@@ -75,6 +76,12 @@ struct _GstWaylandSink
+   gboolean set_rect;
+   gboolean silent;
+   gboolean need_clear;
++  GstBuffer *keep_buffer[MAX_KEEP_FRAME];
++  GstVideoFormat format;
++  gboolean keep_count;
++  gboolean cap_is_interlace;
++  gboolean videoinfo_is_interlace;
++  gboolean videoinfo_over_2k;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/gst-libs/gst/wayland/gstwldisplay.c b/gst-libs/gst/wayland/gstwldisplay.c
+index 08ab21a..8fb1dc9 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.c
++++ b/gst-libs/gst/wayland/gstwldisplay.c
+@@ -566,25 +566,56 @@ gst_wl_display_has_own_display (GstWlDisplay * self)
+   return priv->own_display;
+ }
+ 
+-void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer)
++void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer, GstBuffer **keep_buffer, int keep_count)
+ {
+   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
++  GstMemory *last_mem = NULL, **keep_mem = NULL;
++  GstWlBuffer *last_wlbuf = NULL, **keep_wlbuf = NULL;
++
++  keep_mem = malloc(sizeof(*keep_mem)*keep_count);
++  keep_wlbuf = malloc(sizeof(*keep_wlbuf)*keep_count);
++
+   g_mutex_lock (&priv->buffers_mutex);
+   if (last_buffer != NULL) {
+-    GstMemory *mem0 = NULL;
+-    GstWlBuffer *wlbuf = NULL;
+-    mem0 = gst_buffer_peek_memory (last_buffer, 0);
+-    if (mem0 != NULL) {
+-      wlbuf = g_hash_table_lookup (priv->buffers, mem0);
+-      if (wlbuf != NULL) {
+-        g_hash_table_remove (priv->buffers, mem0);
+-        g_hash_table_foreach (priv->buffers, gst_wl_ref_wl_buffer, NULL);
+-        g_hash_table_foreach (priv->buffers,
+-            (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
+-        g_hash_table_remove_all (priv->buffers);
+-        g_hash_table_replace (priv->buffers, mem0, wlbuf);
++    last_mem = gst_buffer_peek_memory (last_buffer, 0);
++    if (last_mem != NULL) {
++      last_wlbuf = g_hash_table_lookup (priv->buffers, last_mem);
++    }
++
++    if (last_wlbuf != NULL) {
++      g_hash_table_remove (priv->buffers, last_mem);
++    }
++  }
++
++  for (int i = 0; i < keep_count; i++)
++  {
++    if (keep_buffer[i] != NULL) {
++      keep_mem[i] = gst_buffer_peek_memory (keep_buffer[i], 0);
++      if (keep_mem[i] != NULL) {
++        keep_wlbuf[i] = g_hash_table_lookup (priv->buffers, keep_mem[i]);
++      }
++
++      if (keep_wlbuf[i] != NULL) {
++        g_hash_table_remove (priv->buffers, keep_mem[i]);
+       }
+     }
+   }
++
++  g_hash_table_foreach (priv->buffers, gst_wl_ref_wl_buffer, NULL);
++  g_hash_table_foreach (priv->buffers, (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
++  g_hash_table_remove_all (priv->buffers);
++
++  if (last_mem != NULL && last_wlbuf != NULL) {
++    g_hash_table_replace (priv->buffers, last_mem, last_wlbuf);
++  }
++
++  for (int i = 0; i < keep_count; i++) {
++    if (keep_mem[i] != NULL && keep_wlbuf[i] != NULL) {
++      g_hash_table_replace (priv->buffers, keep_mem[i], keep_wlbuf[i]);
++    }
++  }
++
+   g_mutex_unlock (&priv->buffers_mutex);
++  free(keep_mem);
++  free(keep_wlbuf);
+ }
+diff --git a/gst-libs/gst/wayland/gstwldisplay.h b/gst-libs/gst/wayland/gstwldisplay.h
+index c809ecd..2bf3de0 100644
+--- a/gst-libs/gst/wayland/gstwldisplay.h
++++ b/gst-libs/gst/wayland/gstwldisplay.h
+@@ -98,6 +98,6 @@ GST_WL_API
+ gboolean gst_wl_display_has_own_display (GstWlDisplay * self);
+ 
+ GST_WL_API
+-void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer);
++void gst_wl_display_force_release_buffer (GstWlDisplay *self, GstBuffer *last_buffer, GstBuffer **keep_buffer, int keep_count);
+ 
+ G_END_DECLS
+-- 
+2.34.1
+

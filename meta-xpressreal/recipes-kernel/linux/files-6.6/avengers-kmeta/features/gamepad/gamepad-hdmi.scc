@@ -1,0 +1,3 @@
+patch 004-dts-hdmi-only-mode-for-gamepad-on-backinblack.patch
+
+kconf hardware gamepad.cfg

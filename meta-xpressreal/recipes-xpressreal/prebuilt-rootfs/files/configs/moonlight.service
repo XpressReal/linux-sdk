@@ -1,0 +1,12 @@
+[Unit]
+Description=Moonlight
+After=local-fs.target
+Before=graphical.target
+Wants=network.target
+
+[Service]
+ExecStart=/usr/bin/moonlight-qt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

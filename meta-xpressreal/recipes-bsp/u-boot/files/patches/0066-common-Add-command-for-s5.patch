@@ -1,0 +1,25 @@
+From 717612fe8ae78b2290399b76cc30038f76bd8236 Mon Sep 17 00:00:00 2001
+From: ChiRen Wei <chiren.wei@realtek.com>
+Date: Tue, 18 Apr 2023 13:13:45 +0800
+Subject: [PATCH] [NEW_FEATURE] add s5 command, resume from gpio and alarm
+
+Change-Id: Ic86b8dd1cc3f912909945ccdbfd9a8fe68a349a6
+---
+ common/Makefile |  1 +
+ common/cmd_s5.c | 90 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 91 insertions(+)
+ create mode 100644 common/cmd_s5.c
+
+diff --git a/common/Makefile b/common/Makefile
+index 46fb22bb08..d953118001 100644
+--- a/common/Makefile
++++ b/common/Makefile
+@@ -111,4 +111,5 @@
+ obj-$(CONFIG_CMD_RTK_PMIC) += pmic/
+ obj-y += rtk_bsv/
+ obj-y += rtk_opp/
++obj-$(CONFIG_TARGET_RTD1619B) += cmd_s5.o
+ endif
+-- 
+2.25.1
+

@@ -1,0 +1,314 @@
+From 8fbd4ca1191e129aa2eb3e506e7e25ad5e459abe Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Thu, 8 May 2025 03:23:35 +0000
+Subject: [PATCH 1/8] Modify face detection flow
+
+---
+ .../face-processing/common/facedetectpipe.py  | 94 ++++++-------------
+ tasks/face-processing/common/ultraface.py     | 58 +++---------
+ .../example_face_detection_tflite.py          | 14 +--
+ 3 files changed, 45 insertions(+), 121 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index 3ab0eee..f5dc481 100755
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -19,13 +19,6 @@ gi.require_version('GstApp', '1.0')
+ gi.require_version('GstVideo', '1.0')
+ from gi.repository import Gst, GLib, GstApp, GstVideo  # noqa
+ 
+-python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+-                           '../../../common/python')
+-sys.path.append(python_path)
+-from imxpy.imx_dev import Imx  # noqa
+-from imxpy.common_utils import GstVideoImx, store_vx_graph_compilation  # noqa
+-
+-
+ class StdInHelper:
+ 
+     def __init__(self):
+@@ -81,9 +74,6 @@ class Pipe:
+         if not Gst.is_initialized():
+             Gst.init(None)
+ 
+-        self.imx = Imx()
+-        store_vx_graph_compilation(self.imx)
+-
+     def dump_gst_dot_file(self, name=None):
+         """Dump GStreamer .dot file.
+ 
+@@ -122,23 +112,6 @@ class Pipe:
+             logging.info('[%s] bus start', name)
+             self.dump_gst_dot_file()
+ 
+-    def nns_tfliter_custom_options(self):
+-        """Report custom options to use for nnstreamer tensor filter.
+-        """
+-        if self.imx.has_npu_vsi():
+-            opts = ('custom=Delegate:External,'
+-                    'ExtDelegateLib:libvx_delegate.so')
+-        elif self.imx.has_npu_ethos():
+-            opts = ('custom=Delegate:External,'
+-                    'ExtDelegateLib:libethosu_delegate.so')
+-        elif self.imx.has_npu_neutron():
+-            opts = ('custom=Delegate:External,'
+-                    'ExtDelegateLib:libneutron_delegate.so')
+-        else:
+-            opts = ''
+-        return opts
+-
+-
+ class SecondaryPipe(Pipe):
+ 
+     def __init__(self,
+@@ -168,8 +141,6 @@ class SecondaryPipe(Pipe):
+ 
+         self.processing_complete_cb = None
+ 
+-        gstvideoimx = GstVideoImx(self.imx)
+-
+         # secondary pipeline (face crop + second model) GStreamer definition
+         video_caps = ('video/x-raw,'
+                       'width={:d},height={:d},framerate={:d}/1,format=YUY2') \
+@@ -185,7 +156,6 @@ class SecondaryPipe(Pipe):
+             format = 'RGB'
+         elif num_channels == 1:
+             format = 'GRAY8'
+-        cmdline += gstvideoimx.videocrop_to_format('video_crop', w, h, format=format)
+ 
+         cmdline += '  tensor_converter ! '
+ 
+@@ -309,9 +279,7 @@ class FaceDetectPipe(Pipe):
+             pwd = os.path.dirname(os.path.abspath(__file__))
+             model_directory = os.path.join(pwd, '../../../downloads/models/face-processing')
+ 
+-        has_ethosu = self.imx.has_npu_ethos()
+-        has_neutron = self.imx.has_npu_neutron()
+-        self.ultraface = ultraface.UFModel(model_directory, vela=has_ethosu, neutron=has_neutron)
++        self.ultraface = ultraface.UFModel(model_directory)
+ 
+         # pipelines variables
+         self.mainloop = None
+@@ -336,37 +304,24 @@ class FaceDetectPipe(Pipe):
+ 
+         ufh, ufw, _ = self.ultraface.get_model_input_shape()
+ 
+-        gstvideoimx = GstVideoImx(self.imx)
+-
+-        video_caps = ('video/x-raw, '
+-                      'width={:d},height={:d},framerate={:d}/1,format=YUY2') \
+-            .format(vw, vh, vr)
+-
+-        cmdline = 'v4l2src device={:s} ! '.format(self.camera_device)
+-        if self.flip:
+-            cmdline += gstvideoimx.accelerated_videoscale(vw, vh, flip=True)
+-            cmdline += ' videoconvert !'
+-        cmdline += '  {:s} ! '.format(video_caps)
++        cmdline = ' filesrc location=/root/blackpink.mp4  ! qtdemux ! h264parse ! v4l2h264dec ! videoconvert  ! videoscale ! video/x-raw,format=RGB,width=640,height=360 ! '
+         cmdline += '  tee name=tvideo '
+-        cmdline += 'tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+ 
+-        cmdline += gstvideoimx.accelerated_videoscale(ufw, ufh, 'RGB')
++        cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
++        cmdline += ' videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
++        cmdline += ' tensor_converter ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=uint8 !  '
+ 
+-        cmdline += '  tensor_converter ! '
+-
+-        custom_ops = self.nns_tfliter_custom_options()
+-        cmdline += ('  tensor_filter '
+-                    'framework=tensorflow-lite model={:s} {:s} ! ') \
+-            .format(self.ultraface.get_model_path(), custom_ops)
+-        cmdline += '  tensor_sink name=tsink_fd '
+-        cmdline += 'tvideo. ! queue max-size-buffers=1 leaky=2 ! '
++        cmdline += (' tensor_filter '
++                    ' framework=vivante model={:s} ! ') \
++            .format("/root/network_binary.nb,/root/ultrafaceuint8.so")
++        cmdline += ' tensor_sink name=tsink_fd '
+ 
++        cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert  ! videoscale ! video/x-raw,format=RGB16,width=640,height=360 ! '
+         # cairo overlay format restricted to BGRx, BGRA, RGB16
+-        cmdline += gstvideoimx.accelerated_videoscale(format='RGB16')
++        cmdline += ' cairooverlay name=cairooverlay ! '
++        cmdline += ' waylandsink sync=false '.format(vw, vh)
+ 
+-        cmdline += '  cairooverlay name=cairooverlay ! '
+-        cmdline += '  waylandsink sync=false '.format(vw, vh)
+-        cmdline += 'tvideo. ! queue max-size-buffers=1 leaky=2 ! '
++        cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+         cmdline += ('  appsink '
+                     'name=appsink_video sync=false max-buffers=1 drop=true '
+                     'emit-signals=true ')
+@@ -410,16 +365,26 @@ class FaceDetectPipe(Pipe):
+ 
+         # tensor buffer #0
+         buf0 = buffer.peek_memory(0)
+-        result, info = buf0.map(Gst.MapFlags.READ)
++        result0, info0 = buf0.map(Gst.MapFlags.READ)
++
++        buf1 = buffer.peek_memory(1)
++        result1, info1 = buf1.map(Gst.MapFlags.READ)
+ 
+         dims0 = dims[0]
+         num = math.prod(dims0)
+-        assert info.size == num * np.dtype(np.float32).itemsize
++        assert info0.size == num * np.dtype(np.float32).itemsize
+ 
+-        if result:
+-            out0 = np.frombuffer(info.data, dtype=np.float32) \
++        dims1 = dims[1]
++        num = math.prod(dims1)
++        assert info1.size == num * np.dtype(np.float32).itemsize
++
++        if result0 and result1:
++            out0 = np.frombuffer(info0.data, dtype=np.float32) \
+                 .reshape(dims0)
+-            selected = self.ultraface.decode_output([out0])
++            out1 = np.frombuffer(info1.data, dtype=np.float32) \
++                .reshape(dims1)
++
++            selected = self.ultraface.decode_output(out0, out1)
+             # rescale boxes per actual input video resolution
+             w, h = self.video_input_width, self.video_input_height
+             scale = np.array([w, h])
+@@ -430,7 +395,8 @@ class FaceDetectPipe(Pipe):
+         else:
+             self.fd_boxes = np.empty(0, dtype=np.float32)
+ 
+-        buf0.unmap(info)
++        buf0.unmap(info0)
++        buf1.unmap(info1)
+ 
+     def display_cairo_overlay_draw_cb(self, overlay, context, timestamp,
+                                       duration):
+diff --git a/tasks/face-processing/common/ultraface.py b/tasks/face-processing/common/ultraface.py
+index 1095e1e..66147c5 100644
+--- a/tasks/face-processing/common/ultraface.py
++++ b/tasks/face-processing/common/ultraface.py
+@@ -38,22 +38,6 @@ class UFModel:
+         # Limit max number of face detections
+         self.MODEL_UFACE_NUMBER_MAX = max_faces
+ 
+-        # model location
+-        self.has_post_process = has_post_process
+-        if has_post_process:
+-            if vela:
+-                name = 'ultraface_slim_uint8_float32_vela.tflite'
+-            elif neutron:
+-                name = 'ultraface_slim_uint8_float32_neutron.tflite'
+-            else:
+-                name = 'ultraface_slim_uint8_float32.tflite'
+-        else:
+-            name = 'version-slim_input_uint8_output_float32.tflite'
+-        self.tflite_model = os.path.join(model_directory, name)
+-
+-        if not os.path.exists(self.tflite_model):
+-            raise FileExistsError(f'cannot find model [{self.tflite_model}]')
+-
+     def get_model_path(self):
+         """Get full path to model file.
+         """
+@@ -67,10 +51,7 @@ class UFModel:
+     def get_model_output_shape(self):
+         """Get dimensions of model output tensors (list).
+         """
+-        if self.has_post_process:
+-            return [(self.MODEL_UFACE_NUMBER_NMS_BOXES, 6)]
+-        else:
+-            return [(1, self.MODEL_UFACE_NUMBER_BOXES, 6)]
++        return [(1, self.MODEL_UFACE_NUMBER_BOXES, 2), (1, self.MODEL_UFACE_NUMBER_BOXES, 4)]
+ 
+     def iou(self, box0, box1):
+         """Compute input boxes IoU.
+@@ -128,7 +109,7 @@ class UFModel:
+ 
+         return result[:count, ...]
+ 
+-    def decode_output(self, output):
++    def decode_output(self, output0, output1):
+         """Decode model output tensor.
+ 
+         output: list of output tensors to decode
+@@ -143,29 +124,16 @@ class UFModel:
+            N boxes (x1,y2,x2,y2) detected
+            Normalized coordinates range [0, 1]
+         """
+-        assert len(output) == 1
+-        out0 = output[0]
+-        assert out0.dtype == np.float32
+-        assert out0.shape == self.get_model_output_shape()[0]
+-
+-        if self.has_post_process:
+-            boxes = out0[..., 2:]
+-            scores = out0[..., 1]
+-            selected = scores > self.MODEL_UFACE_CLASSIFICATION_THRESHOLD
+-            boxes = boxes[selected]
+-
+-            selected = boxes[:self.MODEL_UFACE_NUMBER_MAX, ...]
+-        else:
+-            boxes = out0[..., 2:]
+-            scores = out0[..., :2]
+-            boxes = boxes[0]
+-            scores = scores[0, :, 1]
+-            selected = scores > self.MODEL_UFACE_CLASSIFICATION_THRESHOLD
+-            boxes = boxes[selected]
+-            scores = scores[selected]
+-
+-            selected = self.nms(boxes, scores,
+-                                self.MODEL_UFACE_NUMBER_MAX,
+-                                self.MODEL_UFACE_NMS_IOU_THRESHOLD)
++        boxes = output1
++        scores = output0
++        boxes = boxes[0]
++        scores = scores[0, :, 1]
++        selected = scores > self.MODEL_UFACE_CLASSIFICATION_THRESHOLD
++        boxes = boxes[selected]
++        scores = scores[selected]
++
++        selected = self.nms(boxes, scores,
++                            self.MODEL_UFACE_NUMBER_MAX,
++                            self.MODEL_UFACE_NMS_IOU_THRESHOLD)
+ 
+         return selected
+diff --git a/tasks/face-processing/face-detection/example_face_detection_tflite.py b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+index 80766a9..0e11ac8 100755
+--- a/tasks/face-processing/face-detection/example_face_detection_tflite.py
++++ b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+@@ -11,7 +11,6 @@ import sys
+ python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            '../../../common/python')
+ sys.path.append(python_path)
+-from imxpy.imx_dev import Imx, SocId  # noqa
+ 
+ python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            '../common')
+@@ -20,16 +19,7 @@ from facedetectpipe import FaceDetectPipe # noqa
+ 
+ if __name__ == '__main__':
+ 
+-    imx = Imx()
+-    if imx.id() == SocId.IMX8MP:
+-        default_camera = '/dev/video3'
+-    elif imx.is_imx93():
+-        default_camera = '/dev/video0'
+-    elif imx.is_imx95():
+-        default_camera = '/dev/video13'
+-    else:
+-        name = imx.name()
+-        raise NotImplementedError(f'Platform not supported [{name}]')
++    default_camera = '/dev/video3'
+ 
+     parser = argparse.ArgumentParser(description='Face Identification')
+     parser.add_argument('--camera_device', '-c', type=str,
+@@ -46,7 +36,7 @@ if __name__ == '__main__':
+     # pipeline parameters - no secondary pipeline
+     camera_device = args.camera_device
+     flip = args.mirror
+-    vr = (640, 480)
++    vr = (640, 360)
+     fps = 30
+     secondary = None
+ 
+-- 
+2.25.1
+

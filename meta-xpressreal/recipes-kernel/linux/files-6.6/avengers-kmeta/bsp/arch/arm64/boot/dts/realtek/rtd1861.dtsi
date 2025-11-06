@@ -1,0 +1,574 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1861 SoC
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include "kent.dtsi"
+#include <dt-bindings/input/linux-event-codes.h>
+
+&{/} {
+	automotive_ctl: automotive-ctl {
+		compatible = "realtek,autctl";
+		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		realtek,sb2 = <&sb2>;
+		realtek,sb2-pmu = <&sb2_pmu>;
+		status = "okay";
+	};
+};
+
+&boot_status {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+	ports = <&vo1_out>, <&vo0_out>, <&vo2_out>;
+	krpc-second = <0>;
+};
+
+&dlsr_rproc {
+	only-load-fw;
+	need-ext-fw;
+	status = "okay";
+};
+
+&dp {
+	compatible = "realtek,rtk-1861-dptx";
+	status = "disabled";
+
+	extcon = <&usb1_u3phy>;
+
+	ports {
+		dp_in: port@0 {
+			reg = <0>;
+			dp_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_dp>;
+			};
+		};
+
+		dp_out: port@1 {
+			reg = <1>;
+		};
+	};
+};
+
+&dsi {
+	compatible = "realtek,rtk-car-dsi";
+	status = "okay";
+
+	ports {
+		dsi_in: port@0 {
+			reg = <0>;
+			dsi_in_vo1: endpoint {
+				remote-endpoint = <&vo1_out_dsi>;
+			};
+		};
+
+		dsi_out: port@1 {
+			reg = <1>;
+		};
+	};
+};
+
+&efuse {
+	status = "okay";
+};
+
+&emmc {
+	status = "okay";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&gpio_manager {
+	status = "okay";
+};
+
+&gpu_wrap {
+	status = "okay";
+};
+
+&gpu_cache {
+	status = "okay";
+};
+
+&hifi_rproc {
+	is-booted;
+	need-ext-fw;
+	status = "okay";
+};
+
+&hse {
+	status = "okay";
+};
+
+&i2c_0 {
+	status = "okay";
+};
+
+&i2c_1 {
+	status = "okay";
+};
+
+&i2c_3 {
+	status = "okay";
+};
+
+&i2c_4 {
+	status = "okay";
+};
+
+&i2c_5 {
+	status = "okay";
+};
+
+&i2c_6 {
+	status = "okay";
+};
+
+&i2c_7 {
+	status = "okay";
+};
+
+&iso_m_gpio {
+	status = "okay";
+};
+
+&kr4_rproc {
+	is-booted;
+	mcu-suspend;
+	status = "okay";
+};
+
+&lvds1 {
+	status = "disabled";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		lvds1_in: port@0 {
+			reg = <0>;
+		};
+
+		lvds1_out: port@1 {
+			reg = <1>;
+		};
+	};
+};
+
+&lvds2 {
+	status = "disabled";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		lvds2_in: port@0 {
+			reg = <0>;
+			lvds2_in_vo2: endpoint {
+				remote-endpoint = <&vo2_out_lvds2>;
+			};
+		};
+
+		lvds2_out: port@1 {
+			reg = <1>;
+		};
+	};
+};
+
+&lsadc_0 {
+	status = "okay";
+};
+
+&{/} {
+	lsadc_button {
+		compatible = "realtek,lsadc-button";
+		io-channels = <&lsadc_0 1>,<&lsadc_0 2>,<&lsadc_0 3>;
+		buttonkey = <KEY_F1 KEY_F2 KEY_HOME KEY_BACK KEY_APPSELECT KEY_VOLUMEUP KEY_VOLUMEDOWN \
+					KEY_POWER KEY_F3>;
+	};
+};
+
+&mipi_csi {
+	status = "okay";
+};
+
+&mipi_csi_phy {
+	status = "okay";
+};
+
+&mipicsi_0 {
+	status = "okay";
+};
+
+&mipicsi_1 {
+	status = "okay";
+};
+
+&mipicsi_2 {
+	status = "okay";
+};
+
+&mipicsi_3 {
+	status = "okay";
+};
+
+&mipicsi_4 {
+	status = "okay";
+};
+
+&mipicsi_5 {
+	status = "okay";
+};
+
+&nand_ecc {
+	status = "okay";
+};
+
+&nand_flash {
+	status = "okay";
+};
+
+&nic {
+	status = "okay";
+};
+
+&nor_flash {
+	status = "okay";
+};
+
+&npu {
+	status = "okay";
+};
+
+&npu_pp {
+	status = "okay";
+};
+
+&pcie1 {
+        status = "okay";
+};
+
+&pcie1_phy {
+        status = "okay";
+};
+
+&power_ac {
+	status = "okay";
+};
+
+&power_battery {
+	status = "okay";
+};
+
+&pwm {
+	status = "okay";
+	pwm-5 {
+		enable = <2>; /* inherit */
+	};
+};
+
+&jpeg {
+	status = "okay";
+};
+
+&ve1 {
+	status = "okay";
+};
+
+&ve4 {
+	status = "okay";
+};
+
+&regulator_vcc1v8{
+	status = "okay";
+};
+
+&reserved_memory {
+	default_cma: default-cma {
+		size = <0x0 0x04000000>; /* 64MB, enlarge for Cluster FW reload */
+	};
+
+	cluster_fw: cluster-fw@5000000 {
+		reg = <0x0 0x05000000 0x0 0x03a00000>;  /* Cluster FW 58MB */
+		no-map;
+	};
+
+	cluster_hifi_vo: cluster-hifi-vo@40000000 {
+		reg = <0x0 0x40000000 0x0 0x00040000>;  /* Cluster to Hifi vo 256kb */
+		no-map;
+	};
+
+	vo_rotation: vo-rotation@41000000 {
+		reg = <0x0 0x41000000 0x0 0x04000000>; /* VO reserve for rotate panel 64 MB */
+		no-map;
+	};
+
+	frcv: frcv@60000000 {
+		/* fast record camera vehicle, raw-data:0x62800000~0x631fffff*/
+		reg = <0x0 0x60000000 0x0 0x03200000>;
+		no-map;
+	};
+
+	cma_vo_dsc3:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x0c000000>;		    /* 192M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x20000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	cma_tp_ssc2:tp_ssc2 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x02000000>;		    /* 32M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x00000000 0x0 0x20000000>;
+		reusable;
+	};
+
+	cma_audio_ssc1:audio_ssc1 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_video_dsc5:video_dsc5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x08000000>;		    /* 128M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x30000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	cma_ao_ssc6:ao_ssc6 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_ota_dsc8:ota_dsc8 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x04000000>;		    /* 64M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_fwstack_ssc4:fwstack_ssc4 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x00c00000>;		    /* 12M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_hifi_b1p5:hifi_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x04000000>;		    /* 64M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x40000000 0x0 0x20000000>;
+		reusable;
+	};
+
+	cma_vo_s_dsc3:vo_s_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x13000000>;		    /* 304M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x40000000 0x0 0x40000000>;
+		reusable;
+	};
+};
+
+&rfkill {
+	status = "okay";
+};
+
+&rng {
+	status = "okay";
+};
+
+&rtk_fwdbg {
+	status = "okay";
+};
+
+&rtk_pm {
+	wakeup-flags = <PCPU_V2_AUTO_MODE>;
+	status = "okay";
+};
+
+&rtk_tee_mem {
+	status = "okay";
+};
+
+&rtk_urpc_service {
+	status = "okay";
+};
+
+&scpu_wrapper {
+	status = "okay";
+};
+
+&sdcard {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	cd-inverted;
+	status = "okay";
+};
+
+&sdio {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	keep-power-in-suspend;
+	non-removable;
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&uart7 {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port1 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port3 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port4 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&type_c {
+	realtek,plug-side-switch-gpio = <&gpio 143 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&vcpu {
+	status = "okay";
+};
+
+&vcpu_rproc {
+	status = "okay";
+};
+
+&vi_0 {
+	status = "okay";
+};
+
+&video_input {
+	status = "okay";
+};
+
+&vo0 {
+	status = "disabled";
+
+	vo0_out: port {
+		vo0_out_dp: endpoint {
+			remote-endpoint = <&dp_in_vo0>;
+		};
+	};
+};
+
+&vo1 {
+	status = "okay";
+
+	vo1_out: port {
+		vo1_out_dsi: endpoint {
+			remote-endpoint = <&dsi_in_vo1>;
+		};
+	};
+};
+
+&vo2 {
+	status = "disabled";
+
+	vo2_out: port {
+		vo2_out_lvds2: endpoint {
+			remote-endpoint = <&lvds2_in_vo2>;
+		};
+	};
+};
+
+&volt_detector {
+	status = "okay";
+};
+
+&gpu {
+	assigned-clocks = <&cc RTD1625_CRT_PLL_GPU>;
+	assigned-clock-rates = <810000000>;
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};

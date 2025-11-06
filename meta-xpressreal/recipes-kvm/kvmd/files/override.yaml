@@ -1,0 +1,91 @@
+###############################################################################
+#                                                                             #
+#  Override KVMD settings.                                                    #
+#                                                                             #
+#    * https://docs.pikvm.org/first_steps/#structure-of-configuration-files   #
+#                                                                             #
+#  This file uses YAML syntax. All overridden parameters will be applied      #
+#  AFTER other configs and "!include" directives, and BEFORE validation.      #
+#  Values should be combined under common sections.                           #
+#                                                                             #
+###############################################################################
+#
+#########
+# Wrong #
+#########
+#kvmd:
+#    gpio:
+#        drivers: ...
+#kvmd:
+#    gpio:
+#        scheme: ...
+#
+###########
+# Correct #
+###########
+#kvmd:
+#    gpio:
+#        drivers: ...
+#        scheme: ...
+#
+###########
+# Example #
+###########
+#vnc:
+#    # See https://docs.pikvm.org/vnc
+#    keymap: /usr/share/kvmd/keymaps/ru # Set russian keymap
+#    auth:
+#        vncauth:
+#            enabled: true # Enable auth via /etc/kvmd/vncpasswd
+kvmd:
+    atx:
+        type: disabled
+        enabled: false
+        hdd_led_pin: 22
+        power_led_pin: 24
+
+    hid:
+        mouse_alt:
+            device: ""
+
+    streamer:
+        quality: 0
+        resolution:
+            default: 1920x1080
+            available:
+                - 1920x1080
+                - 1600x1200
+                - 1360x768
+                - 1280x1024
+                - 1280x960
+                - 1280x720
+                - 1024x768
+                - 800x600
+                - 720x576
+                - 720x480
+                - 640x480
+        cmd:
+            - "/bin/true"
+
+        forever: false
+
+    info:
+        fan:
+            unix: ""
+
+        hw:
+            ignore_past: false
+
+media:
+    memsink:
+        jpeg:
+            sink: "kvmd::ustreamer::jpeg"
+        h264:
+            sink: ""
+
+vnc:
+    memsink:
+        jpeg:
+            sink: "kvmd::ustreamer::jpeg"
+        h264:
+            sink: ""

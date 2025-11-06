@@ -1,0 +1,74 @@
+From 407855f511a4f45841f2eeb92aca4d1f8a875d22 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Thu, 21 Mar 2024 12:28:47 +0800
+Subject: [PATCH] uboot-rtd1xxx: Copy back output file in binman replace action
+
+---
+ tools/binman/control.py    | 3 +++
+ tools/binman/entry.py      | 3 ++-
+ tools/binman/etype/blob.py | 1 +
+ tools/binman/image.py      | 6 ++++++
+ 4 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/tools/binman/control.py b/tools/binman/control.py
+index 2f00279232..131d619624 100644
+--- a/tools/binman/control.py
++++ b/tools/binman/control.py
+@@ -770,6 +770,9 @@ def Binman(args):
+                                do_compress=not args.compressed,
+                                allow_resize=not args.fix_size, write_map=args.map)
+ 
++                fname = tools.GetOutputFilename(args.image)
++                tools.WriteFile(args.image, tools.ReadFile(fname))
++
+             if args.cmd == 'sign':
+                 SignEntries(args.image, args.file, args.key, args.algo, args.paths)
+ 
+diff --git a/tools/binman/entry.py b/tools/binman/entry.py
+index 42e0b7b914..50fa88ce05 100644
+--- a/tools/binman/entry.py
++++ b/tools/binman/entry.py
+@@ -462,7 +462,8 @@ class Entry(object):
+ 
+             # Don't let the data shrink. Pad it if necessary
+             if size_ok and new_size < self.contents_size:
+-                data += tools.get_bytes(0, self.contents_size - new_size)
++                 pad_byte = self._pad_byte if hasattr(self, '_pad_byte') else 0
++                 data += tools.get_bytes(pad_byte or 0, self.contents_size - new_size)
+ 
+         if not size_ok:
+             tout.debug("Entry '%s' size change from %s to %s" % (
+diff --git a/tools/binman/etype/blob.py b/tools/binman/etype/blob.py
+index 064fae5036..30e386e36a 100644
+--- a/tools/binman/etype/blob.py
++++ b/tools/binman/etype/blob.py
+@@ -35,6 +35,7 @@ class Entry_blob(Entry):
+         super().__init__(section, etype, node,
+                          auto_write_symbols=auto_write_symbols)
+         self._filename = fdt_util.GetString(self._node, 'filename', self.etype)
++        self._pad_byte = None
+         self.elf_fname = fdt_util.GetString(self._node, 'elf-filename',
+                                             self.elf_fname)
+         self.elf_base_sym = fdt_util.GetString(self._node, 'elf-base-sym')
+diff --git a/tools/binman/image.py b/tools/binman/image.py
+index e77b5d0d97..45d080d828 100644
+--- a/tools/binman/image.py
++++ b/tools/binman/image.py
+@@ -225,11 +225,17 @@ class Image(section.Entry_section):
+         parts = entry_path.split('/')
+         entries = self.GetEntries()
+         parent = '/'
++        pad_byte = None
+         for part in parts:
+             entry = entries.get(part)
+             if not entry:
+                 raise ValueError("Entry '%s' not found in '%s'" %
+                                  (part, parent))
++            if hasattr(entry, '_pad_byte'):
++                if entry._pad_byte is not None:
++                    pad_byte = entry._pad_byte
++                elif pad_byte is not None and not hasattr(entry, 'fill_value'):
++                    entry._pad_byte = pad_byte
+             parent = entry.GetPath()
+             entries = entry.GetEntries()
+         return entry

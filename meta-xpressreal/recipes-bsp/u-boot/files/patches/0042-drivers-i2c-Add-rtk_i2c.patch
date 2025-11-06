@@ -1,0 +1,23 @@
+From 9f0966e5c58ade11265fab70541e90626ccd56ff Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 21 Mar 2022 10:03:21 +0800
+Subject: [PATCH] drivers: i2c: Add rtk_i2c
+
+---
+ drivers/i2c/Makefile | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/i2c/Makefile b/drivers/i2c/Makefile
+index a96a8c7e95..d5e23492be 100644
+--- a/drivers/i2c/Makefile
++++ b/drivers/i2c/Makefile
+@@ -56,3 +56,9 @@ obj-$(CONFIG_SYS_I2C_XILINX_XIIC) += xilinx_xiic.o
+ obj-$(CONFIG_TEGRA186_BPMP_I2C) += tegra186_bpmp_i2c.o
+ 
+ obj-$(CONFIG_$(SPL_)I2C_MUX) += muxes/
++
++ifndef CONFIG_TARGET_RTD1625
++obj-y += rtk_i2c-pow.o
++obj-y += rtk_i2c-lib.o
++obj-y += rtk_i2c.o
++endif

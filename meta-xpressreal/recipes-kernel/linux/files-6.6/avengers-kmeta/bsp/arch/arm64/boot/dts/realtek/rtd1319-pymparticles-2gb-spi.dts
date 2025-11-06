@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2019-2020 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1319-pymparticles.dtsi"
+
+/ {
+	compatible = "realtek,pym-particles-spi", "realtek,rtd1319";
+	model = "Realtek Pym Particles EVB SPI (2GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>; /* 2 GiB */
+	};
+
+	aliases {
+		ethernet = &nic;
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		rtc0 = &rtc;
+	};
+
+	/delete-node/tee-clock;
+};
+
+&emmc {
+	status = "disabled";
+};
+
+&sb2 {
+	sfc: sfc@800 {
+		compatible = "realtek,rtd13xx-sfc";
+		reg = <0x800 0x50>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <2>;
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		};
+	};
+};
+
+&tp {
+	status = "disabled";
+};
+
+&nic {
+	output-mode = <2>; /* 0:embedded PHY, 1:RGMII to MAC, 2:RGMII to PHY, 5:RMII */
+};
+
+&cpu0 {
+	clocks = <&cc RTD1319_CRT_PLL_SCPU>;
+};
+
+&cpu1 {
+	clocks = <&cc RTD1319_CRT_PLL_SCPU>;
+};
+
+&cpu2 {
+	clocks = <&cc RTD1319_CRT_PLL_SCPU>;
+};
+
+&cpu3 {
+	clocks = <&cc RTD1319_CRT_PLL_SCPU>;
+};
+
+&pcie {
+	status = "disabled";
+};
+
+&pcie1 {
+	perst-gpios = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+&pcie2 {
+	perst-gpios = <&gpio 3 GPIO_ACTIVE_HIGH>;
+	workaround = <1>;
+	status = "okay";
+};
+
+&pcie_trans {
+	status = "okay";
+};
+
+&sata_port0 {
+	sata-gpios = <&gpio 2 GPIO_ACTIVE_HIGH>;
+};
+
+&sata_port1 {
+	sata-gpios = <&gpio 3 GPIO_ACTIVE_HIGH>;
+};
+
+&rfkill {
+	status = "okay";
+};

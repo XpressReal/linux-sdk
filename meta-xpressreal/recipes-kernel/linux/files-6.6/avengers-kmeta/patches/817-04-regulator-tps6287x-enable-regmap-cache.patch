@@ -1,0 +1,25 @@
+From 8914885a7ef93f0f8f0706d10fbdf814ec63fb61 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Fri, 11 Jul 2025 10:43:14 +0800
+Subject: [PATCH] regulator: tps6287x: enable regmap cache
+
+Change-Id: I52cbf94ed312f2761bd5fe561089301bf8613d29
+---
+ drivers/regulator/tps6287x-regulator.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/regulator/tps6287x-regulator.c b/drivers/regulator/tps6287x-regulator.c
+index 6271f7b2f1ae..b75f338d8d5b 100644
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -35,6 +35,7 @@ static const struct regmap_config tps6287x_regmap_config = {
+ 	.reg_bits = 8,
+ 	.val_bits = 8,
+ 	.max_register = TPS6287X_STATUS,
++	.cache_type = REGCACHE_RBTREE,
+ };
+ 
+ static const unsigned int tps6287x_ramp_table[] = {
+-- 
+2.47.0
+

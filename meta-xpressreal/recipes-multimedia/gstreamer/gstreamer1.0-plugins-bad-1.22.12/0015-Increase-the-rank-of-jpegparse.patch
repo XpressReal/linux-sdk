@@ -1,0 +1,26 @@
+From a9eb83aee77590d1935ec72837da9fb456c90313 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 9 Jul 2025 14:31:55 +0800
+Subject: [PATCH 1/1] Increase the rank of jpegparse
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst/jpegformat/gstjpegparse.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gst/jpegformat/gstjpegparse.c b/gst/jpegformat/gstjpegparse.c
+index 6be24a2..e158a7b 100644
+--- a/gst/jpegformat/gstjpegparse.c
++++ b/gst/jpegformat/gstjpegparse.c
+@@ -107,7 +107,7 @@ static gboolean gst_jpeg_parse_stop (GstBaseParse * parse);
+ 
+ #define gst_jpeg_parse_parent_class parent_class
+ G_DEFINE_TYPE (GstJpegParse, gst_jpeg_parse, GST_TYPE_BASE_PARSE);
+-GST_ELEMENT_REGISTER_DEFINE (jpegparse, "jpegparse", GST_RANK_NONE,
++GST_ELEMENT_REGISTER_DEFINE (jpegparse, "jpegparse", GST_RANK_PRIMARY + 1,
+     GST_TYPE_JPEG_PARSE);
+ 
+ enum GstJPEGColorspace
+-- 
+2.34.1
+

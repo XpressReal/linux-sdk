@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2023 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1625-fpga.dtsi"
+
+/ {
+	compatible = "realtek,kentfpga", "realtek,Rtd1625";
+	model = "Realtek Kent FPGA (8GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x0 0x00040000 0x0 0x7ffc0000>,
+		      <0x0 0x8a100000 0x0 0x0def0000>,
+		      <0x0 0x98700000 0x0 0x66900000>,
+		      <0x1 0x00000000 0x1 0x00000000>; /* 8 GB */
+	};
+};

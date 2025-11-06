@@ -1,0 +1,27 @@
+From 289724187c6ed0ab7f28db1fc943ef8a78bc321a Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 8 Jan 2025 15:43:51 +0800
+Subject: [PATCH] fix video layer won't enter hw video plane when subtitle
+ layer exist
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/state-propose.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
+index 5bb11aa..8ac7f2d 100644
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -740,7 +740,7 @@ drm_output_propose_state(struct weston_output *output_base,
+ 		 * view; includes the case where occluded_region covers
+ 		 * the entire output */
+ 		totally_occluded = !pixman_region32_not_empty(&surface_overlap);
+-		if (totally_occluded) {
++		if ((b->compositor->dmabuf_v1_overlay == false || ev->is_video_buf == false) && totally_occluded) {
+ 			drm_debug(b, "\t\t\t\t[view] ignoring view %p "
+ 			             "(occluded on our output)\n", ev);
+ 			pixman_region32_fini(&surface_overlap);
+-- 
+2.34.1
+

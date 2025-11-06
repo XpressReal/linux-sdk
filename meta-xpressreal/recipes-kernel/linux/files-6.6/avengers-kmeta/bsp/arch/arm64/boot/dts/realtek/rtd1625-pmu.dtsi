@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: <SPDX License Expression>
+&dbus_pmu {
+	status = "okay";
+	overflow = <1>;
+
+	dbus_sys: dbus_sys {
+		compatible = "dbus-sys";
+		remap_en = <1>;
+	};
+
+	dbus_sysh: dbus_sysh {
+		compatible = "dbus-sysh";
+		remap_en = <1>;
+	};
+};
+
+&ddrc_pmu {
+	status = "okay";
+	overflow = <1>;
+};

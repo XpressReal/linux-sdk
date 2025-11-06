@@ -1,0 +1,3 @@
+patch 410-Add-serial-flash-controller-driver.patch
+
+kconf hardware spi.cfg

@@ -1,0 +1,20 @@
+[Unit]
+Description=PiKVM MJPG Streaming Service
+After=network.target kvmd.service
+Conflicts=kvmd-webrtc.service
+
+[Service]
+User=kvmd
+Group=kvmd
+
+ExecStart=/usr/bin/ustreamer --device=/dev/video0 --persistent --format=mjpeg --resolution=1920x1080 --desired-fps=40 --drop-same-frames=30 --unix=/run/kvmd/ustreamer.sock --unix-rm --unix-mode=0660 --process-name-prefix=kvmd/ustreamer --no-log-colors --jpeg-sink=kvmd::ustreamer::jpeg --jpeg-sink-mode=0660
+
+ExecStartPost=/bin/bash -c "/usr/bin/gst-launch-1.0 -v alsasrc device=hw:0,0 ! audioconvert ! audioresample ! audio/x-raw,rate=48000,channels=2 ! opusenc bitrate=64000 ! rtpopuspay pt=111 ! udpsink host=127.0.0.1 port=5006 &"
+#ExecStartPost=/usr/bin/gst-launch-1.0 -v alsasrc device=hw:0,0 ! audioconvert ! audioresample ! audio/x-raw,rate=48000,channels=2 ! opusenc bitrate=64000 ! rtpopuspay pt=111 ! udpsink host=127.0.0.1 port=5006 &
+
+Restart=always
+RestartSec=5
+Environment="PATH=/usr/bin:/usr/local/bin"
+
+[Install]
+WantedBy=multi-user.target

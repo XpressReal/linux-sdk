@@ -1,0 +1,181 @@
+From b752860bbb1556e638fa2624d3931dcf6c801f9a Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Wed, 28 May 2025 09:02:04 +0000
+Subject: [PATCH 8/8] Refine pipeline
+
+1. Support GST_V4L2_IO_DMABUF_IMPORT (5) mode
+2. Support rtkhse
+3. Add iomode into input option
+---
+ .../face-processing/common/facedetectpipe.py  | 22 ++++++++++++-------
+ .../example_face_detection_tflite.py          |  5 ++++-
+ .../example_face_recognition_tflite.py        | 12 ++++++----
+ 3 files changed, 26 insertions(+), 13 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index ed00ee2..6be7851 100644
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -17,7 +17,7 @@ import sys
+ gi.require_version('Gst', '1.0')
+ gi.require_version('GstApp', '1.0')
+ gi.require_version('GstVideo', '1.0')
+-from gi.repository import Gst, GLib, GstApp, GstVideo  # noqa
++from gi.repository import Gst, GLib, GObject, GstApp, GstVideo  # noqa
+ 
+ class StdInHelper:
+ 
+@@ -118,7 +118,8 @@ class SecondaryPipe(Pipe):
+                  secondary_model,
+                  video_resolution=(640, 480),
+                  video_fps=30,
+-                 format='NV16'):
++                 format='NV16',
++                 iomode=5):
+         """Secondary GStreamer pipeline applying 2nd model on detected faces.
+ 
+         Secondary GStreamer pipeline to be fed with video stream and a set of
+@@ -142,8 +143,6 @@ class SecondaryPipe(Pipe):
+ 
+         self.processing_complete_cb = None
+ 
+-        iomode = 4
+-
+         # secondary pipeline (face crop + second model) GStreamer definition
+         video_caps = ('video/x-raw,'
+                       'width={:d},height={:d},framerate={:d}/1,format={:s}') \
+@@ -250,7 +249,8 @@ class FaceDetectPipe(Pipe):
+                  model_directory=None,
+                  position=(0, 0),
+                  window=(640, 480),
+-                 codec='MJPEG'):
++                 codec='MJPEG',
++                 iomode=5):
+         """Main GStreamer pipeline running face detection on video stream.
+ 
+         It is optionally sequencing a secondary pipeline provided with the
+@@ -313,8 +313,6 @@ class FaceDetectPipe(Pipe):
+ 
+         ufh, ufw, _ = self.ultraface.get_model_input_shape()
+ 
+-        iomode = 4
+-
+         if codec == 'H264':
+             video_caps = ('video/x-h264, '
+                         'width={:d},height={:d},framerate={:d}/1') \
+@@ -344,7 +342,7 @@ class FaceDetectPipe(Pipe):
+             .format("/root/ai-demo/face-processing/sample/network_binary_ultraface.nb,/root/ai-demo/face-processing/sample/ultrafaceuint8.so")
+         cmdline += ' tensor_sink name=tsink_fd '
+ 
+-        cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert ! video/x-raw,format=RGB16 ! '
++        cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! rtkhse ! video/x-raw,format=BGRA ! '
+         # cairo overlay format restricted to BGRx, BGRA, RGB16
+         cmdline += ' cairooverlay name=cairooverlay ! '
+         cmdline += f" waylandsink render-rectangle=<{wx},{wy},{ww},{wh}> sync=false "
+@@ -376,6 +374,7 @@ class FaceDetectPipe(Pipe):
+         # video appsink callback
+         app_sink_video = self.pipeline.get_by_name('appsink_video')
+         app_sink_video.connect("new-sample", self.video_app_sink_new_sample_cb)
++        app_sink_video.connect("propose-allocation", self.video_app_sink_propose_allocation_cb)
+ 
+     def on_main_bus_message(self, bus, message):
+         """Main pipeline bus message callback.
+@@ -492,6 +491,13 @@ class FaceDetectPipe(Pipe):
+ 
+         return Gst.FlowReturn.OK
+ 
++    def video_app_sink_propose_allocation_cb(self, sink, query):
++        """Callback to propose allocation for video appsink.
++        """
++        gtype = GObject.type_from_name("GstVideoMetaAPI")
++        query.add_allocation_meta(gtype, None)
++        return True
++
+     def secondary_processing_complete_cb(self, output):
+         """Callback from secondary pipeline when it has completed processing.
+ 
+diff --git a/tasks/face-processing/face-detection/example_face_detection_tflite.py b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+index ff9eba5..a42396f 100755
+--- a/tasks/face-processing/face-detection/example_face_detection_tflite.py
++++ b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+@@ -56,6 +56,8 @@ if __name__ == '__main__':
+                         help='display window size, e.g. --window=640,480 or --window="(640,480)"')
+     parser.add_argument('--codec', '-k', type=str, choices=['H264', 'MJPEG'],
+                         default='MJPEG', help='video codec to be used, default=MJPEG')
++    parser.add_argument('--iomode', type=int, choices=[4, 5],
++                        help='Capture IO mode', default=5)
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -70,6 +72,7 @@ if __name__ == '__main__':
+     pos = args.position if args.position else (0, 0)
+     win = args.window if args.window else vr
+     codec = args.codec.upper()
++    iomode = args.iomode
+     secondary = None
+ 
+     if win[0] > vr[0] or win[1] > vr[1]:
+@@ -77,5 +80,5 @@ if __name__ == '__main__':
+ 
+     pipe = FaceDetectPipe(camera_device=camera_device, video_resolution=vr,
+                           video_fps=fps, flip=flip, secondary_pipe=secondary,
+-                          position=pos, window=win, codec=codec)
++                          position=pos, window=win, codec=codec, iomode=iomode)
+     pipe.run()
+diff --git a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+index 2b31bcc..05f8fa1 100644
+--- a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
++++ b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+@@ -32,7 +32,7 @@ class FaceRecoPipe(FaceDetectPipe):
+ 
+     def __init__(self, camera_device, video_resolution=(640, 480),
+                  video_fps=30, flip=False, secondary_pipe=None, model_directory=None,
+-                 position=(0, 0), window=(640, 480), codec='MJPEG'):
++                 position=(0, 0), window=(640, 480), codec='MJPEG', iomode=5):
+         """Subclass FaceDetectPipe.
+ 
+         Derived class implements specific functions relevant to this example:
+@@ -58,7 +58,8 @@ class FaceRecoPipe(FaceDetectPipe):
+             model_directory,
+             position,
+             window,
+-            codec)
++            codec,
++            iomode)
+ 
+         # reference to secondary pipe FaceNet model instance
+         self.facenet = self.secondary_pipe.model
+@@ -358,6 +359,8 @@ if __name__ == '__main__':
+                         default='MJPEG', help='video codec to be used, default=MJPEG')
+     parser.add_argument('--format', type=str, choices=['NV12', 'NV16'],
+                         default='NV16', help='YUV pixel formats of camera output, default=NV16')
++    parser.add_argument('--iomode', type=int, choices=[4, 5],
++                        help='Capture IO mode', default=5)
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -373,6 +376,7 @@ if __name__ == '__main__':
+     win = args.window if args.window else vr
+     codec = args.codec.upper()
+     format = args.format.upper()
++    iomode = args.iomode
+ 
+     if win[0] > vr[0] or win[1] > vr[1]:
+         parser.error(f"Window size must be no bigger than resolution, got {win}")
+@@ -384,11 +388,11 @@ if __name__ == '__main__':
+ 
+     model = facenet.FNModel(models_dir, mface_db_dir)
+     secondary = SecondaryPipe(model, video_resolution=vr, video_fps=fps,
+-                              format=format)
++                              format=format, iomode=iomode)
+ 
+     # main pipeline for face detection
+     pipe = FaceRecoPipe(camera_device=camera_device, video_resolution=vr,
+                         video_fps=fps, flip=flip, secondary_pipe=secondary,
+                         model_directory=models_dir, position=pos, window=win,
+-                        codec=codec)
++                        codec=codec, iomode=iomode)
+     pipe.run()
+-- 
+2.25.1
+
