@@ -1,0 +1,30 @@
+From d0356d36373e45c23e48d59c56f8f7c62dc77607 Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Thu, 8 May 2025 03:26:41 +0000
+Subject: [PATCH 2/8] Adopt USB camera as input source
+
+---
+ tasks/face-processing/common/facedetectpipe.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index f5dc481..f0864c8 100755
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -304,11 +304,11 @@ class FaceDetectPipe(Pipe):
+ 
+         ufh, ufw, _ = self.ultraface.get_model_input_shape()
+ 
+-        cmdline = ' filesrc location=/root/blackpink.mp4  ! qtdemux ! h264parse ! v4l2h264dec ! videoconvert  ! videoscale ! video/x-raw,format=RGB,width=640,height=360 ! '
++        cmdline = ' v4l2src device=/dev/video4 ! video/x-h264,width=640,height=480,framerate=15/1 ! parsebin ! v4l2h264dec ! '
+         cmdline += '  tee name=tvideo '
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+-        cmdline += ' videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
++        cmdline += ' videoconvert ! videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
+         cmdline += ' tensor_converter ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=uint8 !  '
+ 
+         cmdline += (' tensor_filter '
+-- 
+2.25.1
+

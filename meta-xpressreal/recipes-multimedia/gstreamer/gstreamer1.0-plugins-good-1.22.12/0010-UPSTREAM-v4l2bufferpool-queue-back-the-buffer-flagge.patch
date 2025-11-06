@@ -1,0 +1,60 @@
+From fdb05ba68fad3323057c909a471afc6fa7afb2dc Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 14 Apr 2025 13:57:47 +0800
+Subject: [PATCH 1/1] v4l2bufferpool: queue back the buffer flagged LAST but
+ empty
+Upstream-Status: Backport
+
+Some decoder drivers need to wait enough capture buffers before
+starting to decode. But the dequeued buffer flag LAST but empty
+has no chance to queue back to driver, which makes decode hang
+after seek. So need to queue back such kind of buffer to driver.
+The buffer would fail at gst_v4l2_is_buffer_valid() before,
+since it has a reference on it, it is not writable.
+---
+ sys/v4l2/gstv4l2bufferpool.c | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index b05c790..9a88e54 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1243,6 +1243,7 @@ static GstFlowReturn
+ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+     gboolean * outstanding, gboolean wait)
+ {
++  GstBufferPool *bpool = GST_BUFFER_POOL_CAST (pool);
+   GstFlowReturn res;
+   GstBuffer *outbuf = NULL;
+   GstV4l2Object *obj = pool->obj;
+@@ -1286,12 +1287,6 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+         group->buffer.index);
+   }
+ 
+-  if (group->buffer.flags & V4L2_BUF_FLAG_LAST &&
+-      group->planes[0].bytesused == 0) {
+-    GST_DEBUG_OBJECT (pool, "Empty last buffer, signalling eos.");
+-    goto eos;
+-  }
+-
+   outbuf = pool->buffers[group->buffer.index];
+   if (outbuf == NULL)
+     goto no_buffer;
+@@ -1303,6 +1298,14 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+     GST_OBJECT_UNLOCK (pool);
+   }
+ 
++  if (group->buffer.flags & V4L2_BUF_FLAG_LAST &&
++    group->planes[0].bytesused == 0) {
++    GST_DEBUG_OBJECT (pool, "Empty last buffer, signalling eos.");
++    gst_v4l2_buffer_pool_complete_release_buffer (bpool, outbuf, FALSE);
++    *buffer = NULL;
++    goto eos;
++  }
++
+   timestamp = GST_TIMEVAL_TO_TIME (group->buffer.timestamp);
+ 
+   for (i = 0; i < group->n_mem; i++) {
+-- 
+2.34.1
+

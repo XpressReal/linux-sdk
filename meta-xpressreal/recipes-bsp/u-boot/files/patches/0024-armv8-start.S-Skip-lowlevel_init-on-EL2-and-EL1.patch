@@ -1,0 +1,26 @@
+From de49e3c243bab819eb235c7b23c57822990a7e86 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 3 Jan 2024 20:08:29 +0800
+Subject: [PATCH] armv8: start.S: Skip lowlevel_init on EL2 and EL1
+
+---
+ arch/arm/cpu/armv8/start.S | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm/cpu/armv8/start.S b/arch/arm/cpu/armv8/start.S
+index 6cc1d26e5e..247480dbc8 100644
+--- a/arch/arm/cpu/armv8/start.S
++++ b/arch/arm/cpu/armv8/start.S
+@@ -172,7 +172,12 @@ pie_fixup_done:
+ 	 */
+ 
+ 	/* Processor specific initialization */
++	/* When bootcode is in el2, not to set gic. */
++	switch_el x1, 3f, 2f, 1f
++3:
+ 	bl	lowlevel_init
++2:
++1:
+ 
+ #if defined(CONFIG_ARMV8_SPIN_TABLE) && !defined(CONFIG_SPL_BUILD)
+ 	branch_if_master x0, master_cpu

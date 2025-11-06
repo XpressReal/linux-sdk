@@ -1,0 +1,116 @@
+From 2e5d074dacf8cdb9cf73610f55bc41655c2c7a47 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 17 Apr 2025 05:16:41 -0400
+Subject: [PATCH] kernel: rproc: add avcert load flow
+
+- load kr4 riscv_fw to memory-region
+---
+
+diff --git a/drivers/remoteproc/rtk_fw_remoteproc.c b/drivers/remoteproc/rtk_fw_remoteproc.c
+index 0a0aad919..0c060efa6 100644
+--- a/drivers/remoteproc/rtk_fw_remoteproc.c
++++ b/drivers/remoteproc/rtk_fw_remoteproc.c
+@@ -110,6 +110,7 @@ struct rproc_pm_ops {
+ 
+ struct rtk_fw_info {
+ 	int smc_fid;
++	bool is_load_addr;
+ 	int cert_type;
+ 	const struct rproc_ops *ops;
+ 	const struct pm_info *pm;
+@@ -203,6 +204,24 @@ static int send_ipc_command(struct rtk_fw_rproc *rtk_rproc, u32 dst, u32 blockin
+ 
+ }
+ 
++static phys_addr_t get_memory_region_base(struct rtk_fw_rproc *rtk_rproc)
++{
++	struct reserved_mem *rmem = NULL;
++	struct device_node *node;
++
++	node = of_parse_phandle(rtk_rproc->dev->of_node, "memory-region", 0);
++	if (node)
++		rmem = of_reserved_mem_lookup(node);
++	of_node_put(node);
++
++	if (!rmem) {
++		dev_err(rtk_rproc->dev, "unable to resolve memory-region\n");
++		return -EINVAL;
++	}
++
++	return rmem->base;
++}
++
+ static int trust_fw_load(struct rproc *rproc, const struct firmware *fw)
+ {
+ 	struct device *dev = &rproc->dev;
+@@ -212,6 +231,7 @@ static int trust_fw_load(struct rproc *rproc, const struct firmware *fw)
+ 	dma_addr_t dma;
+ 	void *vaddr = NULL;
+ 	struct arm_smccc_res res;
++	phys_addr_t mem;
+ 	int cert_type;
+ 
+ 	dev_info(dev->parent, "Find FW Name: %s\n", rproc->firmware);
+@@ -228,13 +248,20 @@ static int trust_fw_load(struct rproc *rproc, const struct firmware *fw)
+ 	}
+ 	memcpy(vaddr, fw->data, fw->size);
+ 
++	if (rtk_rproc->info->is_load_addr) {
++		mem = get_memory_region_base(rtk_rproc);
++		if (mem < 0)
++			return mem;
++	} else {
++		mem = 0;
++	}
+ 	if (rtk_rproc->info->cert_type)
+ 		cert_type = rtk_rproc->info->cert_type;
+ 	else
+ 		cert_type = 0;
+ 
+ 	arm_smccc_smc(rtk_rproc->info->smc_fid, dma, fw->size,
+-		      cert_type, 0, 0, 0, 0, &res);
++		      mem ? mem : cert_type, 0, 0, 0, 0, &res);
+ 	ret = (unsigned int)res.a0;
+ 	if (ret) {
+ 		dev_err(dev, "process fwtype: %d fail\n", rtk_rproc->info->smc_fid);
+@@ -265,8 +292,6 @@ static int dlsr_load(struct rproc *rproc, const struct firmware *fw)
+ {
+ 	struct device *dev = &rproc->dev;
+ 	struct rtk_fw_rproc *rtk_rproc = rproc->priv;
+-	struct reserved_mem *rmem = NULL;
+-	struct device_node *node;
+ 	struct arm_smccc_res res;
+ 	dma_addr_t dma;
+ 	void *vaddr = NULL;
+@@ -288,17 +313,9 @@ static int dlsr_load(struct rproc *rproc, const struct firmware *fw)
+ 	}
+ 	memcpy(vaddr, fw->data, fw->size);
+ 
+-	node = of_parse_phandle(rtk_rproc->dev->of_node, "memory-region", 0);
+-	if (node)
+-		rmem = of_reserved_mem_lookup(node);
+-	of_node_put(node);
+-
+-	if (!rmem) {
+-		dev_err(rtk_rproc->dev, "unable to resolve memory-region\n");
+-		return -EINVAL;
+-	}
+-
+-	mem = rmem->base;
++	mem = get_memory_region_base(rtk_rproc);
++	if (mem < 0)
++		return mem;
+ 
+ 	arm_smccc_smc(rtk_rproc->info->smc_fid, dma, fw->size,
+ 		      mem, 0, 0, 0, 0, &res);
+@@ -1189,6 +1206,7 @@ static const struct rtk_fw_info rtd1625_kr4_info = {
+ 	.smc_fid = SMC_CMD_KR4_LOAD,
+ 	.ops = &rtd1625_kr4_ops,
+ 	.pm = &kr4_pm,
++	.is_load_addr = true,
+ 	.pm_ops = &rtd1625_pm_ops,
+ 	.log = &kr4_log_info,
+ };
+-- 
+2.34.1
+

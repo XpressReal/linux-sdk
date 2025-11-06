@@ -1,0 +1,36 @@
+From bf82ff6135f8296d22ed0b943939135cc721a4cb Mon Sep 17 00:00:00 2001
+From: simon_hsu <simon_hsu@realtek.com>
+Date: Fri, 24 Jan 2025 17:32:33 +0800
+Subject: [PATCH 507/611] ASoC: SOF: realtek: add SOF driver and machine driver
+
+[Affected Platforms] rtd1920s
+[Validated Platform] rtd1920s
+
+Change-Id: I3b0300754a70fddc0bac71ba022994eb1667dd97
+---
+ sound/soc/sof/Kconfig                |   1 +
+ sound/soc/sof/Makefile               |   1 +
+
+diff --git a/sound/soc/sof/Kconfig b/sound/soc/sof/Kconfig
+index 80361139a49a..0bc8c0099aa3 100644
+--- a/sound/soc/sof/Kconfig
++++ b/sound/soc/sof/Kconfig
+@@ -291,5 +291,6 @@ source "sound/soc/sof/imx/Kconfig"
+ source "sound/soc/sof/intel/Kconfig"
+ source "sound/soc/sof/mediatek/Kconfig"
+ source "sound/soc/sof/xtensa/Kconfig"
++source "sound/soc/sof/realtek/Kconfig"
+ 
+ endif
+diff --git a/sound/soc/sof/Makefile b/sound/soc/sof/Makefile
+index 744d40bd8c8b..730aaa67ddb7 100644
+--- a/sound/soc/sof/Makefile
++++ b/sound/soc/sof/Makefile
+@@ -58,3 +58,4 @@ obj-$(CONFIG_SND_SOC_SOF_IMX_TOPLEVEL) += imx/
+ obj-$(CONFIG_SND_SOC_SOF_AMD_TOPLEVEL) += amd/
+ obj-$(CONFIG_SND_SOC_SOF_XTENSA) += xtensa/
+ obj-$(CONFIG_SND_SOC_SOF_MTK_TOPLEVEL) += mediatek/
++obj-$(CONFIG_SND_SOC_SOF_RTK_TOPLEVEL) += realtek/
+-- 
+2.47.0
+

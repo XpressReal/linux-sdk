@@ -1,0 +1,11 @@
+define KFEATURE_DESCRIPTION "Realtek NAS Specific Patches"
+
+patch 301-Enable-the-1-of-n-mode.patch
+patch 500-Add-ecryptfs-fast-init.patch
+patch 501-Enable-4-threads-for-RAID5-XOR-operation.patch
+patch 701-Revert-tcp-tsq-no-longer-use-limit_output_bytes.patch
+patch 703-r8169soc-support-byte-queue-limits.patch
+patch 704-r8169soc-restore-jumbo-frame-function.patch
+patch 900-dts-realtek-rtd1619b-Enable-SATA-Port0.patch
+
+kconf non-hardware nas.cfg

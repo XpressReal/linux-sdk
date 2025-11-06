@@ -1,0 +1,18 @@
+#Copyright (C) 2017 Realtek Semiconductor Corporation
+
+config RTK_V4L2_DECODER
+	bool "Realtek V4L2 Decoder Interface"
+	depends on VIDEO_DEV
+	select VIDEOBUF2_DMA_CONTIG
+	select VIDEOBUF2_VMALLOC
+	select V4L2_MEM2MEM_DEV
+	default n
+	help
+		Realtek V4L2 Decoder Driver Interface
+
+config RTK_VDEC
+	tristate "V4L2 Decoder Codec Driver"
+	depends on RTK_V4L2_DECODER
+	default n
+	help
+		Realtek V4L2 Codec Driver

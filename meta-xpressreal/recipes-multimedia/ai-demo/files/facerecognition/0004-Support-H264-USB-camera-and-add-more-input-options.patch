@@ -1,0 +1,266 @@
+From fec4265f5033173a543347b8bf75478f1e0501ba Mon Sep 17 00:00:00 2001
+From: Charles Lee <charles.lee@realtek.com>
+Date: Mon, 12 May 2025 05:37:44 +0000
+Subject: [PATCH 4/8] Support H264 USB camera and add more input options
+
+---
+ .../face-processing/common/facedetectpipe.py  | 31 ++++++++++----
+ .../example_face_detection_tflite.py          | 34 ++++++++++++++--
+ .../example_face_recognition_tflite.py        | 40 +++++++++++++++----
+ 3 files changed, 86 insertions(+), 19 deletions(-)
+
+diff --git a/tasks/face-processing/common/facedetectpipe.py b/tasks/face-processing/common/facedetectpipe.py
+index 948afa2..b084312 100644
+--- a/tasks/face-processing/common/facedetectpipe.py
++++ b/tasks/face-processing/common/facedetectpipe.py
+@@ -156,7 +156,7 @@ class SecondaryPipe(Pipe):
+             format = 'RGB'
+         elif num_channels == 1:
+             format = 'GRAY8'
+-        cmdline += ' videocrop name=video_crop ! videoconvertscale ! video/x-raw,format=RGB,width=160,height=160 ! '
++        cmdline += ' v4l2convert name=video_crop output-io-mode=5  extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=160,height=160 ! '
+ 
+         cmdline += ' tensor_converter !  '
+         cmdline += (' tensor_filter '
+@@ -233,10 +233,12 @@ class SecondaryPipe(Pipe):
+         cright = vw - box[2]
+         logging.debug('push ROI: top:%d bottom:%d left:%d right:%d', ctop,
+                       cbottom, cleft, cright)
+-        self.videocrop.set_property('top', ctop)
+-        self.videocrop.set_property('bottom', cbottom)
+-        self.videocrop.set_property('left', cleft)
+-        self.videocrop.set_property('right', cright)
++        #self.videocrop.set_property('top', ctop)
++        #self.videocrop.set_property('bottom', cbottom)
++        #self.videocrop.set_property('left', cleft)
++        #self.videocrop.set_property('right', cright)
++        selection = f"cid,crop-output-x={box[0]},crop-output-y={box[1]},crop-output-w={box[2]},crop-output-h={box[3]}"
++        self.videocrop.set_property("selection-targets", Gst.Structure.from_string(selection)[0])
+ 
+         self.app_src_video.push_buffer(buffer)
+ 
+@@ -249,7 +251,8 @@ class FaceDetectPipe(Pipe):
+                  video_fps=30,
+                  flip=False,
+                  secondary_pipe=None,
+-                 model_directory=None):
++                 model_directory=None,
++                 position=(0, 0)):
+         """Main GStreamer pipeline running face detection on video stream.
+ 
+         It is optionally sequencing a secondary pipeline provided with the
+@@ -260,6 +263,7 @@ class FaceDetectPipe(Pipe):
+         video_fps: camera video stream frame rate
+         secondary_pipe: optional instance of secondary pipeline
+         model_directory: absolute path for face detection model
++        position: position of video display window (x, y)
+         """
+         super(FaceDetectPipe, self).__init__(name='main')
+ 
+@@ -269,6 +273,7 @@ class FaceDetectPipe(Pipe):
+         self.video_input_height = video_resolution[1]
+         self.video_rate = video_fps
+         self.flip = flip
++        self.position = position
+ 
+         if not os.path.exists(self.camera_device):
+             raise FileExistsError(f'cannot find camera [{self.camera_device}]')
+@@ -301,12 +306,22 @@ class FaceDetectPipe(Pipe):
+         vh = self.video_input_height
+         vr = self.video_rate
+ 
++        wx = self.position[0]
++        wy = self.position[1]
++
+         ufh, ufw, _ = self.ultraface.get_model_input_shape()
+ 
+-        cmdline = ' v4l2src device=/dev/video4 ! video/x-h264,width=640,height=480,framerate=15/1 ! parsebin ! v4l2h264dec ! '
++        video_caps = ('video/x-h264, '
++                      'width={:d},height={:d},framerate={:d}/1') \
++            .format(vw, vh, vr)
++
++        cmdline = 'v4l2src device={:s} ! '.format(self.camera_device)
++        cmdline += ' {:s} ! '.format(video_caps)
++        cmdline += ' parsebin ! v4l2h264dec ! '
+         cmdline += '  tee name=tvideo '
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
++        #cmdline += ' v4l2convert  output-io-mode=5 extra-controls="controls,npp_single_rgb_plane=1" ! video/x-raw,width=320,height=240,colorimetry=BT.709 ! '
+         cmdline += ' videoconvert ! videoscale ! video/x-raw,width=320,height=240,format=RGB ! '
+         cmdline += ' tensor_converter ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=uint8 !  '
+ 
+@@ -318,7 +333,7 @@ class FaceDetectPipe(Pipe):
+         cmdline += ' tvideo. ! queue max-size-buffers=5 leaky=2 ! videoconvert ! video/x-raw,format=RGB16 ! '
+         # cairo overlay format restricted to BGRx, BGRA, RGB16
+         cmdline += ' cairooverlay name=cairooverlay ! '
+-        cmdline += ' waylandsink sync=false '.format(vw, vh)
++        cmdline += f" waylandsink render-rectangle=<{wx},{wy},{vw},{vh}> sync=false "
+ 
+         cmdline += ' tvideo. ! queue max-size-buffers=1 leaky=2 ! '
+         cmdline += ('  appsink '
+diff --git a/tasks/face-processing/face-detection/example_face_detection_tflite.py b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+index 0e11ac8..e6e9308 100755
+--- a/tasks/face-processing/face-detection/example_face_detection_tflite.py
++++ b/tasks/face-processing/face-detection/example_face_detection_tflite.py
+@@ -17,9 +17,25 @@ python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+ sys.path.append(python_path)
+ from facedetectpipe import FaceDetectPipe # noqa
+ 
++def parse_tuple(res_str):
++    try:
++        res_str = res_str.strip("() ").replace(" ", "")
++        parts = res_str.split(',')
++
++        if len(parts) != 2:
++            raise ValueError
++
++        width, height = map(int, parts)
++        return (width, height)
++
++    except Exception:
++        raise argparse.ArgumentTypeError(
++            "Input must be in the format X,Y (e.g., 640,480 or (640,480))"
++        )
++
+ if __name__ == '__main__':
+ 
+-    default_camera = '/dev/video3'
++    default_camera = '/dev/video4'
+ 
+     parser = argparse.ArgumentParser(description='Face Identification')
+     parser.add_argument('--camera_device', '-c', type=str,
+@@ -27,6 +43,14 @@ if __name__ == '__main__':
+     parser.add_argument('--mirror', '-m',
+                         default=False, action='store_true',
+                         help='flip image to display as a mirror')
++    parser.add_argument('--resolution', '-r',
++                        type=parse_tuple,
++                        help='camera video stream resolution, e.g. --resolution=640,480 or --resolution="(640,480)"')
++    parser.add_argument('--fps', '-f', type=int,
++                        help='camera video stream frame rate, default=30')
++    parser.add_argument('--position', '-p',
++                        type=parse_tuple,
++                        help='position of video display screen, e.g. --position=100,100 or --position="(100,100)"')
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -36,10 +60,12 @@ if __name__ == '__main__':
+     # pipeline parameters - no secondary pipeline
+     camera_device = args.camera_device
+     flip = args.mirror
+-    vr = (640, 360)
+-    fps = 30
++    vr = args.resolution if args.resolution else (640, 360)
++    fps = args.fps if args.fps else 30
++    pos = args.position if args.position else (0, 0)
+     secondary = None
+ 
+     pipe = FaceDetectPipe(camera_device=camera_device, video_resolution=vr,
+-                          video_fps=fps, flip=flip, secondary_pipe=secondary)
++                          video_fps=fps, flip=flip, secondary_pipe=secondary,
++                          position=pos)
+     pipe.run()
+diff --git a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+index 1bb3732..ae943f8 100644
+--- a/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
++++ b/tasks/face-processing/face-recogniton/example_face_recognition_tflite.py
+@@ -21,7 +21,6 @@ from gi.repository import Gst  # noqa
+ python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            '../../../common/python')
+ sys.path.append(python_path)
+-from imxpy.imx_dev import Imx, SocId  # noqa
+ 
+ python_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            '../common')
+@@ -32,7 +31,8 @@ from facedetectpipe import FaceDetectPipe, SecondaryPipe # noqa
+ class FaceRecoPipe(FaceDetectPipe):
+ 
+     def __init__(self, camera_device, video_resolution=(640, 480),
+-                 video_fps=30, flip=False, secondary_pipe=None, model_directory=None):
++                 video_fps=30, flip=False, secondary_pipe=None, model_directory=None,
++                 position=(0, 0)):
+         """Subclass FaceDetectPipe.
+ 
+         Derived class implements specific functions relevant to this example:
+@@ -45,6 +45,7 @@ class FaceRecoPipe(FaceDetectPipe):
+         video_fps: camera video stream frame rate
+         secondary_pipe: instance of secondary pipeline for FaceNet operation
+         model_directory: absolute path for face detection model
++        position: position of video display window (x, y)
+         """
+         super(
+             FaceRecoPipe,
+@@ -54,7 +55,8 @@ class FaceRecoPipe(FaceDetectPipe):
+             video_fps,
+             flip,
+             secondary_pipe,
+-            model_directory)
++            model_directory,
++            position)
+ 
+         # reference to secondary pipe FaceNet model instance
+         self.facenet = self.secondary_pipe.model
+@@ -313,10 +315,25 @@ class UI:
+         else:
+             return self.embed0.copy()
+ 
++def parse_tuple(res_str):
++    try:
++        res_str = res_str.strip("() ").replace(" ", "")
++        parts = res_str.split(',')
++
++        if len(parts) != 2:
++            raise ValueError
++
++        width, height = map(int, parts)
++        return (width, height)
++
++    except Exception:
++        raise argparse.ArgumentTypeError(
++            "Input must be in the format X,Y (e.g., 640,480 or (640,480))"
++        )
+ 
+ if __name__ == '__main__':
+ 
+-    default_camera = '/dev/video3'
++    default_camera = '/dev/video4'
+ 
+     parser = argparse.ArgumentParser(description='Face Identification')
+     parser.add_argument('--camera_device', '-c', type=str,
+@@ -324,6 +341,14 @@ if __name__ == '__main__':
+     parser.add_argument('--mirror', '-m',
+                         default=False, action='store_true',
+                         help='flip image to display as a mirror')
++    parser.add_argument('--resolution', '-r',
++                        type=parse_tuple,
++                        help='camera video stream resolution, e.g. --resolution=640,480 or --resolution="(640,480)"')
++    parser.add_argument('--fps', '-f', type=int,
++                        help='camera video stream frame rate, default=30')
++    parser.add_argument('--position', '-p',
++                        type=parse_tuple,
++                        help='position of video display window, e.g. --position=100,100 or --position="(100,100)"')
+     args = parser.parse_args()
+ 
+     format = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+@@ -333,8 +358,9 @@ if __name__ == '__main__':
+     # pipelines parameters
+     camera_device = args.camera_device
+     flip = args.mirror
+-    vr = (640, 480)
+-    fps = 30
++    vr = args.resolution if args.resolution else (640, 360)
++    fps = args.fps if args.fps else 30
++    pos = args.position if args.position else (0, 0)
+ 
+     # secondary pipeline uses FaceNet model
+     pwd = os.path.dirname(os.path.abspath(__file__))
+@@ -347,5 +373,5 @@ if __name__ == '__main__':
+     # main pipeline for face detection
+     pipe = FaceRecoPipe(camera_device=camera_device, video_resolution=vr,
+                         video_fps=fps, flip=flip, secondary_pipe=secondary,
+-                        model_directory=models_dir)
++                        model_directory=models_dir, position=pos)
+     pipe.run()
+-- 
+2.25.1
+

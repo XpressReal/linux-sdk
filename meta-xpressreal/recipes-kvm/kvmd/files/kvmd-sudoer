@@ -1,0 +1,3 @@
+kvmd ALL=(ALL) NOPASSWD: /usr/bin/kvmd-helper-otgmsd-remount
+kvmd ALL=(ALL) NOPASSWD: /bin/systemctl restart kvmd-ustreamer
+kvmd ALL=(ALL) NOPASSWD: /bin/systemctl restart kvmd-webrtc

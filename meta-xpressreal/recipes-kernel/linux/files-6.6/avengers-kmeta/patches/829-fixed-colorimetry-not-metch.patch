@@ -1,0 +1,59 @@
+From 8eb4d7d5bb07bb7148bf5fbdea1fb107d5d77873 Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Mon, 16 Jun 2025 15:46:24 +0800
+Subject: [PATCH] fixed colorimetry not metch
+
+---
+ drivers/media/platform/rtk_npp/npp_m2m.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/media/platform/rtk_npp/npp_m2m.c b/drivers/media/platform/rtk_npp/npp_m2m.c
+index d1f5a1fcc7da..26d8c9312ab2 100644
+--- a/drivers/media/platform/rtk_npp/npp_m2m.c
++++ b/drivers/media/platform/rtk_npp/npp_m2m.c
+@@ -1026,7 +1026,10 @@ static struct npp_fmt *find_cap_format(struct v4l2_format *f)
+ 
+ static int npp_try_fmt_out(struct v4l2_format *f)
+ {
++	__u32 colorspace = f->fmt.pix_mp.colorspace;
+ 	__u32 quantization = f->fmt.pix_mp.quantization;
++	__u32 ycbcr_enc = f->fmt.pix_mp.ycbcr_enc;
++	__u32 xfer_func = f->fmt.pix_mp.xfer_func;
+ 	struct npp_fmt *fmt;
+ 	int ret = 0;
+ 
+@@ -1036,14 +1039,20 @@ static int npp_try_fmt_out(struct v4l2_format *f)
+ 
+ 	memcpy(f, &fmt->spec, sizeof(struct v4l2_format));
+ 
++	f->fmt.pix_mp.colorspace = colorspace;
+ 	f->fmt.pix_mp.quantization = quantization;
++	f->fmt.pix_mp.ycbcr_enc = ycbcr_enc;
++	f->fmt.pix_mp.xfer_func = xfer_func;
+ 
+ 	return ret;
+ }
+ 
+ static int npp_try_fmt_cap(struct v4l2_format *f)
+ {
++	__u32 colorspace = f->fmt.pix_mp.colorspace;
+ 	__u32 quantization = f->fmt.pix_mp.quantization;
++	__u32 ycbcr_enc = f->fmt.pix_mp.ycbcr_enc;
++	__u32 xfer_func = f->fmt.pix_mp.xfer_func;
+ 	struct npp_fmt *fmt;
+ 	int ret = 0;
+ 
+@@ -1053,7 +1062,10 @@ static int npp_try_fmt_cap(struct v4l2_format *f)
+ 
+ 	memcpy(f, &fmt->spec, sizeof(struct v4l2_format));
+ 
++	f->fmt.pix_mp.colorspace = colorspace;
+ 	f->fmt.pix_mp.quantization = quantization;
++	f->fmt.pix_mp.ycbcr_enc = ycbcr_enc;
++	f->fmt.pix_mp.xfer_func = xfer_func;
+ 
+ 	return ret;
+ }
+-- 
+2.45.2
+

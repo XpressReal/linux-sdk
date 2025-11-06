@@ -1,0 +1,177 @@
+From b18d7e101b40fc0edc0825cb24659add1687d95e Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 22 May 2025 22:50:01 -0400
+Subject: [PATCH] weston: to support interlace and fps shift mode setting
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/kms.c   |  2 +-
+ libweston/backend-drm/modes.c | 85 +++++++++++++++++++++--------------
+ 2 files changed, 52 insertions(+), 35 deletions(-)
+
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 3067bd7..1a4d0a5 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -1274,7 +1274,7 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 						  output->hdr_output_metadata_blob_id);
+ 		}
+ 
+-		ret |= drm_connector_set_max_bpc(&head->connector, output, req);
++//		ret |= drm_connector_set_max_bpc(&head->connector, output, req);
+ 	}
+ 
+ 	if (ret != 0) {
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 88a4082..4a57c20 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -522,8 +522,8 @@ drm_output_print_modes(struct drm_output *output)
+ 		dm = to_drm_mode(m);
+ 
+ 		aspect_ratio = aspect_ratio_to_string(m->aspect_ratio);
+-		weston_log_continue(STAMP_SPACE "%dx%d@%.1f%s%s%s, %.1f MHz\n",
+-				    m->width, m->height, m->refresh / 1000.0,
++		weston_log_continue(STAMP_SPACE "%dx%d%s@%.2f%s%s%s, %.1f MHz\n",
++				    m->width, m->height, dm->mode_info.flags & DRM_MODE_FLAG_INTERLACE ? "i" : "" , m->refresh / 1000.0,
+ 				    aspect_ratio,
+ 				    m->flags & WL_OUTPUT_MODE_PREFERRED ?
+ 				    ", preferred" : "",
+@@ -645,6 +645,8 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	struct drm_mode *preferred = NULL;
+ 	struct drm_mode *current = NULL;
+ 	struct drm_mode *configured = NULL;
++	struct drm_mode *full_match_configured = NULL;
++	struct drm_mode *fps_match_configured = NULL;
+ 	struct drm_mode *config_fall_back = NULL;
+ 	struct drm_mode *best = NULL;
+ 	struct drm_mode *max_mode = NULL;
+@@ -652,17 +654,18 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	drmModeModeInfo drm_modeline;
+ 	int32_t width = 0;
+ 	int32_t height = 0;
+-	uint32_t refresh = 0;
++	float refresh = 0;
+ 	uint32_t aspect_width = 0;
+ 	uint32_t aspect_height = 0;
+ 	enum weston_mode_aspect_ratio aspect_ratio = WESTON_MODE_PIC_AR_NONE;
+ 	int n;
+ 	int32_t max_width = 0;
+ 	int32_t max_height = 0;
++	char interlace[64] = {0};
+ 
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_PREFERRED && modeline) {
+-		n = sscanf(modeline, "%dx%d@%d %u:%u", &width, &height,
+-			   &refresh, &aspect_width, &aspect_height);
++		n = sscanf(modeline, "%dx%d@%f%s %u:%u", &width, &height,
++			   &refresh, interlace, &aspect_width, &aspect_height);
+ 		if (device->aspect_ratio_supported && n == 5) {
+ 			if (aspect_width == 4 && aspect_height == 3)
+ 				aspect_ratio = WESTON_MODE_PIC_AR_4_3;
+@@ -676,7 +679,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 				weston_log("Invalid modeline \"%s\" for output %s\n",
+ 					   modeline, output->base.name);
+ 		}
+-		if (n != 2 && n != 3 && n != 5) {
++		if (n != 2 && n != 3 && n != 4 && n != 5) {
+ 			width = -1;
+ 
+ 			if (parse_modeline(modeline, &drm_modeline) == 0) {
+@@ -692,12 +695,40 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 
+ 	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
+ 		if (width == drm_mode->base.width &&
+-		    height == drm_mode->base.height &&
+-		    (refresh == 0 || refresh == drm_mode->mode_info.vrefresh)) {
+-			if (!device->aspect_ratio_supported ||
+-			    aspect_ratio == drm_mode->base.aspect_ratio)
++		    height == drm_mode->base.height) {
++			int match_scan = false;
++			int match_fps = false;
++			int mode_refresh = (drm_mode->base.refresh + 5) / 10;
++			int config_refresh = (int)(refresh * 100);
++			if (refresh == 0 || config_refresh == mode_refresh) {
++				match_fps = true;
++			}
++			if (strncmp(interlace, "i", strlen("i")) == 0) {
++				if (drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) {
++					match_scan = true;
++				} else {
++					match_scan = false;
++				}
++			} else if (strncmp(interlace, "p", strlen("p")) == 0){
++				if ((drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) == 0) {
++					match_scan = true;
++				} else {
++					match_scan = false;
++				}
++			} else {
++				match_scan = true;
++			}
++
++			if (match_scan == true && match_fps == true && (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio)) {
++				full_match_configured = drm_mode;
++			} else if (match_fps == true && (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio)) {
++				fps_match_configured = drm_mode;
++			} else if (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio) {
+ 				configured = drm_mode;
+-			else
++			} else
+ 				config_fall_back = drm_mode;
+ 		}
+ 
+@@ -727,6 +758,12 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_CURRENT)
+ 		configured = current;
+ 
++	if (full_match_configured)
++		return full_match_configured;
++
++	if (fps_match_configured)
++		return fps_match_configured;
++
+ 	if (configured)
+ 		return configured;
+ 
+@@ -816,32 +853,12 @@ drm_mode_pick_equivalent(const drmModeModeInfo *a, const drmModeModeInfo *b)
+ static int
+ drm_output_try_add_mode(struct drm_output *output, const drmModeModeInfo *info)
+ {
+-	struct weston_mode *base;
+ 	struct drm_mode *mode = NULL;
+-	struct drm_device *device = output->device;
+-	const drmModeModeInfo *chosen = NULL;
+-
+ 	assert(info);
+ 
+-	wl_list_for_each(base, &output->base.mode_list, link) {
+-		mode = to_drm_mode(base);
+-		chosen = drm_mode_pick_equivalent(&mode->mode_info, info);
+-		if (chosen)
+-			break;
+-	}
+-
+-	if (chosen == info) {
+-		assert(mode);
+-		drm_output_destroy_mode(device, mode);
+-		chosen = NULL;
+-	}
+-
+-	if (!chosen) {
+-		mode = drm_output_add_mode(output, info);
+-		if (!mode)
+-			return -1;
+-	}
+-	/* else { the equivalent mode is already in the list } */
++	mode = drm_output_add_mode(output, info);
++	if (!mode)
++		return -1;
+ 
+ 	return 0;
+ }
+-- 
+2.34.1
+

@@ -1,0 +1,3 @@
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="rtl8852be", NAME="wlan0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="rtl8822cs", NAME="wlan0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="rtl8822es", NAME="wlan0"

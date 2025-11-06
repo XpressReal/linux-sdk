@@ -1,0 +1,7 @@
+--- a/configure.mk
++++ b/configure.mk
+@@
+-CFLAGS += -flto
+-LDFLAGS += -flto
++# CFLAGS += -flto
++# LDFLAGS += -flto

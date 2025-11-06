@@ -1,0 +1,4 @@
+patch 850-Add-pcie-host-driver-for-Realtek-DHC-SoCs.patch
+patch 851-add-pcie-iommu-support.patch
+
+kconf hardware pcie.cfg

@@ -1,0 +1,8 @@
+<driconf>
+<device screen="0" driver="dri2">
+<application name="all">
+<!-- Always synchronize with vertical refresh to avoid tearing -->
+<option name="vblank_mode" value="3"/>
+</application>
+</device>
+</driconf>

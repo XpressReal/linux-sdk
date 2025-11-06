@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1315c-badassium.dtsi"
+
+/ {
+	compatible = "realtek,Badassium", "realtek,rtd1315c";
+	model = "Realtek Badassium EVB";
+};
+
+&soc {
+	bootph-all;
+};
+
+&rbus {
+	bootph-all;
+};
+
+&usb_manager {
+	bootph-all;
+};
+
+&usb_port0_usb2phy {
+	bootph-all;
+};
+
+&usb_port0 {
+	bootph-all;
+};
+
+&emmc {
+	bootph-all;
+};

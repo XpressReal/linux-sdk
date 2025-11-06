@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Realtek RTD13xxd SoC family
+ *
+ * Copyright (c) 2019-2020 Realtek Semiconductor Corp.
+ */
+
+&rbus {
+	pcie0: pcie@60000 {
+		compatible = "realtek,rtd1625-pcie-slot0", "syscon";
+		reg = <0x60000 0x00001000>,
+		      <0x61000 0x00001000>;
+		syscon-scpu-wrapper = <&scpu_wrapper>;
+		syscon-iso = <&iso>;
+		interrupt-names = "rtk-pcie0-intr";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupts = <0 61 4>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcie0_clkreq_pins>;
+		bus-range = <0x00 0xff>;
+		linux,pci-domain = <0>;
+		device_type = "pci";
+		perst-gpios = <&gpio 19 GPIO_ACTIVE_HIGH>;
+		#size-cells = <2>;
+		#address-cells = <3>;
+		num-lanes = <1>;
+		phys = <&pcie0_phy>;
+		speed-mode = <0>; // 0:default 1:GEN1, 2:GEN2 3:GEN3
+		debug-mode = <0>;
+		aspm = <0x1>; // bit0:L0s, bit1:L1
+		//nvmem-cells = <&otp_ca_type>;
+		//nvmem-cell-names = "ca-type";
+		ranges = <0x02000000 0x0 0xA0000000 0xA0000000 0x0 0x00300000>;
+		resets = <&cc RTD1625_CRT_RSTN_PCIE0>,
+			 <&cc RTD1625_CRT_RSTN_PCIE0_CORE>,
+			 <&cc RTD1625_CRT_RSTN_PCIE0_POWER>,
+			 <&cc RTD1625_CRT_RSTN_PCIE0_NONSTICH>,
+			 <&cc RTD1625_CRT_RSTN_PCIE0_STITCH>;
+
+		reset-names = "rstn",
+			"core",
+			"power",
+			"nonstitch",
+			"stitch";
+		clocks = <&cc RTD1625_CRT_CLK_EN_PCIE0>;
+		status = "disabled";
+	};
+
+	pcie1: pcie@a0000 {
+		compatible = "realtek,rtd1625-pcie-slot1", "syscon";
+		reg = <0xA0000 0x00001000>,
+		      <0xA1000 0x00001000>;
+		syscon-scpu-wrapper = <&scpu_wrapper>;
+		syscon-iso = <&iso>;
+		interrupt-names = "rtk-pcie1-intr";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupts = <0 62 4>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcie1_clkreq_pins>;
+		bus-range = <0x00 0xff>;
+		linux,pci-domain = <1>;
+		device_type = "pci";
+		perst-gpios = <&gpio 31 GPIO_ACTIVE_HIGH>;
+		#size-cells = <2>;
+		#address-cells = <3>;
+		num-lanes = <1>;
+		phys = <&pcie1_phy>;
+		speed-mode = <0>; // 0:default 1:GEN1, 2:GEN2
+		debug-mode = <0>;
+		aspm = <0x1>; // bit0:L0s, bit1:L1
+		//nvmem-cells = <&otp_ca_type>;
+		//nvmem-cell-names = "ca-type";
+		ranges = <0x02000000 0x0 0xA0300000 0xA0300000 0x0 0x00300000>;
+		resets = <&cc RTD1625_CRT_RSTN_PCIE1>,
+			<&cc RTD1625_CRT_RSTN_PCIE1_CORE>,
+			<&cc RTD1625_CRT_RSTN_PCIE1_POWER>,
+			<&cc RTD1625_CRT_RSTN_PCIE1_NONSTICH>,
+			<&cc RTD1625_CRT_RSTN_PCIE1_STITCH>;
+
+		reset-names = "rstn",
+			"core",
+			"power",
+			"nonstitch",
+			"stitch";
+		clocks = <&cc RTD1625_CRT_CLK_EN_PCIE1>;
+		//iommu-map = <0x0 &iommu 0x0 0x10000>;
+		//iommu-map-mask = <0x0>;
+		//dma-ranges = <0x03000000 0x0 0x40000000 0x40000000 0x0 0x1400000>;
+		status = "disabled";
+	};
+};
+
+/ {
+	pcie0_phy: pcie0_phy {
+		compatible = "realtek,rtd1625-pcie-slot0-phy";
+		syscon =  <&pcie0>;
+		resets = <&cc RTD1625_CRT_RSTN_PCIE0_PHY>,
+			 <&cc RTD1625_CRT_RSTN_PCIE0_PHY_MDIO>;
+		reset-names = "phy",
+			      "phy_mdio";
+		#phy-cells = <0>;
+		status = "disabled";
+	};
+
+	pcie1_phy: pcie1_phy {
+		compatible = "realtek,rtd1625-pcie-slot1-phy";
+		syscon =  <&pcie1>;
+		resets = <&cc RTD1625_CRT_RSTN_PCIE1_PHY>,
+			 <&cc RTD1625_CRT_RSTN_PCIE1_PHY_MDIO>;
+		reset-names = "phy",
+			      "phy_mdio";
+		#phy-cells = <0>;
+		status = "disabled";
+	};
+
+	iommu: iommu {
+		compatible = "realtek,rtd-pcie-iommu";
+		syscon = <&pcie1>;
+		#iommu-cells = <1>;
+		//memory-region = <&pcie_iommu_reserved>;
+		pgtable-size = <0x1400>;
+		status = "disabled";
+	};
+};

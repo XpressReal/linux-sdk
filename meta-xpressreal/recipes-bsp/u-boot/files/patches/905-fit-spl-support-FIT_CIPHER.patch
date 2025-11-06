@@ -1,0 +1,85 @@
+Index: git/boot/Kconfig
+===================================================================
+--- git.orig/boot/Kconfig
++++ git/boot/Kconfig
+@@ -191,6 +191,14 @@ config SPL_FIT_RSASSA_PSS
+ 	  Enable this to support the pss padding algorithm as described
+ 	  in the rfc8017 (https://tools.ietf.org/html/rfc8017) in SPL.
+ 
++config SPL_FIT_CIPHER
++	bool "Enable ciphering data in a FIT uImages within SPL"
++	depends on SPL_DM
++	select AES
++	help
++	  Enable the feature of data ciphering/unciphering in the tool mkimage
++	  and in the u-boot support of the FIT image in SPL.
++
+ config SPL_LOAD_FIT
+ 	bool "Enable SPL loading U-Boot as a FIT (basic fitImage features)"
+ 	depends on SPL
+Index: git/lib/Makefile
+===================================================================
+--- git.orig/lib/Makefile
++++ git/lib/Makefile
+@@ -18,8 +18,6 @@ obj-$(CONFIG_CMD_DHRYSTONE) += dhry/
+ obj-$(CONFIG_ARCH_AT91) += at91/
+ obj-$(CONFIG_OPTEE_LIB) += optee/
+ 
+-obj-$(CONFIG_AES) += aes.o
+-obj-$(CONFIG_AES) += aes/
+ obj-$(CONFIG_$(SPL_TPL_)BINMAN_FDT) += binman.o
+ 
+ ifndef API_BUILD
+@@ -56,6 +54,9 @@ obj-$(CONFIG_BITREVERSE) += bitrev.o
+ obj-y += list_sort.o
+ endif
+ 
++obj-$(CONFIG_AES) += aes.o
++obj-$(CONFIG_AES) += aes/
++
+ obj-$(CONFIG_$(SPL_TPL_)TPM) += tpm-common.o
+ ifeq ($(CONFIG_$(SPL_TPL_)TPM),y)
+ obj-$(CONFIG_TPM) += tpm_api.o
+Index: git/boot/image-fit.c
+===================================================================
+--- git.orig/boot/image-fit.c
++++ git/boot/image-fit.c
+@@ -1500,7 +1500,7 @@ int fit_all_image_verify(const void *fit
+ 	return 1;
+ }
+ 
+-static int fit_image_uncipher(const void *fit, int image_noffset,
++int fit_image_uncipher(const void *fit, int image_noffset,
+ 			      void **data, size_t *size)
+ {
+ 	int cipher_noffset, ret;
+@@ -2208,7 +2208,7 @@ int fit_image_load(struct bootm_headers
+ 	}
+ 
+ 	/* Decrypt data before uncompress/move */
+-	if (IS_ENABLED(CONFIG_FIT_CIPHER) && IMAGE_ENABLE_DECRYPT) {
++	if (CONFIG_IS_ENABLED(FIT_CIPHER) && IMAGE_ENABLE_DECRYPT) {
+ 		puts("   Decrypting Data ... ");
+ 		if (fit_image_uncipher(fit, noffset, &buf, &size)) {
+ 			puts("Error\n");
+Index: git/common/spl/spl_fit.c
+===================================================================
+--- git.orig/common/spl/spl_fit.c
++++ git/common/spl/spl_fit.c
+@@ -321,6 +321,16 @@ static int load_simple_fit(struct spl_lo
+ 		puts("OK\n");
+ 	}
+ 
++	/* Decrypt data before uncompress/move */
++	if (CONFIG_IS_ENABLED(FIT_CIPHER) && IMAGE_ENABLE_DECRYPT) {
++		puts("   Decrypting Data ... ");
++		if (fit_image_uncipher(fit, node, &src, &length)) {
++			puts("Error\n");
++			return -EACCES;
++		}
++		puts("OK\n");
++	}
++
+ 	if (CONFIG_IS_ENABLED(FIT_IMAGE_POST_PROCESS))
+ 		board_fit_image_post_process(fit, node, &src, &length);
+ 

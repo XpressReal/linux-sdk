@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1625_emmc.dtsi"
+
+&fitimages {
+	dte_cert {
+		description = "Certificate for DTE FW";
+		type = "firmware";
+		arch = "arm64";
+		compression = "none";
+
+		blob {
+			filename = "dte_fw_certificate/DTE_FW_Certificate.bin";
+		};
+	};
+};
+
+#include "rtd1625_spi.dtsi"
+
+&binman {
+	multiple-images;
+};

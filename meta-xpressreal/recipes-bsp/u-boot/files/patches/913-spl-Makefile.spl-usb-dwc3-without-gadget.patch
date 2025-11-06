@@ -1,0 +1,52 @@
+Index: u-boot-2022.01/scripts/Makefile.spl
+===================================================================
+--- u-boot-2022.01.orig/scripts/Makefile.spl
++++ u-boot-2022.01/scripts/Makefile.spl
+@@ -103,7 +103,7 @@ endif
+ 
+ libs-y += drivers/
+ libs-$(CONFIG_SPL_MEMORY) += drivers/memory/
+-libs-$(CONFIG_SPL_USB_GADGET) += drivers/usb/dwc3/
++libs-$(CONFIG_SPL_USB_HOST) += drivers/usb/dwc3/
+ libs-$(CONFIG_SPL_USB_GADGET) += drivers/usb/cdns3/
+ libs-y += dts/
+ libs-y += fs/
+Index: u-boot-2022.01/drivers/usb/dwc3/Makefile
+===================================================================
+--- u-boot-2022.01.orig/drivers/usb/dwc3/Makefile
++++ u-boot-2022.01/drivers/usb/dwc3/Makefile
+@@ -4,7 +4,7 @@ obj-$(CONFIG_USB_DWC3)			+= dwc3.o
+ 
+ dwc3-y					:= core.o
+ 
+-obj-$(CONFIG_USB_DWC3_GADGET)		+= gadget.o ep0.o
++obj-$(CONFIG_$(SPL_)USB_DWC3_GADGET)		+= gadget.o ep0.o
+ 
+ obj-$(CONFIG_USB_DWC3_OMAP)		+= dwc3-omap.o
+ obj-$(CONFIG_USB_DWC3_MESON_G12A)	+= dwc3-meson-g12a.o
+Index: u-boot-2022.01/drivers/Makefile
+===================================================================
+--- u-boot-2022.01.orig/drivers/Makefile
++++ u-boot-2022.01/drivers/Makefile
+@@ -51,7 +51,7 @@ obj-$(CONFIG_IMX8ULP_DRAM) += ddr/imx/im
+ obj-$(CONFIG_SPL_DM_RESET) += reset/
+ obj-$(CONFIG_SPL_MUSB_NEW) += usb/musb-new/
+ obj-$(CONFIG_SPL_USB_GADGET) += usb/gadget/
+-obj-$(CONFIG_SPL_USB_GADGET) += usb/common/
++obj-$(CONFIG_SPL_USB_HOST) += usb/common/
+ obj-$(CONFIG_SPL_USB_GADGET) += usb/gadget/udc/
+ obj-$(CONFIG_SPL_WATCHDOG) += watchdog/
+ obj-$(CONFIG_SPL_USB_HOST) += usb/host/
+Index: u-boot-2022.01/drivers/usb/dwc3/core.h
+===================================================================
+--- u-boot-2022.01.orig/drivers/usb/dwc3/core.h
++++ u-boot-2022.01/drivers/usb/dwc3/core.h
+@@ -1051,7 +1051,7 @@ static inline int dwc3_host_init(struct
+ static inline void dwc3_host_exit(struct dwc3 *dwc)
+ { }
+ 
+-#ifdef CONFIG_USB_DWC3_GADGET
++#if CONFIG_IS_ENABLED(USB_DWC3_GADGET)
+ int dwc3_gadget_init(struct dwc3 *dwc);
+ void dwc3_gadget_exit(struct dwc3 *dwc);
+ int dwc3_gadget_set_test_mode(struct dwc3 *dwc, int mode);

@@ -1,0 +1,46 @@
+From a812417cde4e2c7e522948f38b4f3049c0637db0 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 20 Feb 2025 00:38:19 -0500
+Subject: [PATCH] Makefile: enable dmabuf-exporter module
+
+---
+ Makefile | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 34fa7f9c..ee4f5730 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,11 +17,16 @@ endif
+ 
+ KDIR ?= $(PWD)/$(LINUX_KERNEL_PATH)
+ MIDGARD_DIR ?= driver/product/kernel/drivers/gpu/arm/midgard
++DMABUF_EXPORTER_DIR ?= driver/product/kernel/drivers/base/arm
+ 
+ export CONFIG_MALI_PLATFORM_NAME ?= rtk
+ export CONFIG_MALI_GATOR_SUPPORT ?= n
+ export CONFIG_MALI_DEVFREQ ?= y
+ export CONFIG_MALI_MIDGARD_ENABLE_TRACE ?= y
++export CONFIG_MALI_BASE_MODULES ?= y
++export CONFIG_DMA_SHARED_BUFFER ?= y
++export CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER ?= y
++export CONFIG_MALI_MEMORY_GROUP_MANAGER ?= n
+ 
+ .PHONY: all install clean
+ 
+@@ -44,9 +49,11 @@ show_info:
+ build: show_info
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m
+ 	${STRIP} driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase.ko --strip-unneeded
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR)
++	$(STRIP) driver/product/kernel/drivers/base/arm/dma_buf_test_exporter/dma-buf-test-exporter.ko --strip-unneeded
+ 
+ install:
+ 
+ clean:
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m clean
+-
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR) clean
+-- 
+2.34.1
+

@@ -1,0 +1,14 @@
+[Unit]
+#JobTimeoutSec=10
+Description=WPA supplicant daemon (%i interface)
+#Wants=sys-subsystem-net-devices-%i.device
+#After=sys-subsystem-net-devices-%i.device
+ConditionPathExists=/sys/class/net/%i
+
+[Service]
+ExecStart=/usr/sbin/wpa_supplicant -i %i -c /etc/wpa_supplicant/wpa_supplicant-%i.conf -D nl80211,wext
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

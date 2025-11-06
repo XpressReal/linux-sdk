@@ -1,0 +1,41 @@
+config DRM_RTK
+	tristate "DRM Support for Realtek SoCs"
+	depends on DRM
+	select DRM_GEM_CMA_HELPER
+	select DRM_KMS_HELPER
+	select DRM_GEM_DMA_HELPER
+	select DRM_DISPLAY_HELPER
+	select DRM_DISPLAY_DP_HELPER
+	select DRM_DISPLAY_HDCP_HELPER
+	select DRM_DISPLAY_HDMI_HELPER
+	select DRM_MIPI_DSI
+	select VIDEOMODE_HELPERS
+	select DRM_KMS_HELPER
+	select DRM_GEM_DMA_HELPER if CHROME_PLATFORMS
+	select DRM_DISPLAY_HELPER if CHROME_PLATFORMS
+	select DRM_DISPLAY_DP_HELPER if CHROME_PLATFORMS
+	select DRM_DISPLAY_HDCP_HELPER if CHROME_PLATFORMS
+	select DRM_DISPLAY_HDMI_HELPER if CHROME_PLATFORMS
+	select DRM_DP_CEC if CHROME_PLATFORMS
+	select SND_SOC_HDMI_CODEC if CHROME_PLATFORMS && SND_SOC_RTK_HIFI_MACHINE
+	help
+	  Choose this option if you have a Realtek SoCs.
+	  The module will be called realtek-drm
+	  This driver provides kernel mode setting and
+	  buffer management to userspace.
+
+if DRM_RTK
+
+config RTK_METADATA_AUTOJUDGE
+	bool "Realtek specific METADATA buffer auto judgement"
+	default n
+
+if CHROME_PLATFORMS
+
+config RTK_DRM_CACHEABLE_HEADER
+	bool "Realtek DRM Cacheable Header"
+	default n
+
+endif
+
+endif

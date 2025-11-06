@@ -1,0 +1,28 @@
+From fe78017d0254d01781f94305eed4433c88f98834 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 29 Apr 2025 14:14:25 +0800
+Subject: [PATCH 14/14] Release encoder buffer pooling during flushing.
+Upstream-Status: Inappropriate [rtk specific]
+
+
+---
+ sys/v4l2/gstv4l2videoenc.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sys/v4l2/gstv4l2videoenc.c b/sys/v4l2/gstv4l2videoenc.c
+index 291fa45..22e2357 100644
+--- a/sys/v4l2/gstv4l2videoenc.c
++++ b/sys/v4l2/gstv4l2videoenc.c
+@@ -377,6 +377,9 @@ gst_v4l2_video_enc_flush (GstVideoEncoder * encoder)
+   gst_v4l2_object_unlock_stop (self->v4l2output);
+   gst_v4l2_object_unlock_stop (self->v4l2capture);
+ 
++  gst_v4l2_buffer_pool_flush (self->v4l2output);
++  gst_v4l2_buffer_pool_flush (self->v4l2capture);
++
+   return TRUE;
+ }
+ 
+-- 
+2.34.1
+

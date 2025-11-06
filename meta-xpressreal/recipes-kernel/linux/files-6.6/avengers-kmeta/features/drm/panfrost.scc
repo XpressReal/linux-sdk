@@ -1,0 +1,3 @@
+patch 203-panfrost-fix-gpu-device.patch
+
+kconf non-hardware panfrost.cfg

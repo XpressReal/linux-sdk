@@ -1,0 +1,98 @@
+From 2ed674131a12060d402270282cff81cec07210ad Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 13 Feb 2025 01:11:43 -0500
+Subject: [PATCH] add property to silent subtitle
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c | 19 +++++++++++++++++++
+ ext/wayland/gstwaylandsink.h |  1 +
+ 2 files changed, 20 insertions(+)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index c9ef6de..1b0ff4a 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -48,6 +48,7 @@
+ #include <gst/video/videooverlay.h>
+ 
+ /* signals */
++#define DEFAULT_PROP_SILENT FALSE
+ enum
+ {
+   SIGNAL_0,
+@@ -62,6 +63,7 @@ enum
+   PROP_FULLSCREEN,
+   PROP_ROTATE_METHOD,
+   PROP_CLEAR,
++  PROP_SILENT,
+   PROP_LAST
+ };
+ 
+@@ -171,6 +173,12 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+       g_param_spec_boolean ("clear", "Clear",
+           "Clear rendering of subtitles", FALSE,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (gobject_class, PROP_SILENT,
++      g_param_spec_boolean ("silent", "Silent",
++          "Silent rendering of subtitles", FALSE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
+   /**
+    * waylandsink:rotate-method:
+    *
+@@ -201,6 +209,7 @@ gst_wayland_sink_init (GstWaylandSink * self)
+   self->y = 0;
+   self->w = 0;
+   self->h = 0;
++  self->silent = DEFAULT_PROP_SILENT;
+   self->set_rect = FALSE;
+   g_mutex_init (&self->display_lock);
+   g_mutex_init (&self->render_lock);
+@@ -313,6 +322,9 @@ gst_wayland_sink_set_property (GObject * object,
+       GstMemory *mem;
+       guint8 *plane;
+       gint size;
++      if (!self->window)
++        return;
++
+       if (!gst_buffer_pool_is_active (self->pool)) {
+         GstStructure *config;
+         GstCaps *caps;
+@@ -362,6 +374,9 @@ gst_wayland_sink_set_property (GObject * object,
+       render_last_buffer (self, FALSE);
+       gst_buffer_unref (to_render);
+       break;
++    case PROP_SILENT:
++      self->silent = g_value_get_boolean (value);
++      break;
+     default:
+       if (!gst_video_overlay_set_property (object, PROP_LAST, prop_id, value))
+           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+@@ -816,6 +831,10 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+   struct wl_buffer *wbuf = NULL;
+ 
+   GstFlowReturn ret = GST_FLOW_OK;
++  if (self->silent == TRUE) {
++    gst_buffer_replace (&self->last_buffer, buffer);
++    return ret;
++  }
+ 
+   g_mutex_lock (&self->render_lock);
+ 
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index a53d29c..e180174 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -73,6 +73,7 @@ struct _GstWaylandSink
+   gint w;
+   gint h;
+   gboolean set_rect;
++  gboolean silent;
+ };
+ 
+ struct _GstWaylandSinkClass
+-- 
+2.34.1
+

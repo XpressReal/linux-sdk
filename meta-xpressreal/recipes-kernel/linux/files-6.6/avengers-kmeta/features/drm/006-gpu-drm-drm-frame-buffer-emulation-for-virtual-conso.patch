@@ -1,0 +1,33 @@
+From 979d90a8222fe96017f786b1c6c7932998cb55c3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 14 May 2025 01:36:50 -0400
+Subject: [PATCH] gpu: drm: drm frame buffer emulation for virtual console
+
+-should set "console=tty1" in the bootargs
+---
+ drivers/gpu/drm/realtek/rtk_drm_drv.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_drv.c b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+index 3faedf29cc79..1cb20a27d3cb 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_drv.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+@@ -22,6 +22,7 @@
+ #include <drm/drm_of.h>
+ #include <drm/drm_probe_helper.h>
+ #include <drm/drm_vblank.h>
++#include <drm/drm_fbdev_generic.h>
+ #include <linux/component.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+@@ -187,6 +188,7 @@ static int rtk_drm_bind(struct device *dev)
+ 	if (ret)
+ 		goto err_register_drm;
+ 
++	drm_fbdev_generic_setup(drm, 32);
+ 	return 0;
+ 
+ err_register_drm:
+-- 
+2.34.1
+

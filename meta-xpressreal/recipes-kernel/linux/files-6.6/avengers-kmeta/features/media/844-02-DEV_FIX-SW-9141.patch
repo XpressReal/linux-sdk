@@ -1,0 +1,66 @@
+From 13ae1a9f37149f8fa4908b52070099d47db00467 Mon Sep 17 00:00:00 2001
+From: "scarly.cheng" <scarly.cheng@realtek.com>
+Date: Mon, 28 Apr 2025 17:01:09 +0800
+Subject: [PATCH] [DEV_FIX] SW-9141
+
+ve1.c: set virt_addr
+ve1config.h: modify HOST_ENDIAN
+
+Change-Id: I320b6c0acd2da3ce990c53ab23edb947fbb69121
+---
+ drivers/soc/realtek/kent/rtk_ve/ve1/ve1.c             | 4 +++-
+ drivers/soc/realtek/kent/rtk_ve/ve1/ve1config.h       | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.c
+index 7284e377c..8d307260f 100644
+--- a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.c
+@@ -262,6 +262,7 @@ int kent_vpu_alloc_dma_buffer(vpudrv_buffer_t *vb)
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+ 		return -1;
+ 	}
++	vb->virt_addr = vb->base;
+ #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+ 
+ 	DPRINTK("%s [%d]kent_vpu_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+@@ -293,6 +294,7 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+ 		return -1;
+ 	}
++	vb->virt_addr = vb->base;
+ #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+ 
+ 	DPRINTK("%s [%d]vpu_alloc_dma_buffer2.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+@@ -405,7 +407,6 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
+ 	vpu_int_sts_ve1 = ReadVpuRegister(BIT_INT_STS, core);
+ 	if (vpu_int_sts_ve1) {
+ 		interrupt_reason_ve1 = ReadVpuRegister(BIT_INT_REASON, core);
+-		WriteVpuRegister(BIT_INT_REASON, 0, core);
+ 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
+ 		if (interrupt_reason_ve1 == 0) {
+ 			pr_err("%s %d.DHCFAE-12940.interrupt_reason_ve1:%d\n",DEV_NAME,__LINE__,interrupt_reason_ve1);
+@@ -623,6 +624,7 @@ int kent_vpu_alloc_from_vm(void)
+ 	s_instance_pool.size = PAGE_ALIGN(s_instance_pool.size);
+ 	s_instance_pool.base = (unsigned long)vmalloc(s_instance_pool.size);
+ 	s_instance_pool.phys_addr = s_instance_pool.base;
++	s_instance_pool.virt_addr = s_instance_pool.base;
+ 
+ 	if (s_instance_pool.base == 0) {
+ 		up(&s_vpu_sem);
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1config.h b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1config.h
+index 7705007e3..67c3d5956 100644
+--- a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1config.h
++++ b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1config.h
+@@ -72,7 +72,7 @@
+ #define VPU_ENABLE_BWB 1
+ #define VPU_REPORT_USERDATA	 0
+ 
+-#define HOST_ENDIAN  VDI_128BIT_LITTLE_ENDIAN
++#define HOST_ENDIAN  VDI_LITTLE_ENDIAN //VDI_128BIT_LITTLE_ENDIAN //RTK change endian from VDI_128BIT_LITTLE_ENDIAN to VDI_LITTLE_ENDIAN
+ #define VPU_FRAME_ENDIAN HOST_ENDIAN
+ #define VPU_STREAM_ENDIAN HOST_ENDIAN
+ #define VPU_USER_DATA_ENDIAN HOST_ENDIAN
+-- 
+2.47.0
+

@@ -1,0 +1,3 @@
+patch 860-Add-pwm-driver-for-Realtek-DHC-SoCs.patch
+
+kconf hardware pwm.cfg

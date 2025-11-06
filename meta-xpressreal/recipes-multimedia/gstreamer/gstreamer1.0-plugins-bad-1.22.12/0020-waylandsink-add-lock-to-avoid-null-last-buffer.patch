@@ -1,0 +1,73 @@
+From 29f516329b6708a77177f48c48b2d830a9d3dd12 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 16 Sep 2025 01:47:42 -0400
+Subject: [PATCH] waylandsink: add lock to avoid null last buffer
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 96f325d..be274b0 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -616,6 +616,7 @@ gst_wayland_sink_event (GstBaseSink * bsink, GstEvent * event)
+ 
+       break;
+     case GST_EVENT_FLUSH_START:
++      g_mutex_lock (&self->render_lock);
+       if (self != NULL && self->display != NULL && self->window != NULL && self->format == GST_VIDEO_FORMAT_BGRA) {
+         gst_wayland_sink_clear_buf(self);
+       }
+@@ -623,6 +624,7 @@ gst_wayland_sink_event (GstBaseSink * bsink, GstEvent * event)
+       if (self != NULL && self->display != NULL && self->window != NULL && self->format == GST_VIDEO_FORMAT_NV12) {
+         gst_wl_display_force_release_buffer(self->display, self->last_buffer, self->keep_buffer, self->keep_count);
+       }
++      g_mutex_unlock (&self->render_lock);
+       break;
+     case GST_EVENT_FLUSH_STOP:
+       break;
+@@ -860,6 +862,9 @@ render_last_buffer (GstWaylandSink * self, gboolean redraw)
+   struct wl_callback *callback;
+ 
+   wlbuffer = gst_buffer_get_wl_buffer (self->display, self->last_buffer);
++  if (wlbuffer == NULL)
++    return;
++
+   surface = gst_wl_window_get_wl_surface (self->window);
+ 
+   self->redraw_pending = TRUE;
+@@ -897,6 +902,8 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+   struct wl_buffer *wbuf = NULL;
+ 
+   GstFlowReturn ret = GST_FLOW_OK;
++
++  g_mutex_lock (&self->render_lock);
+   if (self->silent == TRUE) {
+     if (self->format == GST_VIDEO_FORMAT_NV12) {
+       for (int i = (self->keep_count - 1); i >= 1; i--) {
+@@ -906,6 +913,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+       gst_buffer_replace (&self->keep_buffer[0], self->last_buffer);
+     }
+     gst_buffer_replace (&self->last_buffer, buffer);
++    g_mutex_unlock (&self->render_lock);
+     return ret;
+   }
+ 
+@@ -919,11 +927,10 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+     }
+     gst_buffer_replace (&self->last_buffer, buffer);
+     self->need_clear = FALSE;
++    g_mutex_unlock (&self->render_lock);
+     return ret;
+   }
+ 
+-  g_mutex_lock (&self->render_lock);
+-
+   GST_LOG_OBJECT (self, "render buffer %" GST_PTR_FORMAT "", buffer);
+ 
+   if (G_UNLIKELY (!self->window)) {
+-- 
+2.34.1
+

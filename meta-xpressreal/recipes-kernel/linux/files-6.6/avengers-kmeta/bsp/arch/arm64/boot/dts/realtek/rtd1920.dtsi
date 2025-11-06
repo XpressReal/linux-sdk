@@ -1,0 +1,492 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1920 SoC
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include "kent.dtsi"
+
+&boot_status {
+	status = "okay";
+};
+
+&cec {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+	ports = <&vo1_out>, <&vo0_out>, <&vo2_out>;
+};
+
+&dp {
+	status = "disabled";
+	realtek,iso = <&iso>;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dp_in: port@0 {
+			reg = <0>;
+			dp_in_vo2: endpoint {
+				remote-endpoint = <&vo2_out_dp>;
+			};
+		};
+
+		dp_out: port@1 {
+			reg = <1>;
+		};
+	};
+};
+
+&edp {
+	status = "disabled";
+
+	ports {
+		edp_in: port@0 {
+			reg = <0>;
+			edp_in_vo1: endpoint {
+				remote-endpoint = <&vo1_out_edp>;
+			};
+		};
+
+		edp_out: port@1 {
+			reg = <1>;
+			edp_out_panel: endpoint {
+				remote-endpoint = <&panel_in_edp>;
+			};
+		};
+	};
+
+	edp_panel: edp_panel {
+		compatible = "realtek,rtk-edp-panel";
+		status = "disabled";
+
+		port {
+			panel_in_edp: endpoint {
+				remote-endpoint = <&edp_out_panel>;
+			};
+		};
+	};
+};
+
+&efuse {
+	status = "okay";
+};
+
+&emmc {
+	status = "okay";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&gpio_manager {
+	status = "okay";
+};
+
+&gpu_wrap {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+
+	ports {
+		hdmi_in: port@0 {
+			reg = <0>;
+			hdmi_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_hdmi>;
+			};
+		};
+	};
+};
+
+&hifi_rpmsg {
+        /delete-property/ rproc;
+};
+
+&hse {
+	status = "okay";
+};
+
+&i2c_0 {
+	status = "okay";
+};
+
+&i2c_1 {
+	status = "okay";
+};
+
+&i2c_3 {
+	status = "okay";
+};
+
+&i2c_4 {
+	status = "okay";
+};
+
+&i2c_6 {
+	pinctrl-0 = <&i2c6_loc1_pins>, <&i2c6_loc1_sel_pins>;
+	status = "okay";
+};
+
+&i2c_7 {
+	status = "okay";
+};
+
+&iso_m_gpio {
+	status = "okay";
+};
+
+&kr4_rproc {
+	status = "okay";
+};
+
+&pwm {
+	num-pwm = <5>;
+	status = "okay";
+};
+
+&jpeg {
+	status = "okay";
+};
+
+&ve1 {
+	status = "okay";
+};
+
+&ve4 {
+	status = "okay";
+};
+
+&nic {
+	pinctrl-0 = <&etn_led_loc1_pins>;
+	pinctrl-1 = <&etn_led_loc1_pins>;
+	pinctrl-2 = <&etn_gpio_loc1_pins>;
+	phy-ctrl-loc = <1>; /* 0: loc0, 1: loc1 */
+	status = "okay";
+};
+
+&nor_flash {
+	status = "okay";
+};
+
+&npu {
+	status = "okay";
+};
+
+&npu_pp {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie0_phy {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&power_ac {
+	status = "okay";
+};
+
+&regulator_vcc1v8{
+	status = "okay";
+};
+
+&reserved_memory {
+	protected_mem: protected-mem@50000 {
+		status = "disabled";
+	};
+
+	metadata: metadata@c40000 {
+		status = "disabled";
+	};
+
+	riscv_fw: riscv-fw@5000000 {
+		reg = <0x0 0x05000000 0x0 0x00600000>;  /* riscv FW 6MB */
+		no-map;
+	};
+
+	tee: tee@10000000 {
+		status = "disabled";
+	};
+
+	bl31_mem: bl31-mem@10001000 {
+		reg = <0x0 0x10001000 0x0 0x40000>;
+		no-map;
+	};
+
+	bootlogo_reserved: buffer@2f700000 {
+		status = "disabled";
+	};
+
+	default_cma: default-cma {
+		status = "disabled";
+	};
+
+	cma_reserved_0:linux,cma {
+		compatible = "shared-dma-pool";
+		alignment = <0x0 0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x40000000 0x0 0x20000000>;
+		size = <0x0 0x20000000>; /* 512M */
+		linux,cma-default;
+		reusable;
+	};
+
+	cma_reserved_1:linux,cma_1 {
+		compatible = "shared-dma-pool";
+		alignment = <0x0 0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		/* Avoid allocating 0x40000000 to VCPU */
+		alloc-ranges=<0x0 0x40400000 0x0 0x1fc00000>;
+		size = <0x0 0x1fc00000>; /* 508M */
+		reusable;
+	};
+
+	cma_reserved_2:linux,cma_2 {
+		compatible = "shared-dma-pool";
+		alignment = <0x0 0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		/* Avoid allocating 0x80000000 ~ 0xa0000000 to RISC-V/HIFI RBUS uncached region */
+		alloc-ranges=<0x0 0xa0000000 0x0 0x60000000>;
+		size = <0x0 0x50000000>; /* 1280M */
+		reusable;
+	};
+};
+
+&rfkill {
+	status = "okay";
+};
+
+&rng {
+	status = "okay";
+};
+
+&rtk_fwdbg {
+	status = "okay";
+};
+
+&rtk_pm {
+	wakeup-flags = <PCPU_V2_CHROME_MODE>;
+	wakeup-timer = <15>;
+	status = "okay";
+};
+
+&rtk_urpc_service {
+	status = "okay";
+};
+
+&sb2 {
+	vcpu_rpmsg: vcpu-rpmsg {
+		vcpu-intr-channel {
+			memory-region = <&cma_reserved_0>;
+		};
+	};
+};
+
+&scpu_wrapper {
+	status = "okay";
+};
+
+&sdcard {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	cd-inverted;
+	status = "okay";
+};
+
+&sdio {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	keep-power-in-suspend;
+	non-removable;
+	status = "okay";
+};
+
+&spi_0 {
+	status = "okay";
+
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
+		reg = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_pins>;
+		interrupt-parent = <&iso_m_gpio>;
+		interrupts = <3 IRQ_TYPE_LEVEL_LOW>;
+		spi-max-frequency = <25000000>;
+
+		i2c_tunnel: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+		};
+
+		ec_typec: typec {
+			compatible = "google,cros-ec-typec";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			usb_c0: connector@0 {
+				compatible = "usb-c-connector";
+				reg = <0>;
+				label = "left";
+				power-role = "dual";
+				data-role = "host";
+				try-power-role = "source";
+				status = "okay";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@1 {
+						reg = <1>;
+
+						typec_port0: endpoint { };
+					};
+				};
+			};
+		};
+
+		usbc_extcon0: extcon0 {
+			compatible = "google,extcon-usbc-cros-ec";
+			google,usb-port-id = <0>;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	dwc3@20000 {
+		role-switch-default-mode = "host"; /* host, peripheral*/
+	};
+};
+
+&usb_port1 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port3 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port4 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb1_u3phy {
+	realtek,type-c = <&usbc_extcon0>;
+};
+
+/delete-node/&type_c;
+
+&vcpu {
+	status = "okay";
+};
+
+&vcpu_rproc {
+	status = "okay";
+};
+
+&vo0 {
+	status = "okay";
+
+	vo0_out: port {
+		vo0_out_hdmi: endpoint@0 {
+			remote-endpoint = <&hdmi_in_vo0>;
+		};
+	};
+};
+
+&vo1 {
+	status = "okay";
+
+	vo1_out: port {
+		vo1_out_edp: endpoint {
+			remote-endpoint = <&edp_in_vo1>;
+		};
+	};
+};
+
+&vo2 {
+	status = "disabled";
+
+	vo2_out: port {
+		vo2_out_dp: endpoint {
+			remote-endpoint = <&dp_in_vo2>;
+		};
+	};
+};
+
+&volt_detector {
+	status = "okay";
+};
+
+&watchdog {
+	realtek,ov-rstb-oe-init = <1>;
+	realtek,ov-rstb-oe = <1>;
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+#include <arm/cros-ec-keyboard.dtsi>
+#include <arm/cros-ec-sbs.dtsi>

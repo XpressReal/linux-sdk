@@ -1,0 +1,1132 @@
+From ca1821a2f544939563a42c874ce8fab98f69cfab Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Wed, 30 Apr 2025 14:01:52 +0800
+Subject: [PATCH] npp_support_import_dmabuf
+
+---
+ drivers/media/platform/rtk_npp/drv_npp.c |  24 +-
+ drivers/media/platform/rtk_npp/npp_m2m.c | 655 ++++++++++++++---------
+ 2 files changed, 419 insertions(+), 260 deletions(-)
+
+diff --git a/drivers/media/platform/rtk_npp/drv_npp.c b/drivers/media/platform/rtk_npp/drv_npp.c
+index db1d3970299a..46a5aa68ef8b 100644
+--- a/drivers/media/platform/rtk_npp/drv_npp.c
++++ b/drivers/media/platform/rtk_npp/drv_npp.c
+@@ -113,8 +113,8 @@ static void job_abort(void *priv)
+ 	if (!op_m2m)
+ 		return;
+ 	/* Will cancel the transaction in the next interrupt handler */
+-	op_m2m->npp_abort(priv, V4L2_BUF_TYPE_VIDEO_OUTPUT);
+-	op_m2m->npp_abort(priv, V4L2_BUF_TYPE_VIDEO_CAPTURE);
++	op_m2m->npp_abort(priv, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
++	op_m2m->npp_abort(priv, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+ 	v4l2_m2m_job_finish(v_dev->m2m_dev, ctx->fh.m2m_ctx);
+ 
+ 	pr_info("[drv_npp] %s done\n", __func__);
+@@ -144,7 +144,7 @@ static int drv_npp_querycap(struct file *file, void *priv,
+ 
+ 	if (ctx->state == M2MSTATE) {
+ 		device_name = VIDEO_DEVICE_M2M;
+-		cap->device_caps = V4L2_CAP_VIDEO_M2M | V4L2_CAP_STREAMING;
++		cap->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
+ 	} else { //CAPTURESTATE
+ 		device_name = VIDEO_DEVICE_CAPTURE;
+ 		cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+@@ -816,14 +816,14 @@ static const struct v4l2_ioctl_ops drv_npp_ioctl_ops_m2m = {
+ 	.vidioc_querycap          = drv_npp_querycap,               // VIDIOC_QUERYCAP
+ 
+ 	.vidioc_enum_fmt_vid_cap  = drv_npp_enum_fmt_vid_cap,       // VIDIOC_ENUM_FMT
+-	.vidioc_g_fmt_vid_cap     = drv_npp_g_fmt,                  // VIDIOC_G_FMT
+-	.vidioc_try_fmt_vid_cap   = drv_npp_try_fmt_vid_cap,        // VIDIOC_TRY_FMT
+-	.vidioc_s_fmt_vid_cap     = drv_npp_s_fmt_vid_cap,          // VIDIOC_S_FMT
++	.vidioc_g_fmt_vid_cap_mplane     = drv_npp_g_fmt,                  // VIDIOC_G_FMT
++	.vidioc_try_fmt_vid_cap_mplane   = drv_npp_try_fmt_vid_cap,        // VIDIOC_TRY_FMT
++	.vidioc_s_fmt_vid_cap_mplane     = drv_npp_s_fmt_vid_cap,          // VIDIOC_S_FMT
+ 
+ 	.vidioc_enum_fmt_vid_out  = drv_npp_enum_fmt_vid_out,       // VIDIOC_ENUM_FMT
+-	.vidioc_g_fmt_vid_out     = drv_npp_g_fmt,                  // VIDIOC_G_FMT
+-	.vidioc_try_fmt_vid_out   = drv_npp_try_fmt_vid_out,        // VIDIOC_TRY_FMT
+-	.vidioc_s_fmt_vid_out     = drv_npp_s_fmt_vid_out,          // VIDIOC_S_FMT
++	.vidioc_g_fmt_vid_out_mplane     = drv_npp_g_fmt,                  // VIDIOC_G_FMT
++	.vidioc_try_fmt_vid_out_mplane   = drv_npp_try_fmt_vid_out,        // VIDIOC_TRY_FMT
++	.vidioc_s_fmt_vid_out_mplane     = drv_npp_s_fmt_vid_out,          // VIDIOC_S_FMT
+ 
+ 	.vidioc_reqbufs           = drv_npp_reqbufs,                // VIDIOC_REQBUFS
+ 	.vidioc_querybuf          = drv_npp_querybuf,               // VIDIOC_QUERYBUF
+@@ -1043,7 +1043,7 @@ static int queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *ds
+ 	struct drv_npp_ctx *ctx = priv;
+ 	int ret;
+ 
+-	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
++	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+ 	src_vq->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
+ 	src_vq->drv_priv = ctx;
+ 	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+@@ -1057,7 +1057,7 @@ static int queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *ds
+ 	if (ret)
+ 		return ret;
+ 
+-	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+ 	dst_vq->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
+ 	dst_vq->drv_priv = ctx;
+ 	dst_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+@@ -1485,7 +1485,7 @@ static int drv_npp_probe(struct platform_device *pdev)
+ 	video_dev_m2m = &v_dev->video_dev_m2m;
+ 	video_dev_m2m->lock = &v_dev->dev_mutex_m2m;
+ 	video_dev_m2m->v4l2_dev = &v_dev->v4l2_dev;
+-	video_dev_m2m->device_caps = V4L2_CAP_VIDEO_M2M | V4L2_CAP_STREAMING;
++	video_dev_m2m->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
+ 
+ 	/* Register video4linux device */
+ 	ret = video_register_device(video_dev_m2m, VFL_TYPE_VIDEO, -1);
+diff --git a/drivers/media/platform/rtk_npp/npp_m2m.c b/drivers/media/platform/rtk_npp/npp_m2m.c
+index 5878848d6634..e9af66e0fe26 100644
+--- a/drivers/media/platform/rtk_npp/npp_m2m.c
++++ b/drivers/media/platform/rtk_npp/npp_m2m.c
+@@ -52,228 +52,368 @@ static int npp_run(struct v4l2_fh *fh);
+ static struct npp_fmt out_fmt[] = {
+ 
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_YUYV,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_YUYV,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_YUYV,
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_YUYV,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_YVYU,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_YVYU,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_YVYU,
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_YVYU,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_UYVY,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_UYVY,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_UYVY,
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_UYVY,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_VYUY,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_VYUY,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_VYUY,
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_VYUY,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 160,
+-		.spec.fmt.pix.height = 90,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 90,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 160,
+-		.spec.fmt.pix.height = 120,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 96,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 176,
+-		.spec.fmt.pix.height = 144,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 120,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 320,
+-		.spec.fmt.pix.height = 240,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 128,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 352,
+-		.spec.fmt.pix.height = 288,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 192,
++		.spec.fmt.pix_mp.height = 128,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 432,
+-		.spec.fmt.pix.height = 240,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 256,
++		.spec.fmt.pix_mp.height = 128,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 360,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 176,
++		.spec.fmt.pix_mp.height = 144,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 368,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 192,
++		.spec.fmt.pix_mp.height = 160,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 192,
++		.spec.fmt.pix_mp.height = 192,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 864,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 256,
++		.spec.fmt.pix_mp.height = 256,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 800,
+-		.spec.fmt.pix.height = 600,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 240,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1280,
+-		.spec.fmt.pix.height = 720,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 256,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 384,
++		.spec.fmt.pix_mp.height = 256,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1088,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 352,
++		.spec.fmt.pix_mp.height = 288,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 2560,
+-		.spec.fmt.pix.height = 1440,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 384,
++		.spec.fmt.pix_mp.height = 320,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 3840,
+-		.spec.fmt.pix.height = 2160,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 384,
++		.spec.fmt.pix_mp.height = 384,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 224,
+-		.spec.fmt.pix.height = 224,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 432,
++		.spec.fmt.pix_mp.height = 240,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 768,
+-		.spec.fmt.pix.height = 576,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV12,
++		.spec.fmt.pix_mp.width = 448,
++		.spec.fmt.pix_mp.height = 256,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV21,
++		.spec.fmt.pix_mp.width = 512,
++		.spec.fmt.pix_mp.height = 256,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_NV21,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 360,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 368,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 384,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 512,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 864,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 896,
++		.spec.fmt.pix_mp.height = 512,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 600,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 608,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 832,
++		.spec.fmt.pix_mp.height = 640,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 896,
++		.spec.fmt.pix_mp.height = 640,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1280,
++		.spec.fmt.pix_mp.height = 720,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1280,
++		.spec.fmt.pix_mp.height = 736,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1280,
++		.spec.fmt.pix_mp.height = 768,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1088,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1152,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 2560,
++		.spec.fmt.pix_mp.height = 1440,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 2560,
++		.spec.fmt.pix_mp.height = 1472,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 2560,
++		.spec.fmt.pix_mp.height = 1536,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 3840,
++		.spec.fmt.pix_mp.height = 2160,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 3840,
++		.spec.fmt.pix_mp.height = 2176,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 224,
++		.spec.fmt.pix_mp.height = 224,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 768,
++		.spec.fmt.pix_mp.height = 640,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 768,
++		.spec.fmt.pix_mp.height = 576,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV12,
++	},
++	{
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV21,
++	},
++	{
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_NV21,
+ 	}
+ };
+ 
+ static struct npp_fmt cap_fmt[] = {
+ 
+ 	{
+-		.spec.fmt.pix.width = 160,
+-		.spec.fmt.pix.height = 90,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 90,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
++	},
++	{
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 120,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 160,
+-		.spec.fmt.pix.height = 120,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 160,
++		.spec.fmt.pix_mp.height = 160,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 176,
+-		.spec.fmt.pix.height = 144,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 176,
++		.spec.fmt.pix_mp.height = 144,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 272,
+-		.spec.fmt.pix.height = 272,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 272,
++		.spec.fmt.pix_mp.height = 272,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 304,
+-		.spec.fmt.pix.height = 304,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 304,
++		.spec.fmt.pix_mp.height = 304,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 320,
+-		.spec.fmt.pix.height = 240,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 240,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 352,
+-		.spec.fmt.pix.height = 288,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 352,
++		.spec.fmt.pix_mp.height = 288,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 480,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 480,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 640,
+-		.spec.fmt.pix.height = 480,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 480,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 800,
+-		.spec.fmt.pix.height = 600,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 640,
++		.spec.fmt.pix_mp.height = 360,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 960,
+-		.spec.fmt.pix.height = 960,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 800,
++		.spec.fmt.pix_mp.height = 600,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1280,
+-		.spec.fmt.pix.height = 720,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 960,
++		.spec.fmt.pix_mp.height = 960,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 1920,
+-		.spec.fmt.pix.height = 1080,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 1280,
++		.spec.fmt.pix_mp.height = 720,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 224,
+-		.spec.fmt.pix.height = 224,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 1920,
++		.spec.fmt.pix_mp.height = 1080,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 320,
+-		.spec.fmt.pix.height = 320,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 224,
++		.spec.fmt.pix_mp.height = 224,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	},
+ 	{
+-		.spec.fmt.pix.width = 416,
+-		.spec.fmt.pix.height = 416,
+-		.spec.fmt.pix.pixelformat	= V4L2_PIX_FMT_RGB24,
++		.spec.fmt.pix_mp.width = 320,
++		.spec.fmt.pix_mp.height = 320,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
++	},
++	{
++		.spec.fmt.pix_mp.width = 416,
++		.spec.fmt.pix_mp.height = 416,
++		.spec.fmt.pix_mp.pixelformat	= V4L2_PIX_FMT_RGB24,
+ 	}
+ };
+ 
+@@ -285,17 +425,17 @@ static void sort_out_fmt(void)
+ 
+ 	for (i = 0; i < ARRAY_SIZE(out_fmt)-1; i++) {
+ 		for (j = 0; j < ARRAY_SIZE(out_fmt)-1-i; j++) {
+-			if (out_fmt[j].spec.fmt.pix.pixelformat <
+-			out_fmt[j+1].spec.fmt.pix.pixelformat)
++			if (out_fmt[j].spec.fmt.pix_mp.pixelformat <
++			out_fmt[j+1].spec.fmt.pix_mp.pixelformat)
+ 				swap = true;
+-			else if (out_fmt[j].spec.fmt.pix.pixelformat ==
+-			out_fmt[j+1].spec.fmt.pix.pixelformat) {
+-				if (out_fmt[j].spec.fmt.pix.width < out_fmt[j+1].spec.fmt.pix.width)
++			else if (out_fmt[j].spec.fmt.pix_mp.pixelformat ==
++			out_fmt[j+1].spec.fmt.pix_mp.pixelformat) {
++				if (out_fmt[j].spec.fmt.pix_mp.width < out_fmt[j+1].spec.fmt.pix_mp.width)
+ 					swap = true;
+-				else if (out_fmt[j].spec.fmt.pix.width ==
+-				out_fmt[j+1].spec.fmt.pix.width) {
+-					if (out_fmt[j].spec.fmt.pix.height <
+-					out_fmt[j+1].spec.fmt.pix.height)
++				else if (out_fmt[j].spec.fmt.pix_mp.width ==
++				out_fmt[j+1].spec.fmt.pix_mp.width) {
++					if (out_fmt[j].spec.fmt.pix_mp.height <
++					out_fmt[j+1].spec.fmt.pix_mp.height)
+ 						swap = true;
+ 				}
+ 			}
+@@ -318,17 +458,17 @@ static void sort_cap_fmt(void)
+ 
+ 	for (i = 0; i < ARRAY_SIZE(cap_fmt)-1; i++) {
+ 		for (j = 0; j < ARRAY_SIZE(cap_fmt)-1-i; j++) {
+-			if (cap_fmt[j].spec.fmt.pix.pixelformat <
+-			cap_fmt[j+1].spec.fmt.pix.pixelformat)
++			if (cap_fmt[j].spec.fmt.pix_mp.pixelformat <
++			cap_fmt[j+1].spec.fmt.pix_mp.pixelformat)
+ 				swap = true;
+-			else if (cap_fmt[j].spec.fmt.pix.pixelformat ==
+-			cap_fmt[j+1].spec.fmt.pix.pixelformat) {
+-				if (cap_fmt[j].spec.fmt.pix.width < cap_fmt[j+1].spec.fmt.pix.width)
++			else if (cap_fmt[j].spec.fmt.pix_mp.pixelformat ==
++			cap_fmt[j+1].spec.fmt.pix_mp.pixelformat) {
++				if (cap_fmt[j].spec.fmt.pix_mp.width < cap_fmt[j+1].spec.fmt.pix_mp.width)
+ 					swap = true;
+-				else if (cap_fmt[j].spec.fmt.pix.width ==
+-				cap_fmt[j+1].spec.fmt.pix.width) {
+-					if (cap_fmt[j].spec.fmt.pix.height <
+-					cap_fmt[j+1].spec.fmt.pix.height)
++				else if (cap_fmt[j].spec.fmt.pix_mp.width ==
++				cap_fmt[j+1].spec.fmt.pix_mp.width) {
++					if (cap_fmt[j].spec.fmt.pix_mp.height <
++					cap_fmt[j+1].spec.fmt.pix_mp.height)
+ 						swap = true;
+ 				}
+ 			}
+@@ -354,11 +494,11 @@ static void init_out_fmt(void)
+ 	__u32 mipi_csi_y_body_size, mipi_csi_c_body_size;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(out_fmt); i++) {
+-		pixelformat = out_fmt[i].spec.fmt.pix.pixelformat;
+-		width  = out_fmt[i].spec.fmt.pix.width;
+-		height = out_fmt[i].spec.fmt.pix.height;
++		pixelformat = out_fmt[i].spec.fmt.pix_mp.pixelformat;
++		width  = out_fmt[i].spec.fmt.pix_mp.width;
++		height = out_fmt[i].spec.fmt.pix_mp.height;
+ 		if ((pixelformat == V4L2_PIX_FMT_NV12) || (pixelformat == V4L2_PIX_FMT_NV21)) {
+-			mipi_csi_block_in_row = (width + 15) / 16;
++			/*mipi_csi_block_in_row = (width + 15) / 16;
+ 			mipi_csi_4_block_in_row = (mipi_csi_block_in_row + 3) / 4;
+ 			mipi_csi_4_block_max_size = (4 * 64);
+ 			mipi_csi_of_size_one_row = (mipi_csi_4_block_in_row *
+@@ -377,21 +517,28 @@ static void init_out_fmt(void)
+ 			 __func__, mipi_csi_y_header_size, mipi_csi_c_header_size);
+ 			pr_info("%s, actual alloc sizeimage = %d, ideal sizeimage = %d\n",
+ 			 __func__, sizeimage,
+-			 (width*height*3)/2 + mipi_csi_y_header_size+mipi_csi_c_header_size);
++			 (width*height*3)/2 + mipi_csi_y_header_size+mipi_csi_c_header_size);*/
++			bytesperline = width;
++			sizeimage = width*height*3/2;
+ 		} else {
+ 			bytesperline = width*2;
+ 			sizeimage = width*height*2;
+ 		}
+-		out_fmt[i].spec.type                 = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+-		out_fmt[i].spec.fmt.pix.field        = V4L2_FIELD_NONE;
+-		out_fmt[i].spec.fmt.pix.bytesperline = bytesperline;
+-		out_fmt[i].spec.fmt.pix.sizeimage    = sizeimage;
+-		out_fmt[i].spec.fmt.pix.colorspace = V4L2_COLORSPACE_REC709;
+-		out_fmt[i].spec.fmt.pix.priv         = 0;
+-		out_fmt[i].spec.fmt.pix.flags        = 0;
+-		out_fmt[i].spec.fmt.pix.quantization = V4L2_QUANTIZATION_DEFAULT;
+-		out_fmt[i].spec.fmt.pix.ycbcr_enc    = V4L2_YCBCR_ENC_DEFAULT;
+-		out_fmt[i].spec.fmt.pix.xfer_func    = V4L2_XFER_FUNC_DEFAULT;
++		out_fmt[i].spec.type                    = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
++		out_fmt[i].spec.fmt.pix_mp.field        = V4L2_FIELD_NONE;
++		out_fmt[i].spec.fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
++		out_fmt[i].spec.fmt.pix_mp.plane_fmt[0].sizeimage   = sizeimage;
++		out_fmt[i].spec.fmt.pix_mp.colorspace = V4L2_COLORSPACE_REC709;
++		out_fmt[i].spec.fmt.pix_mp.flags        = 0;
++		out_fmt[i].spec.fmt.pix_mp.quantization = V4L2_QUANTIZATION_DEFAULT;
++		out_fmt[i].spec.fmt.pix_mp.ycbcr_enc    = V4L2_YCBCR_ENC_DEFAULT;
++		out_fmt[i].spec.fmt.pix_mp.xfer_func    = V4L2_XFER_FUNC_DEFAULT;
++		out_fmt[i].spec.fmt.pix_mp.num_planes   = 1;
++		pr_info("%s, out_fmt[%d].spec.fmt.pix_mp.plane_fmt[0].bytesperline = %d\n",
++			 __func__, i,out_fmt[i].spec.fmt.pix_mp.plane_fmt[0].bytesperline);
++		pr_info("%s, out_fmt[%d].spec.fmt.pix_mp.plane_fmt[0].sizeimage = %d\n",
++			 __func__, i,out_fmt[i].spec.fmt.pix_mp.plane_fmt[0].sizeimage);
++
+ 	}
+ 
+ 	sort_out_fmt();
+@@ -403,9 +550,9 @@ static void init_cap_fmt(void)
+ 	__u32 width, height, pixelformat, bytesperline, sizeimage;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(cap_fmt); i++) {
+-		pixelformat = cap_fmt[i].spec.fmt.pix.pixelformat;
+-		width  = cap_fmt[i].spec.fmt.pix.width;
+-		height = cap_fmt[i].spec.fmt.pix.height;
++		pixelformat = cap_fmt[i].spec.fmt.pix_mp.pixelformat;
++		width  = cap_fmt[i].spec.fmt.pix_mp.width;
++		height = cap_fmt[i].spec.fmt.pix_mp.height;
+ 		if (pixelformat == V4L2_PIX_FMT_RGB24) {
+ 			bytesperline = width*3;
+ 			sizeimage = width*height*3;
+@@ -414,16 +561,20 @@ static void init_cap_fmt(void)
+ 			 __func__, pixelformat&0xFF, (pixelformat>>8)&0xFF,
+ 			 (pixelformat>>16)&0xFF, (pixelformat>>24)&0xFF);
+ 		}
+-		cap_fmt[i].spec.type                 = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+-		cap_fmt[i].spec.fmt.pix.field        = V4L2_FIELD_NONE;
+-		cap_fmt[i].spec.fmt.pix.bytesperline = bytesperline;
+-		cap_fmt[i].spec.fmt.pix.sizeimage    = sizeimage;
+-		cap_fmt[i].spec.fmt.pix.colorspace   = V4L2_COLORSPACE_SRGB;
+-		cap_fmt[i].spec.fmt.pix.priv         = 0;
+-		cap_fmt[i].spec.fmt.pix.flags        = 0;
+-		cap_fmt[i].spec.fmt.pix.quantization = V4L2_QUANTIZATION_DEFAULT;
+-		cap_fmt[i].spec.fmt.pix.ycbcr_enc    = V4L2_YCBCR_ENC_DEFAULT;
+-		cap_fmt[i].spec.fmt.pix.xfer_func    = V4L2_XFER_FUNC_DEFAULT;
++		cap_fmt[i].spec.type                    = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
++		cap_fmt[i].spec.fmt.pix_mp.field        = V4L2_FIELD_NONE;
++		cap_fmt[i].spec.fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
++		cap_fmt[i].spec.fmt.pix_mp.plane_fmt[0].sizeimage    = sizeimage;
++		cap_fmt[i].spec.fmt.pix_mp.colorspace   = V4L2_COLORSPACE_SRGB;
++		cap_fmt[i].spec.fmt.pix_mp.flags        = 0;
++		cap_fmt[i].spec.fmt.pix_mp.quantization = V4L2_QUANTIZATION_DEFAULT;
++		cap_fmt[i].spec.fmt.pix_mp.ycbcr_enc    = V4L2_YCBCR_ENC_DEFAULT;
++		cap_fmt[i].spec.fmt.pix_mp.xfer_func    = V4L2_XFER_FUNC_DEFAULT;
++		cap_fmt[i].spec.fmt.pix_mp.num_planes   = 1;
++		pr_info("%s, cap_fmt[%d].spec.fmt.pix_mp.plane_fmt[0].bytesperline = %d\n",
++			 __func__, i,cap_fmt[i].spec.fmt.pix_mp.plane_fmt[0].bytesperline);
++		pr_info("%s, cap_fmt[%d].spec.fmt.pix_mp.plane_fmt[0].sizeimage = %d\n",
++			 __func__, i,cap_fmt[i].spec.fmt.pix_mp.plane_fmt[0].sizeimage);
+ 	}
+ 
+ 	sort_cap_fmt();
+@@ -576,7 +727,7 @@ static int threadcap(void *data)
+ 				break;
+ 
+ 			mutex_lock(&nppctx->npp_mutex);
+-			sizeimage = nppctx->cap.fmt.pix.sizeimage;
++			sizeimage = nppctx->cap.fmt.pix_mp.plane_fmt[0].sizeimage;
+ 			sequence = nppctx->seq_cap;
+ 			mutex_unlock(&nppctx->npp_mutex);
+ 
+@@ -646,7 +797,7 @@ static int threadout(void *data)
+ 					break;
+ 
+ 				mutex_lock(&nppctx->npp_mutex);
+-				sizeimage = nppctx->out.fmt.pix.sizeimage;
++				sizeimage = nppctx->out.fmt.pix_mp.plane_fmt[0].sizeimage;
+ 				sequence = nppctx->seq_out;
+ 				mutex_unlock(&nppctx->npp_mutex);
+ 
+@@ -716,8 +867,8 @@ static int npp_enum_fmt_cap(struct v4l2_fmtdesc *f)
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(cap_fmt); i++) {
+-		if (cap_fmt[i].spec.fmt.pix.pixelformat != pixel_format) {
+-			pixel_format = cap_fmt[i].spec.fmt.pix.pixelformat;
++		if (cap_fmt[i].spec.fmt.pix_mp.pixelformat != pixel_format) {
++			pixel_format = cap_fmt[i].spec.fmt.pix_mp.pixelformat;
+ 			count++;
+ 		}
+ 		if (count == f->index+1) {
+@@ -736,8 +887,8 @@ static int npp_enum_fmt_out(struct v4l2_fmtdesc *f)
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(out_fmt); i++) {
+-		if (out_fmt[i].spec.fmt.pix.pixelformat != pixel_format) {
+-			pixel_format = out_fmt[i].spec.fmt.pix.pixelformat;
++		if (out_fmt[i].spec.fmt.pix_mp.pixelformat != pixel_format) {
++			pixel_format = out_fmt[i].spec.fmt.pix_mp.pixelformat;
+ 			count++;
+ 		}
+ 		if (count == f->index+1) {
+@@ -755,23 +906,23 @@ static int npp_enum_framesize(struct v4l2_frmsizeenum *f)
+ 	int count = 0;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(out_fmt); i++) {
+-		if (out_fmt[i].spec.fmt.pix.pixelformat == f->pixel_format)
++		if (out_fmt[i].spec.fmt.pix_mp.pixelformat == f->pixel_format)
+ 			count++;
+ 		if (count == f->index+1) {
+ 			f->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+-			f->discrete.width = out_fmt[i].spec.fmt.pix.width;
+-			f->discrete.height = out_fmt[i].spec.fmt.pix.height;
++			f->discrete.width = out_fmt[i].spec.fmt.pix_mp.width;
++			f->discrete.height = out_fmt[i].spec.fmt.pix_mp.height;
+ 			return 0;
+ 		}
+ 	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(cap_fmt); i++) {
+-		if (cap_fmt[i].spec.fmt.pix.pixelformat == f->pixel_format)
++		if (cap_fmt[i].spec.fmt.pix_mp.pixelformat == f->pixel_format)
+ 			count++;
+ 		if (count == f->index+1) {
+ 			f->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+-			f->discrete.width = cap_fmt[i].spec.fmt.pix.width;
+-			f->discrete.height = cap_fmt[i].spec.fmt.pix.height;
++			f->discrete.width = cap_fmt[i].spec.fmt.pix_mp.width;
++			f->discrete.height = cap_fmt[i].spec.fmt.pix_mp.height;
+ 			return 0;
+ 		}
+ 	}
+@@ -786,14 +937,14 @@ static int npp_g_fmt(struct v4l2_fh *fh, struct v4l2_format *f)
+ 	mutex_lock(&ctx->npp_mutex);
+ 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
+ 		if (ctx->out.type != -1) {
+-			pr_info("%s, width=%d\n", __func__, ctx->out.fmt.pix.width);
+-			memcpy(&f->fmt.pix, &ctx->out.fmt.pix, sizeof(struct v4l2_pix_format));
++			pr_info("%s, width=%d\n", __func__, ctx->out.fmt.pix_mp.width);
++			memcpy(&f->fmt.pix_mp, &ctx->out.fmt.pix_mp, sizeof(struct v4l2_pix_format_mplane));
+ 		} else {
+ 			mutex_unlock(&ctx->npp_mutex);
+ 			return -EINVAL;
+ 		}
+ 	} else {
+-		memcpy(&f->fmt.pix, &ctx->cap.fmt.pix, sizeof(struct v4l2_pix_format));
++		memcpy(&f->fmt.pix_mp, &ctx->cap.fmt.pix_mp, sizeof(struct v4l2_pix_format_mplane));
+ 	}
+ 	mutex_unlock(&ctx->npp_mutex);
+ 	return 0;
+@@ -803,10 +954,10 @@ static struct npp_fmt *find_out_format(struct v4l2_format *f)
+ {
+ 	struct npp_fmt *fmt;
+ 	unsigned int k;
+-	__u32 width = f->fmt.pix.width;
+-	__u32 height = f->fmt.pix.height;
+-	__u32 pixelformat = f->fmt.pix.pixelformat;
+-	__u32 quantization = f->fmt.pix.quantization;
++	__u32 width = f->fmt.pix_mp.width;
++	__u32 height = f->fmt.pix_mp.height;
++	__u32 pixelformat = f->fmt.pix_mp.pixelformat;
++	__u32 quantization = f->fmt.pix_mp.quantization;
+ 
+ 	pr_info("%s, pixelformat=%c%c%c%c width=%d height=%d quantization=%d\n", __func__,
+ 		pixelformat&0xFF, (pixelformat>>8)&0xFF, (pixelformat>>16)&0xFF,
+@@ -814,9 +965,9 @@ static struct npp_fmt *find_out_format(struct v4l2_format *f)
+ 
+ 	for (k = 0; k < ARRAY_SIZE(out_fmt); k++) {
+ 		fmt = &out_fmt[k];
+-		if ((fmt->spec.fmt.pix.pixelformat == pixelformat) &&
+-			(fmt->spec.fmt.pix.width == width) &&
+-			(fmt->spec.fmt.pix.height == height))
++		if ((fmt->spec.fmt.pix_mp.pixelformat == pixelformat) &&
++			(fmt->spec.fmt.pix_mp.width == width) &&
++			(fmt->spec.fmt.pix_mp.height == height))
+ 			break;
+ 	}
+ 
+@@ -836,10 +987,10 @@ static struct npp_fmt *find_cap_format(struct v4l2_format *f)
+ {
+ 	struct npp_fmt *fmt;
+ 	unsigned int k;
+-	__u32 width = f->fmt.pix.width;
+-	__u32 height = f->fmt.pix.height;
+-	__u32 pixelformat = f->fmt.pix.pixelformat;
+-	__u32 quantization = f->fmt.pix.quantization;
++	__u32 width = f->fmt.pix_mp.width;
++	__u32 height = f->fmt.pix_mp.height;
++	__u32 pixelformat = f->fmt.pix_mp.pixelformat;
++	__u32 quantization = f->fmt.pix_mp.quantization;
+ 
+ 	pr_info("%s, pixelformat=%c%c%c%c width=%d height=%d quantization=%d\n", __func__,
+ 		pixelformat&0xFF, (pixelformat>>8)&0xFF, (pixelformat>>16)&0xFF,
+@@ -847,9 +998,9 @@ static struct npp_fmt *find_cap_format(struct v4l2_format *f)
+ 
+ 	for (k = 0; k < ARRAY_SIZE(cap_fmt); k++) {
+ 		fmt = &cap_fmt[k];
+-		if ((fmt->spec.fmt.pix.pixelformat == pixelformat) &&
+-			(fmt->spec.fmt.pix.width == width) &&
+-			(fmt->spec.fmt.pix.height == height))
++		if ((fmt->spec.fmt.pix_mp.pixelformat == pixelformat) &&
++			(fmt->spec.fmt.pix_mp.width == width) &&
++			(fmt->spec.fmt.pix_mp.height == height))
+ 			break;
+ 	}
+ 
+@@ -867,7 +1018,7 @@ static struct npp_fmt *find_cap_format(struct v4l2_format *f)
+ 
+ static int npp_try_fmt_out(struct v4l2_format *f)
+ {
+-	__u32 quantization = f->fmt.pix.quantization;
++	__u32 quantization = f->fmt.pix_mp.quantization;
+ 	struct npp_fmt *fmt;
+ 	int ret = 0;
+ 
+@@ -877,14 +1028,14 @@ static int npp_try_fmt_out(struct v4l2_format *f)
+ 
+ 	memcpy(f, &fmt->spec, sizeof(struct v4l2_format));
+ 
+-	f->fmt.pix.quantization = quantization;
++	f->fmt.pix_mp.quantization = quantization;
+ 
+ 	return ret;
+ }
+ 
+ static int npp_try_fmt_cap(struct v4l2_format *f)
+ {
+-	__u32 quantization = f->fmt.pix.quantization;
++	__u32 quantization = f->fmt.pix_mp.quantization;
+ 	struct npp_fmt *fmt;
+ 	int ret = 0;
+ 
+@@ -894,7 +1045,7 @@ static int npp_try_fmt_cap(struct v4l2_format *f)
+ 
+ 	memcpy(f, &fmt->spec, sizeof(struct v4l2_format));
+ 
+-	f->fmt.pix.quantization = quantization;
++	f->fmt.pix_mp.quantization = quantization;
+ 
+ 	return ret;
+ }
+@@ -902,7 +1053,7 @@ static int npp_try_fmt_cap(struct v4l2_format *f)
+ static int npp_s_fmt_cap(struct v4l2_fh *fh, struct v4l2_format *f)
+ {
+ 	struct npp_ctx *ctx = fh_to_npp(fh);
+-	int pixelformat = f->fmt.pix.pixelformat;
++	int pixelformat = f->fmt.pix_mp.pixelformat;
+ 
+ 	npp_try_fmt_cap(f);
+ 
+@@ -956,13 +1107,21 @@ static int npp_queue_info(struct vb2_queue *vq, int *bufcnt, int *sizeimage)
+ 
+ 		if (sizeimage) {
+ 			*sizeimage = (vq->memory == V4L2_MEMORY_DMABUF) ?
+-			 4096 : nppctx->out.fmt.pix.sizeimage;
++			 4096 : nppctx->out.fmt.pix_mp.plane_fmt[0].sizeimage;
+ 			if (vq->memory == V4L2_MEMORY_USERPTR &&
+-				(nppctx->out.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12 ||
+-				 nppctx->out.fmt.pix.pixelformat == V4L2_PIX_FMT_NV21)) {
++				(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
++				 nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21)) {
++				if (drvctx->params.mipi_csi_param.mipi_csi_input == 0)
++					*sizeimage = (nppctx->out.fmt.pix_mp.width *
++				 nppctx->out.fmt.pix_mp.height *
++				 3) / 2;
++			}
++			if (vq->memory == V4L2_MEMORY_DMABUF &&
++				(nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
++				 nppctx->out.fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21)) {
+ 				if (drvctx->params.mipi_csi_param.mipi_csi_input == 0)
+-					*sizeimage = (nppctx->out.fmt.pix.width *
+-				 nppctx->out.fmt.pix.height *
++					*sizeimage = (nppctx->out.fmt.pix_mp.width *
++				 nppctx->out.fmt.pix_mp.height *
+ 				 3) / 2;
+ 			}
+ 		}
+@@ -978,7 +1137,7 @@ static int npp_queue_info(struct vb2_queue *vq, int *bufcnt, int *sizeimage)
+ 
+ 		if (sizeimage)
+ 			*sizeimage = (vq->memory == V4L2_MEMORY_DMABUF)
+-		? 4096 : nppctx->cap.fmt.pix.sizeimage;
++		? 4096 : nppctx->cap.fmt.pix_mp.plane_fmt[0].sizeimage;
+ 
+ 		if (bufcnt)
+ 			*bufcnt = CAP_BUF_COUNT;
+@@ -994,8 +1153,8 @@ static int npp_start_streaming(struct vb2_queue *q, uint32_t count)
+ 	struct npp_ctx *nppctx = drvctx->npp_ctx;
+ 	struct v4l2_fh *fh = &drvctx->fh;
+ 	int ret = 0;
+-	int out_pixelformat = nppctx->out.fmt.pix.pixelformat;
+-	int cap_pixelformat = nppctx->cap.fmt.pix.pixelformat;
++	int out_pixelformat = nppctx->out.fmt.pix_mp.pixelformat;
++	int cap_pixelformat = nppctx->cap.fmt.pix_mp.pixelformat;
+ 
+ 	nppctx->bufcnt_out = OUT_BUF_COUNT;
+ 	nppctx->bufcnt_cap = CAP_BUF_COUNT;
+@@ -1120,7 +1279,7 @@ int npp_cap_dqbuf(void *fh, struct vb2_v4l2_buffer *v4l2_buf, uint32_t *len, uin
+ {
+ 	struct drv_npp_ctx *drvctx = container_of(fh, struct drv_npp_ctx, fh);
+ 	struct npp_ctx *nppctx = drvctx->npp_ctx;
+-	unsigned int cap_buf_data_size = (nppctx->cap.fmt.pix.width * nppctx->cap.fmt.pix.height);
++	unsigned int cap_buf_data_size = (nppctx->cap.fmt.pix_mp.width * nppctx->cap.fmt.pix_mp.height);
+ 	int ret;
+ 
+ 	nppctx->cap_v4l2_buf = v4l2_buf;
+@@ -1223,11 +1382,11 @@ static int npp_run(struct v4l2_fh *fh)
+ 
+ 	crop_rect = nppctx->rect;
+ 
+-	if (nppctx->out.fmt.pix.width < crop_rect.left+crop_rect.width)
+-		crop_rect.width = nppctx->out.fmt.pix.width-crop_rect.left;
++	if (nppctx->out.fmt.pix_mp.width < crop_rect.left+crop_rect.width)
++		crop_rect.width = nppctx->out.fmt.pix_mp.width-crop_rect.left;
+ 
+-	if (nppctx->out.fmt.pix.height < crop_rect.top+crop_rect.height)
+-		crop_rect.height = nppctx->out.fmt.pix.height-crop_rect.top;
++	if (nppctx->out.fmt.pix_mp.height < crop_rect.top+crop_rect.height)
++		crop_rect.height = nppctx->out.fmt.pix_mp.height-crop_rect.top;
+ 
+ 	if (nppctx->memory_out == V4L2_MEMORY_USERPTR) {
+ 		src_vaddr = nppctx->out_q_buf_obj->vaddr;
+@@ -1241,10 +1400,10 @@ static int npp_run(struct v4l2_fh *fh)
+ 	} else if ((nppctx->memory_out == V4L2_MEMORY_MMAP) ||
+ 	 (nppctx->memory_out == V4L2_MEMORY_DMABUF)) {
+ 		src_vaddr =
+-		vb2_plane_vaddr(&nppctx->out_v4l2_buf->vb2_buf, 0);
++		vb2_plane_vaddr(&nppctx->out_v4l2_buf->vb2_buf, 0) + nppctx->out_v4l2_buf->planes[0].data_offset;
+ 		// out virtual address
+ 		src_paddr =
+-		vb2_dma_contig_plane_dma_addr(&nppctx->out_v4l2_buf->vb2_buf, 0);
++		vb2_dma_contig_plane_dma_addr(&nppctx->out_v4l2_buf->vb2_buf, 0) + nppctx->out_v4l2_buf->planes[0].data_offset;
+ 		// out physical address
+ 		dst_paddr =
+ 		vb2_dma_contig_plane_dma_addr(&nppctx->cap_v4l2_buf->vb2_buf, 0);
+@@ -1253,7 +1412,7 @@ static int npp_run(struct v4l2_fh *fh)
+ 		 __func__, src_paddr, dst_paddr);
+ 	}
+ 
+-	switch (nppctx->out.fmt.pix.pixelformat) {
++	switch (nppctx->out.fmt.pix_mp.pixelformat) {
+ 	case V4L2_PIX_FMT_YUYV:
+ 		src_input.yuv_format = PACKED_YUYV;
+ 		break;
+@@ -1274,10 +1433,10 @@ static int npp_run(struct v4l2_fh *fh)
+ 		break;
+ 	default:
+ 		pr_err("%s, Unsupported format=%c%c%c%c\n", __func__,
+-			(nppctx->out.fmt.pix.pixelformat & 0xff),
+-			(nppctx->out.fmt.pix.pixelformat >> 8) & 0xff,
+-			(nppctx->out.fmt.pix.pixelformat >> 16) & 0xff,
+-			(nppctx->out.fmt.pix.pixelformat >> 24) & 0xff);
++			(nppctx->out.fmt.pix_mp.pixelformat & 0xff),
++			(nppctx->out.fmt.pix_mp.pixelformat >> 8) & 0xff,
++			(nppctx->out.fmt.pix_mp.pixelformat >> 16) & 0xff,
++			(nppctx->out.fmt.pix_mp.pixelformat >> 24) & 0xff);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -1286,8 +1445,8 @@ static int npp_run(struct v4l2_fh *fh)
+ 	drvctx->dev->nppctx_activate = nppctx;
+ 	pr_info("%s, mutex_lock npp_ctx = %p\n", __func__, nppctx);
+ 
+-	src_input.src_width = nppctx->out.fmt.pix.width;
+-	src_input.src_height = nppctx->out.fmt.pix.height;
++	src_input.src_width = nppctx->out.fmt.pix_mp.width;
++	src_input.src_height = nppctx->out.fmt.pix_mp.height;
+ 
+ 	if (drvctx->params.mipi_csi_param.mipi_csi_input == 0)
+ 		src_input.source = SOURCE_LINEAR_MODE;
+@@ -1299,7 +1458,7 @@ static int npp_run(struct v4l2_fh *fh)
+ 	? YUV_420 : YUV_422;
+ 	src_input.bit_depth = 8;
+ 	src_input.pitch = (src_input.yuv_sample == YUV_420)
+-	 ? (nppctx->out.fmt.pix.width) : (nppctx->out.fmt.pix.width * 2);
++	 ? (nppctx->out.fmt.pix_mp.width) : (nppctx->out.fmt.pix_mp.width * 2);
+ 	pr_info("%s, width(%d), height(%d), yuv_sample(%d), bit_depth(%d)\n",
+ 	 __func__, src_input.src_width, src_input.src_height,
+ 	 src_input.yuv_sample, src_input.bit_depth);
+@@ -1310,19 +1469,19 @@ static int npp_run(struct v4l2_fh *fh)
+ 		mipi_csi_image_param.header_pitch = drvctx->params.mipi_csi_param.header_pitch;
+ 		mipi_csi_image_param.qlevel_queue_sel_y = 1;
+ 		mipi_csi_image_param.qlevel_queue_sel_c = 1;
+-		mipi_csi_image_param.width = nppctx->out.fmt.pix.width;
+-		mipi_csi_image_param.height = nppctx->out.fmt.pix.height;
++		mipi_csi_image_param.width = nppctx->out.fmt.pix_mp.width;
++		mipi_csi_image_param.height = nppctx->out.fmt.pix_mp.height;
+ 		NPP_Set_MIPICSI_ImageFormat(&mipi_csi_image_param);
+ 	}
+ 
+-	pixelformat = nppctx->out.fmt.pix.pixelformat;
++	pixelformat = nppctx->out.fmt.pix_mp.pixelformat;
+ 	input_buffer.scan_mode = (pixelformat == V4L2_PIX_FMT_NV12 ||
+ 	pixelformat == V4L2_PIX_FMT_NV21) ? CONSECUTIVE_FRAME : CONSECUTIVE_FRAME_422;
+ 	input_buffer.top_filed_y_addr =
+ 	 (unsigned long)src_paddr;
+ 	input_buffer.top_filed_c_addr =
+ 	 (unsigned long)src_paddr +
+-	(nppctx->out.fmt.pix.width * nppctx->out.fmt.pix.height);
++	(nppctx->out.fmt.pix_mp.width * nppctx->out.fmt.pix_mp.height);
+ 
+ 	if (drvctx->params.mipi_csi_param.mipi_csi_input == 0) {
+ 		NPP_Set_InputDataBuffer(&input_buffer);
+@@ -1355,8 +1514,8 @@ static int npp_run(struct v4l2_fh *fh)
+ 	NPP_Set_OutputRGBFormat((drvctx->params.npp_params.single_rgb_plane == 1)
+ 	 ? SINGLE_PLANE_RGB : THREE_PLANE_RGB);
+ 
+-	tgt_output.tgt_width = nppctx->cap.fmt.pix.width;
+-	tgt_output.tgt_height = nppctx->cap.fmt.pix.height;
++	tgt_output.tgt_width = nppctx->cap.fmt.pix_mp.width;
++	tgt_output.tgt_height = nppctx->cap.fmt.pix_mp.height;
+ 	tgt_output.rgb_level = (drvctx->params.npp_rgb.rgb_output == 1)
+ 	? NEGATIVE_LEVEL : POSITIVE_LEVEL;
+ 	tgt_output.rgb_format = THREE_PLANE_RGB;
+@@ -1364,9 +1523,9 @@ static int npp_run(struct v4l2_fh *fh)
+ 
+ 	output_buffer.r_addr = (unsigned long)dst_paddr;
+ 	output_buffer.g_addr =
+-	(unsigned long)dst_paddr + (nppctx->cap.fmt.pix.width * nppctx->cap.fmt.pix.height);
++	(unsigned long)dst_paddr + (nppctx->cap.fmt.pix_mp.width * nppctx->cap.fmt.pix_mp.height);
+ 	output_buffer.b_addr =
+-	(unsigned long)dst_paddr + ((nppctx->cap.fmt.pix.width * nppctx->cap.fmt.pix.height) * 2);
++	(unsigned long)dst_paddr + ((nppctx->cap.fmt.pix_mp.width * nppctx->cap.fmt.pix_mp.height) * 2);
+ 	NPP_Set_OutputDataBuffer(&output_buffer);
+ 
+ 	NPP_Set_ColorSpaceConversion();
+@@ -1390,10 +1549,10 @@ static int npp_run(struct v4l2_fh *fh)
+ 	image_scaling.crop_pos.win_y = crop_rect.top;
+ 	image_scaling.crop_pos.win_w = crop_rect.width;
+ 	image_scaling.crop_pos.win_h = crop_rect.height;
+-	image_scaling.input_width = nppctx->out.fmt.pix.width;
+-	image_scaling.input_height = nppctx->out.fmt.pix.height;
+-	image_scaling.output_width = nppctx->cap.fmt.pix.width;
+-	image_scaling.output_height = nppctx->cap.fmt.pix.height;
++	image_scaling.input_width = nppctx->out.fmt.pix_mp.width;
++	image_scaling.input_height = nppctx->out.fmt.pix_mp.height;
++	image_scaling.output_width = nppctx->cap.fmt.pix_mp.width;
++	image_scaling.output_height = nppctx->cap.fmt.pix_mp.height;
+ 	pr_info("%s, input(%d x %d), output(%d x %d)\n",
+ 	 __func__, image_scaling.input_width, image_scaling.input_height,
+ 	 image_scaling.output_width, image_scaling.output_height);
+@@ -1450,7 +1609,7 @@ static int npp_run(struct v4l2_fh *fh)
+ 
+ 	if (nppctx->memory_cap == V4L2_MEMORY_USERPTR) {
+ 		unsigned int cap_buf_data_size =
+-		 (nppctx->cap.fmt.pix.width * nppctx->cap.fmt.pix.height);
++		 (nppctx->cap.fmt.pix_mp.width * nppctx->cap.fmt.pix_mp.height);
+ 		unsigned char rgb_single_plane =
+ 		 (drvctx->params.npp_params.single_rgb_plane == 1) ? 1 : 0;
+ 		uint8_t *cap_vaddr;
+-- 
+2.45.2
+

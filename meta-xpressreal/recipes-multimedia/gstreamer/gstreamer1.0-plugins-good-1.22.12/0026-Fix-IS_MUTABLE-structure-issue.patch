@@ -1,0 +1,42 @@
+From 54f2c4aaae548eb8a6d4fb261f8d0a10830e32ab Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Thu, 2 Oct 2025 20:32:14 +0800
+Subject: [PATCH 1/1] Fix IS_MUTABLE (structure) issue
+Upstream-Status: Inappropriate [rtk specific]
+---
+ sys/v4l2/gstv4l2object.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index ef6d490..f00f074 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -4113,8 +4113,11 @@ gst_v4l2_object_set_format_full (GstV4l2Object * v4l2object, GstCaps * caps,
+     /* The driver (or libv4l2) is miss-behaving, just ignore interlace-mode from
+      * the TRY_FMT */
+     disable_interlacing = TRUE;
+-    if (gst_structure_has_field (s, "interlace-mode"))
++    if (gst_structure_has_field (s, "interlace-mode")) {
++      caps = gst_caps_make_writable(caps);
++      s = gst_caps_get_structure(caps, 0);
+       gst_structure_remove_field (s, "interlace-mode");
++    }
+   }
+ 
+   if (gst_v4l2_object_get_colorspace (v4l2object, &format, &info.colorimetry)) {
+@@ -4126,8 +4129,11 @@ gst_v4l2_object_set_format_full (GstV4l2Object * v4l2object, GstCaps * caps,
+     /* The driver (or libv4l2) is miss-behaving, just ignore colorimetry from
+      * the TRY_FMT */
+     disable_colorimetry = TRUE;
+-    if (gst_structure_has_field (s, "colorimetry"))
++    if (gst_structure_has_field (s, "colorimetry")) {
++      caps = gst_caps_make_writable(caps);
++      s = gst_caps_get_structure(caps, 0);
+       gst_structure_remove_field (s, "colorimetry");
++    }
+   }
+ 
+   /* In case we have skipped the try_fmt probes, we'll need to set the
+-- 
+2.34.1
+

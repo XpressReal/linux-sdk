@@ -1,0 +1,3 @@
+patch 833-boot-dts-enable-vo-in-hifi.patch
+
+kconf hardware kent.cfg

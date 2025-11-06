@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1920S Smallville EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include "rtd1920.dtsi"
+#include "rtd1920s-smallville.rds.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=11 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/";
+		stdout-path = "serial0:460800n8";
+	};
+};
+
+&sdio {
+	wifi-rst-gpios = <&gpio 27 GPIO_ACTIVE_HIGH>;
+	wifi-rst-shared;
+	device-power-supply = <&wlan_supp>;
+};
+
+&pcie0 {
+	device-power-gpios = <&gpio 136 GPIO_ACTIVE_HIGH>;
+};
+
+&pcie1 {
+	device-power-supply = <&wlan_supp>;
+};
+
+&hdmi {
+	hdmi-supply = <&hdmi_supp>;
+	status = "okay";
+	check-connector-limit;
+	max-clock-k = <348500>;
+};
+
+&vo0 {
+	status = "okay";
+
+	vo0_out: port {
+		vo0_out_hdmi: endpoint@0 {
+			remote-endpoint = <&hdmi_in_vo0>;
+		};
+
+		vo0_out_dp: endpoint@1 {
+			remote-endpoint = <&dp_in_vo0>;
+		};
+	};
+};
+
+/delete-node/ &vo2_out_dp;
+/delete-node/ &dp_in_vo2;
+
+&vo2 {
+    status = "disabled";
+};
+
+&dp {
+    status = "okay";
+	check-connector-limit;
+	max-clock-k = <348500>;
+	ports {
+		port@0 {
+			dp_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_dp>;
+			};
+		};
+	};
+};
+
+&edp {
+	max-clock-k = <193250>;
+};
+
+&{/} {
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1625-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <0>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp1000: opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <870000 870000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1100: opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <890000 890000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1200: opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <910000 910000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1300: opp-1300000000 {
+			opp-hz = /bits/ 64 <1300000000>;
+			opp-microvolt = <930000 930000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1400: opp-1400000000 {
+			opp-hz = /bits/ 64 <1400000000>;
+			opp-microvolt = <950000 950000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1500: opp-1500000000 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <970000 970000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1600: opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <990000 990000 1100000>;
+			clock-latency-ns = <150000>;
+			opp-suspend;
+			status = "okay";
+		};
+
+		opp1700: opp-1700000000 {
+			opp-hz = /bits/ 64 <1700000000>;
+			opp-microvolt = <1010000 1010000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1800: opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1030000 1030000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1900: opp-1900000000 {
+			opp-hz = /bits/ 64 <1900000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+};
+
+&gpio {
+	gpio-line-names = "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "AP_FLASH_WP_L";
+};
+
+&i2c_4 {
+	rt5650: rt5650@1a {
+		compatible = "realtek,rt5650";
+		reg = <0x1a>;
+		interrupt-parent = <&gpio>;
+		interrupts = <107 IRQ_TYPE_EDGE_BOTH>;
+		realtek,jd-mode = <2>;
+	};
+};
+
+&rtk_sof {
+	status = "okay";
+	intr-syscon = <&sb2>;
+	ipc-syscon = <&sb2_pmu>;
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ao_i2s0_loc0_pins>, <&ao_i2s0_pins>, <&ao_i2s1_loc0_no_mck_pins>, <&ai_i2s0_d0_pins>, <&ai_dmic0_pins>;
+	realtek,audio-platform = <&rtk_sof>;
+	realtek,audio-codec = <&rt5650>;
+	realtek,hdmi-audio = <&hdmi>;
+	realtek,dp-audio = <&dp>;
+	realtek,dai-link = "RDAI_I2S","RDAI_I2S1","RDAI_DMIC","RDAI_HDMI","RDAI_DP";
+	status = "okay";
+};
+
+&hifi_rpmsg {
+	skip-handshake;
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-850500000 {
+			opp-hz = /bits/ 64 <850500000>;
+			opp-hz-real = /bits/ 64 <850500000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&reboot_mode {
+	status = "okay";
+};
+
+&autoread {
+	status = "okay";
+};
+

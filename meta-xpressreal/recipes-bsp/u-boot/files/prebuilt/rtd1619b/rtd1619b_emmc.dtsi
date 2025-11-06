@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	binman: binman {
+		filename = "bind.bin";
+		allow-repack;
+		section_1: section@1 {
+			size = <0x00050000>;
+			pad-byte = <0xff>;
+			boot_fwtbl: blob@1 {
+				filename = "bootarray_fw_table/eMMC_bootarray_fw_table_layout_0.bin";
+				size = <0x400>;
+			};
+			atf_cert: blob@2 {
+				filename = "atf_certificate/ATF_Certificate.bin";
+				size = <0x400>;
+			};
+			rtk_param: blob@3 {
+				filename = "rtk_param/RTK_Params_Area.smpv2.01.bin";
+				size = <0x400>; /* 748 */
+			};
+			bl31: blob@4 {
+				filename = "bl31/BL31_Area.smpv2.bin"; /* 77076 */
+				size = <0x12E00>;
+			};
+			scs_cert: blob@5 {
+				filename = "scs_certificate/SCS_Certificate.bin";
+				size = <0x400>;
+			};
+			scs_param: blob@6 {
+				filename = "scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.bin";
+				size = <0x2200>;
+			};
+			auxcode: blob@7 {
+				filename = "auxcode/Auxcode_Area.bin";
+				size = <0x14000>;
+			};
+			uboot_spl: blob@8 {
+				filename = "u-boot-spl.bin_pad";
+				size = <0x25800>;
+			};
+			spl_sig: blob-ext@1 {
+				filename = "u-boot-spl.sig";
+				size = <0x200>; /* 256 */
+				optional;
+			};
+			dte_cert: blob-ext@2 { /* aligned to 512B block size */
+				filename = "dte_fw_certificate/DTE_FW_Certificate.bin";
+				size = <0x400>;
+				optional;
+			};
+			fill@0 {
+				size = <0x200>;
+				fill-byte = [ff];
+			};
+		};
+		external_hwsetting: section@2 {
+		};
+		recovery_uboot: section@3 {
+			pad-byte = <0xff>;
+			blob@1 {
+				filename = "u-boot.img";
+			};
+		};
+		fdtmap {
+		};
+		image-header {
+			location = "end";
+		};
+	};
+};

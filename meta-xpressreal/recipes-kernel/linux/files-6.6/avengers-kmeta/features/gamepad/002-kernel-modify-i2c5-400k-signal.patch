@@ -1,0 +1,32 @@
+From 5123ef9608bfdcc7a4e936fd386c9c40e10e62de Mon Sep 17 00:00:00 2001
+From: carolhsu <carolhsu@realtek.com>
+Date: Wed, 9 Apr 2025 09:44:44 +0000
+Subject: [PATCH] kernel: modify i2c5 400k signal
+
+---
+ drivers/i2c/busses/i2c-rtk.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/i2c/busses/i2c-rtk.c b/drivers/i2c/busses/i2c-rtk.c
+index 2e58e6fcd4b8..6115757ae47b 100644
+--- a/drivers/i2c/busses/i2c-rtk.c
++++ b/drivers/i2c/busses/i2c-rtk.c
+@@ -289,8 +289,13 @@ static int rtk_i2c_set_speed(struct rtk_i2c_dev *priv)
+ 			div_h = (scl_time / clk_time) - 8;
+ 			div_l = (scl_time / clk_time);
+ 		} else {
+-			div_h = 21;
+-			div_l = 35;
++			if (priv->adap.nr == 5) {
++				div_h = 21;
++				div_l = 64;
++			} else {
++				div_h = 21;
++				div_l = 35;
++			}
+ 		}
+ 	}
+ 
+-- 
+2.44.1
+

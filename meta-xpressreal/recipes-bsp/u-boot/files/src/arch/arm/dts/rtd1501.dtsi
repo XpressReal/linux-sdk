@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1501 SoC
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include "kent.dtsi"
+
+&emmc {
+	speed-step = <4>;
+	status = "okay";
+};
+
+&nor_flash {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	dwc3@20000 {
+		role-switch-default-mode = "host"; /* host, peripheral*/
+	};
+};
+
+&usb_port1 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port3 {
+	//realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb1_u3phy {
+	svid = <0xff01>;
+};
+
+&usb_port4 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+	usb_port4_dwc3: dwc3@150000 {
+		usb-phy = <&usb1_u2phy>;
+		phys = <&usb1_u2phy>;
+		phy-names = "usb2-phy";
+		dr_mode = "host";
+		snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
+		snps,parkmode-disable-ss-quirk; // disable usb3.0 park mode
+	};
+};
+
+/delete-node/&type_c;

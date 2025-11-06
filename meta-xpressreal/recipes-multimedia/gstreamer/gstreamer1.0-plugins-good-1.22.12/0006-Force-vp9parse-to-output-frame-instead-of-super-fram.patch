@@ -1,0 +1,28 @@
+From 6671d526c22221f5499dd794c57e620e395ff5bf Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Thu, 20 Feb 2025 15:40:58 +0800
+Subject: [PATCH 1/1] Force vp9parse to output "frame" instead of "super-frame"
+Upstream-Status: Inappropriate [rtk specific]
+
+Vp9parse only sets GST_BUFFER_FLAG_DECODE_ONLY in GST_VP9_PARSE_ALIGN_FRAME.
+---
+ sys/v4l2/gstv4l2object.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 199c5d4..f063324 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -1533,7 +1533,8 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+       structure = gst_structure_new_empty ("video/x-vp8");
+       break;
+     case V4L2_PIX_FMT_VP9:
+-      structure = gst_structure_new_empty ("video/x-vp9");
++      structure = gst_structure_new ("video/x-vp9",
++          "alignment", G_TYPE_STRING, "frame", NULL);
+       break;
+     case V4L2_PIX_FMT_AV1:
+       structure = gst_structure_new_empty ("video/x-av1");
+-- 
+2.34.1
+

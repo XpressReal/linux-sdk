@@ -1,0 +1,3 @@
+define KFEATURE_DESCRIPTION "Realtek specific TEE patches on DTS"
+
+patch 827-features-tee-dts-get-optee-properties-from-u-boot.patch

@@ -1,0 +1,38 @@
+From e17204ad4ec9235b7688838612b4e230adba73de Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Tue, 5 Aug 2025 17:04:37 +0800
+Subject: [PATCH] mpegts decsriptors parsed fail error handling
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst-libs/gst/mpegts/gstmpegtsdescriptor.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/gst-libs/gst/mpegts/gstmpegtsdescriptor.c b/gst-libs/gst/mpegts/gstmpegtsdescriptor.c
+index 9d2232a..44b8509 100644
+--- a/gst-libs/gst/mpegts/gstmpegtsdescriptor.c
++++ b/gst-libs/gst/mpegts/gstmpegtsdescriptor.c
+@@ -762,6 +762,11 @@ gst_mpegts_parse_descriptors (guint8 * buffer, gsize buf_len)
+           G_GSIZE_FORMAT, length, (gint) (data - buffer), buf_len);
+       return NULL;
+     }
++    if (data + length - buffer > buf_len) {
++      GST_WARNING ("invalid descriptor length %d now at %d max %"
++          G_GSIZE_FORMAT, length, (gint) (data - buffer), buf_len);
++      break;
++    }
+ 
+     data += length;
+     nb_desc++;
+@@ -773,7 +778,7 @@ gst_mpegts_parse_descriptors (guint8 * buffer, gsize buf_len)
+   if (data - buffer != buf_len) {
+     GST_WARNING ("descriptors size %d expected %" G_GSIZE_FORMAT,
+         (gint) (data - buffer), buf_len);
+-    return NULL;
++    //return NULL;
+   }
+ 
+   res =
+-- 
+2.45.2
+

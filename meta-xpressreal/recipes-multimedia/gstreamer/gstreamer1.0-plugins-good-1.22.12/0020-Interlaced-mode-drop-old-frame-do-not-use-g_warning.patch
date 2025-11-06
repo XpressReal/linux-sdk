@@ -1,0 +1,41 @@
+From 436542e3b4170024cf591e67bf07b9b01b85964e Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Tue, 30 Sep 2025 20:08:15 +0800
+Subject: [PATCH] interlaced mode drop old frame do not use g_warning
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2videodec.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index 80b55a2..a7fe506 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -993,10 +993,22 @@ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
+               (frame->system_frame_number, oldest_frame->system_frame_number)))
+         break;
+       if (oldest_frame->system_frame_number > 0) {
++        gboolean is_interlaced = FALSE;
++        GstVideoCodecState *output_state = gst_video_decoder_get_output_state(decoder);
++        if(output_state) {
++          GstVideoInfo *info = &output_state->info;
++          is_interlaced = GST_VIDEO_INFO_IS_INTERLACED(info);
++          gst_video_codec_state_unref (output_state);
++        }
++
+         gst_video_decoder_drop_frame (decoder, oldest_frame);
+         oldest_frame = NULL;
+ 
+-        if (!warned) {
++        if (is_interlaced) {
++          GST_LOG_OBJECT (decoder, "%s: Too old frames, bug in decoder -- please file a bug",
++              GST_ELEMENT_NAME (decoder));
++        }
++        else if (!warned) {
+           g_warning ("%s: Too old frames, bug in decoder -- please file a bug",
+               GST_ELEMENT_NAME (decoder));
+           warned = TRUE;
+-- 
+2.45.2
+

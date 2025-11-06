@@ -1,0 +1,13 @@
+[Unit]
+Description=Attach a serial devices via UART HCI to the Bluetooth stack
+Before=bus-org.bluez.service bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'echo 0 > /sys/class/rfkill/rfkill0/state'
+ExecStart=/bin/bash -c 'echo 1 > /sys/class/rfkill/rfkill0/state'
+ExecStart=/usr/bin/rtk_hciattach -s 115200 ttyS1 rtk_h5
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

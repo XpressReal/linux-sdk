@@ -1,0 +1,27 @@
+From 9bfd5d2bd0da3f522c72036394c5d23bdfb05e97 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 26 May 2025 06:09:59 -0400
+Subject: [PATCH] kernel: gpu: drm: do not use CLUSTER flow
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 5c4b629e273f..67141bd521f9 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -99,7 +99,9 @@ int rtk_crtc_get_display_panel_usage_by_mixer(struct rtk_drm_crtc *rtk_crtc)
+ 	}
+ 
+ 	rtk_crtc->display_panel_usage = panel_usage.display_panel_usage;
+-
++#ifdef CONFIG_YOCTO_PLATFORMS
++	rtk_crtc->display_panel_usage = CHROME;
++#endif
+ 	DRM_INFO("%s is for %s\n",
+ 		mixer_names[rtk_crtc->mixer], panel_usage_names[rtk_crtc->display_panel_usage]);
+ 
+-- 
+2.34.1
+

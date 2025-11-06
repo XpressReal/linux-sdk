@@ -1,0 +1,1042 @@
+From 26ab211166f643248236343921fee9a91f29299e Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 9 Sep 2025 16:15:06 +0800
+Subject: [PATCH] kvmd: javascript: modify javascript to select legacy and
+ webrtc
+
+---
+ web/share/js/kvm/paste.js        |  12 +-
+ web/share/js/kvm/recorder.js     |  10 +-
+ web/share/js/kvm/stream.js       |  27 +-
+ web/share/js/kvm/stream_janus.js | 415 ++++++++++++++++---------------
+ web/share/js/kvm/stream_mjpeg.js | 204 ++++++++++++++-
+ web/share/js/wm.js               |   4 +-
+ 6 files changed, 445 insertions(+), 227 deletions(-)
+
+diff --git a/web/share/js/kvm/paste.js b/web/share/js/kvm/paste.js
+index 2e3bf321..4743add7 100644
+--- a/web/share/js/kvm/paste.js
++++ b/web/share/js/kvm/paste.js
+@@ -40,16 +40,12 @@ export function Paste(__recorder) {
+ 		});
+ 
+ 		tools.storage.bindSimpleSwitch($("hid-pak-ask-switch"), "hid.pak.ask", true);
++		tools.storage.bindSimpleSwitch($("hid-pak-slow-switch"), "hid.pak.slow", false);
+ 
+ 		tools.storage.bindSimpleSwitch($("hid-pak-secure-switch"), "hid.pak.secure", false, function(value) {
+ 			$("hid-pak-text").style.setProperty("-webkit-text-security", (value ? "disc" : "none"));
+ 		});
+ 
+-		tools.slider.setParams($("hid-pak-delay-slider"), 0, 200, 20, tools.storage.getInt("hid.pak.delay", 20), function (value) {
+-			$("hid-pak-delay-value").innerText = value + " ms";
+-			tools.storage.setInt("hid.pak.delay", value);
+-		});
+-
+ 		$("hid-pak-keymap-selector").addEventListener("change", function() {
+ 			tools.storage.set("hid.pak.keymap", $("hid-pak-keymap-selector").value);
+ 		});
+@@ -81,11 +77,11 @@ export function Paste(__recorder) {
+ 				tools.el.setEnabled($("hid-pak-keymap-selector"), false);
+ 
+ 				let keymap = $("hid-pak-keymap-selector").value;
+-				let delay = $("hid-pak-delay-slider").value;
++				let slow = $("hid-pak-slow-switch").checked;
+ 
+ 				tools.debug(`HID: paste-as-keys ${keymap}: ${text}`);
+ 
+-				tools.httpPost("api/hid/print", {"limit": 0, "keymap": keymap, "delay": delay / 1000}, function(http) {
++				tools.httpPost("api/hid/print", {"limit": 0, "keymap": keymap, "slow": slow}, function(http) {
+ 					tools.el.setEnabled($("hid-pak-text"), true);
+ 					tools.el.setEnabled($("hid-pak-button"), true);
+ 					tools.el.setEnabled($("hid-pak-keymap-selector"), true);
+@@ -95,7 +91,7 @@ export function Paste(__recorder) {
+ 					} else if (http.status !== 200) {
+ 						wm.error("HID paste error", http.responseText);
+ 					} else if (http.status === 200) {
+-						__recorder.recordPrintEvent(text, keymap, delay);
++						__recorder.recordPrintEvent(text, keymap, slow);
+ 					}
+ 				}, text, "text/plain", 7 * 24 * 3600);
+ 			};
+diff --git a/web/share/js/kvm/recorder.js b/web/share/js/kvm/recorder.js
+index 97a652bd..e997f3d8 100644
+--- a/web/share/js/kvm/recorder.js
++++ b/web/share/js/kvm/recorder.js
+@@ -67,8 +67,8 @@ export function Recorder() {
+ 		__recordEvent(ev);
+ 	};
+ 
+-	self.recordPrintEvent = function(text, keymap, delay) {
+-		__recordEvent({"event_type": "print", "event": {"text": text, "keymap": keymap, "delay": delay}});
++	self.recordPrintEvent = function(text, keymap, slow) {
++		__recordEvent({"event_type": "print", "event": {"text": text, "keymap": keymap, "slow": slow}});
+ 	};
+ 
+ 	self.recordAtxButtonEvent = function(button) {
+@@ -165,9 +165,6 @@ export function Recorder() {
+ 							if (ev.event.slow !== undefined) {
+ 								__checkType(ev.event.slow, "boolean", "Non-bool slow");
+ 							}
+-							if (ev.event.delay !== undefined) {
+-								__checkInt(ev.event.delay, "Non-int delay");
+-							}
+ 
+ 						} else if (ev.event_type === "key") {
+ 							__checkType(ev.event.key, "string", "Non-string key code");
+@@ -296,9 +293,6 @@ export function Recorder() {
+ 				if (ev.event.slow !== undefined) {
+ 					params["slow"] = ev.event.slow;
+ 				}
+-				if (ev.event.delay !== undefined) {
+-					params["delay"] = ev.event.delay / 1000;
+-				}
+ 				tools.httpPost("api/hid/print", params, function(http) {
+ 					if (http.status === 413) {
+ 						wm.error("Too many text for paste!");
+diff --git a/web/share/js/kvm/stream.js b/web/share/js/kvm/stream.js
+index f4776dd5..c24d9c91 100644
+--- a/web/share/js/kvm/stream.js
++++ b/web/share/js/kvm/stream.js
+@@ -84,16 +84,10 @@ export function Streamer() {
+ 			}
+ 		}, false);
+ 
+-		tools.slider.setParams($("stream-audio-volume-slider"), 0, 100, 1, 0, function(value) {
+-			$("stream-video").muted = !value;
+-			$("stream-video").volume = value / 100;
++		tools.slider.setParams($("stream-audio-volume-slider"), 0, 100, 1, 50, function(value) {
++			$("stream-audio").muted = (value === 0);
++			$("stream-audio").volume = value / 100;
+ 			$("stream-audio-volume-value").innerText = value + "%";
+-			if (__streamer.getMode() === "janus") {
+-				let allow_audio = !$("stream-video").muted;
+-				if (__streamer.isAudioAllowed() !== allow_audio) {
+-					__resetStream();
+-				}
+-			}
+ 			tools.el.setEnabled($("stream-mic-switch"), !!value);
+ 		});
+ 
+@@ -297,7 +291,7 @@ export function Streamer() {
+ 	};
+ 
+ 	var __setInfo = function(is_active, online, text) {
+-		$("stream-box").classList.toggle("stream-box-offline", !online);
++		//$("stream-box").classList.toggle("stream-box-offline", !online);
+ 		let el_grab = document.querySelector("#stream-window-header .window-grab");
+ 		let el_info = $("stream-info");
+ 		let title = `${__streamer.getName()} - `;
+@@ -328,7 +322,8 @@ export function Streamer() {
+ 		if (mode === "janus") {
+ 			let allow_audio = !$("stream-video").muted;
+ 			let allow_mic = $("stream-mic-switch").checked;
+-			__streamer = new JanusStreamer(__setActive, __setInactive, __setInfo, __organizeHook, orient, allow_audio, allow_mic);
++			//__streamer = new JanusStreamer(__setActive, __setInactive, __setInfo, __organizeHook, orient, allow_audio, allow_mic);
++			__streamer = new JanusStreamer(__setActive, __setInactive, __setInfo, __organizeHook, orient, true, allow_mic);
+ 			// Firefox doesn't support RTP orientation:
+ 			//  - https://bugzilla.mozilla.org/show_bug.cgi?id=1316448
+ 			tools.feature.setEnabled($("stream-orient"), !tools.browser.is_firefox);
+@@ -340,7 +335,7 @@ export function Streamer() {
+ 				__streamer = new MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeHook);
+ 				tools.feature.setEnabled($("stream-orient"), false);
+ 			}
+-			tools.feature.setEnabled($("stream-audio"), false); // Enabling in stream_janus.js
++			//tools.feature.setEnabled($("stream-audio"), false); // Enabling in stream_janus.js
+ 			tools.feature.setEnabled($("stream-mic"), false); // Ditto
+ 		}
+ 		if (__isStreamRequired()) {
+@@ -350,6 +345,14 @@ export function Streamer() {
+ 
+ 	var __clickModeRadio = function() {
+ 		let mode = tools.radio.getValue("stream-mode-radio");
++
++		//set streamer mode
++		tools.httpPost("api/streamer/set_mode", {"mode": mode}, function(http) {
++			if (http.status !== 200) {
++				wm.error(`Can't ${connected ? "connect" : "disconnect"} Streamer`, http.responseText);
++			}
++		});
++
+ 		tools.storage.set("stream.mode", mode);
+ 		if (mode !== __streamer.getMode()) {
+ 			tools.hidden.setVisible($("stream-canvas"), (mode === "media"));
+diff --git a/web/share/js/kvm/stream_janus.js b/web/share/js/kvm/stream_janus.js
+index 721d5fde..db71fc14 100644
+--- a/web/share/js/kvm/stream_janus.js
++++ b/web/share/js/kvm/stream_janus.js
+@@ -19,16 +19,10 @@
+ #                                                                            #
+ *****************************************************************************/
+ 
+-
+ "use strict";
+ 
+-
+ import {tools, $} from "../tools.js";
+ 
+-
+-var _Janus = null;
+-
+-
+ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeHook, __orient, __allow_audio, __allow_mic) {
+ 	var self = this;
+ 
+@@ -38,20 +32,21 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 
+ 	var __stop = false;
+ 	var __ensuring = false;
+-
+ 	var __janus = null;
+-	var __handle = null;
+-
++	var __streaming = null;
+ 	var __retry_ensure_timeout = null;
+ 	var __retry_emsg_timeout = null;
+ 	var __info_interval = null;
+-
+ 	var __state = null;
+ 	var __frames = 0;
+ 	var __res = {"width": -1, "height": -1};
+ 	var __resize_listener_installed = false;
+-
+ 	var __ice = null;
++	var __mediaStream = new MediaStream(); // Video
++	var __audioStream = new MediaStream(); // Audio
++
++	// Setup janus server
++	const server = `https://${window.location.hostname}/janus`;
+ 
+ 	/************************************************************************/
+ 
+@@ -69,12 +64,12 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 		}
+ 		return name;
+ 	};
++
+ 	self.getMode = () => "janus";
+ 
+ 	self.getResolution = function() {
+ 		let el = $("stream-video");
+ 		return {
+-			// Разрешение видео или элемента
+ 			"real_width": (el.videoWidth || el.offsetWidth),
+ 			"real_height": (el.videoHeight || el.offsetHeight),
+ 			"view_width": el.offsetWidth,
+@@ -85,11 +80,19 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 	self.ensureStream = function(state) {
+ 		__state = state;
+ 		__stop = false;
+-		__ensureJanus(false);
+-		if (!__resize_listener_installed) {
+-			$("stream-video").addEventListener("resize", __videoResizeHandler);
+-			__resize_listener_installed = true;
+-		}
++		// Ensure Janus modules
++		JanusStreamer.ensure_janus((success) => {
++			if (success) {
++				__ensureJanus(false);
++				if (!__resize_listener_installed) {
++					$("stream-video").addEventListener("resize", __videoResizeHandler);
++					__resize_listener_installed = true;
++				}
++			} else {
++				tools.error("Stream [Janus]: Can not init Janus");
++				__setInfo(false, false, "Can not init Janus");
++			}
++		});
+ 	};
+ 
+ 	self.stopStream = function() {
+@@ -115,29 +118,44 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 			__ensuring = true;
+ 			__setInactive();
+ 			__setInfo(false, false, "");
+-			__logInfo("Starting Janus ...");
+-			__janus = new _Janus({
+-				"server": tools.makeWsUrl("janus/ws"),
+-				"ipv6": true,
+-				"destroyOnUnload": false,
+-				"iceServers": () => __getIceServers(),
+-				"success": __attachJanus,
+-				"error": function(error) {
+-					__logError(error);
++			tools.info("Stream [Janus]: Starting Janus ...");
++
++			if (typeof window.Janus === "undefined") {
++				tools.error("Stream [Janus]: Janus undefined");
++				__setInfo(false, false, "Janus undefined");
++				__finishJanus();
++				return;
++			}
++
++			if (!Janus.isWebrtcSupported()) {
++				tools.error("Stream [Janus]: Browser does not support WebRTC");
++				__setInfo(false, false, "Browser does not support WebRTC");
++				__finishJanus();
++				return;
++			}
++
++			__janus = new Janus({
++				server: server,
++				iceServers: __getIceServers(),
++				success: function() {
++					tools.info("Stream [Janus]: Janus created successfully");
++					__attachJanus();
++				},
++				error: function(error) {
++					tools.error("Stream [Janus]: Janus failed:", error);
+ 					__setInfo(false, false, error);
+ 					__finishJanus();
+-				},
++				}
+ 			});
+ 		}
+ 	};
+ 
+ 	var __getIceServers = function() {
+ 		if (__ice !== null && __ice.url) {
+-			__logInfo("Using the custom ICE Server got from uStreamer:", __ice);
+-			return [{"urls": __ice.url}];
+-		} else {
+-			return [];
++			tools.info("Stream [Janus]: Using the custom ICE Server obtained from uStreamer:", __ice);
++			return [{ urls: __ice.url }];
+ 		}
++		return [{ urls: "stun:stun.l.google.com:19302" }];
+ 	};
+ 
+ 	var __finishJanus = function() {
+@@ -157,10 +175,10 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 		}
+ 		__stopRetryEmsgInterval();
+ 		__stopInfoInterval();
+-		if (__handle) {
+-			__logInfo("uStreamer detaching ...:", __handle.getPlugin(), __handle.getId());
+-			__handle.detach();
+-			__handle = null;
++		if (__streaming) {
++			tools.info("Stream [Janus]: Detaching streaming ...:", __streaming.getPlugin(), __streaming.getId());
++			__streaming.detach();
++			__streaming = null;
+ 		}
+ 		__janus = null;
+ 		__setInactive();
+@@ -180,43 +198,37 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 				__removeTrack(track);
+ 			}
+ 		}
++		let audio = $("stream-audio").srcObject;
++		if (audio) {
++			for (let track of audio.getTracks()) {
++				__removeTrack(track, "audio");
++			}
++		}
+ 	};
+ 
+-	var __addTrack = function(track) {
+-		let el = $("stream-video");
++	var __addTrack = function(track, kind = "video") {
++		let el = kind === "video" ? $("stream-video") : $("stream-audio");
+ 		if (el.srcObject) {
+ 			for (let tr of el.srcObject.getTracks()) {
+ 				if (tr.kind === track.kind && tr.id !== track.id) {
+-					__removeTrack(tr);
++					__removeTrack(tr, kind);
+ 				}
+ 			}
+ 		}
+ 		if (!el.srcObject) {
+-			el.srcObject = new MediaStream();
++			el.srcObject = kind === "video" ? __mediaStream : __audioStream;
+ 		}
+ 		el.srcObject.addTrack(track);
+-		// FIXME: Задержка уменьшается, но начинаются заикания на кейфреймах.
+-		// XXX: Этот пример переехал из януса 0.x, перед использованием адаптировать к 1.x.
+-		//   - https://github.com/Glimesh/janus-ftl-plugin/issues/101
+-		/*if (__handle && __handle.webrtcStuff && __handle.webrtcStuff.pc) {
+-			for (let receiver of __handle.webrtcStuff.pc.getReceivers()) {
+-				if (receiver.track && receiver.track.kind === "video" && receiver.playoutDelayHint !== undefined) {
+-					receiver.playoutDelayHint = 0;
+-				}
+-			}
+-		}*/
+ 	};
+ 
+-	var __removeTrack = function(track) {
+-		let el = $("stream-video");
++	var __removeTrack = function(track, kind = "video") {
++		let el = kind === "video" ? $("stream-video") : $("stream-audio");
+ 		if (!el.srcObject) {
+ 			return;
+ 		}
+ 		track.stop();
+ 		el.srcObject.removeTrack(track);
+ 		if (el.srcObject.getTracks().length === 0) {
+-			// MediaStream should be destroyed to prevent old picture freezing
+-			// on Janus reconnecting.
+ 			el.srcObject = null;
+ 		}
+ 	};
+@@ -226,129 +238,114 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 			return;
+ 		}
+ 		__janus.attach({
+-			"plugin": "janus.plugin.ustreamer",
+-			"opaqueId": "oid-" + _Janus.randomString(12),
+-
+-			"success": function(handle) {
+-				__handle = handle;
+-				__logInfo("uStreamer attached:", handle.getPlugin(), handle.getId());
+-				__logInfo("Sending FEATURES ...");
+-				__handle.send({"message": {"request": "features"}});
++			plugin: "janus.plugin.streaming", // Changed to standard streaming plugin
++			opaqueId: "streamtest-" + Janus.randomString(12),
++			success: function(pluginHandle) {
++				__streaming = pluginHandle;
++				tools.info("Stream [Janus]: Streaming attached:", __streaming.getPlugin(), __streaming.getId());
++				tools.info("Stream [Janus]: Sending LIST ...");
++				__streaming.send({
++					message: { request: "list" },
++					success: function(result) {
++						tools.info("Stream [Janus]: Received stream list:", result);
++						if (result && result.list && result.list.length > 0) {
++							let streamId = result.list[0].id;
++							tools.info("Stream [Janus]: Watching stream ID:", streamId);
++							__sendWatch(streamId);
++						} else {
++							tools.error("Stream [Janus]: No available streams");
++							__setInfo(false, false, "No available streams");
++						}
++					}
++				});
+ 			},
+-
+-			"error": function(error) {
+-				__logError("Can't attach uStreamer: ", error);
++			error: function(error) {
++				tools.error("Stream [Janus]: Failed to attach Streaming plugin:", error);
+ 				__setInfo(false, false, error);
+ 				__destroyJanus();
+ 			},
+-
+-			"connectionState": function(state) {
+-				__logInfo("Peer connection state changed to", state);
+-				if (state === "failed") {
+-					__destroyJanus();
+-				}
+-			},
+-
+-			"iceState": function(state) {
+-				__logInfo("ICE state changed to", state);
++			iceState: function(state) {
++				tools.info("Stream [Janus]: ICE state:", state);
+ 			},
+-
+-			"webrtcState": function(up) {
+-				__logInfo("Janus says our WebRTC PeerConnection is", (up ? "up" : "down"), "now");
+-				if (up) {
+-					__sendKeyRequired();
+-				}
++			webrtcState: function(on) {
++				tools.info("Stream [Janus]: WebRTC state:", on ? "Connected" : "Disconnected");
+ 			},
+-
+-			"onmessage": function(msg, jsep) {
++			onmessage: function(msg, jsep) {
+ 				__stopRetryEmsgInterval();
++				tools.info("Stream [Janus]: Received message:", msg);
+ 
+-				if (msg.result) {
+-					__logInfo("Got uStreamer result message:", msg.result); // starting, started, stopped
+-					if (msg.result.status === "started") {
+-						__setActive();
+-						__setInfo(false, false, "");
+-					} else if (msg.result.status === "stopped") {
+-						__setInactive();
+-						__setInfo(false, false, "");
+-					} else if (msg.result.status === "features") {
+-						tools.feature.setEnabled($("stream-audio"), msg.result.features.audio);
+-						tools.feature.setEnabled($("stream-mic"), msg.result.features.mic);
+-						__ice = msg.result.features.ice;
+-						__sendWatch();
+-					}
+-				} else if (msg.error_code || msg.error) {
+-					__logError("Got uStreamer error message:", msg.error_code, "-", msg.error);
++				if (msg.error) {
++					tools.error("Stream [Janus]: Received error message:", msg.error);
+ 					__setInfo(false, false, msg.error);
+ 					if (__retry_emsg_timeout === null) {
+ 						__retry_emsg_timeout = setTimeout(function() {
+ 							if (!__stop) {
+ 								__sendStop();
+-								__sendWatch();
++								if (msg.result && msg.result.id) {
++									__sendWatch(msg.result.id);
++								}
+ 							}
+ 							__retry_emsg_timeout = null;
+ 						}, 2000);
+ 					}
+ 					return;
+-				} else {
+-					__logInfo("Got uStreamer other message:", msg);
+ 				}
+ 
+-				if (jsep) {
+-					__logInfo("Handling SDP:", jsep);
+-					let tracks = [{"type": "video", "capture": false, "recv": true, "add": true}];
+-					if (__allow_audio) {
+-						tracks.push({"type": "audio", "capture": __allow_mic, "recv": true, "add": true});
++				if (msg.result && msg.result.status) {
++					tools.info("Stream [Janus]: Streaming state:", msg.result.status);
++					if (msg.result.status === "started") {
++						__setActive();
++						__setInfo(false, false, "");
++					} else if (msg.result.status === "stopped") {
++						__setInactive();
++						__setInfo(false, false, "");
+ 					}
+-					__handle.createAnswer({
+-						"jsep": jsep,
+-
+-						"tracks": tracks,
++				}
+ 
+-						// Chrome is playing OPUS as mono without this hack
+-						//   - https://issues.webrtc.org/issues/41481053 - IT'S NOT FIXED!
+-						//   - https://github.com/ossrs/srs/pull/2683/files
+-						"customizeSdp": function(jsep) {
++				if (jsep) {
++					tools.info("Stream [Janus]: Received JSEP:", jsep);
++					let tracks = [{ type: "video", recv: true, send: false }];
++					//if (__allow_audio) {
++						tracks.push({ type: "audio", recv: true, send: __allow_mic });
++					//}
++					__streaming.createAnswer({
++						jsep: jsep,
++						tracks: tracks,
++						customizeSdp: function(jsep) {
+ 							jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+ 						},
+-
+-						"success": function(jsep) {
+-							__logInfo("Got SDP:", jsep);
++						success: function(jsep) {
++							tools.info("Stream [Janus]: Created answer JSEP:", jsep);
+ 							__sendStart(jsep);
+ 						},
+-
+-						"error": function(error) {
+-							__logInfo("Error on SDP handling:", error);
++						error: function(error) {
++							tools.error("Stream [Janus]: Failed to create answer:", error);
+ 							__setInfo(false, false, error);
+-							//__destroyJanus();
+-						},
++						}
+ 					});
+ 				}
+ 			},
+-
+-			// Janus 1.x
+-			"onremotetrack": function(track, id, added, meta) {
+-				// Chrome sends `muted` notifiation for tracks in `disconnected` ICE state
+-				// and Janus.js just removes muted track from list of available tracks.
+-				// But track still exists actually so it's safe to just ignore
+-				// reason === "mute" and "unmute".
+-				let reason = (meta || {}).reason;
+-				__logInfo("Got onremotetrack:", id, added, reason, track, meta);
+-				if (added && reason === "created") {
+-					__addTrack(track);
++			onremotetrack: function(track, mid, on, metadata) {
++				tools.info("Stream [Janus]: Remote track event:", { track, mid, on, metadata });
++				if (on && metadata?.reason === "created") {
+ 					if (track.kind === "video") {
+-						__sendKeyRequired();
++						__addTrack(track, "video");
+ 						__startInfoInterval();
++					} else if (track.kind === "audio") {
++						__audioStream.addTrack(track);
++				   		document.getElementById("stream-audio").srcObject = __audioStream;
+ 					}
+-				} else if (!added && reason === "ended") {
+-					__removeTrack(track);
++					//track.onmute = () => tools.info(`Stream [Janus]: ${track.kind} muted`);
++					//track.onunmute = () => tools.info(`Stream [Janus]: ${track.kind} unmuted`);
++					track.onended = () => tools.info(`Stream [Janus]: ${track.kind} ended`);
++				} else if (!on && metadata?.reason === "ended") {
++					__removeTrack(track, track.kind);
+ 				}
+ 			},
+-
+-			"oncleanup": function() {
+-				__logInfo("Got a cleanup notification");
++			oncleanup: function() {
++				tools.info("Stream [Janus]: Received cleanup notification");
+ 				__stopInfoInterval();
+-			},
++			}
+ 		});
+ 	};
+ 
+@@ -362,8 +359,8 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 	var __stopInfoInterval = function() {
+ 		if (__info_interval !== null) {
+ 			clearInterval(__info_interval);
++			__info_interval = null;
+ 		}
+-		__info_interval = null;
+ 	};
+ 
+ 	var __stopRetryEmsgInterval = function() {
+@@ -374,22 +371,14 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 	};
+ 
+ 	var __updateInfo = function() {
+-		if (__handle !== null) {
++		if (__streaming !== null) {
+ 			let info = "";
+-			if (__handle !== null) {
+-				// https://wiki.whatwg.org/wiki/Video_Metrics
+-				let frames = null;
+-				let el = $("stream-video");
+-				if (el.webkitDecodedFrameCount !== undefined) {
+-					frames = el.webkitDecodedFrameCount;
+-				} else if (el.mozPaintedFrames !== undefined) {
+-					frames = el.mozPaintedFrames;
+-				}
+-				info = `${__handle.getBitrate()}`.replace("kbits/sec", "kbps");
+-				if (frames !== null) {
+-					info += ` / ${Math.max(0, frames - __frames)} fps dynamic`;
+-					__frames = frames;
+-				}
++			let el = $("stream-video");
++			let frames = el.webkitDecodedFrameCount || el.mozPaintedFrames || null;
++			info = `${__streaming.getBitrate()}`.replace("kbits/sec", "kbps");
++			if (frames !== null) {
++				info += ` / ${Math.max(0, frames - __frames)} fps dynamic`;
++				__frames = frames;
+ 			}
+ 			__setInfo(true, __isOnline(), info);
+ 		}
+@@ -399,64 +388,98 @@ export function JanusStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 		return !!(__state && __state.source.online);
+ 	};
+ 
+-	var __sendWatch = function() {
+-		if (__handle) {
+-			__logInfo(`Sending WATCH(orient=${__orient}, audio=${__allow_audio}, mic=${__allow_mic}) ...`);
+-			__handle.send({"message": {"request": "watch", "params": {
+-				"orientation": __orient,
+-				"audio": __allow_audio,
+-				"mic": __allow_mic,
+-			}}});
++	var __sendWatch = function(streamId) {
++		if (__streaming) {
++			tools.info(`Stream [Janus]: Sending WATCH(id=${streamId}, orient=${__orient}, audio=${__allow_audio}, mic=${__allow_mic}) ...`);
++			__streaming.send({
++				message: {
++					request: "watch",
++					id: streamId,
++					params: {
++						orientation: __orient,
++						audio: __allow_audio,
++						mic: __allow_mic
++					}
++				}
++			});
+ 		}
+ 	};
+ 
+ 	var __sendStart = function(jsep) {
+-		if (__handle) {
+-			__logInfo("Sending START ...");
+-			__handle.send({"message": {"request": "start"}, "jsep": jsep});
++		if (__streaming) {
++			tools.info("Stream [Janus]: Sending START ...");
++			__streaming.send({ message: { request: "start" }, jsep: jsep });
+ 		}
+ 	};
+ 
+-	var __sendKeyRequired = function() {
+-		/*if (__handle) {
+-			// На этом шаге мы говорим что стрим пошел и надо запросить кейфрейм
+-			__logInfo("Sending KEY_REQUIRED ...");
+-			__handle.send({message: {request: "key_required"}});
+-		}*/
+-	};
+-
+ 	var __sendStop = function() {
+ 		__stopInfoInterval();
+-		if (__handle) {
+-			__logInfo("Sending STOP ...");
+-			__handle.send({"message": {"request": "stop"}});
+-			__handle.hangup();
++		if (__streaming) {
++			tools.info("Stream [Janus]: Sending STOP ...");
++			__streaming.send({ message: { request: "stop" } });
++			__streaming.hangup();
+ 		}
+ 	};
+-
+-	var __logInfo = (...args) => tools.info("Stream [Janus]:", ...args);
+-	var __logError = (...args) => tools.error("Stream [Janus]:", ...args);
+ }
+ 
+ JanusStreamer.ensure_janus = function(callback) {
+-	if (_Janus === null) {
+-		import("./janus.js").then((module) => {
+-			module.Janus.init({
+-				"debug": "all",
+-				"callback": function() {
+-					_Janus = module.Janus;
+-					callback(true);
+-				},
+-			});
+-		}).catch((ex) => {
+-			tools.error("Stream: Can't import Janus module:", ex);
++	// Check if adapter.js and janus.js have been loaded via <script> tags
++	if (typeof window.adapter === "undefined") {
++		tools.info("Stream [Janus]: window.adapter is undefined, attempting to dynamically load adapter.js...");
++		const adapterScript = document.createElement("script");
++		adapterScript.src = "/share/js/kvm/adapter.js";
++		adapterScript.onload = function() {
++			tools.info("Stream [Janus]: adapter.js loaded successfully, continuing to check janus.js...");
++			loadJanusScript(callback);
++		};
++		adapterScript.onerror = function() {
++			tools.error("Stream [Janus]: Failed to load adapter.js, check network or CDN availability");
+ 			callback(false);
+-		});
++		};
++		document.head.appendChild(adapterScript);
+ 	} else {
+-		callback(true);
++		tools.info("Stream [Janus]: window.adapter is defined, continuing to check janus.js...");
++		loadJanusScript(callback);
+ 	}
+ };
+ 
++function loadJanusScript(callback) {
++	if (window.Janus && typeof window.Janus.init === "function") {
++		tools.info("Stream [Janus]: Detected window.Janus, already initialized or initializing...");
++		window.Janus.init({
++			debug: "all",
++			callback: function() {
++				tools.info("Stream [Janus]: Janus initialization completed");
++				callback(true);
++			}
++		});
++	} else {
++		tools.info("Stream [Janus]: window.Janus is undefined, attempting to dynamically load janus.js...");
++		const janusScript = document.createElement("script");
++		janusScript.src = "/share/js/kvm/janus.js"; // Ensure the path is correct
++		janusScript.onload = function() {
++			if (window.Janus && typeof window.Janus.init === "function") {
++				tools.info("Stream [Janus]: janus.js loaded successfully, starting initialization...");
++				window.Janus.init({
++					debug: "all",
++					callback: function() {
++						tools.info("Stream [Janus]: Janus initialization completed");
++						callback(true);
++					}
++				});
++			} else {
++				tools.error("Stream [Janus]: window.Janus.init is still undefined after loading janus.js");
++				callback(false);
++			}
++		};
++		janusScript.onerror = function() {
++			tools.error("Stream [Janus]: Failed to load janus.js, check file path or server configuration");
++			callback(false);
++		};
++		document.head.appendChild(janusScript);
++	}
++}
++
+ JanusStreamer.is_webrtc_available = function() {
+ 	return !!window.RTCPeerConnection;
+-};
++};
+\ No newline at end of file
+diff --git a/web/share/js/kvm/stream_mjpeg.js b/web/share/js/kvm/stream_mjpeg.js
+index d7dc27b2..fdef577c 100644
+--- a/web/share/js/kvm/stream_mjpeg.js
++++ b/web/share/js/kvm/stream_mjpeg.js
+@@ -26,6 +26,144 @@
+ import {ROOT_PREFIX} from "../vars.js";
+ import {tools, $} from "../tools.js";
+ 
++// Dynamically load Janus library
++function loadJanusScript() {
++	return new Promise((resolve, reject) => {
++		if (typeof Janus !== 'undefined') {
++			resolve();
++			return;
++		}
++
++		// Load adapter.js (WebRTC adapter)
++		const adapterScript = document.createElement('script');
++		adapterScript.src = '/share/js/kvm/adapter.js';
++		adapterScript.onload = () => {
++			// Load janus.js
++			const janusScript = document.createElement('script');
++			janusScript.src = "/share/js/kvm/janus.js"; // Ensure the path is correct
++			janusScript.onload = () => resolve();
++			janusScript.onerror = () => reject(new Error('Failed to load janus.js'));
++			document.head.appendChild(janusScript);
++		};
++		adapterScript.onerror = () => reject(new Error('Failed to load adapter.js'));
++		document.head.appendChild(adapterScript);
++	});
++}
++
++function setupJanus() {
++	// Janus audio streaming setup will be initialized here
++	let janus = null;
++	let streaming = null;
++	const server = `https://${window.location.hostname}/janus`;
++	let audioStream = new MediaStream();
++
++	// First load the Janus library
++	return loadJanusScript().then(() => {
++		return new Promise((resolve, reject) => {
++			if (!Janus.isWebrtcSupported()) {
++				console.error("WebRTC not supported by this browser");
++				reject(new Error("WebRTC not supported"));
++				return;
++			}
++			Janus.init({
++				debug: "all",
++				callback: function() {
++					if (!Janus.isWebrtcSupported()) {
++						console.error("WebRTC not supported by this browser");
++						reject(new Error("WebRTC not supported"));
++						return;
++					}
++
++					janus = new Janus({
++						server: server,
++						iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
++						success: function() {
++							console.log("Janus instance created");
++							janus.attach({
++								plugin: "janus.plugin.streaming",
++								opaqueId: "streamtest-" + Janus.randomString(12),
++								success: function(pluginHandle) {
++									streaming = pluginHandle;
++									console.log("Plugin attached: " + streaming.getPlugin() + ", id=" + streaming.getId());
++
++									streaming.send({
++										message: { request: "list" },
++										success: function(result) {
++											console.log("Available streams:", result);
++											if (result && result.list && result.list.length > 0) {
++												let streamId = result.list[0].id;
++												console.log("Watching stream ID:", streamId);
++												streaming.send({ message: { request: "watch", id: streamId } });
++											} else {
++												console.error("No streams available");
++											}
++										}
++									});
++
++									resolve({ janus, streaming, audioStream });
++								},
++								error: function(error) {
++									console.error("Plugin attach error:", error);
++									reject(error);
++								},
++								onmessage: function(msg, jsep) {
++									console.log("Message received:", msg);
++									if (msg.error) {
++										console.error("Message error:", msg.error);
++										return;
++									}
++									if (jsep) {
++										console.log("Received JSEP:", jsep);
++										streaming.createAnswer({
++											jsep: jsep,
++											tracks: [
++												{ type: 'audio', recv: true, send: false }  // Only receive audio
++											],
++											success: function(jsep) {
++												console.log("Answer JSEP:", jsep);
++												streaming.send({ message: { request: "start" }, jsep: jsep });
++											},
++											error: function(error) {
++												console.error("Create answer error:", error);
++											}
++										});
++									}
++								},
++								onremotetrack: function(track, mid, on, metadata) {
++									console.log("Remote track event:", { track, mid, on, metadata });
++									if (on && metadata?.reason === "created") {
++										if (track.kind === "audio") {
++											audioStream.addTrack(track);
++											document.getElementById("stream-audio").srcObject = audioStream;
++										}
++										track.onmute = () => tools.info(`Stream [Janus]: ${track.kind} muted`);
++										track.onunmute = () => tools.info(`Stream [Janus]: ${track.kind} unmuted`);
++										track.onended = () => tools.info(`Stream [Janus]: ${track.kind} ended`);
++									} else if (!on && metadata?.reason === "ended") {
++										__removeTrack(track, track.kind);
++									}
++								},
++								iceState: function(state) {
++									console.log("ICE state:", state);
++								},
++								webrtcState: function(on) {
++									console.log("WebRTC state:", on ? "up" : "down");
++								},
++								error: function(error) {
++									console.error("Plugin error:", error);
++								}
++							});
++						},
++						error: function(error) {
++							console.error("Janus error:", error);
++							reject(error);
++						}
++					});
++				}
++			});
++		});
++	});
++}
+ 
+ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeHook) {
+ 	var self = this;
+@@ -40,9 +178,14 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 	var __timer = null;
+ 	var __timer_retries = 0;
+ 
++	// Janus audio-related variables
++	var __janusPromise = null;
++	var __janusInstances = null;
++	var __audioEnabled = false;
++
+ 	/************************************************************************/
+ 
+-	self.getName = () => "HTTP MJPEG";
++	self.getName = () => "HTTP MJPEG + Audio";
+ 	self.getMode = () => "mjpeg";
+ 
+ 	self.getResolution = function() {
+@@ -55,6 +198,15 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 		};
+ 	};
+ 
++	self.enableAudio = function(enable = true) {
++		__audioEnabled = enable;
++		if (enable && !__janusPromise) {
++			__initializeJanus();
++		} else if (!enable && __janusInstances) {
++			__destroyJanus();
++		}
++	};
++
+ 	self.ensureStream = function(state) {
+ 		if (state) {
+ 			__state = state;
+@@ -63,12 +215,17 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 				__setStreamActive();
+ 				__stopChecking();
+ 				__organizeHook();
++
+ 			} else {
+ 				__ensureChecking();
++				__initializeJanus();
+ 			}
+ 		} else {
+ 			__stopChecking();
+ 			__setStreamInactive();
++			if (__janusInstances) {
++				__destroyJanus();
++			}
+ 		}
+ 	};
+ 
+@@ -78,6 +235,48 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 		if (!String.prototype.endsWith.call($("stream-image").src, blank)) {
+ 			$("stream-image").src = blank;
+ 		}
++
++		// Stop audio
++		if (__janusInstances) {
++			__destroyJanus();
++		}
++	};
++
++	var __initializeJanus = function() {
++		if (__janusPromise) {
++			return __janusPromise;
++		}
++
++		__janusPromise = setupJanus()
++			.then((instances) => {
++				__janusInstances = instances;
++				__logInfo("Janus audio streaming initialized");
++			})
++			.catch((error) => {
++				__logInfo("Failed to initialize Janus audio:", error);
++				__janusPromise = null;
++			});
++
++		return __janusPromise;
++	};
++
++	var __destroyJanus = function() {
++		if (__janusInstances) {
++			try {
++				if (__janusInstances.streaming) {
++					__janusInstances.streaming.detach();
++				}
++				if (__janusInstances.janus) {
++					__janusInstances.janus.destroy();
++				}
++
++				__logInfo("Janus audio streaming destroyed");
++			} catch (error) {
++				__logInfo("Error destroying Janus:", error);
++			}
++		}
++		__janusInstances = null;
++		__janusPromise = null;
+ 	};
+ 
+ 	var __setStreamActive = function() {
+@@ -88,6 +287,7 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 			__setActive();
+ 		}
+ 		__setInfo(true, __state.source.online, `${__fps} fps dynamic`);
++
+ 	};
+ 
+ 	var __setStreamInactive = function() {
+@@ -157,4 +357,4 @@ export function MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeH
+ 	};
+ 
+ 	var __logInfo = (...args) => tools.info("Stream [MJPEG]:", ...args);
+-}
++}
+\ No newline at end of file
+diff --git a/web/share/js/wm.js b/web/share/js/wm.js
+index 65ce7706..b3d53a4b 100644
+--- a/web/share/js/wm.js
++++ b/web/share/js/wm.js
+@@ -77,7 +77,9 @@ function __WindowManager() {
+ 				el_win.addEventListener("pointerrawupdate", function(ev) {
+ 					// События pointerdown и touchdown не генерируются при ресайзе за уголок,
+ 					// поэтому отлавливаем pointerrawupdate для тач-событий.
+-					let events = ev.getCoalescedEvents();
++					let events = (typeof ev.getCoalescedEvents === "function")
++  					  ? ev.getCoalescedEvents()
++					  : [ev];
+ 					for (ev of events) {
+ 						if (
+ 							ev.target === el_win && ev.pointerType === "touch" && ev.buttons
+-- 
+2.34.1
+

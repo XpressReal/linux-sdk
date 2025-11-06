@@ -1,0 +1,1 @@
+ACTION=="change", KERNEL=="card[0-9]", SUBSYSTEM=="drm", RUN+="/usr/bin/start-weston.sh"

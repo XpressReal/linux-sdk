@@ -1,0 +1,3 @@
+patch 829-dts-use-HiFi-as-AO-instead.patch
+
+kconf hardware stark.cfg

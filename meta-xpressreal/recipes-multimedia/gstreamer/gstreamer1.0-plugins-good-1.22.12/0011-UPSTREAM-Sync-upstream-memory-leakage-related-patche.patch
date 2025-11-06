@@ -1,0 +1,88 @@
+From da0ef458aca4700e64ebf5d070eb040ada0a7892 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 18 Apr 2025 11:25:04 +0800
+Subject: [PATCH 1/1] Sync upstream memory leakage related patches
+Upstream-Status: Backport
+
+---
+ sys/v4l2/gstv4l2allocator.c | 2 +-
+ sys/v4l2/gstv4l2object.c    | 8 +++++++-
+ sys/v4l2/gstv4l2videodec.c  | 5 +++++
+ sys/v4l2/gstv4l2videoenc.c  | 3 ++-
+ 4 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2allocator.c b/sys/v4l2/gstv4l2allocator.c
+index 059039e..18d5706 100644
+--- a/sys/v4l2/gstv4l2allocator.c
++++ b/sys/v4l2/gstv4l2allocator.c
+@@ -374,7 +374,7 @@ gst_v4l2_allocator_release (GstV4l2Allocator * allocator, GstV4l2Memory * mem)
+   }
+ 
+   /* Keep last, allocator may be freed after this call */
+-  g_object_unref (allocator);
++  gst_object_unref (allocator);
+ }
+ 
+ static void
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 63f8c4a..dbf9c54 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -2474,9 +2474,11 @@ gst_v4l2_object_add_interlace_mode (GstV4l2Object * v4l2object,
+   if (gst_v4l2src_value_simplify (&interlace_formats)
+       || gst_value_list_get_size (&interlace_formats) > 0)
+     gst_structure_take_value (s, "interlace-mode", &interlace_formats);
+-  else
++  else {
+     GST_WARNING_OBJECT (v4l2object->dbg_obj,
+         "Failed to determine interlace mode");
++    g_value_unset (&interlace_formats);
++  }
+ 
+   return;
+ }
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index 474a336..7485256 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -1458,11 +1458,16 @@ gst_v4l2_video_dec_register (GstPlugin * plugin, const gchar * basename,
+     cdata->device = g_strdup (device_path);
+     cdata->sink_caps = gst_caps_new_empty ();
+     gst_caps_append_structure (cdata->sink_caps, gst_structure_copy (s));
++    GST_MINI_OBJECT_FLAG_SET (cdata->sink_caps,
++        GST_MINI_OBJECT_FLAG_MAY_BE_LEAKED);
+     cdata->src_caps = gst_caps_ref (src_caps);
+     type_name = gst_v4l2_video_dec_set_metadata (s, cdata, basename);
+ 
+     /* Skip over if we hit an unmapped type */
+     if (!type_name) {
++      g_free (cdata->device);
++      gst_caps_unref (cdata->sink_caps);
++      gst_caps_unref (cdata->src_caps);
+       g_free (cdata);
+       continue;
+     }
+diff --git a/sys/v4l2/gstv4l2videoenc.c b/sys/v4l2/gstv4l2videoenc.c
+index 7360279..c82adcb 100644
+--- a/sys/v4l2/gstv4l2videoenc.c
++++ b/sys/v4l2/gstv4l2videoenc.c
+@@ -1230,6 +1230,7 @@ gst_v4l2_video_enc_register (GstPlugin * plugin, GType type,
+   GValue value = G_VALUE_INIT;
+ 
+   filtered_caps = gst_caps_intersect (src_caps, codec_caps);
++  GST_MINI_OBJECT_FLAG_SET (filtered_caps, GST_MINI_OBJECT_FLAG_MAY_BE_LEAKED);
+ 
+   if (codec != NULL && video_fd != -1) {
+     if (gst_v4l2_codec_probe_levels (codec, video_fd, &value)) {
+@@ -1246,7 +1247,7 @@ gst_v4l2_video_enc_register (GstPlugin * plugin, GType type,
+   cdata = g_new0 (GstV4l2VideoEncCData, 1);
+   cdata->device = g_strdup (device_path);
+   cdata->sink_caps = gst_caps_ref (sink_caps);
+-  cdata->src_caps = gst_caps_ref (filtered_caps);
++  cdata->src_caps = filtered_caps;
+   cdata->codec = codec;
+ 
+   g_type_query (type, &type_query);
+-- 
+2.34.1
+

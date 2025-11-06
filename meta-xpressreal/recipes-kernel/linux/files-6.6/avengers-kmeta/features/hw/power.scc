@@ -1,0 +1,4 @@
+patch 870-Add-simple-charger-driver-for-Realtek.patch
+patch 871-Add-simple-battery-driver-for-Realtek.patch
+
+kconf hardware pcie.cfg

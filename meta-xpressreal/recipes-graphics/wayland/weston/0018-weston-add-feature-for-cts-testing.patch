@@ -1,0 +1,152 @@
+From 38a253f7501dc074ab63b43c6e7aa7e1998a6b25 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 21 Apr 2025 03:08:50 -0400
+Subject: [PATCH] weston: add feature for cts testing
+
+1. add default-max-mode to choose max tv mode for default
+2. force 2K UI when tv-mode is set
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c             |  1 +
+ include/libweston/libweston.h |  1 +
+ libweston/backend-drm/modes.c | 55 ++++++++++++++++++++++++++++++++---
+ 3 files changed, 53 insertions(+), 4 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 55b4253..2afe62d 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -2133,6 +2133,7 @@ drm_backend_output_configure(struct weston_output *output,
+ 
+ 	weston_config_section_get_string(section, "mode", &s, "preferred");
+ 	weston_config_section_get_string(section, "tv-mode", &tv_modeline, NULL);
++	weston_config_section_get_bool(section, "default-max-mode", &output->compositor->default_max_mode, false);
+ 
+ 	if (weston_config_section_get_uint(section, "max-bpc", &max_bpc, 16) == 0)
+ 		max_bpc_specified = true;
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 6fba721..28e0a77 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1527,6 +1527,7 @@ struct weston_compositor {
+ 	bool found_drm_fd;
+ 	bool full_damage;
+ 	bool ui_hole_punch;
++	bool default_max_mode;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 5f14b99..88a4082 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -647,6 +647,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	struct drm_mode *configured = NULL;
+ 	struct drm_mode *config_fall_back = NULL;
+ 	struct drm_mode *best = NULL;
++	struct drm_mode *max_mode = NULL;
+ 	struct drm_mode *drm_mode;
+ 	drmModeModeInfo drm_modeline;
+ 	int32_t width = 0;
+@@ -656,6 +657,8 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	uint32_t aspect_height = 0;
+ 	enum weston_mode_aspect_ratio aspect_ratio = WESTON_MODE_PIC_AR_NONE;
+ 	int n;
++	int32_t max_width = 0;
++	int32_t max_height = 0;
+ 
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_PREFERRED && modeline) {
+ 		n = sscanf(modeline, "%dx%d@%d %u:%u", &width, &height,
+@@ -705,6 +708,13 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 		if (drm_mode->base.flags & WL_OUTPUT_MODE_PREFERRED)
+ 			preferred = drm_mode;
+ 
++		if (drm_mode->base.width >= max_width && drm_mode->base.height >= max_height)
++		{
++			max_width = drm_mode->base.width;
++			max_height = drm_mode->base.height;
++			max_mode = drm_mode;
++		}
++
+ 		best = drm_mode;
+ 	}
+ 
+@@ -720,6 +730,11 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	if (configured)
+ 		return configured;
+ 
++	if (output->base.compositor->default_max_mode == true)
++	{
++		return max_mode;
++	}
++
+ 	if (config_fall_back)
+ 		return config_fall_back;
+ 
+@@ -900,6 +915,31 @@ drm_output_set_mode(struct weston_output *base,
+ 	return 0;
+ }
+ 
++static struct drm_mode *
++drm_output_force_add_mode(const drmModeModeInfo *info)
++{
++	struct drm_mode *mode;
++
++	mode = malloc(sizeof *mode);
++	if (mode == NULL)
++		return NULL;
++
++	mode->base.flags = 0;
++	mode->base.width = info->hdisplay;
++	mode->base.height = info->vdisplay;
++
++	mode->base.refresh = drm_refresh_rate_mHz(info);
++	mode->mode_info = *info;
++	mode->blob_id = 0;
++
++	if (info->type & DRM_MODE_TYPE_PREFERRED)
++		mode->base.flags |= WL_OUTPUT_MODE_PREFERRED;
++
++	mode->base.aspect_ratio = drm_to_weston_mode_aspect_ratio(info->flags);
++
++	return mode;
++}
++
+ int
+ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 		enum weston_drm_backend_output_mode mode,
+@@ -911,7 +951,13 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 
+ 	struct drm_mode *current;
+ 	struct drm_mode *tv_current;
+-	drmModeModeInfo dummy_mode = {0};
++	drmModeModeInfo force_2k_mode = { .hdisplay = 1920,
++	                                  .vdisplay = 1080,
++	                                  .flags = 0x100005,
++	                                  .clock = 148500,
++	                                  .htotal = 2200,
++	                                  .vtotal = 1125,
++	                                  .vscan = 0 };
+ 
+ 	if (tv_modeline == NULL)
+ 		return -1;
+@@ -922,11 +968,12 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 	if (drm_output_update_modelist_from_heads(output) < 0)
+ 		return -1;
+ 
+-	current = drm_output_choose_initial_mode(device, output, mode, modeline,
+-						&head->inherited_mode);
++//	current = drm_output_choose_initial_mode(device, output, mode, modeline,
++//						&head->inherited_mode);
++	current = drm_output_force_add_mode(&force_2k_mode);
+ 
+ 	tv_current = drm_output_choose_initial_mode(device, output, mode, tv_modeline,
+-						&dummy_mode);
++						&force_2k_mode);
+ 
+ 	if (!current)
+ 		return -1;
+-- 
+2.34.1
+

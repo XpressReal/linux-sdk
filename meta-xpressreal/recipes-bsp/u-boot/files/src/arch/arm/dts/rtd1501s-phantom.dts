@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1501S Phantom EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1501s-phantom.dtsi"
+
+/ {
+	compatible = "realtek,phantom", "realtek,rtd1501s";
+	model = "Realtek Phantom EVB (8GB)";
+};
+
+&soc {
+	bootph-all;
+};
+
+&rbus {
+	bootph-all;
+};
+
+&nor_flash {
+	bootph-all;
+};
+
+&emmc {
+	bootph-all;
+};
+
+&usb_manager {
+	bootph-all;
+};
+
+&usb0_u2phy {
+	bootph-all;
+};
+
+&usb0_u3phy {
+	bootph-all;
+};
+
+&usb_port0 {
+	bootph-all;
+};
+
+&usb0_dwc3 {
+	bootph-all;
+};
+
+&usb1_u2phy {
+	bootph-all;
+};
+
+&usb1_u3phy {
+	bootph-all;
+};
+
+&usb_port1 {
+	bootph-all;
+};
+
+&usb2_u2phy {
+	bootph-all;
+};
+
+&usb_port2 {
+	bootph-all;
+};
+
+&usb2_dwc3 {
+	bootph-all;
+};
+
+&usb_port3 {
+	bootph-all;
+};
+
+&usb_port4 {
+	bootph-all;
+};
+
+&usb4_dwc3 {
+	bootph-all;
+};

@@ -1,0 +1,7 @@
+patch 890-Add-rpmsg-driver-for-realtek-DHC-platform.patch
+patch 890-01-rpmsg-pm-Add-support-for-stark-suspend-resume.patch
+patch 891-rpmsg-char-Add-support-to-use-rpmsg_rx_done.patch
+patch 892-rpmsg-core-Add-rx-done-hooks.patch
+patch 893-rpmsg-glink-Add-support-for-rpmsg_rx_done.patch
+
+kconf hardware rpmsg.cfg

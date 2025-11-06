@@ -1,0 +1,3 @@
+PIKVM_MODEL=v4plus
+PIKVM_VIDEO=hdmi
+PIKVM_BOARD=bleedingedge

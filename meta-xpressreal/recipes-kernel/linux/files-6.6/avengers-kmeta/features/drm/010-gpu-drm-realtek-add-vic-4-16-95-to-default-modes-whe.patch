@@ -1,0 +1,64 @@
+From ef437fcb763a2b07d684511e5983e50af30f3b15 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 14 May 2025 03:52:24 -0400
+Subject: [PATCH] gpu: drm: realtek: add vic 4/16/95 to default modes when get
+ edid fail
+
+---
+ drivers/gpu/drm/realtek/rtk_hdmi.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.c b/drivers/gpu/drm/realtek/rtk_hdmi.c
+index e4e43d6c8de4..846c9fe805d1 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdmi.c
++++ b/drivers/gpu/drm/realtek/rtk_hdmi.c
+@@ -165,11 +165,26 @@ static struct drm_display_mode rtk_default_modes[] = {
+ 		   798, 858, 0, 480, 489, 495, 525, 0,
+ 		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
+ 	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3, },
++	/* 4 - 1280x720@60Hz 16:9 */
++	{ DRM_MODE("1280x720", DRM_MODE_TYPE_DRIVER, 74250, 1280, 1390,
++		   1430, 1650, 0, 720, 725, 730, 750, 0,
++		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
++	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
++	/* 16 - 1920x1080@60Hz 16:9 */
++	{ DRM_MODE("1920x1080", DRM_MODE_TYPE_DRIVER, 148500, 1920, 2008,
++		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
++		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
++	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+ 	/* 17 - 720x576@50Hz 4:3 */
+ 	{ DRM_MODE("720x576", DRM_MODE_TYPE_DRIVER, 27000, 720, 732,
+ 		   796, 864, 0, 576, 581, 586, 625, 0,
+ 		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
+ 	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3, },
++	/* 95 - 3840x2160@30Hz 16:9 */
++	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 297000, 3840, 4016,
++		   4104, 4400, 0, 2160, 2168, 2178, 2250, 0,
++		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
++	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+ };
+ 
+ #define LINE_BUF_SIZE  (EDID_LENGTH * 2 + 2)
+@@ -1850,12 +1865,19 @@ rtk_hdmi_conn_mode_valid(struct drm_connector *connector,
+ {
+ 	struct rtk_hdmi *hdmi = to_rtk_hdmi(connector);
+ 	u8 vic;
++	int i;
+ 	int max_tmds_khz;
+ 
+ 	vic = drm_match_cea_mode(mode);
+ 
+ 	DRM_DEBUG_DRIVER("vic=%u\n", vic);
+ 
++	for (i = 0; i < ARRAY_SIZE(rtk_default_modes); i++) {
++		if (vic ==  drm_match_cea_mode(&rtk_default_modes[i])) {
++			return MODE_OK;
++		}
++	}
++
+ 	max_tmds_khz = connector->display_info.max_tmds_clock;
+ 
+ 	if (connector->force == DRM_FORCE_ON)
+-- 
+2.34.1
+

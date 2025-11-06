@@ -1,0 +1,26 @@
+From f45be100084d6035c2934fc562210a7d07d53eb7 Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Fri, 19 Sep 2025 18:29:25 +0800
+Subject: [PATCH] add codec_data_size 6 for vc1 MV3 main profile case
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst/videoparsers/gstvc1parse.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gst/videoparsers/gstvc1parse.c b/gst/videoparsers/gstvc1parse.c
+index 16507b9..012fe55 100644
+--- a/gst/videoparsers/gstvc1parse.c
++++ b/gst/videoparsers/gstvc1parse.c
+@@ -2386,7 +2386,7 @@ gst_vc1_parse_set_caps (GstBaseParse * parse, GstCaps * caps)
+     codec_data = gst_value_get_buffer (value);
+     gst_buffer_map (codec_data, &minfo, GST_MAP_READ);
+     codec_data_size = gst_buffer_get_size (codec_data);
+-    if ((codec_data_size == 4 || codec_data_size == 5)) {
++    if ((codec_data_size == 4 || codec_data_size == 5 || codec_data_size == 6)) {
+       /* ASF, VC1/WMV3 simple/main profile
+        * This is the sequence header without start codes
+        */
+-- 
+2.45.2
+

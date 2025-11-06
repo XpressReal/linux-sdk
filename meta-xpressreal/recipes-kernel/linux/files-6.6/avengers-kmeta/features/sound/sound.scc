@@ -1,0 +1,7 @@
+patch 826-Add-sound-driver-for-Realtek-DHC-SoCs.patch
+patch 831-add-SOF-driver-and-machine-driver.patch
+patch 834-dont-use-secure-buffer.patch
+patch 835-snd-alsa-fix-no-avaiable-buffer-size.patch
+patch 836-kernel-alsa-audio-soc-driver-instead-legacy-driver.patch
+
+kconf hardware sound.cfg

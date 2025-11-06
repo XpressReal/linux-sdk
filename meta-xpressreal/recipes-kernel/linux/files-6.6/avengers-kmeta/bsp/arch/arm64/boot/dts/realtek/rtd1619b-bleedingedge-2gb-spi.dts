@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020 Realtek Semiconductor Corp.
+ */
+
+#include "rtd1619b-bleedingedge-2gb.dts"
+
+/ {
+	compatible = "realtek,bleeding-edge-spi", "realtek,rtd1619b";
+	model = "Realtek Bleeding Edge EVB SPI (2GB)";
+};
+
+&emmc {
+	status = "disabled";
+};
+
+&rbus {
+	/delete-node/sfc@1a800;
+};
+
+&sb2 {
+	sfc: sfc@800 {
+		compatible = "realtek,rtd16xxb-sfc";
+		reg = <0x800 0x50>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		flash@0 {
+		compatible = "jedec,spi-nor";
+		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <2>;
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		};
+	};
+};
+
+&pcie1 {
+	perst-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+&pcie2 {
+	perst-gpios = <&gpio 70 GPIO_ACTIVE_HIGH>;
+};
+
+&sata_phy {
+	status = "okay";
+};
+
+&sata_phy0 {
+	status = "okay";
+};
+
+&ahci_sata {
+	status = "okay";
+};
+
+&sata_port0 {
+	sata-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&sata_port1 {
+	sata-gpios = <&gpio 70 GPIO_ACTIVE_HIGH>;
+};

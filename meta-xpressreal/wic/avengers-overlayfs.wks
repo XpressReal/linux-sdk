@@ -1,0 +1,13 @@
+# short-description: Create an image for Realtek Avengers based SoC image
+# long-description: Creates a partitioned image for Realtek Avengers based SoC with extlinux
+
+bootloader --ptable gpt --timeout=0
+
+# Boot partition
+part /boot --source bootimg-partition --ondisk mmcblk0 --fstype=vfat --label boot --active --align 4096 --fixed-size 20
+
+# Squashfs root partition
+part / --source rootfs --ondisk mmcblk0 --fstype=squashfs --align 4096 --mkfs-extraopts "-comp xz"
+
+# Ext4 overlay partition
+part --ondisk mmcblk0 --fstype=ext4 --label overlay --size=100 --align 4096

@@ -1,0 +1,78 @@
+From 7434d1dca563a1ad3e7440afeb692f3d8378876b Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Fri, 11 Oct 2024 16:38:26 +0200
+Subject: [PATCH] usb: dwc3: invalidate dcache on buffer used in interrupt
+ handling
+
+On Qualcomm systems, the setup buffer and even buffers are in
+a bad state at interrupt handling, so invalidate the dcache lines
+for the setup_buf and event buffer to make sure we read correct
+data written by the hardware.
+
+This fixes the following error:
+dwc3-generic-peripheral usb@a600000: UNKNOWN IRQ type -1
+dwc3-generic-peripheral usb@a600000: UNKNOWN IRQ type 4673109
+
+and invalid situation in dwc3_gadget_giveback() because setup_buf content
+is read at 0s and leads to fatal crash fixed by [1].
+
+[1] https://lore.kernel.org/all/20240528-topic-sm8x50-dwc3-gadget-crash-fix-v1-1-58434ab4b3d3@linaro.org/
+
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Marek Vasut <marex@denx.de>
+Link: https://lore.kernel.org/r/20241011-u-boot-dwc3-gadget-dcache-fixup-v4-3-5f3498d8035b@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/dwc3/ep0.c    | 2 ++
+ drivers/usb/dwc3/gadget.c | 2 ++
+ drivers/usb/dwc3/io.h     | 8 ++++++++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/drivers/usb/dwc3/ep0.c b/drivers/usb/dwc3/ep0.c
+index 1133cf82b1a..7a3513c6b44 100644
+--- a/drivers/usb/dwc3/ep0.c
++++ b/drivers/usb/dwc3/ep0.c
+@@ -743,6 +743,8 @@ static void dwc3_ep0_inspect_setup(struct dwc3 *dwc,
+ 	if (!dwc->gadget_driver)
+ 		goto out;
+ 
++	dwc3_invalidate_cache((uintptr_t)ctrl, sizeof(*ctrl));
++
+ 	len = le16_to_cpu(ctrl->wLength);
+ 	if (!len) {
+ 		dwc->three_stage_setup = false;
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+index 406d36ceafe..336ee22494b 100644
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -2462,6 +2462,8 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3 *dwc, u32 buf)
+ 	while (left > 0) {
+ 		union dwc3_event event;
+ 
++		dwc3_invalidate_cache((uintptr_t)evt->buf, evt->length);
++
+ 		event.raw = *(u32 *) (evt->buf + evt->lpos);
+ 
+ 		dwc3_process_event_entry(dwc, &event);
+diff --git a/drivers/usb/dwc3/io.h b/drivers/usb/dwc3/io.h
+index 04791d4c9be..421fe553b14 100644
+--- a/drivers/usb/dwc3/io.h
++++ b/drivers/usb/dwc3/io.h
+@@ -52,4 +52,12 @@ static inline void dwc3_flush_cache(uintptr_t addr, int length)
+ {
+ 	flush_dcache_range(addr, addr + ROUND(length, CACHELINE_SIZE));
+ }
++
++static inline void dwc3_invalidate_cache(uintptr_t addr, int length)
++{
++	uintptr_t start_addr = (uintptr_t)addr & ~(CACHELINE_SIZE - 1);
++	uintptr_t end_addr = ALIGN((uintptr_t)addr + length, CACHELINE_SIZE);
++
++	invalidate_dcache_range((unsigned long)start_addr, (unsigned long)end_addr);
++}
+ #endif /* __DRIVERS_USB_DWC3_IO_H */
+-- 
+2.34.1
+

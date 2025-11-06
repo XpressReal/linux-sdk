@@ -1,0 +1,5 @@
+define KFEATURE_DESCRIPTION "Realtek specific TEE patches"
+
+patch 826-Add-tee_shm_register_fd-function.patch
+
+kconf non-hardware tee.cfg

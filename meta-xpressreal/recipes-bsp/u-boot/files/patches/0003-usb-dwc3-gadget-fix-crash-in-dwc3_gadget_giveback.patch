@@ -1,0 +1,48 @@
+From 85ced6f4745f529098cae38a5bd3144035a1318c Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 28 May 2024 10:35:03 +0200
+Subject: [PATCH] usb: dwc3: gadget: fix crash in dwc3_gadget_giveback()
+
+If the ep0 stalls or request are dequeued when gagdet is stopped,
+the request dma may not be mapped yet and dwc3_flush_cache() may be
+called with a NULL pointer.
+
+Check req->request.dma before calling dwc3_flush_cache() and later
+the usb_gadget_unmap_request() functions since it means that
+usb_gadget_map_request() hasn't been called yet.
+
+Fixes: fd15b58c1a9 ("dwc3: flush cache only if there is a buffer attached to a request")
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Link: https://lore.kernel.org/r/20240528-topic-sm8x50-dwc3-gadget-crash-fix-v1-1-58434ab4b3d3@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/dwc3/gadget.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+index 39c19d94de1..7d6bcc2627f 100644
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -249,7 +249,7 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
+ 
+ 	list_del(&req->list);
+ 	req->trb = NULL;
+-	if (req->request.length)
++	if (req->request.dma && req->request.length)
+ 		dwc3_flush_cache((uintptr_t)req->request.dma, req->request.length);
+ 
+ 	if (req->request.status == -EINPROGRESS)
+@@ -257,7 +257,7 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
+ 
+ 	if (dwc->ep0_bounced && dep->number == 0)
+ 		dwc->ep0_bounced = false;
+-	else
++	else if (req->request.dma)
+ 		usb_gadget_unmap_request(&dwc->gadget, &req->request,
+ 				req->direction);
+ 
+-- 
+2.34.1
+

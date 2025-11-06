@@ -1,0 +1,121 @@
+From 6fb7335f3429ef30fbc6bf0e4072001a7ea223d4 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Wed, 14 May 2025 13:05:23 +0800
+Subject: [PATCH] [panthor] fix gpu device
+
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi                | 9 +++++----
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi    | 9 ++++-----
+ arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi | 9 ++++-----
+ 3 files changed, 13 insertions(+), 14 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index 3b1a6cedc2cb..2fb05d5e6dfc 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -1027,11 +1027,12 @@ gpu_wrap: gpu-wrap@200000 {
+ 				status = "disabled";
+ 
+ 				gpu: gpu@0 {
+-					compatible = "arm,mali-midgard";
++					compatible = "arm,mali-valhall-csf";
+ 					reg = <0x0 0x4f0000>;
+-					clock-name = "clk_mali";
+-					clocks = <&cc RTD1625_CRT_CLK_EN_GPU>;
+-					interrupt-names = "JOB", "MMU", "GPU";
++					clock-name = "clk_mali", "core";
++					clocks = <&cc RTD1625_CRT_CLK_EN_GPU>,
++						 <&cc RTD1625_CRT_CLK_EN_GPU>;
++					interrupt-names = "job", "mmu", "gpu";
+ 					interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>,
+ 						     <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>,
+ 						     <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+index 6f333c66c076..5be15a8bec3c 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+@@ -150,7 +150,6 @@ &cpu3 {
+ 
+ &gpu {
+ 	mali-supply = <&gpu_supp>;
+-	shadercores-supply = <&gpu_supp>;
+ 	operating-points-v2 = <&gpu_opps>;
+ };
+ 
+@@ -168,26 +167,26 @@ gpu_opps: opp-table-gpu {
+ 		opp-405000000 {
+ 			opp-hz = /bits/ 64 <405000000>;
+ 			opp-hz-real = /bits/ 64 <405000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 			opp-suspend;
+ 		};
+ 
+ 		opp-540000000 {
+ 			opp-hz = /bits/ 64 <540000000>;
+ 			opp-hz-real = /bits/ 64 <540000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 
+ 		opp-729000000 {
+ 			opp-hz = /bits/ 64 <729000000>;
+ 			opp-hz-real = /bits/ 64 <729000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 
+ 		opp-850500000 {
+ 			opp-hz = /bits/ 64 <850500000>;
+ 			opp-hz-real = /bits/ 64 <850500000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 	};
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+index b5fc4b21cc9c..48c23038974a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+@@ -150,7 +150,6 @@ &cpu3 {
+ 
+ &gpu {
+ 	mali-supply = <&gpu_supp>;
+-	shadercores-supply = <&gpu_supp>;
+ 	operating-points-v2 = <&gpu_opps>;
+ };
+ 
+@@ -195,26 +194,26 @@ gpu_opps: opp-table-gpu {
+ 		opp-405000000 {
+ 			opp-hz = /bits/ 64 <405000000>;
+ 			opp-hz-real = /bits/ 64 <405000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 			opp-suspend;
+ 		};
+ 
+ 		opp-540000000 {
+ 			opp-hz = /bits/ 64 <540000000>;
+ 			opp-hz-real = /bits/ 64 <540000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 
+ 		opp-729000000 {
+ 			opp-hz = /bits/ 64 <729000000>;
+ 			opp-hz-real = /bits/ 64 <729000000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 
+ 		opp-850500000 {
+ 			opp-hz = /bits/ 64 <850500000>;
+ 			opp-hz-real = /bits/ 64 <850500000>;
+-			opp-microvolt = <800000>, <800000>;
++			opp-microvolt = <800000>;
+ 		};
+ 	};
+ };
+-- 
+2.34.1
+

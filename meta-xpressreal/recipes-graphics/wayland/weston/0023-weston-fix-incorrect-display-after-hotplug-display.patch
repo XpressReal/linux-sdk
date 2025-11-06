@@ -1,0 +1,79 @@
+From e5c18ff1180520c6ea97a0cda5bf05f5b646f9e2 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 25 Jun 2025 23:36:12 -0400
+Subject: [PATCH] weston: fix incorrect display after hotplug display
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/compositor.c | 31 ++++++++++++++++++++++++++++++-
+ 1 file changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index c0331dc..b0697cf 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -95,6 +95,8 @@
+ 
+ #define DEFAULT_REPAINT_WINDOW 7 /* milliseconds */
+ 
++int rtk_connect_state = false;
++
+ static void
+ weston_output_transform_scale_init(struct weston_output *output,
+ 				   uint32_t transform, uint32_t scale);
+@@ -1861,9 +1863,23 @@ WL_EXPORT void
+ weston_view_set_position(struct weston_view *view,
+ 			 struct weston_coord_global pos)
+ {
++	struct weston_surface *surface = view->surface;
++	int x1 = 0, y1 = 0, w1 = 0, h1 = 0;
++	bool customer_position = false;
++
+ 	assert(view->surface->committed != subsurface_committed);
+ 	assert(!view->geometry.parent);
+ 
++	if (surface != NULL) {
++		if (strncmp(surface->title, "resize-", 7) == 0) {
++			sscanf(surface->title, "resize-%dx%dx%dx%d", &x1, &y1, &w1, &h1);
++			customer_position = true;
++		}
++	}
++
++	if (customer_position)
++		pos.c = weston_coord(x1, y1);
++
+ 	if (view->geometry.pos_offset.x == pos.c.x &&
+ 	    view->geometry.pos_offset.y == pos.c.y)
+ 		return;
+@@ -3025,6 +3041,19 @@ weston_surface_attach(struct weston_surface *surface,
+ 	old_buffer = NULL;
+ 	weston_buffer_reference(&surface->buffer_ref, buffer,
+ 				BUFFER_MAY_BE_ACCESSED);
++
++	if (rtk_connect_state == false) {
++		if (buffer->type == WESTON_BUFFER_DMABUF) {
++			struct linux_dmabuf_buffer *dmabuf = NULL;
++			dmabuf = buffer->dmabuf;
++			if (strncmp(surface->role_name, "wl_subsurface", 13) == 0 && dmabuf != NULL && dmabuf->attributes.format == DRM_FORMAT_ARGB8888) {
++				char *frame_mmap = mmap(NULL, dmabuf->attributes.width * dmabuf->attributes.height * 4, PROT_WRITE | PROT_READ, MAP_SHARED, dmabuf->attributes.fd[0], 0);
++				memset(frame_mmap, 0, dmabuf->attributes.width * dmabuf->attributes.height * 4);
++				munmap(frame_mmap, dmabuf->attributes.width * dmabuf->attributes.height * 4);
++			}
++		}
++	}
++
+ 	surface->compositor->renderer->attach(surface, buffer);
+ 
+ 	return status;
+@@ -6659,7 +6688,7 @@ weston_head_set_connection_status(struct weston_head *head, bool connected)
+ 	if (head->connected == connected)
+ 		return;
+ 
+-	head->connected = connected;
++	rtk_connect_state = head->connected = connected;
+ 
+ 	weston_head_set_device_changed(head);
+ }
+-- 
+2.34.1
+

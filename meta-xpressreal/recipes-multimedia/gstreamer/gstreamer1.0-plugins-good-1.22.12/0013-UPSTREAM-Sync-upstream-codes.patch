@@ -1,0 +1,356 @@
+From 0d093f617fa7d18e1627bbb3baa5ab7609e2e002 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 13 May 2025 11:29:23 +0800
+Subject: [PATCH 1/1] [UPSTREAM] Sync upstream codes
+Upstream-Status: Backport
+
+v4l2: bufferpool: Drop writable check on output pool process
+v4l2: allocator: G_TYPE defined for GstV4l2MemoryGroup
+v4l2: allocator: added group pointer to "group-released" signal
+v4l2: bufferpool: update buffer state after group release
+v4l2: drop frames for those dequeued buffer with error flag
+---
+ sys/v4l2/gstv4l2allocator.c  | 13 +++++-
+ sys/v4l2/gstv4l2allocator.h  |  3 ++
+ sys/v4l2/gstv4l2bufferpool.c | 86 +++++++++++++++++++++++++++---------
+ sys/v4l2/gstv4l2videodec.c   | 23 ++++++++++
+ 4 files changed, 101 insertions(+), 24 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2allocator.c b/sys/v4l2/gstv4l2allocator.c
+index 18d5706..fbd466a 100644
+--- a/sys/v4l2/gstv4l2allocator.c
++++ b/sys/v4l2/gstv4l2allocator.c
+@@ -43,6 +43,7 @@
+ 
+ #define gst_v4l2_allocator_parent_class parent_class
+ G_DEFINE_TYPE (GstV4l2Allocator, gst_v4l2_allocator, GST_TYPE_ALLOCATOR);
++G_DEFINE_POINTER_TYPE (GstV4l2MemoryGroup, gst_v4l2_memory_group);
+ 
+ GST_DEBUG_CATEGORY_STATIC (v4l2allocator_debug);
+ #define GST_CAT_DEFAULT v4l2allocator_debug
+@@ -272,6 +273,13 @@ gst_v4l2_memory_group_new (GstV4l2Allocator * allocator, guint32 index)
+     return NULL;
+   }
+ 
++  if (IS_QUEUED (group->buffer)) {
++    GST_WARNING_OBJECT (allocator,
++        "Driver pretends buffer %d is queued even if freshly created, "
++        "this indicates a bug in the driver.", group->buffer.index);
++    UNSET_QUEUED (group->buffer);
++  }
++
+   /* Check that provided size matches the format we have negotiation. Failing
+    * there usually means a driver of libv4l bug. */
+   if (V4L2_TYPE_IS_MULTIPLANAR (obj->type)) {
+@@ -370,7 +378,8 @@ gst_v4l2_allocator_release (GstV4l2Allocator * allocator, GstV4l2Memory * mem)
+   if (g_atomic_int_dec_and_test (&group->mems_allocated)) {
+     GST_LOG_OBJECT (allocator, "buffer %u released", group->buffer.index);
+     gst_atomic_queue_push (allocator->free_queue, group);
+-    g_signal_emit (allocator, gst_v4l2_allocator_signals[GROUP_RELEASED], 0);
++    g_signal_emit (allocator, gst_v4l2_allocator_signals[GROUP_RELEASED], 0,
++	group);
+   }
+ 
+   /* Keep last, allocator may be freed after this call */
+@@ -450,7 +459,7 @@ gst_v4l2_allocator_class_init (GstV4l2AllocatorClass * klass)
+ 
+   gst_v4l2_allocator_signals[GROUP_RELEASED] = g_signal_new ("group-released",
+       G_TYPE_FROM_CLASS (object_class), G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+-      G_TYPE_NONE, 0);
++      G_TYPE_NONE, 1, GST_TYPE_V4L2_MEMORY_GROUP);
+ 
+   GST_DEBUG_CATEGORY_INIT (v4l2allocator_debug, "v4l2allocator", 0,
+       "V4L2 Allocator");
+diff --git a/sys/v4l2/gstv4l2allocator.h b/sys/v4l2/gstv4l2allocator.h
+index eb51524..5c70376 100644
+--- a/sys/v4l2/gstv4l2allocator.h
++++ b/sys/v4l2/gstv4l2allocator.h
+@@ -29,6 +29,7 @@
+ 
+ G_BEGIN_DECLS
+ 
++#define GST_TYPE_V4L2_MEMORY_GROUP              (gst_v4l2_memory_group_get_type())
+ #define GST_TYPE_V4L2_ALLOCATOR                 (gst_v4l2_allocator_get_type())
+ #define GST_IS_V4L2_ALLOCATOR(obj)              (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_V4L2_ALLOCATOR))
+ #define GST_IS_V4L2_ALLOCATOR_CLASS(klass)      (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_V4L2_ALLOCATOR))
+@@ -111,6 +112,8 @@ struct _GstV4l2AllocatorClass {
+   GstAllocatorClass parent_class;
+ };
+ 
++GType gst_v4l2_memory_group_get_type(void);
++
+ GType gst_v4l2_allocator_get_type(void);
+ 
+ gboolean             gst_is_v4l2_memory                (GstMemory * mem);
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 9a88e54..d4456d4 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -80,11 +80,21 @@ enum _GstV4l2BufferState
+   BUFFER_STATE_QUEUED = 2,
+ };
+ 
++enum
++{
++  OUTPUT_ERROR_DEQUEUED,
++  CAPTURE_ERROR_DEQUEUED,
++  LAST_SIGNAL
++};
++
++static guint gst_v4l2_buffer_pool_signals[LAST_SIGNAL] = { 0 };
++
+ static void gst_v4l2_buffer_pool_complete_release_buffer (GstBufferPool * bpool,
+     GstBuffer * buffer, gboolean queued);
+ 
+ static gboolean
+-gst_v4l2_is_buffer_valid (GstBuffer * buffer, GstV4l2MemoryGroup ** out_group)
++gst_v4l2_is_buffer_valid (GstBuffer * buffer, GstV4l2MemoryGroup ** out_group,
++    gboolean check_writable)
+ {
+   GstMemory *mem = gst_buffer_peek_memory (buffer, 0);
+   gboolean valid = FALSE;
+@@ -108,7 +118,7 @@ gst_v4l2_is_buffer_valid (GstBuffer * buffer, GstV4l2MemoryGroup ** out_group)
+       if (group->mem[i] != gst_buffer_peek_memory (buffer, i))
+         goto done;
+ 
+-      if (!gst_memory_is_writable (group->mem[i]))
++      if (check_writable && !gst_memory_is_writable (group->mem[i]))
+         goto done;
+     }
+ 
+@@ -127,7 +137,7 @@ gst_v4l2_buffer_pool_resize_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+   GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+   GstV4l2MemoryGroup *group;
+ 
+-  if (gst_v4l2_is_buffer_valid (buffer, &group)) {
++  if (gst_v4l2_is_buffer_valid (buffer, &group, TRUE)) {
+     gst_v4l2_allocator_reset_group (pool->vallocator, group);
+   } else {
+     GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_TAG_MEMORY);
+@@ -236,7 +246,7 @@ gst_v4l2_buffer_pool_import_userptr (GstV4l2BufferPool * pool,
+   GST_LOG_OBJECT (pool, "importing userptr");
+ 
+   /* get the group */
+-  if (!gst_v4l2_is_buffer_valid (dest, &group))
++  if (!gst_v4l2_is_buffer_valid (dest, &group, TRUE))
+     goto not_our_buffer;
+ 
+   if (V4L2_TYPE_IS_OUTPUT (pool->obj->type))
+@@ -353,7 +363,7 @@ gst_v4l2_buffer_pool_import_dmabuf (GstV4l2BufferPool * pool,
+ 
+   GST_LOG_OBJECT (pool, "importing dmabuf");
+ 
+-  if (!gst_v4l2_is_buffer_valid (dest, &group))
++  if (!gst_v4l2_is_buffer_valid (dest, &group, TRUE))
+     goto not_our_buffer;
+ 
+   if (n_mem > GST_VIDEO_MAX_PLANES)
+@@ -771,6 +781,17 @@ gst_v4l2_buffer_pool_streamoff (GstV4l2BufferPool * pool)
+   }
+ }
+ 
++static void
++gst_v4l2_buffer_pool_group_released (GstV4l2BufferPool * pool,
++    GstV4l2MemoryGroup * group)
++{
++  gint index = group->buffer.index;
++
++  g_atomic_int_set (&pool->buffer_state[index], BUFFER_STATE_FREE);
++
++  gst_v4l2_buffer_pool_resurrect_buffer (pool);
++}
++
+ static gboolean
+ gst_v4l2_buffer_pool_start (GstBufferPool * bpool)
+ {
+@@ -934,7 +955,7 @@ gst_v4l2_buffer_pool_start (GstBufferPool * bpool)
+ 
+     pool->group_released_handler =
+         g_signal_connect_swapped (pool->vallocator, "group-released",
+-        G_CALLBACK (gst_v4l2_buffer_pool_resurrect_buffer), pool);
++        G_CALLBACK (gst_v4l2_buffer_pool_group_released), pool);
+     ret = gst_v4l2_buffer_pool_streamon (pool);
+   }
+ 
+@@ -1269,6 +1290,16 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+   GST_LOG_OBJECT (pool, "dequeueing a buffer");
+ 
+   res = gst_v4l2_allocator_dqbuf (pool->vallocator, &group);
++
++  if (group->buffer.flags & V4L2_BUF_FLAG_ERROR) {
++    if (V4L2_TYPE_IS_OUTPUT (obj->type))
++      g_signal_emit (pool, gst_v4l2_buffer_pool_signals[OUTPUT_ERROR_DEQUEUED],
++          0, (guint) group->buffer.timestamp.tv_sec);
++    else
++      g_signal_emit (pool, gst_v4l2_buffer_pool_signals[CAPTURE_ERROR_DEQUEUED],
++          0, (guint) group->buffer.timestamp.tv_sec);
++  }
++
+   if (res == GST_V4L2_FLOW_LAST_BUFFER)
+     goto eos;
+   if (res != GST_FLOW_OK)
+@@ -1321,15 +1352,18 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+     if (GST_VIDEO_INFO_FORMAT (&pool->caps_info) == GST_VIDEO_FORMAT_ENCODED)
+       break;
+ 
+-    /* Ensure our offset matches the expected plane size, or image size if
+-     * there is only one memory */
+-    if (group->n_mem == 1) {
+-      gst_memory_resize (group->mem[0], 0, info->size + info->offset[0]);
+-      break;
+-    }
++    if (obj->type == V4L2_BUF_TYPE_VIDEO_CAPTURE ||
++        obj->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
++      /* Ensure our offset matches the expected plane size, or image size if
++       * there is only one memory */
++      if (group->n_mem == 1) {
++        gst_memory_resize (group->mem[0], 0, info->size + info->offset[0]);
++        break;
++      }
+ 
+-    if (!GST_VIDEO_FORMAT_INFO_IS_TILED (finfo))
+-      gst_memory_resize (group->mem[i], 0, obj->plane_size[i]);
++      if (!GST_VIDEO_FORMAT_INFO_IS_TILED (finfo))
++        gst_memory_resize (group->mem[i], 0, obj->plane_size[i]);
++    }
+   }
+ 
+   /* Ignore timestamp and field for OUTPUT device */
+@@ -1529,7 +1563,7 @@ done:
+   /* Mark buffer as outstanding */
+   if (ret == GST_FLOW_OK) {
+     GstV4l2MemoryGroup *group;
+-    if (gst_v4l2_is_buffer_valid (*buffer, &group)) {
++    if (gst_v4l2_is_buffer_valid (*buffer, &group, TRUE)) {
+       GST_LOG_OBJECT (pool, "mark buffer %u outstanding", group->buffer.index);
+       g_atomic_int_or (&pool->buffer_state[group->buffer.index],
+           BUFFER_STATE_OUTSTANDING);
+@@ -1580,7 +1614,7 @@ gst_v4l2_buffer_pool_complete_release_buffer (GstBufferPool * bpool,
+         case GST_V4L2_IO_DMABUF_IMPORT:
+         {
+           GstV4l2MemoryGroup *group;
+-          if (gst_v4l2_is_buffer_valid (buffer, &group)) {
++          if (gst_v4l2_is_buffer_valid (buffer, &group, TRUE)) {
+             GstFlowReturn ret = GST_FLOW_OK;
+ 
+             gst_v4l2_allocator_reset_group (pool->vallocator, group);
+@@ -1621,7 +1655,7 @@ gst_v4l2_buffer_pool_complete_release_buffer (GstBufferPool * bpool,
+           GstV4l2MemoryGroup *group;
+           guint index;
+ 
+-          if (!gst_v4l2_is_buffer_valid (buffer, &group)) {
++          if (!gst_v4l2_is_buffer_valid (buffer, &group, TRUE)) {
+             /* Simply release invalid/modified buffer, the allocator will
+              * give it back later */
+             GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_TAG_MEMORY);
+@@ -1672,7 +1706,7 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+   GstV4l2MemoryGroup *group;
+   gboolean queued = FALSE;
+ 
+-  if (gst_v4l2_is_buffer_valid (buffer, &group)) {
++  if (gst_v4l2_is_buffer_valid (buffer, &group, TRUE)) {
+     gint old_buffer_state =
+         g_atomic_int_and (&pool->buffer_state[group->buffer.index],
+         ~BUFFER_STATE_OUTSTANDING);
+@@ -1752,6 +1786,14 @@ gst_v4l2_buffer_pool_class_init (GstV4l2BufferPoolClass * klass)
+   bufferpool_class->flush_start = gst_v4l2_buffer_pool_flush_start;
+   bufferpool_class->flush_stop = gst_v4l2_buffer_pool_flush_stop;
+ 
++  gst_v4l2_buffer_pool_signals[OUTPUT_ERROR_DEQUEUED] =
++      g_signal_new ("output-error-dequeued", G_TYPE_FROM_CLASS (object_class),
++      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
++
++  gst_v4l2_buffer_pool_signals[CAPTURE_ERROR_DEQUEUED] =
++      g_signal_new ("capture-error-dequeued", G_TYPE_FROM_CLASS (object_class),
++      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
++
+   GST_DEBUG_CATEGORY_INIT (v4l2bufferpool_debug, "v4l2bufferpool", 0,
+       "V4L2 Buffer Pool");
+   GST_DEBUG_CATEGORY_GET (CAT_PERFORMANCE, "GST_PERFORMANCE");
+@@ -2070,8 +2112,8 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf,
+           if ((*buf)->pool != bpool)
+             goto copying;
+ 
+-          if (!gst_v4l2_is_buffer_valid (*buf, &group))
+-            goto copying;
++          /* Output buffers don't have to be writable */
++          if (!gst_v4l2_is_buffer_valid (*buf, &group, FALSE))
+ 
+           index = group->buffer.index;
+ 
+@@ -2107,7 +2149,7 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf,
+             }
+ 
+             /* retrieve the group */
+-            gst_v4l2_is_buffer_valid (to_queue, &group);
++            gst_v4l2_is_buffer_valid (to_queue, &group, TRUE);
+           }
+ 
+           if ((ret =
+@@ -2120,7 +2162,7 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf,
+            * streaming now */
+           if (!gst_v4l2_buffer_pool_streamon (pool)) {
+             /* don't check return value because qbuf would have failed */
+-            gst_v4l2_is_buffer_valid (to_queue, &group);
++            gst_v4l2_is_buffer_valid (to_queue, &group, TRUE);
+ 
+             /* qbuf has stored to_queue buffer but we are not in
+              * streaming state, so the flush logic won't be performed.
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index 7485256..fa8bd79 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -181,6 +181,16 @@ gst_v4l2_video_dec_close (GstVideoDecoder * decoder)
+   return TRUE;
+ }
+ 
++static void
++gst_v4l2_video_dec_drop_frame (GstVideoDecoder * decoder, guint frame_number)
++{
++  GstVideoCodecFrame *frame =
++      gst_video_decoder_get_frame (decoder, frame_number);
++
++  if (frame)
++    gst_video_decoder_drop_frame (decoder, frame);
++}
++
+ static gboolean
+ gst_v4l2_video_dec_start (GstVideoDecoder * decoder)
+ {
+@@ -513,6 +523,9 @@ use_acquired_caps:
+   if (!active)
+     goto activate_failed;
+ 
++  g_signal_connect_swapped (self->v4l2capture->pool, "capture-error-dequeued",
++      G_CALLBACK (gst_v4l2_video_dec_drop_frame), decoder);
++
+   return TRUE;
+ 
+ not_negotiated:
+@@ -746,6 +759,13 @@ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
+         GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+         goto beach;
+       }
++
++      /*
++       * In case we are flushing or stopping the element, ensure the active
++       * state is reflected onto the newly create pool.
++       */
++      if (!g_atomic_int_get (&self->active))
++        gst_v4l2_object_unlock (self->v4l2capture);
+     }
+ 
+     /* just a safety, as introducing mistakes in negotiation seems rather
+@@ -971,6 +991,9 @@ gst_v4l2_video_dec_handle_frame (GstVideoDecoder * decoder,
+     if (!gst_buffer_pool_set_active (pool, TRUE))
+       goto activate_failed;
+ 
++    g_signal_connect_swapped (self->v4l2output->pool, "output-error-dequeued",
++		G_CALLBACK (gst_v4l2_video_dec_drop_frame), decoder);
++
+     GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+     GST_LOG_OBJECT (decoder, "Passing buffer with system frame number %u",
+         processed ? frame->system_frame_number : 0);
+-- 
+2.34.1
+

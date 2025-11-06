@@ -1,0 +1,10 @@
+[Unit]
+Description=Display Settings for Realtek Avengers SoC
+
+[Service]
+ExecStart=/usr/bin/kms_ipc -F -p V1:low_delay_display
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

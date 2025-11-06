@@ -1,0 +1,25 @@
+From c306bf89bb135d55d4cc5435b116ea990a81a424 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 22 Apr 2025 19:58:34 +0800
+Subject: [PATCH 12/12] Fix memory leakage while encoding
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2videoenc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sys/v4l2/gstv4l2videoenc.c b/sys/v4l2/gstv4l2videoenc.c
+index c82adcb..7289f4b 100644
+--- a/sys/v4l2/gstv4l2videoenc.c
++++ b/sys/v4l2/gstv4l2videoenc.c
+@@ -606,6 +606,7 @@ gst_v4l2_video_enc_negotiate (GstVideoEncoder * encoder)
+ 
+   state = gst_video_encoder_get_output_state (encoder);
+   s = gst_caps_get_structure (state->caps, 0);
++  gst_video_codec_state_unref (state);
+ 
+   if (codec->profile_cid)
+     gst_structure_set (s, "profile", G_TYPE_STRING, ctx.profile, NULL);
+-- 
+2.34.1
+

@@ -1,0 +1,207 @@
+【CONFIDENTIALITY NOTICE】
+Any information contained in or derived from this electronic message and any attachment (including but not limited to any software development kit ("SDK"), patch, bug-fix, build script, and build instruction; collectively, the "Information") is highly confidential and treated as trade secrets.
+The Information shall be kept confidential, and any disclosure, copying or distribution of the Information without the sender’s consent is strictly prohibited.
+If you are not the intended recipient, please notify the sender and delete this electronic message entirely without using, retaining, or disclosing any of its contents. Thank you for your cooperation.
+
+=============================================================================================
+Repository information:
+1. poky: https://git.yoctoproject.org/poky
+- branch: scarthgap
+- commit: dabe9e157f
+- version: 5.0.4 (scarthgap)
+2. meta-openembedded: https://git.openembedded.org/meta-openembedded
+- branch: scarthgap
+- commit: 2338409efc
+3. meta-qt5: https://github.com/meta-qt5/meta-qt5
+- branch: scarthgap
+- commit: eb82841826
+4. meta-neural-network: https://github.com/nnstreamer/meta-neural-network
+- branch: scarthgap
+- commit: c14458c94e
+=============================================================================================
+2025-10-07 Yocto Scarthgap SDK v2.4.1
+COMMIT="cd300aa0550"
+
+New Features:
+1. Support sdcard on rtd1501s Phantom board
+2. Support USB BT and UART BT function on rtd1501s Phantom board
+
+Changes:
+1. V4L2 v1.0.3
+2. Alsa audio soc driver
+3. u-boot: rtd1625: enable DDR one-time calibration to reduce boot time
+
+Fixed Bugs:
+1. u-boot: rtd1625: fix A/B boot FWs on rtd1501s eMMC
+2. u-boot: rtd1625: fix redundant env on eMMC
+3. Fixed memory leakage while decoding
+
+
+2025-09-15 Yocto Scarthgap SDK support Video functions for rtd1625
+COMMIT="67be64bc66"
+
+New Features:
+1. Support rtd1501s Phantom board with video functions
+- MACHINE: phantom-rtd1625
+- boot mode: eMMC or SPI-NOR + eMMC
+- bootcode:
+-- eMMC: rtd1625_emmc_bind.bin
+-- SPI-NOR: rtd1625_spi_bind.bin
+- build target: core-image-weston
+2. secure boot: support test mode for rtd1625 eMMC
+3. secure boot: enable fitImage cipher support for rtd1625
+4. secure boot: support different keys at different stages for rtd1625
+5. u-boot: rtd1619b: support pwm-rtk driver
+6. u-boot: support boot image if env bootlogo is set
+7. add rtk-qt
+- rtk-playback tool
+8. support HDMI CTS test (weston)
+9. support rtkhse for color format converting and picture rotate & scale
+10. Support new images
+- gamepad-image
+- kvm-image
+11. support ai-demo
+- object detection
+- pose estimation
+- face recongition
+- speech to text
+12. support new manchine
+- badassium-rtd1315c
+- xpressreal-rtd1619b 
+
+Changes:
+1. conf: display exact commit version on the platform /etc/buildinfo
+2. Limit 2KUI for Stark only when Linux Desktop is used
+3. conf: remove GUI related DISTRO_FEATURES for mini MACHINE
+4. u-boot: disable virtual console in rescue mode
+5. add cacheable HiFi firmware for DRM
+6. update NPU driver and library to v3.6.0 
+7. update ubuntu rootfs 24.04.02 and and debian rootfs 12.11
+8. add rtk wifi driver rtl8821cu/rtl8873bu/rtl8822be/rtl8822ce
+
+
+Fixed Bugs:
+1. u-boot: rtd1619b: bl31: enhance and fix OTP write in secure mode
+2. u-boot: rtd1625: usb: enable USB GPIO power ops
+3. kernel: rtk_usb_manager: fix type c port role swap issues
+4. Fix memory leakage when transcoding
+5. Fix Segmentation fault while playing specific HDR10 stream
+6. Fix media_processor_unittest failure
+7. u-boot: rtd1625: Fix wrong DDR size info
+
+
+2025-04-30 Yocto Scarthgap NAS SDK for rtd1625
+COMMIT="a0847e7562"
+
+New Features:
+1. Support rtd1625 platform
+- MACHINE: smallville-rtd1625-mini
+- boot mode: eMMC or SPI-NOR + eMMC
+- bootcode:
+-- eMMC: rtd1625_emmc_bind.bin
+-- SPI-NOR: rtd1625_spi_bind.bin
+- build target: avengers-image-nas
+
+Changes:
+1. rtk-mod-wifi: enable rtl8822cs
+2. backinblack-rtd1619b: support onboard bluetooth
+
+Fixed Bugs:
+1. rtk-mod-wifi: rtl8822es: fix compile error
+
+Known Issues:
+1. rtd1619b video functions might not work properly
+
+
+2025-03-27 Yocto Scarthgap SDK support Video functions
+COMMIT="5bb0a0971f"
+
+New Features:
+1. video out screen capture function
+2. support HDR10bit, HLG, Video Plane
+3. support hardware video scaling down
+4. support hardware video rotation to clockwise/counterclockwise/rotate-180
+5. support converting video from 10-bit to 8-bit
+6. support subtitle for ass/srt/pgs
+7. support 2K video for V4L2 hardware h264/h265 encode
+8. support mpeg1/vc1 decode
+9. debian-image: Support prebuilt rpios rootfs
+10. secure boot: support test mode
+11. secure boot: enable fitImage cipher support
+12. secure boot: add rtkotp tool in rescuefs for secure OTP write
+13. u-boot: rtd1619b_emmc: Enable CMD_USB_MASS_STORAGE
+14. support AI NNStreamer and related to npu sdk v3.3.1
+
+Changes:
+1. Optimize system bootup time
+2. update WIFI driver version
+3. update NPU driver/library to v3.3
+4. update mali r44 DDK
+5. secure boot: support different keys at different stages
+6. u-boot: rtd1619b: try kernel rescue and ums mode in recovery u-boot
+7. update TEEOS with pkcs#11 tool support
+
+Fixed Bugs:
+1. Fixed Video lag issue
+2. Fixed Video tearing issue
+3. Fixed MIPI timing issue
+
+Hotfixes:
+1. teeos: fix pkcs11-tool for ECB/CBC/CTR with redundant output length
+2. npu: fix meta-neural-network URL
+3. kernel: fix audio fw and video fw crash
+
+Known Issues:
+1. qt5 is only compatible with panfrost GPU driver
+- It ARM Mali GPU driver is preferred, please make following changes:
+-- v2.2.0: remove QT packages in recipes-graphics/images/core-image-weston.bbappend
+-- v2.2.1: do not enable qt MACHINE_FEATURES in conf/local.conf
+
+
+2024-11-04 Yocto Scarthgap SDK with prebuilt rootfs and secure boot support
+COMMIT="d29d3fa19d"
+
+New Features:
+1. debian-image: Support prebuilt Debian/Ubuntu rootfs
+2. Support overlayfs root setup
+3. Support OpenCL in libmali
+4. rtd1619b: Support mipi display
+5. rtd1619b eMMC: Support secure boot with TEEOS
+6. [V4L2]Support 4K vertical video
+
+Changes:
+1. Update PCPU FW: pcpu_fw_version: Oct 28 202411:53:22
+2. [V4L2]Pass H264/H265/VP8/VP9/AV1 video_decode_accelerator_tests
+3. [V4L2]Refine v4l2 release flow
+
+Fixed Bugs:
+1. kernel: Fix pcie phy connection issues on S3 suspend resume
+2. kernel: Fix S5 wakeup issue: NASPRJ-889
+3. [V4L2]Fix memory leakage issue
+4. [V4L2]Fix video roll back issue
+5. [V4L2]Fix specific vp9 decode failure issue
+6. [V4L2]Fix Youtube trickplay failure issue
+
+
+2024-09-20 Yocto Scarthgap SDK for rtd1619b and rtd1319
+COMMIT="572d2482c4"
+
+New Features:
+1. Support rtd1619b SPI-NOR + SDMMC
+- Use the same WIC image as eMMC one
+- conf: bleedingedge-rtd1619b*
+-- one image for eMMC 4GB/2GB DDR config
+- conf: realtekevb-rtd1619b
+-- one image for 2 boards and 2GB/4GB DDR config
+-- rtd1619b-bleedingedge-emmc and rtd1619b-backinblack
+-- selected by GPIO_74 and GPIO_72
+2. Support rtd1319 SPI-NOR + SDMMC
+3. rescuefs: nas-loader_a: support both wic and wic.xz
+- wic: generate wic.xz as well
+- Support download wic.xz image from network
+-- command: nc IP_ADDR 16198 < yocto.wic.xz
+4. Include NPU SDK v3.2 for rtd1619b
+
+Changes:
+1. rtd1619b: default to use audio out on acpu instead of HiFi
+2. u-boot: usb: rtd1619b: read port config from dtb

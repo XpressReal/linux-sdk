@@ -1,0 +1,4 @@
+patch 001-dts-mipi-only-mode-for-gamepad-on-backinblack.patch
+patch 002-kernel-modify-i2c5-400k-signal.patch
+
+kconf hardware gamepad.cfg

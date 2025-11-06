@@ -1,0 +1,93 @@
+/**
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (c) 2024 RealTek Inc
+ */
+
+#ifndef _RTK_LVDS_REG_H
+#define _RTK_LVDS_REG_H
+
+/**
+ * SYS_PLL_LVDS_CTRL0
+ */
+
+#define LVDS_CTRL3 0x00c
+#define LVDS_CTRL4 0x010
+#define LVDS_CTRL5 0x014
+#define LVDS_CTRL6 0x018
+
+#define LVDS_CTRL8 0x020
+#define LVDS_CTRL9 0x024
+/**
+ * SYS_PLL_SSC_DIG_LVDS1_CTRL0
+ */
+
+#define DIG_LVDS1_CTRL0 0x000
+#define DIG_LVDS1_CTRL6 0x018
+
+#define DIG_LVDS2_CTRL0 0x020
+#define DIG_LVDS2_CTRL6 0x038
+
+/**
+ * PIF_TIMEGEN_CTRL
+ */
+
+#define PIF_TIMEGEN_CTRL 0x000
+#define PIF_DH_WIDTH 0x004
+#define PIF_DH_TOTAL 0x008
+#define PIF_DH_DEN_START_END 0x00c
+#define PIF_DV_DEN_START_END_FIELD1 0x010
+#define PIF_DV_TOTAL 0x018
+#define PIF_DV_VS_START_END_FIELD1 0x01c
+
+/**
+ * PIF_1_TIMEGEN_CTRL
+ */
+
+#define PIF_1_TIMEGEN_CTRL 0x000
+#define PIF_1_DH_WIDTH 0x004
+#define PIF_1_DH_TOTAL 0x008
+#define PIF_1_DH_DEN_START_END 0x00c
+#define PIF_1_DV_DEN_START_END_FIELD1 0x010
+#define PIF_1_DV_TOTAL 0x018
+#define PIF_1_DV_VS_START_END_FIELD1 0x01c
+
+/**
+ * LVDSOUT_LVDS_CTRL1
+ */
+
+#define LVDSOUT_LVDS_CTRL1 0x000
+#define LVDSOUT_LVDS_CTRL2 0x004
+
+/**
+ * LVDSOUT_1_LVDS_CTRL1
+ */
+
+#define LVDSOUT_1_LVDS_CTRL1 0x000
+#define LVDSOUT_1_LVDS_CTRL2 0x004
+
+/**
+ * AIF_AIF_CTRL0
+ */
+
+#define AIF_AIF_CTRL4 0x018
+#define AIF_AIF_CTRL5 0x01c
+
+/**
+ * AIF_1_AIF_CTRL1
+ */
+
+#define AIF_1_AIF_CTRL5 0x008
+
+/**
+ * LVDSOUT_ASYNC_FIFO_POWER
+ */
+
+#define LVDSOUT_ASYNC_FIFO_POWER 0x000
+
+/**
+ * LVDSOUT_1_ASYNC_FIFO_POWER
+ */
+
+#define LVDSOUT_1_ASYNC_FIFO_POWER 0x000
+
+#endif /* _RTK_LVDS_REG_H */

@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1861.dtsi"
+#include <dt-bindings/soc/realtek,pm.h>
+
+/* debug console (J1) */
+&uart0 {
+	status = "okay";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	//realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port1 {
+	//realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	status = "okay";
+};
+
+&usb_port4 {
+	dwc3@150000 {
+		phys = <&usb1_u2phy>;
+		phy-names = "usb2-phy";
+		maximum-speed = "high-speed";
+	};
+};
+
+&emmc {
+	hs400_force_tuning = <0x1>;
+	status = "okay";
+};
+
+&psci {
+	status = "disabled";
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&irda {
+	status = "okay";
+};
+
+&rtk_pm {
+	wakeup-flags = <NORMAL_MODE>;
+	wakeup-gpio-list = <18 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>,
+			   <31 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>;
+	wakeup-timer = <0>;
+	status = "okay";
+};
+
+&rtk_smcc {
+	status = "okay";
+};
+
+&i2c_1 {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+};
+
+&dlsr_rproc {
+	status = "disabled";
+};
+
+&vcpu_rproc {
+	status = "disabled";
+};
+
+&vcpu_rpmsg {
+	status = "disabled";
+};
+
+&cma_tp_ssc2 {
+	status = "disabled";
+};
+
+&cma_video_dsc5 {
+	status = "disabled";
+};
+
+&cma_ota_dsc8 {
+	status = "disabled";
+};
+
+&cma_fwstack_ssc4 {
+	status = "disabled";
+};
+
+&cma_vo_s_dsc3 {
+	status = "disabled";
+};
+
+&cma_hifi_b1p5 {
+	alloc-ranges=<0x0 0x00000000 0x0 0x20000000>;
+};

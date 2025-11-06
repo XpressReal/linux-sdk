@@ -1,0 +1,35 @@
+From 14f2583d8fd707d33728f8c840adf3894cf82672 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Thu, 7 Aug 2025 10:38:13 +0800
+Subject: [PATCH] fix missing qsize implemention in python 3.12
+
+---
+ kvmd/tools.py | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/kvmd/tools.py b/kvmd/tools.py
+index 6cc477d7..e744ae6e 100644
+--- a/kvmd/tools.py
++++ b/kvmd/tools.py
+@@ -67,11 +67,15 @@ def swapped_kvs(dct: dict[_DictKeyT, _DictValueT]) -> dict[_DictValueT, _DictKey
+ 
+ 
+ # =====
+-def clear_queue(q: (multiprocessing.queues.Queue | asyncio.Queue)) -> None:  # pylint: disable=invalid-name
+-    for _ in range(q.qsize()):
++def clear_queue(q):
++    """
++    Safely clears all items from a multiprocessing.Queue without relying on qsize(),
++    which is not implemented on some platforms (e.g. Linux with Python 3.12+).
++    """
++    while True:
+         try:
+             q.get_nowait()
+-        except (queue.Empty, asyncio.QueueEmpty):
++        except queue.Empty:
+             break
+ 
+ 
+-- 
+2.34.1
+

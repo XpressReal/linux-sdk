@@ -1,0 +1,64 @@
+From 1987b8c03479aebad660002ec7c1fe278d7f78c7 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 9 May 2025 17:43:22 +0800
+Subject: [PATCH 1/1] Keeps HDR info even can't parse SEI
+Upstream-Status: Inappropriate [rtk specific]
+
+Change-Id: I5d8fdc565dcfc9dea68e40e2c047c8fde5813ca9
+---
+ gst/videoparsers/gsth265parse.c | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/gst/videoparsers/gsth265parse.c b/gst/videoparsers/gsth265parse.c
+index 0fb4652..f2489e4 100644
+--- a/gst/videoparsers/gsth265parse.c
++++ b/gst/videoparsers/gsth265parse.c
+@@ -2469,6 +2469,22 @@ gst_h265_parse_update_src_caps (GstH265Parse * h265parse, GstCaps * caps)
+         (&h265parse->mastering_display_info, caps)) {
+       GST_WARNING_OBJECT (h265parse,
+           "Couldn't set mastering display info to caps");
++    } else if  (h265parse->mastering_display_info_state ==
++        GST_H265_PARSE_SEI_EXPIRED) {
++      src_caps = gst_pad_get_current_caps (GST_BASE_PARSE_SRC_PAD (h265parse));
++      if (src_caps) {
++        GstStructure *src_caps_str = gst_caps_get_structure (src_caps, 0);
++
++        if (gst_structure_has_field (src_caps_str, "mastering-display-info")) {
++          gst_video_mastering_display_info_add_to_caps
++          (&h265parse->mastering_display_info, caps);
++          GST_INFO_OBJECT (h265parse,
++          "Skipping expired mastering display info, retaining previous caps");
++        }
++      }
++
++      if (src_caps)
++        gst_caps_unref (src_caps);
+     }
+ 
+     if (s)
+@@ -2482,6 +2498,22 @@ gst_h265_parse_update_src_caps (GstH265Parse * h265parse, GstCaps * caps)
+         (&h265parse->content_light_level, caps)) {
+       GST_WARNING_OBJECT (h265parse,
+           "Couldn't set content light level to caps");
++    } else if  (h265parse->content_light_level_state ==
++        GST_H265_PARSE_SEI_EXPIRED) {
++      src_caps = gst_pad_get_current_caps (GST_BASE_PARSE_SRC_PAD (h265parse));
++      if (src_caps) {
++        GstStructure *src_caps_str = gst_caps_get_structure (src_caps, 0);
++
++        if (gst_structure_has_field (src_caps_str, "content-light-level")) {
++          gst_video_content_light_level_add_to_caps
++          (&h265parse->content_light_level, caps);
++          GST_INFO_OBJECT (h265parse,
++          "Skipping expired content light level, retaining previous caps");
++        }
++      }
++
++      if (src_caps)
++        gst_caps_unref (src_caps);
+     }
+ 
+     src_caps = gst_pad_get_current_caps (GST_BASE_PARSE_SRC_PAD (h265parse));
+-- 
+2.34.1
+

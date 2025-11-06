@@ -1,0 +1,153 @@
+From ffb06a5459ca3f6b8aca52bb8c9ed866383e8ff3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 23 Jul 2025 03:32:04 -0400
+Subject: [PATCH] gpu: drm: fix black screen issue when change tv system
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c | 22 ++++++++++++++++++++++
+ drivers/gpu/drm/realtek/rtk_drm_crtc.h |  2 ++
+ drivers/gpu/drm/realtek/rtk_hdmi.c     | 10 ++++++++++
+ 3 files changed, 34 insertions(+)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 0dd14a9907ca..55b5bc2e1850 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -33,7 +33,9 @@
+ #include "rtk_drm_crtc.h"
+ #include "rtk_drm_plane.h"
+ 
++#if !defined(CONFIG_YOCTO_PLATFORMS)
+ #define to_rtk_crtc(s) container_of(s, struct rtk_drm_crtc, crtc)
++#endif
+ #define to_rtk_crtc_state(s) container_of(s, struct rtk_crtc_state, base)
+ 
+ #ifdef CONFIG_CHROME_PLATFORMS
+@@ -320,6 +322,7 @@ static bool rtk_crtc_mode_fixup(struct drm_crtc *crtc,
+ 	return true;
+ }
+ 
++#if !defined(CONFIG_YOCTO_PLATFORMS)
+ static int rtk_crtc_atomic_check(struct drm_crtc *crtc,
+ 				struct drm_atomic_state *old_crtc_state)
+ {
+@@ -357,6 +360,7 @@ static int rtk_crtc_atomic_check(struct drm_crtc *crtc,
+ 
+ 	return 0;
+ }
++#endif
+ 
+ static void rtk_crtc_atomic_flush(struct drm_crtc *crtc,
+ 				struct drm_atomic_state *old_crtc_state)
+@@ -421,7 +425,9 @@ static void rtk_crtc_atomic_disable(struct drm_crtc *crtc,
+ 
+ static const struct drm_crtc_helper_funcs rtk_crtc_helper_funcs = {
+ 	.mode_fixup = rtk_crtc_mode_fixup,
++#if !defined(CONFIG_YOCTO_PLATFORMS)
+ 	.atomic_check = rtk_crtc_atomic_check,
++#endif
+ 	.atomic_flush = rtk_crtc_atomic_flush,
+ 	.atomic_begin = rtk_crtc_atomic_begin,
+ 	.atomic_enable = rtk_crtc_atomic_enable,
+@@ -466,6 +472,20 @@ irqreturn_t rtk_crtc_isr(int irq, void *dev_id)
+ 	return IRQ_HANDLED;
+ }
+ 
++static void rtk_crtc_change_tv_system(struct drm_crtc *crtc)
++{
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++	for (int i = 0; i < rtk_crtc->plane_count; i++) {
++		struct rtk_drm_plane *rtk_plane = &rtk_crtc->nplanes[i];
++
++		rtk_plane->disp_win.videoWin.x = 0;
++		rtk_plane->disp_win.videoWin.y = 0;
++		rtk_plane->disp_win.videoWin.width = 0;
++		rtk_plane->disp_win.videoWin.height = 0;
++	}
++	return;
++}
++
+ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ {
+ 	struct platform_device *pdev = to_platform_device(dev);
+@@ -640,6 +660,8 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 		goto err_cleanup_all;
+ 	}
+ 
++	rtk_crtc->change_tv_system = rtk_crtc_change_tv_system;
++
+ 	rtk_crtc->present_time_prop = drm_property_create_range(drm, DRM_MODE_PROP_ATOMIC,
+ 					"expectedPresentTime", 0, 0xffffffffffffffff);
+ 	drm_object_attach_property(&rtk_crtc->crtc.base, rtk_crtc->present_time_prop, 0);
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.h b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+index 18e0101212ee..3059d0a94781 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+@@ -14,6 +14,7 @@
+ #define OVERLAY_PLANE_MAX	2
+ #define BUFLOCK_MAX		10
+ 
++#define to_rtk_crtc(s) container_of(s, struct rtk_drm_crtc, crtc)
+ struct rtk_drm_crtc;
+ 
+ enum {
+@@ -114,6 +115,7 @@ struct rtk_drm_crtc {
+ 	enum display_panel_usage display_panel_usage;
+ 	ktime_t begin;
+ 	ktime_t completed;
++	void (*change_tv_system)(struct drm_crtc *crtc);
+ };
+ 
+ struct rtk_crtc_state {
+diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.c b/drivers/gpu/drm/realtek/rtk_hdmi.c
+index f29f39849bdc..ebf25591d4ca 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdmi.c
++++ b/drivers/gpu/drm/realtek/rtk_hdmi.c
+@@ -33,6 +33,7 @@
+ #include "rtk_hdmi_reg.h"
+ #include "rtk_hdmi_new_reg.h"
+ #include "rtk_crt_reg.h"
++#include "rtk_drm_crtc.h"
+ 
+ #define I2C_BUS_ID 1
+ 
+@@ -2142,6 +2143,9 @@ static void hdmitx_set_video_timing(struct rtk_hdmi *hdmi,
+ 	u8 avi_buffer[HDMI_INFOFRAME_SIZE(AVI)];
+ 	unsigned int tmds_config;
+ 	bool is_fractional;
++	struct drm_connector *connector = &hdmi->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 
+ 	memset_io(&cur_tvsystem, 0, sizeof(cur_tvsystem));
+ 	memset_io(&tvsystem, 0, sizeof(tvsystem));
+@@ -2235,6 +2239,7 @@ static void hdmitx_set_video_timing(struct rtk_hdmi *hdmi,
+ 
+ 	rpc_set_tv_system(hdmi->rpc_info, &tvsystem);
+ 
++	rtk_crtc->change_tv_system(crtc);
+ 	if (tmds_config)
+ 		send_scdc_tmdsconfig(hdmi, mode, tmds_config);
+ 
+@@ -2246,6 +2251,9 @@ static void rtk_hdmi_set_display_format(struct rtk_hdmi *hdmi,
+ 	struct rpc_display_output_format cur_format, format;
+ 	unsigned char phy_state;
+ 	int ret;
++	struct drm_connector *connector = &hdmi->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 
+ 	memset_io(&cur_format, 0, sizeof(cur_format));
+ 	memset_io(&format, 0, sizeof(format));
+@@ -2308,6 +2316,8 @@ static void rtk_hdmi_set_display_format(struct rtk_hdmi *hdmi,
+ 	}
+ 
+ 	ret = rpc_set_display_format(hdmi->rpc_info, &format);
++
++	rtk_crtc->change_tv_system(crtc);
+ 	if (ret)
+ 		dev_err(hdmi->dev, "Fail to set display_format, ret=%d", ret);
+ 
+-- 
+2.34.1
+

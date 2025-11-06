@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1920S Smallville EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1920s-smallville.dtsi"
+
+/ {
+	compatible = "realtek,smallville", "realtek,rtd1920s";
+	model = "Realtek Smallville EVB (4GB Bring-up)";
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=11 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+	};
+
+	memory: memory@40000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x7ffb0000>,
+		      <0x00000000 0x8a100000 0x00000000 0x0def0000>,
+		      <0x00000000 0x98700000 0x00000000 0x07900000>,
+		      <0x00000000 0xa1000000 0x00000000 0x5e000000>;
+	};
+};
+
+&sound {
+	status = "okay";
+};
+
+&audio_out {
+	status = "okay";
+};
+
+&irda {
+	status = "okay";
+};
+
+&dlsr_rproc {
+	only-load-fw;
+	need-ext-fw;
+	status = "okay";
+};
+
+&hifi_rproc {
+	is-booted;
+	need-ext-fw;
+	status = "okay";
+};
+
+&kr4_rproc {
+	is-booted;
+	status = "okay";
+};
+
+&hifi_rpmsg {
+	rproc = <&hifi_rproc>;
+	/delete-property/ skip-handshake;
+};
+
+&display_subsystem {
+	status = "okay";
+	ports = <&vo0_out>, <&vo2_out>, <&vo1_out>;
+	krpc-second = <1>;
+};
+
+&vo1 {
+	status = "disabled";
+};
+
+&vo2 {
+	status = "okay";
+};
+
+&dp {
+	status = "okay";
+	/*extcon = <&usb1_u3phy>;*/
+};
+
+&edp {
+	status = "disabled";
+	assr-en = <1>;
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "okay";
+	};
+
+	riscv-fw@5000000 {
+		reg = <0x0 0x05000000 0x0 0x03a00000>;  /* riscv FW 58MB */
+		no-map;
+	};
+
+	cluster-hifi-vo@40000000 {
+		reg = <0x0 0x40000000 0x0 0x00040000>;  /* Cluster to Hifi vo 256kb */
+		no-map;
+	};
+
+	tee@10000000 {
+		status = "okay";
+	};
+
+	bootlogo_reserved: buffer@2f700000 {
+		status = "okay";
+	};
+
+	linux,cma {
+		alloc-ranges=<0x0 0x00000000 0x0 0x40000000>;
+		size = <0x0 0x04000000>; /* 64M */
+	};
+
+	cma_vo_dsc3:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x0c000000>;		    /* 192M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x20000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	cma_tp_ssc2:tp_ssc2 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x02000000>;		    /* 32M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x00000000 0x0 0x20000000>;
+		reusable;
+	};
+
+	cma_audio_ssc1:audio_ssc1 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_video_dsc5:video_dsc5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x08000000>;		    /* 128M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x30000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	cma_ao_ssc6:ao_ssc6 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_ota_dsc8:ota_dsc8 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x04000000>;		    /* 64M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_fwstack_ssc4:fwstack_ssc4 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x00c00000>;		    /* 12M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x00000000 0x0 0x1fc00000>;
+		reusable;
+	};
+
+	cma_hifi_b1p5:hifi_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x04000000>;		    /* 64M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x40000000 0x0 0x20000000>;
+		reusable;
+	};
+
+	cma_vo_s_dsc3:vo_s_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x13000000>;		    /* 304M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x40000000 0x0 0x40000000>;
+		reusable;
+	};
+
+	/delete-node/linux,cma_1;
+	/delete-node/linux,cma_2;
+	/delete-node/bl31-mem@10001000;
+};
+
+&rtk_tee_mem {
+	status = "okay";
+};
+
+&i2c_4 {
+	status = "okay";
+
+	rts5452@68 {
+		compatible = "rtk-rts5452";
+		reg = <0x68>;
+		notify-gpios = <&gpio 61 GPIO_PULL_UP>;
+
+		orientation-switch = <&usb1_u3phy>;
+		mode-switch = <&usb1_u3phy>;
+	};
+};
+
+&i2c_6 {
+	pinctrl-0 = <&i2c6_loc1_pins>, <&i2c6_loc1_sel_pins>;
+	status = "disable";
+};
+
+&watchdog {
+	realtek,ov-rstb-oe = <0x00000000>;
+};

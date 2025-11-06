@@ -1,0 +1,22 @@
+diff --git a/mount.sh b/mount.sh
+index eb84a468be..609d4850f7 100644
+--- a/mount.sh
++++ b/mount.sh
+@@ -85,9 +85,16 @@ automount_systemd() {
+ 
+     # If filesystemtype is vfat, change the ownership group to 'disk', and
+     # grant it with  w/r/x permissions.
++    # vfat/exfat/ntfs: Use utf8 encoding
+     case $ID_FS_TYPE in
+     vfat|fat)
+-        MOUNT="$MOUNT -o umask=007,gid=`awk -F':' '/^disk/{print $3}' /etc/group`"
++        MOUNT="$MOUNT -o utf8,shortname=mixed,umask=007,gid=`awk -F':' '/^disk/{print $3}' /etc/group`"
++        ;;
++    exfat)
++        MOUNT="$MOUNT -o utf8"
++        ;;
++    ntfs3)
++        MOUNT="$MOUNT -o iocharset=utf8,force"
+         ;;
+     swap)
+         return ;;

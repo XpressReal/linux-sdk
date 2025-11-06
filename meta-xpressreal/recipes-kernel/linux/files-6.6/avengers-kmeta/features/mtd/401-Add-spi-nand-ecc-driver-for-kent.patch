@@ -1,0 +1,40 @@
+From 99721729e3eeb2dd260c9ef03dfcc2711b4dd277 Mon Sep 17 00:00:00 2001
+From: Jyan Chou <jyanchou@realtek.com>
+Date: Thu, 24 Oct 2024 14:38:56 +0800
+Subject: [PATCH 349/611] mtd: nand: spi: Add spi nand ecc driver for kent
+
+Change-Id: Ibc6157e5459a795a0ef06d8e283576a5695fff03
+---
+ drivers/mtd/nand/Kconfig   |  6 ++++
+ drivers/mtd/nand/Makefile  |  1 +
+ 2 files changed, 70 insertions(+)
+
+diff --git a/drivers/mtd/nand/Kconfig b/drivers/mtd/nand/Kconfig
+index 5b0c2c95f10c..6919965e6954 100644
+--- a/drivers/mtd/nand/Kconfig
++++ b/drivers/mtd/nand/Kconfig
+@@ -61,6 +61,12 @@ config MTD_NAND_ECC_MEDIATEK
+ 	help
+ 	  This enables support for the hardware ECC engine from Mediatek.
+ 
++config MTD_NAND_REALTEK_ECC
++	tristate "Realtek ECC DRIVER"
++	depends on HAS_IOMEM
++	select MTD_NAND_ECC
++	help
++	  This enables support for the hardware ECC engine from Realtek.
+ endmenu
+ 
+ endmenu
+diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
+index 19e1291ac4d5..d33befccba5b 100644
+--- a/drivers/mtd/nand/Makefile
++++ b/drivers/mtd/nand/Makefile
+@@ -12,3 +12,4 @@ nandcore-$(CONFIG_MTD_NAND_ECC) += ecc.o
+ nandcore-$(CONFIG_MTD_NAND_ECC_SW_HAMMING) += ecc-sw-hamming.o
+ nandcore-$(CONFIG_MTD_NAND_ECC_SW_BCH) += ecc-sw-bch.o
+ nandcore-$(CONFIG_MTD_NAND_ECC_MXIC) += ecc-mxic.o
++nandcore-$(CONFIG_MTD_NAND_REALTEK_ECC) += ecc-rtk.o
+-- 
+2.47.0
+

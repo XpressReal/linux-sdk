@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "Realtek NPU_NPP driver"
+
+config RTK_NPP
+        tristate "RTK NPP Support"
+        depends on VIDEO_DEV
+        depends on HAS_DMA
+        select VIDEOBUF2_DMA_CONTIG
+        select VIDEOBUF2_VMALLOC
+        select V4L2_CAPTURE_DEV
+        select V4L2_MEM2MEM_DEV
+	default n
+	help
+		This option enables support for the Realtek NPU (Neural Processing Unit)
+		NPP (Neural Processing Pipeline) V4L2 (Video for Linux) driver.
+		The RTK NPP driver provides capabilities for video processing using Realtek's
+		NPU, which is particularly useful for applications requiring hardware-accelerated
+		video encoding, decoding, and other video processing tasks.
+		This driver depends on the V4L2 framework and requires DMA (Direct Memory Access)
+		capabilities. It also selects necessary components like VIDEOBUF2_DMA_CONTIG for
+		contiguous DMA buffers and V4L2_CAPTURE_DEV for capture video device support or
+		V4L2_MEM2MEM_DEV for memory-to-memory video device support .
+		If you are developing or using applications that need to leverage Realtek's NPU for
+		video processing, say Y or M here. Otherwise, it is safe to say N.

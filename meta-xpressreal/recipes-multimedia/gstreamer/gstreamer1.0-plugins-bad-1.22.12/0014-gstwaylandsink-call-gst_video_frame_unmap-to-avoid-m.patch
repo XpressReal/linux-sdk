@@ -1,0 +1,26 @@
+From 5b0b10586e1b789d88c519012098f80d59663704 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 26 Jun 2025 06:43:01 -0400
+Subject: [PATCH] gstwaylandsink: call gst_video_frame_unmap to avoid memory
+ leak
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 8c2f2ce..7d825ef 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -357,6 +357,7 @@ static void gst_wayland_sink_clear_buf(GstWaylandSink *self)
+   plane = GST_VIDEO_FRAME_PLANE_DATA(&dst, 0);
+   size = GST_VIDEO_FRAME_SIZE(&dst);
+   memset(plane, 0, size);
++  gst_video_frame_unmap (&dst);
+   gst_buffer_replace (&self->last_buffer, to_render);
+   render_last_buffer (self, FALSE);
+   gst_buffer_unref (to_render);
+-- 
+2.34.1
+

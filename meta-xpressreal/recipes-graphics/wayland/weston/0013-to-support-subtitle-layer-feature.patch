@@ -1,0 +1,88 @@
+From ab9b3f722f276d26d0f879c802b01c1442b427f3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 17 Dec 2024 08:40:32 +0800
+Subject: [PATCH] to support subtitle layer feature
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c                   |  1 +
+ include/libweston/libweston.h       |  1 +
+ libweston/compositor.c              | 11 +++++++----
+ libweston/renderer-gl/gl-renderer.c |  8 +++++++-
+ 4 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 5bd8bfe..8550a5f 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3079,6 +3079,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 					   &config.use_sw_cursor, false);
+ 
+ 	weston_config_section_get_bool(section, "dmabuf-v1-overlay", &c->dmabuf_v1_overlay, false);
++	weston_config_section_get_bool(section, "full-damage", &c->full_damage, false);
+ 	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
+ 
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index cfeb0b2..fee5f33 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1524,6 +1524,7 @@ struct weston_compositor {
+ 	bool transparent_fade_layer;
+ 	bool gbm_afbc;
+ 	bool found_drm_fd;
++	bool full_damage;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index 96c15a4..f74b770 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -3106,10 +3106,13 @@ view_update_visible(struct weston_view *view,
+                              pixman_region32_t *opaque)
+ {
+ 	assert(!view->transform.dirty);
+-
+-	pixman_region32_subtract(&view->visible, &view->transform.boundingbox,
+-				 opaque);
+-	pixman_region32_union(opaque, opaque, &view->transform.opaque);
++	if (view->surface->compositor->full_damage == true) {
++		pixman_region32_copy(&view->visible, &view->transform.boundingbox);
++	} else {
++		pixman_region32_subtract(&view->visible, &view->transform.boundingbox,
++					 opaque);
++		pixman_region32_union(opaque, opaque, &view->transform.opaque);
++	}
+ }
+ 
+ 
+diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
+index 92faee6..4b40452 100644
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -1401,7 +1401,12 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
+ 
+ 	wl_list_for_each_reverse(pnode, &output->paint_node_z_order_list,
+ 				 z_order_link) {
+-		if (pnode->plane == &output->primary_plane)
++		bool need_paint = true;
++		if (strncmp(pnode->view->surface->app_id, "rtk_video", 9) == 0) {
++			need_paint = false;
++		}
++
++		if (need_paint == true && pnode->plane == &output->primary_plane)
+ 			draw_paint_node(pnode, damage, &scissor_region);
+ 	}
+ 	pixman_region32_fini(&scissor_region);
+@@ -4028,6 +4033,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRA8888);
+ #if __BYTE_ORDER == __LITTLE_ENDIAN
+ 	if (gr->has_texture_type_2_10_10_10_rev) {
+ 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR2101010);
+-- 
+2.34.1
+

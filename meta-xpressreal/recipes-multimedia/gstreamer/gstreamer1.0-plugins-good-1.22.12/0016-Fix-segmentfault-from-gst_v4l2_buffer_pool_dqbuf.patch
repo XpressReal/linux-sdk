@@ -1,0 +1,41 @@
+From 5f4149c4d66837fbb6d3d84935d97b17101ff948 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Tue, 13 May 2025 12:35:57 +0800
+Subject: [PATCH 1/1] Fix segmentfault from gst_v4l2_buffer_pool_dqbuf
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2bufferpool.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index d4456d4..14d8cb0 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1291,6 +1291,11 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+ 
+   res = gst_v4l2_allocator_dqbuf (pool->vallocator, &group);
+ 
++  if (res == GST_V4L2_FLOW_LAST_BUFFER)
++    goto eos;
++  if (res != GST_FLOW_OK)
++    goto dqbuf_failed;
++
+   if (group->buffer.flags & V4L2_BUF_FLAG_ERROR) {
+     if (V4L2_TYPE_IS_OUTPUT (obj->type))
+       g_signal_emit (pool, gst_v4l2_buffer_pool_signals[OUTPUT_ERROR_DEQUEUED],
+@@ -1300,11 +1305,6 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+           0, (guint) group->buffer.timestamp.tv_sec);
+   }
+ 
+-  if (res == GST_V4L2_FLOW_LAST_BUFFER)
+-    goto eos;
+-  if (res != GST_FLOW_OK)
+-    goto dqbuf_failed;
+-
+   old_buffer_state =
+       g_atomic_int_and (&pool->buffer_state[group->buffer.index],
+       ~BUFFER_STATE_QUEUED);
+-- 
+2.34.1
+

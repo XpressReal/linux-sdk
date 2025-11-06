@@ -1,0 +1,38 @@
+From 5d2992c21b20cc327468348b8b4558ad81ebe82b Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 23 Jul 2025 16:40:59 +0800
+Subject: [PATCH 1/1] waylandsink: to support NV24 format
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c            | 2 +-
+ gst-libs/gst/wayland/gstwlvideoformat.c | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 670a9c2..96f325d 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -73,7 +73,7 @@ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define WL_VIDEO_FORMATS \
+     "{ BGRx, BGRA, RGBx, xBGR, xRGB, RGBA, ABGR, ARGB, RGB, BGR, " \
+     "RGB16, BGR16, YUY2, YVYU, UYVY, AYUV, NV12, NV21, NV16, NV61, " \
+-    "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308, P010_10LE }"
++    "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308, P010_10LE, NV24 }"
+ 
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+diff --git a/gst-libs/gst/wayland/gstwlvideoformat.c b/gst-libs/gst/wayland/gstwlvideoformat.c
+index 91e4b14..12cf601 100644
+--- a/gst-libs/gst/wayland/gstwlvideoformat.c
++++ b/gst-libs/gst/wayland/gstwlvideoformat.c
+@@ -74,6 +74,7 @@ static const wl_VideoFormat wl_formats[] = {
+   {WL_SHM_FORMAT_NV21, DRM_FORMAT_NV21, GST_VIDEO_FORMAT_NV21},
+   {WL_SHM_FORMAT_NV16, DRM_FORMAT_NV16, GST_VIDEO_FORMAT_NV16},
+   {WL_SHM_FORMAT_NV61, DRM_FORMAT_NV61, GST_VIDEO_FORMAT_NV61},
++  {WL_SHM_FORMAT_NV24, DRM_FORMAT_NV24, GST_VIDEO_FORMAT_NV24},
+   {WL_SHM_FORMAT_YUV410, DRM_FORMAT_YUV410, GST_VIDEO_FORMAT_YUV9},
+   {WL_SHM_FORMAT_YVU410, DRM_FORMAT_YVU410, GST_VIDEO_FORMAT_YVU9},
+   {WL_SHM_FORMAT_YUV411, DRM_FORMAT_YUV411, GST_VIDEO_FORMAT_Y41B},
+-- 
+2.34.1
+

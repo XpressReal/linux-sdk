@@ -1,0 +1,42 @@
+From 80f95edc732c29231b7574c43c420fa2cd42591f Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 21 Mar 2022 15:28:27 +0800
+Subject: [PATCH] common: Add PMIC, fss scan v2 and BIST Shmoo volt
+
+---
+ common/Kconfig  | 6 ++++++
+ common/Makefile | 7 +++++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/common/Kconfig b/common/Kconfig
+index 0f54819519..1c0817a495 100644
+--- a/common/Kconfig
++++ b/common/Kconfig
+@@ -1140,6 +1140,12 @@ endif # VPL_BLOBLIST
+ 
+ endmenu
+ 
++menu "Realtek freq and volt control"
++source "common/pmic/Kconfig"
++source "common/rtk_bsv/Kconfig"
++source "common/rtk_opp/Kconfig"
++endmenu
++
+ source "common/spl/Kconfig"
+ 
+ config IMAGE_SIGN_INFO
+diff --git a/common/Makefile b/common/Makefile
+index cdeadf7202..4cfaa5d6f9 100644
+--- a/common/Makefile
++++ b/common/Makefile
+@@ -105,3 +105,10 @@ obj-$(CONFIG_$(SPL_TPL_)STACKPROTECTOR) += stackprot.o
+ obj-$(CONFIG_SCP03) += scp03.o
+ 
+ obj-$(CONFIG_QFW) += qfw.o
++
++ifndef CONFIG_SPL_BUILD
++# rtk pmic
++obj-$(CONFIG_CMD_RTK_PMIC) += pmic/
++obj-y += rtk_bsv/
++obj-y += rtk_opp/
++endif

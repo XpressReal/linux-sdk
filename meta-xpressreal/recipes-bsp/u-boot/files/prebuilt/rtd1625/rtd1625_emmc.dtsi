@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	binman: binman {
+	emmc {
+		filename = "bind.bin";
+		allow-repack;
+		bootcode: section@1 {
+			size = <0x3B000>;
+			align-size = <0x1000>;
+			pad-byte = <0xff>;
+			scs_cert: blob@1 {
+				filename = "scs_certificate/SCS_Certificate.bin";
+				size = <0x400>;
+			};
+			scs_param: blob@2 {
+				filename = "scs_param/0000/SCS_Params_Area.dev.bin";
+				size = <0x200>;
+				align-size = <0x200>;
+			};
+			extrom: blob@3 {
+				filename = "extrom_dice_lib/Extrom_Dice_Lib_Area.bin";
+				size = <0x14200>;
+				align-size = <0x200>;
+			};
+			auxcode: blob@4 {
+				filename = "auxcode/Auxcode_Area.aiot.bin";
+				size = <0x26800>;
+				align-size = <0x200>;
+			};
+		};
+		section@2 {
+			filename = "trustfw.itb";
+			size = <0x96000>;
+			pad-byte = <0xff>;
+			align-size = <0x1000>;
+			fit {
+				description = "TrustFW fitImage for Kent";
+				fit,external-offset = <0x1000>;
+				fit,align = <0x1000>;
+
+				fitimages: images {
+					//size = <0x93000>;
+					atf_cert {
+						description = "atf certificate image";
+						type = "firmware";
+						arch = "arm64";
+						compression = "none";
+
+						blob {
+							size = <0x400>;
+							filename = "atf_certificate/ATF_Certificate.bin";
+						};
+					};
+					rtk_param {
+						description = "rtk param image";
+						type = "firmware";
+						arch = "arm64";
+						compression = "none";
+
+						blob {
+							size = <0x800>;
+							filename = "rtk_param/RTK_Params_Area.bin";
+						};
+					};
+					dram_init {
+						description = "dram init image";
+						type = "standalone";
+						arch = "arm64";
+						compression = "none";
+
+						blob {
+							size = <0x40000>;
+							filename = "dram_init/DRAM_Init_Area.bin";
+						};
+					};
+					bl31 {
+						description = "bl31 image";
+						type = "standalone";
+						arch = "arm64";
+						compression = "none";
+
+						blob {
+							size = <0x32000>;
+							filename = "bl31/BL31_Area.bin";
+						};
+					};
+				};
+			};
+		};
+		section@3 {
+			pad-byte = <0xff>;
+			blob@1 {
+				filename = "u-boot-spl.bin_pad";
+				size = <0x25800>;
+				align-size = <0x200>;
+			};
+			spl_sig: blob-ext@1 {
+				filename = "u-boot-spl.sig";
+				size = <0x200>; /* 256 */
+				optional;
+			};
+			blob@2 {
+				filename = "u-boot.img";
+			};
+		};
+		fdtmap {
+		};
+		image-header {
+			location = "end";
+		};
+	}; // eMMC image
+	};
+};

@@ -1,0 +1,278 @@
+From ef87bf29231eec0bf1b9332c3322a7e054412266 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Fri, 20 Jun 2025 02:09:44 -0400
+Subject: [PATCH] weston: to support display control for kms_ipc
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-internal.h |   2 +
+ libweston/backend-drm/drm.c          |   3 +-
+ libweston/backend-drm/kms.c          | 133 ++++++++++++++++++++++++---
+ 3 files changed, 124 insertions(+), 14 deletions(-)
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index e26f6bd..86ea9b2 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -715,6 +715,8 @@ struct drm_output {
+ 	pthread_t kms_ipc_thread;
+ 	bool kms_ipc_run;
+ 	int kms_ipc_socket;
++	bool is_disabled;
++	pthread_mutex_t kms_ipc_mutex;
+ };
+ 
+ void
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index df28d7a..c90fbe0 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -2330,7 +2330,7 @@ drm_output_enable(struct weston_output *base)
+ 	drm_output_print_modes(output);
+ 
+ 	output->kms_ipc_run = true;
+-
++	pthread_mutex_init(&output->kms_ipc_mutex, NULL);
+ 	pthread_create(&output->kms_ipc_thread, NULL, kms_ipc, output);
+ 	return 0;
+ 
+@@ -2430,6 +2430,7 @@ drm_output_disable(struct weston_output *base)
+ 	}
+ 
+ 	pthread_join(output->kms_ipc_thread, NULL);
++	pthread_mutex_destroy(&output->kms_ipc_mutex);
+ 
+ 	if (output->page_flip_pending || output->atomic_complete_pending) {
+ 		output->disable_pending = true;
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 1a4d0a5..9a3adb3 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -1177,6 +1177,12 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
+ 		h_ratio = (float)tv_current_mode->base.height / (float)current_mode->base.height;
+ 	}
+ 
++	if (output->is_disabled == true)
++	{
++		w_ratio = 0;
++		h_ratio = 0;
++	}
++
+ 	drm_debug(b, "\t\t[atomic] %s output %lu (%s) state\n",
+ 		  (*flags & DRM_MODE_ATOMIC_TEST_ONLY) ? "testing" : "applying",
+ 		  (unsigned long) output->base.id, output->base.name);
+@@ -1495,6 +1501,10 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 			continue;
+ 		if (mode == DRM_STATE_APPLY_SYNC)
+ 			assert(output_state->dpms == WESTON_DPMS_OFF);
++
++		if (output_state->output)
++			pthread_mutex_lock(&output_state->output->kms_ipc_mutex);
++
+ 		may_tear &= output_state->tear;
+ 		ret |= drm_output_apply_state_atomic(output_state, req, &flags);
+ 	}
+@@ -1519,6 +1529,17 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 		if (ret == 0)
+ 			drm_pending_state_clear_tearing(pending_state);
+ 	}
++
++	wl_list_for_each(output_state, &pending_state->output_list, link) {
++		if (output_state->output->virtual)
++			continue;
++		if (mode == DRM_STATE_APPLY_SYNC)
++			assert(output_state->dpms == WESTON_DPMS_OFF);
++
++		if (output_state->output)
++			pthread_mutex_unlock(&output_state->output->kms_ipc_mutex);
++    }
++
+ 	/* Test commits do not take ownership of the state; return
+ 	 * without freeing here. */
+ 	if (mode == DRM_STATE_TEST_ONLY) {
+@@ -1915,6 +1936,8 @@ enum kms_type {
+ 
+ enum kms_cmd_type {
+ 	CRTC_TV_MODE = 0,
++	CRTC_DPMS_MODE = 1,
++	CRTC_ACTIVE_RESET = 2,
+ 	UNKNOWN_CMD_TYPE = 300,
+ 	KMS_CMD_TYPE_COUNT,
+ };
+@@ -1928,7 +1951,7 @@ struct kms_ipc_info {
+ 
+ #define KMS_IPC_SOCKET_PATH "/tmp/kms_ipc.sock"
+ 
+-static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, drmModeAtomicReq *req, struct kms_ipc_info *info) {
++static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, struct kms_ipc_info *info) {
+ 	struct drm_device *device = output->device;
+ 	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
+ 	struct drm_mode *tv_current = NULL;
+@@ -1939,6 +1962,7 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, drmModeAtomicReq
+ 	float h_ratio = 1;
+ 	int ret = 0;
+ 	int crtc_id = info->cmd_value;
++	drmModeAtomicReq *req = NULL;
+ 
+ 	if (crtc_id != crtc->crtc_id) {
+ 		printf("%s:wrong crtc_id:%d\n", __func__, crtc_id);
+@@ -1955,6 +1979,8 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, drmModeAtomicReq
+ 
+ 	w_ratio = (float)tv_current->base.width / (float)current_mode->base.width;
+ 	h_ratio = (float)tv_current->base.height / (float)current_mode->base.height;
++	req = drmModeAtomicAlloc();
++
+ 	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, tv_current->blob_id);
+ 
+ 	plane = output->scanout_plane;
+@@ -1965,17 +1991,105 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, drmModeAtomicReq
+ 
+ 	if (ret != 0) {
+ 		printf("%s:add property fail\n", __func__);
++		drmModeAtomicFree(req);
++		return -1;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++	drmModeAtomicFree(req);
++	return 0;
++}
++
++static int kms_ipc_crtc_set_dpms_mode(struct drm_output *output, struct kms_ipc_info *info) {
++	struct drm_device *device = output->device;
++	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
++	struct drm_mode *tv_current = NULL;
++	float w_ratio = 1;
++	float h_ratio = 1;
++	int ret = 0;
++	struct drm_plane *plane = NULL;
++	drmModeAtomicReq *req = NULL;
++
++	if (output->base.tv_current_mode != NULL) {
++		tv_current = to_drm_mode(output->base.tv_current_mode);
++		w_ratio = (float)tv_current->base.width / (float)current_mode->base.width;
++		h_ratio = (float)tv_current->base.height / (float)current_mode->base.height;
++	}
++
++	plane = output->scanout_plane;
++	if (strcmp(info->cmd_str, "disable") == 0) {
++		output->is_disabled = true;
++		w_ratio = 0;
++		h_ratio = 0;
++	} else
++		output->is_disabled = false;
++
++	req = drmModeAtomicAlloc();
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X, plane->dest_x * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y, plane->dest_y * h_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W, plane->dest_w * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
++
++	if (ret != 0) {
++		printf("%s:add property fail\n", __func__);
++		drmModeAtomicFree(req);
+ 		return -1;
+ 	}
+ 
++	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++	drmModeAtomicFree(req);
+ 	return 0;
+ }
+ 
+-int kms_ipc_crtc_control(struct drm_output *output, drmModeAtomicReq *req, struct kms_ipc_info *info) {
++static int kms_ipc_crtc_active_reset(struct drm_output *output, struct kms_ipc_info *info) {
++	struct drm_device *device = output->device;
++	struct drm_crtc *crtc = output->crtc;
++	int ret = 0;
++	int crtc_id = info->cmd_value;
++	drmModeAtomicReq *req = NULL;
++
++	if (crtc_id != crtc->crtc_id) {
++		printf("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		return -1;
++	}
++
++	req = drmModeAtomicAlloc();
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 0);
++	if (ret != 0) {
++		printf("%s:active 0 fail\n", __func__);
++		drmModeAtomicFree(req);
++		return -1;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++	drmModeAtomicFree(req);
++
++	req = drmModeAtomicAlloc();
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
++	if (ret != 0) {
++		printf("%s:active 1 fail\n", __func__);
++		drmModeAtomicFree(req);
++		return -1;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++	drmModeAtomicFree(req);
++
++	return 0;
++}
++
++
++static int kms_ipc_crtc_control(struct drm_output *output, struct kms_ipc_info *info) {
+ 	int ret = -1;
+ 	switch (info->cmd_type) {
+ 		case CRTC_TV_MODE:
+-			ret = kms_ipc_crtc_set_tv_mode(output, req, info);
++			ret = kms_ipc_crtc_set_tv_mode(output, info);
++			break;
++		case CRTC_DPMS_MODE:
++			ret = kms_ipc_crtc_set_dpms_mode(output, info);
++			break;
++		case CRTC_ACTIVE_RESET:
++			ret = kms_ipc_crtc_active_reset(output, info);
+ 			break;
+ 		default:
+ 			break;
+@@ -1986,7 +2100,6 @@ int kms_ipc_crtc_control(struct drm_output *output, drmModeAtomicReq *req, struc
+ 
+ void *kms_ipc(void *data) {
+ 	struct drm_output *output = (struct drm_output *)data;
+-	struct drm_device *device = output->device;
+ 	struct sockaddr_un addr;
+ 	struct sockaddr_un clientaddr;
+ 	socklen_t addrlen = sizeof(clientaddr);
+@@ -2011,28 +2124,22 @@ void *kms_ipc(void *data) {
+ 	while(output->kms_ipc_run)
+ 	{
+ 		struct kms_ipc_info info = {0};
+-		drmModeAtomicReq *req = drmModeAtomicAlloc();
+ 		ret = recvfrom(output->kms_ipc_socket, &info, sizeof(struct kms_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
+ 		if (ret < 0) {
+ 			printf("recvfrom ret:%d\n", ret);
+-			drmModeAtomicFree(req);
+ 			continue;
+ 		}
+ 
++		pthread_mutex_lock(&output->kms_ipc_mutex);
+ 		switch (info.type) {
+ 			case CRTC_TYPE:
+-				ret = kms_ipc_crtc_control(output, req, &info);
++				ret = kms_ipc_crtc_control(output, &info);
+ 				break;
+ 			default:
+ 				break;
+ 		}
+ 
+-		if (ret == 0)
+-			drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
+-		else
+-			printf("add property fail\n");
+-
+-		drmModeAtomicFree(req);
++		pthread_mutex_unlock(&output->kms_ipc_mutex);
+ 	}
+ 
+ finish:
+-- 
+2.34.1
+

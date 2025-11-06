@@ -1,0 +1,22 @@
+diff --git a/arch/arm64/boot/dts/realtek/kent-audio.dtsi b/arch/arm64/boot/dts/realtek/kent-audio.dtsi
+index e762d704bcc6..e3bdf2e26eb3 100644
+--- a/arch/arm64/boot/dts/realtek/kent-audio.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent-audio.dtsi
+@@ -8,7 +8,7 @@
+ / {
+ 	sound: sound {
+ 		compatible = "realtek,rtk-alsa-hifi";
+-		loopback-secure-buf = <1>;
++		loopback-secure-buf = <0>;
+ 		realtek,krpc-agent = <&kr4_kernel_agent>,
+ 				     <&hifi_kernel_agent>;
+ 		status = "disabled";
+@@ -16,7 +16,7 @@ sound: sound {
+ 
+ 	sound1: sound1 {
+ 		compatible = "realtek,rtk-alsa-hifi-ao1";
+-		loopback-secure-buf = <1>;
++		loopback-secure-buf = <0>;
+ 		realtek,krpc-agent = <&kr4_kernel_agent>,
+ 				     <&hifi_kernel_agent>;
+ 		status = "disabled";

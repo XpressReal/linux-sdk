@@ -1,0 +1,32 @@
+From 6f2345d2a8a1428422127f065fc47ea896759306 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 13 Aug 2025 15:44:58 +0800
+Subject: [PATCH 22/22] Fix Bad first_access parameter for AC3
+Upstream-Status: Inappropriate [rtk specific]
+---
+ gst/audioparsers/gstac3parse.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/gst/audioparsers/gstac3parse.c b/gst/audioparsers/gstac3parse.c
+index 64b3ca3..99f78ca 100644
+--- a/gst/audioparsers/gstac3parse.c
++++ b/gst/audioparsers/gstac3parse.c
+@@ -724,8 +724,13 @@ gst_ac3_parse_chain_priv (GstPad * pad, GstObject * parent, GstBuffer * buf)
+     /* Length of data before first_access */
+     len = first_access - 1;
+ 
+-    if (len <= 0 || offset + len > size)
+-      goto bad_first_access_parameter;
++    if (len <= 0 || offset + len > size) {
++      GST_WARNING_OBJECT(GST_ELEMENT (ac3parse),
++        "Bad first_access: %d in buffer, "
++        "buffer size: %"G_GSIZE_FORMAT ", continuing parsing with adjusted length",
++        first_access, size);
++      len = size - offset;
++    }
+ 
+     subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
+     GST_BUFFER_DTS (subbuf) = GST_CLOCK_TIME_NONE;
+-- 
+2.34.1
+

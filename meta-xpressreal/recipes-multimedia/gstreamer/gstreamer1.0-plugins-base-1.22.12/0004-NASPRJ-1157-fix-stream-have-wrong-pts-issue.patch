@@ -1,0 +1,139 @@
+From 458a5df0b6a50b7137da89555b0b65038c68c0e6 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 22 Jul 2025 21:53:37 -0400
+Subject: [PATCH] NASPRJ-1157: fix avsync issue
+
+[Root Cause] If stream have no pts three time, continue using min_ts to reorder it.
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ gst-libs/gst/video/gstvideodecoder.c | 50 +++++++++++++++++++++++++++-
+ 1 file changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/gst-libs/gst/video/gstvideodecoder.c b/gst-libs/gst/video/gstvideodecoder.c
+index 26ae972..417a30d 100644
+--- a/gst-libs/gst/video/gstvideodecoder.c
++++ b/gst-libs/gst/video/gstvideodecoder.c
+@@ -314,6 +314,7 @@ GST_DEBUG_CATEGORY (videodecoder_debug);
+  * frame numbers and can be given special meaning */
+ #define REQUEST_SYNC_POINT_PENDING G_MAXUINT + 1
+ #define REQUEST_SYNC_POINT_UNSET G_MAXUINT64
++#define MAX_RECORD_MIN_TS_COUNT 2
+ 
+ enum
+ {
+@@ -466,6 +467,8 @@ struct _GstVideoDecoderPrivate
+    * from flush to first output */
+   GstClockTime last_reset_time;
+ #endif
++  gboolean interlaced;
++  gboolean record_min_ts_used[MAX_RECORD_MIN_TS_COUNT];
+ };
+ 
+ static GstElementClass *parent_class = NULL;
+@@ -786,6 +789,11 @@ gst_video_decoder_init (GstVideoDecoder * decoder, GstVideoDecoderClass * klass)
+       DEFAULT_AUTOMATIC_REQUEST_SYNC_POINT_FLAGS;
+ 
+   gst_video_decoder_reset (decoder, TRUE, TRUE);
++  for (int i = 0; i < MAX_RECORD_MIN_TS_COUNT; i++)
++  {
++    decoder->priv->record_min_ts_used[i] = FALSE;
++  }
++  decoder->priv->interlaced = FALSE;
+ }
+ 
+ static GstVideoCodecState *
+@@ -879,6 +887,8 @@ gst_video_decoder_setcaps (GstVideoDecoder * decoder, GstCaps * caps)
+   GstVideoDecoderClass *decoder_class;
+   GstVideoCodecState *state;
+   gboolean ret = TRUE;
++  gchar *str = NULL;
++  GstStructure *structure = NULL;
+ 
+   decoder_class = GST_VIDEO_DECODER_GET_CLASS (decoder);
+ 
+@@ -894,6 +904,20 @@ gst_video_decoder_setcaps (GstVideoDecoder * decoder, GstCaps * caps)
+       goto caps_not_changed;
+   }
+ 
++  structure = gst_caps_get_structure (caps, 0);
++
++  if (structure != NULL) {
++    str = gst_structure_get_string (structure, "interlace-mode");
++    if (str != NULL && strncmp(str, "progressive", strlen("progressive")))
++      decoder->priv->interlaced = TRUE;
++
++    if (decoder->priv->interlaced == FALSE) {
++      str = gst_structure_get_string (structure, "coded-picture-structure");
++      if (str != NULL && strncmp(str, "frame", strlen("frame")))
++        decoder->priv->interlaced = TRUE;
++    }
++  }
++
+   state = _new_input_state (caps);
+ 
+   if (G_UNLIKELY (state == NULL))
+@@ -2979,7 +3003,7 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+   GstVideoDecoderPrivate *priv = decoder->priv;
+   GList *l, *events = NULL;
+   gboolean sync;
+-
++  GstClockTime min_ts_1 = GST_CLOCK_TIME_NONE;
+ #ifndef GST_DISABLE_GST_DEBUG
+   GST_LOG_OBJECT (decoder, "n %d in %" G_GSIZE_FORMAT " out %" G_GSIZE_FORMAT,
+       priv->frames.length,
+@@ -3050,6 +3074,11 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+ 
+   /* PTS is expected montone ascending,
+    * so a good guess is lowest unsent DTS */
++  for (int i = MAX_RECORD_MIN_TS_COUNT - 1; i >= 1; i--) {
++    priv->record_min_ts_used[i] = priv->record_min_ts_used[i-1];
++  }
++  priv->record_min_ts_used[0] = FALSE;
++
+   {
+     GstClockTime min_ts = GST_CLOCK_TIME_NONE;
+     GstVideoCodecFrame *oframe = NULL;
+@@ -3074,6 +3103,7 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+       oframe->abidata.ABI.ts = frame->abidata.ABI.ts;
+     }
+ 
++    min_ts_1 = min_ts;
+     /* and set if needed;
+      * valid delta means we have reasonable DTS input */
+     /* also, if we ended up reordered, means this approach is conflicting
+@@ -3082,6 +3112,7 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+         !GST_CLOCK_TIME_IS_VALID (frame->pts) && !seen_none &&
+         GST_CLOCK_TIME_IS_VALID (priv->pts_delta)) {
+       frame->pts = min_ts + priv->pts_delta;
++      priv->record_min_ts_used[0] = TRUE;
+       GST_DEBUG_OBJECT (decoder,
+           "no valid PTS, using oldest DTS %" GST_TIME_FORMAT,
+           GST_TIME_ARGS (frame->pts));
+@@ -3123,6 +3154,23 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
+     }
+   }
+ 
++  if (GST_CLOCK_TIME_IS_VALID (priv->last_timestamp_out)) {
++    if (frame->pts < priv->last_timestamp_out) {
++// NASPRJ-1157
++      if (priv->record_min_ts_used[0] == FALSE && priv->interlaced == FALSE) {
++        gboolean replace_min_ts = TRUE;
++        for (int i = 1; i < MAX_RECORD_MIN_TS_COUNT; i++) {
++          if (priv->record_min_ts_used[i] == FALSE) {
++            replace_min_ts = FALSE;
++            break;
++          }
++        }
++
++        if (replace_min_ts == TRUE && GST_CLOCK_TIME_IS_VALID (min_ts_1))
++          frame->pts = min_ts_1;
++      }
++    }
++  }
+ 
+   if (frame->pts == GST_CLOCK_TIME_NONE) {
+     /* Last ditch timestamp guess: Just add the duration to the previous
+-- 
+2.34.1
+

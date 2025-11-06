@@ -1,0 +1,133 @@
+From abc5f46e6b4a1823d400847aab2cc75d2c5ef8fa Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 19 Dec 2024 18:34:42 +0800
+Subject: [PATCH] to support render rectangle on waylandsink
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c       | 21 ++++++++++++++++++++-
+ ext/wayland/gstwaylandsink.h       |  5 +++++
+ gst-libs/gst/wayland/gstwlwindow.c | 10 +++++++++-
+ gst-libs/gst/wayland/gstwlwindow.h |  1 +
+ 4 files changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 2f116bf..6d68fd1 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -191,6 +191,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+ static void
+ gst_wayland_sink_init (GstWaylandSink * self)
+ {
++  self->x = 0;
++  self->y = 0;
++  self->w = 0;
++  self->h = 0;
++  self->set_rect = FALSE;
+   g_mutex_init (&self->display_lock);
+   g_mutex_init (&self->render_lock);
+ }
+@@ -294,7 +299,8 @@ gst_wayland_sink_set_property (GObject * object,
+           FALSE);
+       break;
+     default:
+-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
++      if (!gst_video_overlay_set_property (object, PROP_LAST, prop_id, value))
++          G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+   }
+ }
+@@ -762,6 +768,12 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+       /* if we were not provided a window, create one ourselves */
+       self->window = gst_wl_window_new_toplevel (self->display,
+           &self->video_info, self->fullscreen, &self->render_lock);
++
++      if (self->set_rect == TRUE) {
++          self->window->set_rect = TRUE;
++          gst_wl_window_set_render_rectangle (self->window, self->x, self->y, self->w, self->h);
++      }
++
+       g_signal_connect_object (self->window, "closed",
+           G_CALLBACK (on_window_closed), self, 0);
+       gst_wl_window_set_rotate_method (self->window,
+@@ -1035,6 +1047,13 @@ gst_wayland_sink_set_render_rectangle (GstVideoOverlay * overlay,
+   g_return_if_fail (self != NULL);
+ 
+   g_mutex_lock (&self->render_lock);
++
++  self->x = x;
++  self->y = y;
++  self->w = w;
++  self->h = h;
++  self->set_rect = TRUE;
++
+   if (!self->window) {
+     g_mutex_unlock (&self->render_lock);
+     GST_WARNING_OBJECT (self,
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index 3243d8c..a53d29c 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -68,6 +68,11 @@ struct _GstWaylandSink
+   GstVideoOrientationMethod current_rotate_method;
+ 
+   struct wl_callback *callback;
++  gint x;
++  gint y;
++  gint w;
++  gint h;
++  gboolean set_rect;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/gst-libs/gst/wayland/gstwlwindow.c b/gst-libs/gst/wayland/gstwlwindow.c
+index 0023d4e..b91cd33 100644
+--- a/gst-libs/gst/wayland/gstwlwindow.c
++++ b/gst-libs/gst/wayland/gstwlwindow.c
+@@ -305,6 +305,8 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+       GST_ERROR ("Unable to get xdg_toplevel");
+       goto error;
+     }
++
++    xdg_toplevel_set_app_id (priv->xdg_toplevel, "rtk_video");
+     xdg_toplevel_add_listener (priv->xdg_toplevel,
+         &xdg_toplevel_listener, self);
+ 
+@@ -631,8 +633,9 @@ gst_wl_window_set_render_rectangle (GstWlWindow * self, gint x, gint y,
+     gint w, gint h)
+ {
+   GstWlWindowPrivate *priv = gst_wl_window_get_instance_private (self);
++  char buf_rect[256] = {0};
+ 
+-  if (priv->render_rectangle.x == x && priv->render_rectangle.y == y &&
++  if (self->set_rect == FALSE && priv->render_rectangle.x == x && priv->render_rectangle.y == y &&
+       priv->render_rectangle.w == w && priv->render_rectangle.h == h)
+     return;
+ 
+@@ -641,6 +644,11 @@ gst_wl_window_set_render_rectangle (GstWlWindow * self, gint x, gint y,
+   priv->render_rectangle.w = w;
+   priv->render_rectangle.h = h;
+ 
++  if (self->set_rect == TRUE) {
++      sprintf(buf_rect, "resize-%dx%dx%dx%d", x, y, w, h);
++      xdg_toplevel_set_title (priv->xdg_toplevel, buf_rect);
++  }
++
+   gst_wl_window_update_geometry (self);
+ }
+ 
+diff --git a/gst-libs/gst/wayland/gstwlwindow.h b/gst-libs/gst/wayland/gstwlwindow.h
+index 06c4001..297b3b1 100644
+--- a/gst-libs/gst/wayland/gstwlwindow.h
++++ b/gst-libs/gst/wayland/gstwlwindow.h
+@@ -31,6 +31,7 @@ G_DECLARE_FINAL_TYPE (GstWlWindow, gst_wl_window, GST, WL_WINDOW, GObject);
+ struct _GstWlWindow
+ {
+   GObject parent_instance;
++  gboolean set_rect;
+ };
+ 
+ GST_WL_API
+-- 
+2.34.1
+

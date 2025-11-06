@@ -1,0 +1,3 @@
+patch 0001-provide-dma_contig-allocator-to-uvcvideo-driver.patch
+
+kconf hardware uvc.cfg

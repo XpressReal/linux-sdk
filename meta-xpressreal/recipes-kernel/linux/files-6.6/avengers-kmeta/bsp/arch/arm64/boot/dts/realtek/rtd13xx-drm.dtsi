@@ -1,0 +1,41 @@
+/* PLEASE include this file inside a node */
+/ {
+	display_subsystem: display-subsystem {
+		compatible = "realtek,display-subsystem";
+		ports = <&vo_out>;
+		syscon = <&sb2>;
+		hwlocks = <&sb2_lock5 1>;
+		krpc-vo-opt = <0>;
+		realtek,krpc-agent = <&acpu_kernel_agent>;
+		status = "disabled";
+	};
+
+	vo: vo {
+		compatible = "realtek,rtd-crtc-main";
+		interrupts = <0 33 4>;
+		vo_out: port {
+			vo_hdmi: endpoint {
+				remote-endpoint = <&hdmi_vo>;
+			};
+		};
+	};
+
+	hdmi: hdmi {
+		compatible = "realtek,rtk-hdmi";
+		realtek,krpc-agent = <&acpu_kernel_agent>;
+		syscon = <&hdmi_tx>, <&crt>;
+		clocks = <&cc RTD1319_CRT_CLK_EN_HDMI>;
+		clock-names = "clk_en_hdmi";
+		resets = <&cc RTD1319_CRT_RSTN_HDMI>;
+		reset-names = "rstn_hdmi";
+		hdmi5v-gpios = <&gpio 5 GPIO_ACTIVE_LOW>;
+		hpd-gpios = <&gpio 7 GPIO_PULL_DOWN>;
+		rxsense-mode = <0>;
+		hdcp = <0>;
+		hdmi_in: port {
+			hdmi_vo: endpoint {
+				remote-endpoint = <&vo_hdmi>;
+			};
+		};
+	};
+};

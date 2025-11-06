@@ -1,0 +1,95 @@
+From 62c24561a4256c2ea23ff90fa09b8e857b3c8f17 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Fri, 4 Jul 2025 16:37:01 +0800
+Subject: [PATCH] rpmsg: pm: Add support for stark suspend resume
+
+- limit to rtk_soc_stark
+- Use SET_LATE_SYSTEM_SLEEP_PM_OPS instead of SET_SYSTEM_SLEEP_PM_OPS
+-- suspend: should be executed before remoteproc
+-- resume: should be executed after remoteproc
+
+Change-Id: Ib801362eec15293618f11b0b6292e41cdbe30edc
+---
+ drivers/rpmsg/rpmsg_rtk.c             | 42 ++++++++++++++++-
+
+diff --git a/drivers/rpmsg/rpmsg_rtk.c b/drivers/rpmsg/rpmsg_rtk.c
+index cdc5779d6..12850de11 100644
+--- a/drivers/rpmsg/rpmsg_rtk.c
++++ b/drivers/rpmsg/rpmsg_rtk.c
+@@ -28,6 +28,7 @@
+ #include <linux/hwspinlock.h>
+ #include <linux/moduleparam.h>
+ #include <linux/remoteproc.h>
++#include <linux/sys_soc.h>
+ #include "rpmsg_internal.h"
+ 
+ #define IDR_MIN 0xf000000
+@@ -199,6 +200,11 @@ struct rtk_rpmsg_endpoint {
+ #define to_rtk_rpdevice(_rpdev)	container_of(_rpdev, struct rtk_rpmsg_device, rpdev)
+ #define to_rtk_ept(_ept) container_of(_ept, struct rtk_rpmsg_endpoint, ept)
+ 
++static const struct soc_device_attribute rtk_soc_stark[] = {
++	{ .family = "Realtek Stark", },
++	{ /* sentinel */ }
++};
++
+ void endian_swap_32_read(void *buf, size_t size)
+ {
+ 	unsigned int *pData = (unsigned int *) buf;
+@@ -1577,6 +1583,23 @@ static int rtk_rcpu_suspend(struct device *dev)
+ 
+ 	if (!rcpu->rproc)
+ 		regmap_write(rcpu->rcpu_intr_regmap, RPC_SB2_INT_EN, rcpu->info->intr_en);
++	else if (soc_device_match(rtk_soc_stark)) {
++		int timeout = 2000;
++
++		dev_info(dev, "enter %s\n", __func__);
++		if (rcpu->info->id == AUDIO_ID || rcpu->info->id == VIDEO_ID) {
++			rcpu_set_flag(rcpu, 0xdaedffff); /* STOP HAS_CHECK */
++			while ((rcpu_get_flag(rcpu) != 0x0) && ((timeout--) > 0))
++				mdelay(1);
++
++			RPC_RESET_BIT(rcpu->rcpu_notify, rcpu->info->to_rcpu_notify_bit);
++			rcpu_set_flag(rcpu, 0xdeadffff); /* WAIT RPC SUSPEND READY */
++			while ((rcpu_get_flag(rcpu) != 0x0) && ((timeout--) > 0))
++				mdelay(1);
++			dev_info(dev, "%d: wait %d ms\n", rcpu->info->id, (2000 - timeout));
++		}
++		dev_info(dev, "exit %s\n", __func__);
++	}
+ 
+ 	return 0;
+ }
+@@ -1588,12 +1611,27 @@ static int rtk_rcpu_resume(struct device *dev)
+ 
+ 	if (!rcpu->rproc)
+ 		regmap_write(rcpu->rcpu_intr_regmap, RPC_SB2_INT_EN, rcpu->info->intr_en | RPC_INT_WRITE_EN);
++	else if (soc_device_match(rtk_soc_stark)) {
++		if (rcpu->info->id == VE3_ID) {
++			uint32_t intr_en_reg;
++			regmap_read(rcpu->rcpu_intr_regmap, RPC_INT_VE3_REG, &intr_en_reg);
++			regmap_write(rcpu->rcpu_intr_regmap, RPC_INT_VE3_REG, rcpu->info->intr_en | intr_en_reg);
++		} else {
++			regmap_write(rcpu->rcpu_intr_regmap, RPC_SB2_INT_EN, rcpu->info->intr_en | RPC_INT_WRITE_EN);
++			if (rcpu->info->id == AUDIO_ID || rcpu->info->id == VIDEO_ID) {
++				RPC_SET_BIT(rcpu->rcpu_notify, rcpu->info->to_rcpu_notify_bit);
++				rcpu_set_flag(rcpu, 0xffffffff);
++			}
++		}
++	}
+ 
+ 	return 0;
+ }
+ 
+-static SIMPLE_DEV_PM_OPS(rtk_rcpu_pm_ops, rtk_rcpu_suspend,
+-			 rtk_rcpu_resume);
++static const struct dev_pm_ops rtk_rcpu_pm_ops = {
++	SET_LATE_SYSTEM_SLEEP_PM_OPS(rtk_rcpu_suspend,
++			 rtk_rcpu_resume)
++};
+ #else
+ static const struct dev_pm_ops rtk_rcpu_pm_ops = {};
+ #endif
+-- 
+2.47.0
+

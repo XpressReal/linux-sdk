@@ -1,0 +1,185 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020-2022 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1315c-arcreactor.dtsi"
+
+/ {
+	compatible = "realtek,badassium", "realtek,rtd1315c";
+	model = "Realtek Badassium EVB (2GB LPDDR4)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>; /* 2 GB */
+	};
+
+	aliases {
+		ethernet = &nic;
+	};
+
+	vpu_legacy: vcpu_legacy {
+		compatible = "realtek,rtd16xxb-vpu-legacy";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+	ve2: ve2 {
+		compatible = "realtek,rtd16xxb-ve2-sl";
+		memory-region = <&cma_reserved_0>;
+		status = "disabled";
+	};
+
+};
+
+&display_subsystem {
+	ports = <&vo_out>;
+	status = "okay";
+};
+
+&vo {
+	status = "okay";
+	compatible = "realtek,rtd-crtc-main-all";
+};
+
+&voext {
+	status = "disabled";
+};
+
+&hdmi {
+	ext-flags = <0x0>;
+};
+
+&sound {
+	compatible = "realtek,rtk-alsa-pcm";
+};
+
+&audio_out {
+	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+};
+
+&avcert_rproc {
+	status = "okay";
+};
+
+&hifi_rproc {
+	status = "disabled";
+};
+
+&acpu_rproc {
+	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+	status = "okay";
+};
+
+&vcpu_rproc {
+	status = "okay";
+};
+
+&vpu_legacy {
+	status = "okay";
+};
+
+&ve3_rproc {
+	status = "okay";
+};
+
+&sb2 {
+	acpu-rpmsg {
+		rproc = <&acpu_rproc>;
+		status = "okay";
+	};
+
+	vcpu-rpmsg {
+		rproc = <&vcpu_rproc>;
+		status = "okay";
+	};
+
+	hifi-rpmsg {
+		rproc = <&hifi_rproc>;
+		status = "disabled";
+	};
+
+	ve3-rpmsg {
+		rproc = <&ve3_rproc>;
+		status = "okay";
+	};
+};
+
+
+
+&pcie1 {
+	status = "disabled";
+};
+
+&pcie1_phy {
+	status = "disabled";
+};
+
+&sd {
+	status = "disabled";
+};
+
+&sdio {
+	status = "okay";
+};
+
+&lsadc {
+	status = "disabled";
+};
+
+&gpio_manager {
+	default-gpios = <&gpio 27 GPIO_ACTIVE_LOW>;
+	default-gpios-state = <1>;
+	change-gpios = <&gpio 27 GPIO_ACTIVE_HIGH>;
+	change-gpios-value = <0>;
+	status = "okay";
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "disabled";
+	};
+
+	tee@10000000 {
+		status = "disabled";
+	};
+
+	buffer@2F700000 {
+		status = "disabled";
+	};
+
+	cma_reserved_0:linux,default_cma {
+		compatible = "shared-dma-pool";
+		size = <0x20000000>;            /* 512M */
+		alignment = <0x00400000>;
+		alloc-ranges=<0x40000000 0x20000000>;
+		linux,cma-default;
+		reusable;
+	};
+
+	/delete-node/tp_ssc2;
+	/delete-node/audio_ssc1;
+	/delete-node/video_dsc5;
+	/delete-node/ao_ssc6;
+	/delete-node/ota_dsc8;
+	/delete-node/fwstack_ssc4;
+	/delete-node/hifi_b1p5;
+	/delete-node/vo_s_dsc3;
+	/delete-node/npp;
+	/delete-node/npu-inference;
+	/delete-node/npu-model;
+
+	cma_reserved_1:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x08000000>;            /* 128M */
+		alignment = <0x00400000>;
+		alloc-ranges=<0x20000000 0x08000000>;
+		reusable;
+	};
+};

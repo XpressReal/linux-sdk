@@ -1,0 +1,211 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1861B Krypton EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include "rtd1861.dtsi"
+#include "rtd1861b-krypton.rds.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=11 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+		stdout-path = "serial0:460800n8";
+	};
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+};
+
+&i2c_3 {
+	status = "okay";
+
+	pr2000a: pr2000@5c {
+		compatible = "pixelplus,pr2k";
+		reg = <0x5c>;
+		reset-gpios = <&gpio 162 GPIO_ACTIVE_LOW>;
+		camera-fmt = <3>;
+		bt-mode = <0>;
+		cascade-mode = <0>;
+	};
+
+	rts5452@68 {
+		compatible = "rtk-rts5452";
+		reg = <0x68>;
+		notify-gpios = <&gpio 128 GPIO_PULL_UP>;
+
+		orientation-switch = <&usb1_u3phy>;
+		mode-switch = <&usb1_u3phy>;
+	};
+};
+
+&i2c_6 {
+	status = "okay";
+
+	tp2815a: tp2815@44 {
+		compatible = "techpoint,tp2815";
+		reg = <0x44>;
+		reset-gpios = <&gpio 139 GPIO_ACTIVE_LOW>;
+	};
+
+	tp2815b: tp2815@45 {
+		compatible = "techpoint,tp2815";
+		reg = <0x45>;
+		reset-gpios = <&gpio 142 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&irda {
+	status = "okay";
+};
+
+&mipicsi_0 {
+	status = "okay";
+};
+
+&mipicsi_4 {
+	status = "okay";
+};
+
+&sdio {
+	wifi-rst-gpios = <&gpio 51 GPIO_ACTIVE_HIGH>;
+};
+
+&usb1_u3phy {
+	svid = <0xff01>;
+};
+
+&vi_0 {
+	status = "okay";
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-810000000 {
+			opp-hz = /bits/ 64 <810000000>;
+			opp-hz-real = /bits/ 64 <810000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&{/} {
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1625-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <0>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp1200: opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <900000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1600: opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <150000>;
+			opp-suspend;
+			status = "okay";
+		};
+
+		opp1800: opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1050000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&sound {
+	multi-ao = <1>;
+	amic-bias = <1>;
+	status = "okay";
+};
+
+&sound_compr {
+	multi-ao = <1>;
+	status = "okay";
+};
+
+&rtk_vad {
+	status = "okay";
+};
+
+&reboot_mode {
+	status = "okay";
+};

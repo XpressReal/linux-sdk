@@ -1,0 +1,91 @@
+diff --git a/boot/bootm.c b/boot/bootm.c
+index ddf4525806..7dd50460ee 100644
+--- a/boot/bootm.c
++++ b/boot/bootm.c
+@@ -24,6 +24,8 @@
+ #include <asm/io.h>
+ #include <linux/sizes.h>
+ #include <tpm-v2.h>
++#include <fat.h>
++#include <fs.h>
+ #if defined(CONFIG_CMD_USB)
+ #include <usb.h>
+ #endif
+@@ -635,6 +637,67 @@ int bootm_process_cmdline(char *buf, int maxlen, int flags)
+ 	return 0;
+ }
+ 
++static int load_bootargs_txt()
++{
++	char *txt_buf;
++	int ret, newlen;
++	char partinfo[4];
++	const char *mmcidx;
++	const char *bootargs;
++	char *newargs;
++	long long len_read = 0;
++
++	mmcidx = env_get("mmcidx");
++	if (mmcidx)
++		snprintf(partinfo, 4, "%c:1", *mmcidx);
++	else
++		snprintf(partinfo, 4, "0:1");
++
++	txt_buf = malloc(CONFIG_SYS_CBSIZE);
++	if (!txt_buf) {
++		printf("Failed to allocate buffer for bootargs.txt\n");
++		return -ENOMEM;
++	}
++
++	if (fs_set_blk_dev("mmc", partinfo, FS_TYPE_FAT))      {
++		log_err("Can't set block device\n");
++		return 1;
++	}
++
++	ret = fs_read("bootargs.txt", (ulong ) txt_buf, 0, CONFIG_SYS_CBSIZE-1, &len_read);
++	if (ret < 0) {
++		printf("Failed to load bootargs.txt from FAT\n");
++		free(txt_buf);
++		return ret;
++	}
++
++	//printf("Loaded bootargs.txt: %s\n", txt_buf);
++
++	bootargs = env_get("bootargs");
++	if (bootargs && len_read) {
++		// +2 for space and null terminator
++		newlen = strlen(bootargs) + len_read + 2;
++		newargs = malloc(newlen);
++
++		if (!newargs) {
++			printf("Failed to allocate memory for new bootargs\n");
++			free(txt_buf);
++			return -ENOMEM;
++		}
++
++		snprintf(newargs, newlen, "%s %s", bootargs, txt_buf);
++
++		env_set("bootargs", newargs);
++
++		free(newargs);
++	} else if (len_read) {
++		env_set("bootargs", txt_buf);
++	}
++
++	free(txt_buf);
++	return 0;
++}
++
+ int bootm_process_cmdline_env(int flags)
+ {
+ 	const int maxlen = MAX_CMDLINE_SIZE;
+@@ -781,6 +844,9 @@ int do_bootm_states(struct cmd_tbl *cmdtp, int flag, int argc,
+ 
+ 	images->state |= states;
+ 
++	//load extra bootargs from bootargs.txt within 1st FAT partition
++	load_bootargs_txt();
++
+ 	/*
+ 	 * Work through the states and see how far we get. We stop on
+ 	 * any error.

@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1619b_spi.dtsi"
+
+&scs_param {
+	filename = "scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.bin";
+};

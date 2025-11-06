@@ -1,0 +1,153 @@
+From 1cc08fb860a5cfcc4aedfee01b2e1cba4199611e Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Thu, 25 Sep 2025 16:14:00 +0800
+Subject: [PATCH] usb: gadget: mass_storage: add super speed support
+
+Add super speed EP config.
+
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/gadget/f_mass_storage.c | 21 ++++++++-
+ drivers/usb/gadget/storage_common.c | 70 ++++++++++++++++++++++++++++-
+ 2 files changed, 88 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/usb/gadget/f_mass_storage.c b/drivers/usb/gadget/f_mass_storage.c
+index 1d17331cb03..61c7815777c 100644
+--- a/drivers/usb/gadget/f_mass_storage.c
++++ b/drivers/usb/gadget/f_mass_storage.c
+@@ -2224,14 +2224,16 @@ reset:
+ 
+ 	/* Enable the endpoints */
+ 	d = fsg_ep_desc(common->gadget,
+-			&fsg_fs_bulk_in_desc, &fsg_hs_bulk_in_desc);
++			&fsg_fs_bulk_in_desc, &fsg_hs_bulk_in_desc,
++			&fsg_ss_bulk_in_desc);
+ 	rc = enable_endpoint(common, fsg->bulk_in, d);
+ 	if (rc)
+ 		goto reset;
+ 	fsg->bulk_in_enabled = 1;
+ 
+ 	d = fsg_ep_desc(common->gadget,
+-			&fsg_fs_bulk_out_desc, &fsg_hs_bulk_out_desc);
++			&fsg_fs_bulk_out_desc, &fsg_hs_bulk_out_desc,
++			&fsg_ss_bulk_out_desc);
+ 	rc = enable_endpoint(common, fsg->bulk_out, d);
+ 	if (rc)
+ 		goto reset;
+@@ -2649,6 +2651,7 @@ static void fsg_unbind(struct usb_configuration *c, struct usb_function *f)
+ 
+ 	free(fsg->function.descriptors);
+ 	free(fsg->function.hs_descriptors);
++	free(fsg->function.ss_descriptors);
+ 	kfree(fsg);
+ }
+ 
+@@ -2697,6 +2700,20 @@ static int fsg_bind(struct usb_configuration *c, struct usb_function *f)
+ 			return -ENOMEM;
+ 		}
+ 	}
++
++	if (gadget_is_superspeed(gadget)) {
++		fsg_ss_bulk_in_desc.bEndpointAddress =
++			fsg_fs_bulk_in_desc.bEndpointAddress;
++		fsg_ss_bulk_out_desc.bEndpointAddress =
++			fsg_fs_bulk_out_desc.bEndpointAddress;
++		f->ss_descriptors = usb_copy_descriptors(fsg_ss_function);
++		if (unlikely(!f->ss_descriptors)) {
++			free(f->descriptors);
++			free(f->hs_descriptors);
++			return -ENOMEM;
++		}
++	}
++
+ 	return 0;
+ 
+ autoconf_fail:
+diff --git a/drivers/usb/gadget/storage_common.c b/drivers/usb/gadget/storage_common.c
+index 5674e8fe494..9df490f342c 100644
+--- a/drivers/usb/gadget/storage_common.c
++++ b/drivers/usb/gadget/storage_common.c
+@@ -531,11 +531,79 @@ static struct usb_descriptor_header *fsg_hs_function[] = {
+ 	NULL,
+ };
+ 
++/* Super speed */
++static struct usb_endpoint_descriptor
++fsg_ss_bulk_in_desc = {
++	.bLength =		USB_DT_ENDPOINT_SIZE,
++	.bDescriptorType =	USB_DT_ENDPOINT,
++
++	/* bEndpointAddress copied from fs_bulk_in_desc during fsg_bind() */
++	.bmAttributes =		USB_ENDPOINT_XFER_BULK,
++	.wMaxPacketSize =	cpu_to_le16(1024),
++};
++
++static struct usb_endpoint_descriptor
++fsg_ss_bulk_out_desc = {
++	.bLength =		USB_DT_ENDPOINT_SIZE,
++	.bDescriptorType =	USB_DT_ENDPOINT,
++
++	/* bEndpointAddress copied from fs_bulk_out_desc during fsg_bind() */
++	.bmAttributes =		USB_ENDPOINT_XFER_BULK,
++	.wMaxPacketSize =	cpu_to_le16(1024),
++	.bInterval =		1,	/* NAK every 1 uframe */
++};
++
++#ifndef FSG_NO_INTR_EP
++
++static struct usb_endpoint_descriptor
++fsg_ss_intr_in_desc = {
++	.bLength =		USB_DT_ENDPOINT_SIZE,
++	.bDescriptorType =	USB_DT_ENDPOINT,
++
++	/* bEndpointAddress copied from fs_intr_in_desc during fsg_bind() */
++	.bmAttributes =		USB_ENDPOINT_XFER_INT,
++	.wMaxPacketSize =	cpu_to_le16(2),
++	.bInterval =		9,	/* 2**(9-1) = 256 uframes -> 32 ms */
++};
++
++#ifndef FSG_NO_OTG
++#  define FSG_HS_FUNCTION_PRE_EP_ENTRIES	2
++#else
++#  define FSG_HS_FUNCTION_PRE_EP_ENTRIES	1
++#endif
++
++#endif
++
++static struct usb_ss_ep_comp_descriptor fsg_ss_bulk_comp_desc = {
++	.bLength =		sizeof(fsg_ss_bulk_comp_desc),
++	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
++};
++
++static struct usb_descriptor_header *fsg_ss_function[] = {
++#ifndef FSG_NO_OTG
++	(struct usb_descriptor_header *) &fsg_otg_desc,
++#endif
++	(struct usb_descriptor_header *) &fsg_intf_desc,
++	(struct usb_descriptor_header *) &fsg_ss_bulk_in_desc,
++	(struct usb_descriptor_header *) &fsg_ss_bulk_comp_desc,
++	(struct usb_descriptor_header *) &fsg_ss_bulk_out_desc,
++	(struct usb_descriptor_header *) &fsg_ss_bulk_comp_desc,
++#ifndef FSG_NO_INTR_EP
++	(struct usb_descriptor_header *) &fsg_ss_intr_in_desc,
++	(struct usb_descriptor_header *) &fsg_ss_bulk_comp_desc,
++#endif
++	NULL,
++};
++
+ /* Maxpacket and other transfer characteristics vary by speed. */
+ static struct usb_endpoint_descriptor *
+ fsg_ep_desc(struct usb_gadget *g, struct usb_endpoint_descriptor *fs,
+-		struct usb_endpoint_descriptor *hs)
++		struct usb_endpoint_descriptor *hs,
++		struct usb_endpoint_descriptor *ss)
+ {
++	if (gadget_is_superspeed(g) && g->speed >= USB_SPEED_SUPER)
++		return ss;
++
+ 	if (gadget_is_dualspeed(g) && g->speed == USB_SPEED_HIGH)
+ 		return hs;
+ 	return fs;
+-- 
+2.34.1
+

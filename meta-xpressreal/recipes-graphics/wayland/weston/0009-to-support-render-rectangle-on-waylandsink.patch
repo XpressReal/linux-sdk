@@ -1,0 +1,83 @@
+From a94a8e103eee6ca29c850bc9bdbc08b366e7f09b Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 21 Oct 2024 14:23:10 +0800
+Subject: [PATCH] to support render-rectangle on waylandsink
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ desktop-shell/shell.c         | 17 +++++++++++++++--
+ include/libweston/libweston.h |  2 ++
+ libweston/desktop/surface.c   |  2 ++
+ 3 files changed, 19 insertions(+), 2 deletions(-)
+
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index 184595d..64f3872 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -4056,7 +4056,9 @@ weston_view_set_initial_position(struct weston_view *view,
+ 	struct weston_seat *seat;
+ 	pixman_rectangle32_t area;
+ 	struct weston_coord_global pos;
+-
++	struct weston_surface *surface = view->surface;
++	int x1 = 0, y1 = 0, w1 = 0, h1 = 0;
++	bool customer_position = false;
+ 	/* As a heuristic place the new window on the same output as the
+ 	 * pointer. Falling back to the output containing 0, 0.
+ 	 *
+@@ -4103,7 +4105,18 @@ weston_view_set_initial_position(struct weston_view *view,
+ 	if (range_y > 0)
+ 		y += random() % range_y;
+ 
+-	pos.c = weston_coord(x, y);
++	if (surface != NULL) {
++		if (strncmp(surface->title, "resize-", 7) == 0) {
++			sscanf(surface->title, "resize-%dx%dx%dx%d", &x1, &y1, &w1, &h1);
++			customer_position = true;
++		}
++	}
++
++	if (customer_position)
++		pos.c = weston_coord(x1, y1);
++	else
++		pos.c = weston_coord(x, y);
++
+ 	weston_view_set_position(view, pos);
+ }
+ 
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 9365a51..fd570dd 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1951,6 +1951,8 @@ struct weston_surface {
+ 	enum weston_surface_protection_mode protection_mode;
+ 
+ 	struct weston_tearing_control *tear_control;
++	char title[256];
++	char app_id[256];
+ };
+ 
+ struct weston_subsurface {
+diff --git a/libweston/desktop/surface.c b/libweston/desktop/surface.c
+index 06a06e0..a08376d 100644
+--- a/libweston/desktop/surface.c
++++ b/libweston/desktop/surface.c
+@@ -751,6 +751,7 @@ weston_desktop_surface_set_title(struct weston_desktop_surface *surface,
+ 
+ 	old = surface->title;
+ 	surface->title = tmp;
++	strcpy(surface->surface->title, surface->title);
+ 	wl_signal_emit(&surface->metadata_signal, surface);
+ 	free(old);
+ }
+@@ -767,6 +768,7 @@ weston_desktop_surface_set_app_id(struct weston_desktop_surface *surface,
+ 
+ 	old = surface->app_id;
+ 	surface->app_id = tmp;
++	strcpy(surface->surface->app_id, surface->app_id);
+ 	wl_signal_emit(&surface->metadata_signal, surface);
+ 	free(old);
+ }
+-- 
+2.34.1
+

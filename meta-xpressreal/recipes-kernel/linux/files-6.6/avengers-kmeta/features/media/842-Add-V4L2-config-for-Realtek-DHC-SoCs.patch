@@ -1,0 +1,92 @@
+From 8777be859fec1952ad85a0c237ff156d6d5ca26a Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Wed, 14 Aug 2024 14:23:11 +0800
+Subject: [PATCH] media: platform: add V4L2 config for Realtek DHC SoCs
+
+Change-Id: I2f81df37a93cf6cdbf0cf188283c9d63803af072
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi |  9 +++++++
+ drivers/media/platform/Kconfig            |  1 +
+ drivers/media/platform/rtk_vcodec/Kconfig | 33 +++++++++++++++++++++++
+ 3 files changed, 43 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 7aa4ad933ac0..89090b275685 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -1089,6 +1089,10 @@ rtk_urpc_service: rtk_urpc_service {
+ 				     <&hifi_kernel_agent>;
+ 	};
+ 
++	ve3_enc: ve3_enc {
++		compatible = "realtek,rtd16xxb-ve3";
++	};
++
+ 	hifi_dummy: hifi_dummy {
+ 		compatible = "realtek,rtd1319-vcpu";
+ 		clocks = <&cc RTD1619B_CRT_PLL_HIFI>;
+@@ -1143,6 +1147,11 @@ rtk_ve2rpc: rtk_ve2rpc {
+ 		realtek,krpc-agent = <&vcpu_kernel_agent>;
+ 	};
+ 
++	rtk_ve3rpc: rtk_ve3rpc {
++		compatible = "realtek,ve3rpc";
++		realtek,krpc-agent = <&ve3_kernel_agent>;
++	};
++
+ 	tee-mem {
+ 		compatible = "realtek,tee-mem";
+ 	};
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 3ec1669b3310..a46d117dc837 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -91,5 +91,6 @@ source "drivers/media/platform/ti/Kconfig"
+ source "drivers/media/platform/verisilicon/Kconfig"
+ source "drivers/media/platform/via/Kconfig"
+ source "drivers/media/platform/xilinx/Kconfig"
++source "drivers/media/platform/rtk_vcodec/Kconfig"
+ 
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/rtk_vcodec/Kconfig b/drivers/media/platform/rtk_vcodec/Kconfig
+new file mode 100644
+index 000000000000..0d4f1e9c1e1c
+--- /dev/null
++++ b/drivers/media/platform/rtk_vcodec/Kconfig
+@@ -0,0 +1,33 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++config RTK_V4L2_VDEC
++bool "Realtek V4L2 Video Decoder Interface"
++	depends on VIDEO_DEV
++	select V4L_MEM2MEM_DRIVERS
++	select V4L2_MEM2MEM_DEV
++	select V4L2_JPEG_HELPER
++	select VIDEOBUF2_DMA_CONTIG
++	select VIDEOBUF2_VMALLOC
++	select MEDIA_CONTROLLER
++	select MEDIA_CONTROLLER_REQUEST_API
++	default n
++	help
++	  Realtek V4L2 Video Decoder Driver Interface
++
++config RTK_V4L2_DEC_PREPEND_METADATA
++bool "Prepend metadata in decoded frame buffer"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Prepend metadata in front of decoded frame buffer.
++
++config RTK_V4L2_VENC
++bool "Realtek V4L2 Video Encoder Interface"
++	depends on VIDEO_DEV
++	select V4L_MEM2MEM_DRIVERS
++	select V4L2_MEM2MEM_DEV
++	select VIDEOBUF2_DMA_CONTIG
++	select VIDEOBUF2_VMALLOC
++	default n
++	help
++	  Realtek V4L2 Video Encoder Driver Interface
+-- 
+2.34.1
+

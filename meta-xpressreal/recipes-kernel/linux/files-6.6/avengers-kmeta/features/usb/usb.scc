@@ -1,0 +1,19 @@
+define KFEATURE_DESCRIPTION "Realtek USB features based on DWC3"
+
+patch 205-01-phy-core-add-notify_connect-and-notify_disconnect-ca.patch
+patch 205-02-usb-core-add-phy-notify-connect-and-disconnect.patch
+patch 206-add-realtek-usb-quirks-device-list.patch
+patch 207-BACKPORT-extcon-add-Realtek-DHC-RTD-SoC-Type-C-driver.patch
+patch 828-add-Realtek-DHC-RTD-SoC-dwc3-glue-layer-driver.patch
+patch 829-usb-dwc3-rtk-debugfs-support-the-debugfs-for.patch
+patch 830-01-usb-misc-add-the-ftdi-spi-driver.patch
+patch 830-02-usb-misc-add-an-USB-device-driver-usbperf.patch
+patch 831-01-usb-core-add-an-usb-port-monitor-driver.patch
+patch 831-02-usb-core-add-an-usb-port-run-test-mode-driver.patch
+patch 832-FROMGIT-phy-realtek-usb-Add-driver-for-the-Realtek-SoCs.patch
+patch 833-usb-gadget-function-add-a-f_usbperf-for-usb-performa.patch
+patch 833-01-BUG_FIX-usb-gadget-function-f_ncm-add-the-workaround.patch
+patch 834-revert-USB-xhci-plat-fix-legacy-PHY-double-init.patch
+patch 835-usb-typec-rts54xx-add-realtek-rts54xx-type-c.patch
+
+kconf hardware usb.cfg

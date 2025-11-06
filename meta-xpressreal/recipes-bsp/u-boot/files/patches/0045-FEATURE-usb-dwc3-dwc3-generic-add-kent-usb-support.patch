@@ -1,0 +1,38 @@
+From f6de52641d0305644c53667911bb46542cdf2a8c Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Mon, 24 Mar 2025 18:19:39 +0800
+Subject: [PATCH] [FEATURE] usb: dwc3: dwc3-generic: add kent usb support
+
+Kent usb dwc3 global register offset is 0xc100
+
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/dwc3/dwc3-generic.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/usb/dwc3/dwc3-generic.c b/drivers/usb/dwc3/dwc3-generic.c
+index 06c0123b15..a3cdfba7bf 100644
+--- a/drivers/usb/dwc3/dwc3-generic.c
++++ b/drivers/usb/dwc3/dwc3-generic.c
+@@ -91,7 +91,10 @@ static int dwc3_generic_probe(struct udevice *dev,
+ 	if (device_is_compatible(dev->parent, "realtek,rtd-dwc3")) {
+ 		dwc3->regs = priv->base + 0x8100;
+ 		pr_info("rtd-dwc3 fix the DWC3_GLOBALS_REGS_START to 0x8100\n");
++	}
+ 
++	if (device_is_compatible(dev->parent, "realtek,rtd-dwc3") ||
++	    device_is_compatible(dev->parent, "realtek,dwc3")) {
+ 		if (plat->dr_mode == USB_DR_MODE_OTG) {
+ 			struct udevice *parent;
+ 			struct dwc3_glue_ops *ops;
+@@ -537,6 +540,7 @@ static const struct udevice_id dwc3_glue_ids[] = {
+ 	{ .compatible = "fsl,imx8mq-dwc3" },
+ 	{ .compatible = "intel,tangier-dwc3" },
+ 	{ .compatible = "realtek,rtd-dwc3", .data = (ulong)&rtd_ops },
++	{ .compatible = "realtek,dwc3", .data = (ulong)&rtd_ops },
+ 	{ }
+ };
+ 
+-- 
+2.45.2
+

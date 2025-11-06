@@ -1,0 +1,41 @@
+From d640068d0658a72886e08cc2acacf2f035c82316 Mon Sep 17 00:00:00 2001
+From: carolhsu <carolhsu@realtek.com>
+Date: Tue, 30 Sep 2025 04:04:55 +0000
+Subject: [PATCH] kentkernel add sdcard
+
+---
+ drivers/mmc/host/Kconfig  | 5 +++++
+ drivers/mmc/host/Makefile | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/drivers/mmc/host/Kconfig b/drivers/mmc/host/Kconfig
+index 1f2afae42bf2..cbc5fdd10e5f 100644
+--- a/drivers/mmc/host/Kconfig
++++ b/drivers/mmc/host/Kconfig
+@@ -241,6 +241,11 @@ config MMC_SDHCI_OF_RTK
+ 
+ 	  If unsure, say N.
+ 
++config MMC_SDHCI_OF_RTKSTB
++	tristate "SDHCI OF support for the Realtek rtd1319d SoC"
++	help
++	 Realtek SD/MMC host controller support.
++
+ config MMC_SDHCI_OF_DWCMSHC
+ 	tristate "SDHCI OF support for the Synopsys DWC MSHC"
+ 	depends on MMC_SDHCI_PLTFM
+diff --git a/drivers/mmc/host/Makefile b/drivers/mmc/host/Makefile
+index 72fbd7d97dc0..634207b8c2d2 100644
+--- a/drivers/mmc/host/Makefile
++++ b/drivers/mmc/host/Makefile
+@@ -89,6 +89,7 @@ obj-$(CONFIG_MMC_SDHCI_OF_HLWD)		+= sdhci-of-hlwd.o
+ obj-$(CONFIG_MMC_SDHCI_OF_DWCMSHC)	+= sdhci-of-dwcmshc.o
+ obj-$(CONFIG_MMC_SDHCI_OF_SPARX5)	+= sdhci-of-sparx5.o
+ obj-$(CONFIG_MMC_SDHCI_OF_RTK)		+= sdhci-rtk.o
++obj-$(CONFIG_MMC_SDHCI_OF_RTKSTB)	 += sdhci-of-rtkstb.o
+ obj-$(CONFIG_MMC_SDHCI_BCM_KONA)	+= sdhci-bcm-kona.o
+ obj-$(CONFIG_MMC_SDHCI_IPROC)		+= sdhci-iproc.o
+ obj-$(CONFIG_MMC_SDHCI_MSM)		+= sdhci-msm.o
+-- 
+2.44.1
+

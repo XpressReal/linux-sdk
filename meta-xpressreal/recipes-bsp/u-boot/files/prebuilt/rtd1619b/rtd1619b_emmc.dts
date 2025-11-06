@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1619b_emmc.dtsi"
+
+&scs_param {
+	filename = "scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.ext.bin";
+};
+
+&external_hwsetting {
+	size = <0x00010000>;
+	pad-byte = <0xff>;
+	blob@0 {
+		filename = "ext_hwsetting_0.bin";
+		size = <0x2000>;
+	};
+	blob@1 {
+		filename = "ext_hwsetting_1.bin";
+		size = <0x2000>;
+	};
+	blob@2 {
+		filename = "ext_hwsetting_2.bin";
+		size = <0x2000>;
+	};
+	blob@3 {
+		filename = "ext_hwsetting_3.bin";
+		size = <0x2000>;
+	};
+};

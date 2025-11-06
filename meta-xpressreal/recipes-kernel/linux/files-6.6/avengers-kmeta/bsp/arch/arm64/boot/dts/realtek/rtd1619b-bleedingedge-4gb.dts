@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020-2021 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1619b-bleedingedge.dtsi"
+
+/ {
+	compatible = "realtek,bleeding-edge", "realtek,rtd1619b";
+	model = "Realtek Bleeding Edge EVB (4GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>,
+		      <0x80020000 0x080e0000>,
+		      <0x8a100000 0x0defc000>,
+		      <0x98200000 0x00df0000>,
+		      <0x99000000 0x07000000>,
+		      <0xa0200000 0x5ee00000>;
+	};
+
+	aliases {
+		ethernet = &nic;
+	};
+
+	vpu_legacy: vcpu_legacy {
+		compatible = "realtek,rtd16xxb-vpu-legacy";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+	ve2: ve2 {
+		compatible = "realtek,rtd16xxb-ve2-sl";
+		memory-region = <&cma_reserved_0>;
+		status = "disabled";
+	};
+};
+
+&display_subsystem {
+	ports = <&vo_out>, <&vowb_io>;
+	status = "okay";
+};
+
+&vowb {
+        status = "okay";
+};
+
+&vo {
+	status = "okay";
+	compatible = "realtek,rtd-crtc-main-all";
+};
+
+&voext {
+	status = "disabled";
+};
+
+&hdmi {
+	ext-flags = <0x0>;
+};
+
+&sound {
+	compatible = "realtek,rtk-alsa-pcm";
+};
+
+&audio_out {
+	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+};
+
+&avcert_rproc {
+	status = "okay";
+};
+
+&hifi_rproc {
+	status = "disabled";
+};
+
+&acpu_rproc {
+	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+	status = "okay";
+};
+
+&vcpu_rproc {
+	status = "okay";
+};
+
+&vpu_legacy {
+	status = "okay";
+};
+
+&ve3_rproc {
+	status = "okay";
+};
+
+&sb2 {
+	acpu-rpmsg {
+		rproc = <&acpu_rproc>;
+		status = "okay";
+	};
+
+	vcpu-rpmsg {
+		rproc = <&vcpu_rproc>;
+		status = "okay";
+	};
+
+	hifi-rpmsg {
+		rproc = <&hifi_rproc>;
+		status = "disabled";
+	};
+
+	ve3-rpmsg {
+		rproc = <&ve3_rproc>;
+		status = "okay";
+	};
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "disabled";
+	};
+
+	tee@10000000 {
+		status = "disabled";
+	};
+
+	buffer@2F700000 {
+		status = "disabled";
+	};
+
+	cma_reserved_0:linux,default_cma {
+		compatible = "shared-dma-pool";
+		size = <0x10000000>;            /* 256M */
+		alignment = <0x00400000>;
+		alloc-ranges=<0x30000000 0x10000000>;
+		linux,cma-default;
+		reusable;
+	};
+
+	/delete-node/tp_ssc2;
+	/delete-node/audio_ssc1;
+	/delete-node/video_dsc5;
+	/delete-node/ao_ssc6;
+	/delete-node/ota_dsc8;
+	/delete-node/fwstack_ssc4;
+	/delete-node/hifi_b1p5;
+	/delete-node/vo_s_dsc3;
+	/delete-node/npp;
+	/delete-node/npu-inference;
+	/delete-node/npu-model;
+	/delete-node/vo_dsc3;
+
+	cma_reserved_2:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x10000000>;            /* 256M */
+		alignment = <0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x20000000 0x10000000>;
+		reusable;
+	};
+
+	cma_reserved_3:vo5 {
+		compatible = "shared-dma-pool";
+		size = <0x40000000>;            /* 1024M */
+		alignment = <0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0xa1000000 0x40000000>;
+		reusable;
+	};
+};
+

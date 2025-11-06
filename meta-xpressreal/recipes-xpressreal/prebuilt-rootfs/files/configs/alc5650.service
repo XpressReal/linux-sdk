@@ -1,0 +1,11 @@
+[Unit]
+Description=ALC5650 init script
+After=local-fs.target
+Before=moonlight.service
+
+[Service]
+ExecStart=/usr/bin/5650spk.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

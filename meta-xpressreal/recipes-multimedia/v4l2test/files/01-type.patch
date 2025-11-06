@@ -1,0 +1,79 @@
+From ab3d636f55814a53b95c43790deb4d108b7287f8 Mon Sep 17 00:00:00 2001
+From: ram <pulumati@realtek.com>
+Date: Wed, 14 Aug 2024 13:56:26 +0800
+Subject: [PATCH] type fix
+
+---
+ v4l2test.cpp | 56 ++++++++++++++++++++++++++--------------------------
+ 1 file changed, 28 insertions(+), 28 deletions(-)
+
+diff --git a/v4l2test.cpp b/v4l2test.cpp
+index 82e56dc..6626e39 100644
+--- a/v4l2test.cpp
++++ b/v4l2test.cpp
+@@ -986,34 +986,34 @@ static int ioctl_wrapper( int fd, int request, void* arg )
+    {
+       switch( request )
+       {
+-         case VIDIOC_QUERYCAP: req= "VIDIOC_QUERYCAP"; break;
+-         case VIDIOC_ENUM_FMT: req= "VIDIOC_ENUM_FMT"; break;
+-         case VIDIOC_G_FMT: req= "VIDIOC_G_FMT"; break;
+-         case VIDIOC_S_FMT: req= "VIDIOC_S_FMT"; break;
+-         case VIDIOC_REQBUFS: req= "VIDIOC_REQBUFS"; break;
+-         case VIDIOC_QUERYBUF: req= "VIDIOC_QUERYBUFS"; break;
+-         case VIDIOC_G_FBUF: req= "VIDIOC_G_FBUF"; break;
+-         case VIDIOC_S_FBUF: req= "VIDIOC_S_FBUF"; break;
+-         case VIDIOC_OVERLAY: req= "VIDIOC_OVERLAY"; break;
+-         case VIDIOC_QBUF: req= "VIDIOC_QBUF"; break;
+-         case VIDIOC_EXPBUF: req= "VIDIOC_EXPBUF"; break;
+-         case VIDIOC_DQBUF: req= "VIDIOC_DQBUF"; break;
+-         case VIDIOC_STREAMON: req= "VIDIOC_STREAMON"; break;
+-         case VIDIOC_STREAMOFF: req= "VIDIOC_STREAMOFF"; break;
+-         case VIDIOC_G_PARM: req= "VIDIOC_G_PARM"; break;
+-         case VIDIOC_S_PARM: req= "VIDIOC_S_PARM"; break;
+-         case VIDIOC_G_STD: req= "VIDIOC_G_STD"; break;
+-         case VIDIOC_S_STD: req= "VIDIOC_S_STD"; break;
+-         case VIDIOC_ENUMSTD: req= "VIDIOC_ENUMSTD"; break;
+-         case VIDIOC_ENUMINPUT: req= "VIDIOC_ENUMINPUT"; break;
+-         case VIDIOC_G_CTRL: req= "VIDIOC_G_CTRL"; break;
+-         case VIDIOC_S_CTRL: req= "VIDIOC_S_CTRL"; break;
+-         case VIDIOC_QUERYCTRL: req= "VIDIOC_QUERYCTRL"; break;
+-         case VIDIOC_ENUM_FRAMESIZES: req= "VIDIOC_ENUM_FRAMESIZES"; break;
+-         case VIDIOC_TRY_FMT: req= "VIDIOC_TRY_FMT"; break;
+-         case VIDIOC_CROPCAP: req= "VIDIOC_CROPCAP"; break;
+-         case VIDIOC_CREATE_BUFS: req= "VIDIOC_CREATE_BUFS"; break;
+-         case VIDIOC_G_SELECTION: req= "VIDIOC_G_SELECTION"; break;
++         case (int)VIDIOC_QUERYCAP: req= "VIDIOC_QUERYCAP"; break;
++         case (int)VIDIOC_ENUM_FMT: req= "VIDIOC_ENUM_FMT"; break;
++         case (int)VIDIOC_G_FMT: req= "VIDIOC_G_FMT"; break;
++         case (int)VIDIOC_S_FMT: req= "VIDIOC_S_FMT"; break;
++         case (int)VIDIOC_REQBUFS: req= "VIDIOC_REQBUFS"; break;
++         case (int)VIDIOC_QUERYBUF: req= "VIDIOC_QUERYBUFS"; break;
++         case (int)VIDIOC_G_FBUF: req= "VIDIOC_G_FBUF"; break;
++         case (int)VIDIOC_S_FBUF: req= "VIDIOC_S_FBUF"; break;
++         case (int)VIDIOC_OVERLAY: req= "VIDIOC_OVERLAY"; break;
++         case (int)VIDIOC_QBUF: req= "VIDIOC_QBUF"; break;
++         case (int)VIDIOC_EXPBUF: req= "VIDIOC_EXPBUF"; break;
++         case (int)VIDIOC_DQBUF: req= "VIDIOC_DQBUF"; break;
++         case (int)VIDIOC_STREAMON: req= "VIDIOC_STREAMON"; break;
++         case (int)VIDIOC_STREAMOFF: req= "VIDIOC_STREAMOFF"; break;
++         case (int)VIDIOC_G_PARM: req= "VIDIOC_G_PARM"; break;
++         case (int)VIDIOC_S_PARM: req= "VIDIOC_S_PARM"; break;
++         case (int)VIDIOC_G_STD: req= "VIDIOC_G_STD"; break;
++         case (int)VIDIOC_S_STD: req= "VIDIOC_S_STD"; break;
++         case (int)VIDIOC_ENUMSTD: req= "VIDIOC_ENUMSTD"; break;
++         case (int)VIDIOC_ENUMINPUT: req= "VIDIOC_ENUMINPUT"; break;
++         case (int)VIDIOC_G_CTRL: req= "VIDIOC_G_CTRL"; break;
++         case (int)VIDIOC_S_CTRL: req= "VIDIOC_S_CTRL"; break;
++         case (int)VIDIOC_QUERYCTRL: req= "VIDIOC_QUERYCTRL"; break;
++         case (int)VIDIOC_ENUM_FRAMESIZES: req= "VIDIOC_ENUM_FRAMESIZES"; break;
++         case (int)VIDIOC_TRY_FMT: req= "VIDIOC_TRY_FMT"; break;
++         case (int)VIDIOC_CROPCAP: req= "VIDIOC_CROPCAP"; break;
++         case (int)VIDIOC_CREATE_BUFS: req= "VIDIOC_CREATE_BUFS"; break;
++         case (int)VIDIOC_G_SELECTION: req= "VIDIOC_G_SELECTION"; break;
+          default: req= "NA"; break;
+       }
+       fprintf(stderr,"ioct( %d, %x ( %s ) )\n", fd, request, req );
+-- 
+2.45.2
+

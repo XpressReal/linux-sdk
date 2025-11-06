@@ -1,0 +1,89 @@
+From cce8f3978a3d3ba49e5c1c836ea559dbb4784b45 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 28 May 2025 10:18:36 +0800
+Subject: [PATCH] [BUG_FIX] usb: gadget: function: f_ncm: add the
+ workaround to clear gadget when unbind ncm
+
+After unbinding ncm, if someone operates the access gadget, kernel will
+crash. Therefore, we will clear the gadget when unbinding.
+
+[PLATFORM] all platform for non-GKI kernel
+[TEST] Kent, morbius, parker, stark
+[JIRA] DHCKENT-112
+
+Change-Id: I6d4b695033601fcdf9ee4f0194956c78819e1f0f
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/gadget/function/f_ncm.c | 49 +++++++++++++++++++++++++++++
+ 1 file changed, 49 insertions(+)
+
+diff --git a/drivers/usb/gadget/function/f_ncm.c b/drivers/usb/gadget/function/f_ncm.c
+index f5731d465cd7..13252d05b50b 100644
+--- a/drivers/usb/gadget/function/f_ncm.c
++++ b/drivers/usb/gadget/function/f_ncm.c
+@@ -1662,6 +1662,53 @@ static void ncm_free(struct usb_function *f)
+ 	mutex_unlock(&opts->lock);
+ }
+ 
++struct __eth_dev {
++	/* lock is held while accessing port_usb
++	 */
++	spinlock_t		lock;
++	struct gether		*port_usb;
++
++	struct net_device	*net;
++	struct usb_gadget	*gadget;
++
++	spinlock_t		req_lock;	/* guard {rx,tx}_reqs */
++	struct list_head	tx_reqs, rx_reqs;
++	atomic_t		tx_qlen;
++
++	struct sk_buff_head	rx_frames;
++
++	unsigned		qmult;
++
++	unsigned		header_len;
++	struct sk_buff		*(*wrap)(struct gether *, struct sk_buff *skb);
++	int			(*unwrap)(struct gether *,
++						struct sk_buff *skb,
++						struct sk_buff_head *list);
++
++	struct work_struct	work;
++
++	unsigned long		todo;
++#define	WORK_RX_MEMORY		0
++
++	bool			zlp;
++	bool			no_skb_reserve;
++	bool			ifname_set;
++	u8			host_mac[ETH_ALEN];
++	u8			dev_mac[ETH_ALEN];
++};
++
++static void gether_clear_gadget(struct usb_function *f)
++{
++	struct f_ncm_opts	*ncm_opts;
++	struct __eth_dev *dev;
++
++	ncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);
++
++	dev = netdev_priv(ncm_opts->net);
++	dev->gadget = NULL;
++	SET_NETDEV_DEV(ncm_opts->net, NULL);
++}
++
+ static void ncm_unbind(struct usb_configuration *c, struct usb_function *f)
+ {
+ 	struct f_ncm *ncm = func_to_ncm(f);
+@@ -1670,6 +1717,8 @@ static void ncm_unbind(struct usb_configuration *c, struct usb_function *f)
+ 
+ 	hrtimer_cancel(&ncm->task_timer);
+ 
++	gether_clear_gadget(f);
++
+ 	kfree(f->os_desc_table);
+ 	f->os_desc_n = 0;
+ 
+-- 
+2.47.0
+

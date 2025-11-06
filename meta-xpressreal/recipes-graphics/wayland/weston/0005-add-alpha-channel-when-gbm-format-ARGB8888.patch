@@ -1,0 +1,30 @@
+From 82747c27b7bf9afabf885d5dac30fe6c967ffb6d Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 8 Oct 2024 13:16:07 +0800
+Subject: [PATCH] add alpha channel when gbm format ARGB8888
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-gbm.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index 5b02b38..bbe5ffe 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -312,7 +312,11 @@ drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage)
+ 	}
+ 
+ 	/* The renderer always produces an opaque image. */
+-	ret = drm_fb_get_from_bo(bo, device, true, BUFFER_GBM_SURFACE);
++	if (output->format->format == DRM_FORMAT_ARGB8888)
++		ret = drm_fb_get_from_bo(bo, device, false, BUFFER_GBM_SURFACE);
++	else
++		ret = drm_fb_get_from_bo(bo, device, true, BUFFER_GBM_SURFACE);
++
+ 	if (!ret) {
+ 		weston_log("failed to get drm_fb for bo\n");
+ 		gbm_surface_release_buffer(output->gbm_surface, bo);
+-- 
+2.34.1
+

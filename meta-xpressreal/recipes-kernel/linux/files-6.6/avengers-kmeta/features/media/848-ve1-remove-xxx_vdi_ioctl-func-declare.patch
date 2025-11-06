@@ -1,0 +1,38 @@
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.h b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.h
+index 050905fb091d..1e24bc49a45e 100644
+--- a/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.h
++++ b/drivers/soc/realtek/kent/rtk_ve/ve1/ve1.h
+@@ -157,7 +157,7 @@ extern int kent_vpu_alloc_from_vm(void);
+ extern int kent_vpu_alloc_from_dmabuffer2(void);
+ extern int kent_vpu_alloc_dma_buffer(vpudrv_buffer_t *vb);
+ extern void kent_vpu_free_dma_buffer(vpudrv_buffer_t *vb);
+-
++/*
+ extern int kent_vdi_ioctl_get_instance_pool(vpudrv_buffer_t *vdb);
+ extern int kent_vdi_ioctl_get_register_info(vpudrv_buffer_t *vdb);
+ extern int kent_vdi_ioctl_set_rtk_clk_gating(vpu_clock_info_t* clockInfo);
+@@ -170,4 +170,5 @@ extern int kent_vdi_ioctl_free_physical_memory_no_mmap(vpudrv_buffer_t *vdb);
+ extern int kent_vdi_ioctl_open_instance(void *filp, vpudrv_inst_info_t *inst_info);
+ extern int kent_vdi_ioctl_close_instance(vpudrv_inst_info_t *inst_info);
+ extern int kent_vdi_ioctl_wait_interrupt(vpudrv_intr_info_t *intr_info);
++*/
+ #endif
+diff --git a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.h b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.h
+index fce841bbed0f..26a7a0c9626f 100644
+--- a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.h
++++ b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.h
+@@ -161,7 +161,7 @@ extern int rtd16xxb_vpu_alloc_from_vm(void);
+ extern int rtd16xxb_vpu_alloc_from_dmabuffer2(void);
+ extern int rtd16xxb_vpu_alloc_dma_buffer(vpudrv_buffer_t *vb);
+ extern void rtd16xxb_vpu_free_dma_buffer(vpudrv_buffer_t *vb);
+-
++/*
+ extern int rtd16xxb_vdi_ioctl_get_instance_pool(vpudrv_buffer_t *vdb);
+ extern int rtd16xxb_vdi_ioctl_get_register_info(vpudrv_buffer_t *vdb);
+ extern int rtd16xxb_vdi_ioctl_set_rtk_clk_gating(vpu_clock_info_t* clockInfo);
+@@ -174,4 +174,5 @@ extern int rtd16xxb_vdi_ioctl_free_physical_memory_no_mmap(vpudrv_buffer_t *vdb)
+ extern int rtd16xxb_vdi_ioctl_open_instance(void *filp, vpudrv_inst_info_t *inst_info);
+ extern int rtd16xxb_vdi_ioctl_close_instance(vpudrv_inst_info_t *inst_info);
+ extern int rtd16xxb_vdi_ioctl_wait_interrupt(vpudrv_intr_info_t *intr_info);
++*/
+ #endif

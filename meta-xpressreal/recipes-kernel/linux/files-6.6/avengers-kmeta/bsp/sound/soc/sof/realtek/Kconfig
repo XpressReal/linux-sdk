@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-3-Clause)
+
+config SND_SOC_SOF_RTK_TOPLEVEL
+	bool "SOF support for RTK audio DSPs"
+	depends on SND_SOC_SOF_OF
+	help
+	  This adds support for Sound Open Firmware for RTK platforms.
+
+if SND_SOC_SOF_RTK_TOPLEVEL
+
+config SND_SOC_SOF_OF_HIFI
+	tristate "SND SOF FOR RTK AUDIO"
+	select SND_SOC_SOF_OF_DEV
+	select SND_SOC_SOF
+	select SND_SOC_SOF_IPC3
+	select SND_SOC_SOF_XTENSA
+	select SND_SOC_SOF_COMPRESS
+	help
+	  This option is not user-selectable but automagically handled by
+	  'select' statements at a higher level.
+
+endif ## SND_SOC_SOF_RTK_TOPLEVEL
