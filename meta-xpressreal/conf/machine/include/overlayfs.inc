@@ -1,4 +1,4 @@
-# meta-avengers overlayfs default settings
+# meta-xpressreal overlayfs default settings
 
 OVERLAYFS_ETC_MOUNT_POINT ?= "/overlay"
 OVERLAYFS_ETC_FSTYPE ?= "ext4"

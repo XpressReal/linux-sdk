@@ -10,4 +10,4 @@ openssl rsa -in prod.key -out prod.pub -pubout
 
 rm -f dev.key
 
-printf "\033[1;31m Please send back prod.key to Realtek for new DTE_FW_Certificate.bin!!!\n \033[m"
+printf "\033[1;31m Please send back prod.pub to Realtek for new DTE_FW_Certificate.bin!!!\n \033[m"

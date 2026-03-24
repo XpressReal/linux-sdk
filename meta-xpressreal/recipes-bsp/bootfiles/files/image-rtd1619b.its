@@ -71,6 +71,17 @@
                 algo = "sha256";
             };
         };
+        fdt-hulkbuster{
+            description = "HulkBuster";
+            data = /incbin/("./rtd1619b-hulkbuster-4gb.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x03000000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
         fdt-backinblack{
             description = "BackinBlack";
             data = /incbin/("./rtd1619b-backinblack-2gb.dtb");
@@ -112,7 +123,7 @@
             type = "firmware";
             arch = "arm64";
             compression = "lzo";
-            load = <0x2F700000>;
+            load = <0x27700000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -179,6 +190,22 @@
             description = "rtd1619b-bleedingedge-emmc";
             kernel = "kernel-1";
             fdt = "fdt-bleedingedge";
+            loadables = "bootlogo";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "kernel";
+                sign-images = "fdt", "kernel";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "kernel";
+            };
+        };
+        rtd1619b-hulkbuster-emmc {
+            description = "rtd1619b-hulkbuster-emmc";
+            kernel = "kernel-1";
+            fdt = "fdt-hulkbuster";
             loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";

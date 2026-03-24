@@ -26,4 +26,12 @@ SRC_URI:append = " \
     file://0024-weston-add-P010-format-support.patch \
     file://0025-NASPRJ-1171-Add-NV24-to-support-mjpeg-render.patch \
     file://0026-weston-auto-select-match-mode.patch \
+    file://0027-weston-fix-weston-crash-when-hotplug.patch \
+    file://0028-weston-release-all-target-framebuffer-when-drm-outpu.patch \
+    file://0029-weston-fix-video-is-covered-by-bg-after-hotplug-hdmi.patch \
+    file://0030-weston-fix-transparency-of-gui-fail-after-hotplug-hdmi.patch \
+    file://0031-weston-modeset-fail-when-hotplug.patch \
+    file://0032-weston-handling-consecutive-hotplug-events.patch \
+    file://0033-weston-fix-weston-crash-when-receiving-consecutive-h.patch \
+    file://0034-weston-avoid-background-transparent-sw-cursor-trailing.patch \
     "

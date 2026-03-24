@@ -23,9 +23,9 @@
 
 #define RTD1625_REG_PLL_VE1_1               0x114
 #define RTD1625_REG_PLL_VE1_2               0x118
-#define RTD1625_REG_PLL_SSC_DIG_VE1_0       0x584
-#define RTD1625_REG_PLL_SSC_DIG_VE1_1       0x588
-#define RTD1625_REG_PLL_SSC_DIG_VE1_2       0x58c
+#define RTD1625_REG_PLL_SSC_DIG_VE1_0       0x580
+#define RTD1625_REG_PLL_SSC_DIG_VE1_1       0x584
+#define RTD1625_REG_PLL_SSC_DIG_VE1_2       0x588
 #define RTD1625_REG_PLL_SSC_DIG_VE1_DBG2    0x59c
 
 #define RTD1625_REG_PLL_GPU1                0x1c0

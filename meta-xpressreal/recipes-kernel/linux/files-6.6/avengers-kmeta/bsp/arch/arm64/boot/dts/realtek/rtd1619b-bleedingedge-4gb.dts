@@ -25,7 +25,7 @@
 		ethernet = &nic;
 	};
 
-	vpu_legacy: vcpu_legacy {
+	vpu_legacy: vpu_legacy {
 		compatible = "realtek,rtd16xxb-vpu-legacy";
 		memory-region=<&cma_reserved_0>;
 		status = "disabled";
@@ -35,6 +35,11 @@
 		compatible = "realtek,rtd16xxb-ve2-sl";
 		memory-region = <&cma_reserved_0>;
 		status = "disabled";
+	};
+
+	bootlogo {
+		compatible = "realtek,bootlogo";
+		memory-region = <&bootlogo_region>;
 	};
 };
 
@@ -61,11 +66,11 @@
 };
 
 &sound {
-	compatible = "realtek,rtk-alsa-pcm";
+	compatible = "realtek,rtk-alsa-hifi";
 };
 
 &audio_out {
-	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+	remote-cpu = <1>; /* 0: AFW 1: HIFI */
 };
 
 &avcert_rproc {
@@ -73,11 +78,11 @@
 };
 
 &hifi_rproc {
-	status = "disabled";
+	status = "okay";
 };
 
 &acpu_rproc {
-	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
 	status = "okay";
 };
 
@@ -106,7 +111,7 @@
 
 	hifi-rpmsg {
 		rproc = <&hifi_rproc>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	ve3-rpmsg {
@@ -172,6 +177,11 @@
 		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
 		alloc-ranges=<0xa1000000 0x40000000>;
 		reusable;
+	};
+
+	/delete-node/bootlogo_reserved;
+    bootlogo_region: buffer@26f00000 {
+            reg = <0x26f00000 0x01100000>;
 	};
 };
 

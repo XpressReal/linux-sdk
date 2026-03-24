@@ -352,7 +352,9 @@ static int acpu_self_destroy(pid_t pid)
 
 	/* Allocate memory */
 	mutex_lock(&urpc_mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+#endif
 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
 	mutex_unlock(&urpc_mutex);
 	if (!vaddr) {
@@ -401,7 +403,9 @@ static int vcpu_self_destroy(pid_t pid)
 	void *vaddr;
 
 	mutex_lock(&urpc_mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+#endif
 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
 	mutex_unlock(&urpc_mutex);
 	if (!vaddr) {
@@ -450,7 +454,9 @@ static int hifi_self_destroy(pid_t pid)
 
 	/* Allocate memory */
 	mutex_lock(&urpc_mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+#endif
 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
 	mutex_unlock(&urpc_mutex);
 	if (!vaddr) {
@@ -673,7 +679,9 @@ static int rtk_urpc_probe(struct platform_device *pdev)
 	mutex_init(&proc_mutex);
 
 	urpc_dev = &pdev->dev;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(urpc_dev, &rheap_dma_ops);
+#endif
 
 	dev_info(&pdev->dev, "probe\n");
 

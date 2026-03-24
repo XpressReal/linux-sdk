@@ -1,0 +1,57 @@
+From ff4abbba5f566e58f0e4f45b1f1b33b5bc2164e1 Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <yao.tsai@realtek.com>
+Date: Wed, 15 Oct 2025 14:55:20 +0800
+Subject: [PATCH] sound: soc: realtek: add compatible for rtd1920s, and
+ select SND_SOC_HDMI_CODEC for HDMI jack gpu: drm: realtek: remove select
+ SND_SOC_HDMI_CODE
+
+[JIRA] CHROME-613
+
+Change-Id: I45a83c0fe8e6c6d1b75e917262cd940f954f22ba
+---
+ drivers/gpu/drm/realtek/Kconfig        | 1 -
+ sound/soc/realtek/Kconfig              | 1 +
+ sound/soc/realtek/rtk-hifi-rt5650-mc.c | 3 +++
+ 3 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/realtek/Kconfig b/drivers/gpu/drm/realtek/Kconfig
+index 8af9cfb3fe48e..13a94bb06f50c 100644
+--- a/drivers/gpu/drm/realtek/Kconfig
++++ b/drivers/gpu/drm/realtek/Kconfig
+@@ -17,7 +17,6 @@ config DRM_RTK
+ 	select DRM_DISPLAY_HDCP_HELPER if CHROME_PLATFORMS
+ 	select DRM_DISPLAY_HDMI_HELPER if CHROME_PLATFORMS
+ 	select DRM_DP_CEC if CHROME_PLATFORMS
+-	select SND_SOC_HDMI_CODEC if CHROME_PLATFORMS && SND_SOC_RTK_HIFI_MACHINE
+ 	help
+ 	  Choose this option if you have a Realtek SoCs.
+ 	  The module will be called realtek-drm
+diff --git a/sound/soc/realtek/Kconfig b/sound/soc/realtek/Kconfig
+index 1ca45f27b5b7a..e95bc5faa7252 100644
+--- a/sound/soc/realtek/Kconfig
++++ b/sound/soc/realtek/Kconfig
+@@ -45,6 +45,7 @@ config SND_SOC_RTK_HIFI_MACHINE
+ config SND_SOC_RTK_HIFI_RT5650_MACHINE
+ 	tristate "Realtek hifi with rt5650 codec asoc machine Driver"
+ 	select SND_SOC_RT5645
++	select SND_SOC_HDMI_CODEC
+ 	default n
+ 
+ config SND_SOC_RTK_PLATFORM
+diff --git a/sound/soc/realtek/rtk-hifi-rt5650-mc.c b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+index deb3cd8ac6980..58d143a6e0c39 100644
+--- a/sound/soc/realtek/rtk-hifi-rt5650-mc.c
++++ b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+@@ -574,6 +574,9 @@ static const struct dev_pm_ops rtk_hifi_pm_ops = {
+ };
+ 
+ static const struct of_device_id rtk_hifi_dt_match[] = {
++	{
++		.compatible = "realtek,rtd1920s-hifi-mc",
++	},
+ 	{
+ 		.compatible = "realtek,rtd1619b-hifi-mc",
+ 	},
+-- 
+2.47.0
+

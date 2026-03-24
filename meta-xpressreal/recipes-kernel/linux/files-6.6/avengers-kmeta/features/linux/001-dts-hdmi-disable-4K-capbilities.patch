@@ -1,0 +1,53 @@
+From 6d9176fef1a82ac40fc9ce0ce8f131fe4b88305e Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Mon, 24 Nov 2025 14:48:23 +0800
+Subject: [PATCH] dts: hdmi: disable 4K capbilities
+
+---
+ arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts  | 2 +-
+ arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts | 2 +-
+ arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+index a9ff6cf5a646..302c1d161977 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+@@ -105,7 +105,7 @@ panel_in_dsi: endpoint {
+ };
+ 
+ &hdmi {
+-	ext-flags = <0x0>;
++	ext-flags = <0x1>;
+ };
+ 
+ &sound {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+index 21eff11fad8f..64a228828a6f 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+@@ -57,7 +57,7 @@ &voext {
+ };
+ 
+ &hdmi {
+-	ext-flags = <0x0>;
++	ext-flags = <0x1>;
+ };
+ 
+ &sound {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+index 5162ef347a46..f17e999d934a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+@@ -62,7 +62,7 @@ &voext {
+ };
+ 
+ &hdmi {
+-	ext-flags = <0x0>;
++	ext-flags = <0x1>;
+ };
+ 
+ &sound {
+-- 
+2.34.1
+

@@ -272,7 +272,7 @@ new file mode 100644
 index 000000000000..ad94c5c58f04
 --- /dev/null
 +++ b/sound/soc/realtek/rtk-afe-platdrv.c
-@@ -0,0 +1,1336 @@
+@@ -0,0 +1,1340 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * rtk-afe-platform-driver.c  --  Realtek afe platform driver
@@ -459,7 +459,9 @@ index 000000000000..ad94c5c58f04
 +			 void *phy, void **virt, unsigned long heap_flags)
 +{
 +	mutex_lock(&dev->mutex);
++#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 +	rheap_setup_dma_pools(dev, "rtk_media_heap", heap_flags, __func__);
++#endif
 +	*virt = dma_alloc_coherent(dev, size, phy, GFP_KERNEL);
 +	mutex_unlock(&dev->mutex);
 +	if (!*virt) {
@@ -1515,9 +1517,11 @@ index 000000000000..ad94c5c58f04
 +				     "fail to get HIFI krpc ept: 0x%lx\n",
 +				     PTR_ERR(hifi_ept));
 +
++#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 +	set_dma_ops(dev, &rheap_dma_ops);
 +
 +	rheap_setup_dma_pools(dev, "rtk_media_heap", RTK_ACPU_FLAGS, __func__);
++#endif
 +	vaddr = dma_alloc_coherent(dev, SZ_4K, &paddr, GFP_KERNEL);
 +	if (!vaddr)
 +		return -ENOMEM;

@@ -270,6 +270,7 @@ uint32_t sysdbg_atom_inc_ro_read(uint8_t index, uint8_t offset)
 			return readl((maps[index] + LEGACY_ATOM_INC_RO_OFST));
 		else if (index == 2)
 			return readl((maps[index] + V3_ATOM_INC_RO_OFST + offset));
+		return 0xDEADBEEF;
 	default:
 		return 0xDEADBEEF;
 	}
@@ -305,6 +306,7 @@ uint32_t sysdbg_atom_inc_rw_read(uint8_t index, uint8_t offset)
 			return readl((maps[index] + LEGACY_ATOM_INC_RW_OFST));
 		else if (index == 2)
 			return readl((maps[index] + V3_ATOM_INC_RW_OFST + offset));
+		return 0xDEADBEEF;
 	default:
 		return 0xDEADBEEF;
 	}
@@ -342,6 +344,7 @@ uint32_t sysdbg_scratch_read(uint8_t index, uint8_t offset)
 				(maps[index] + LEGACY_SCRATCH_OFST + offset));
 		else if (index == 3)
 			return readl((maps[index] + offset));
+		return 0xDEADBEEF;
 	default:
 		return 0xDEADBEEF;
 	}

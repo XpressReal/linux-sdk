@@ -11,7 +11,7 @@
 
 #include <malloc.h>
 #include <asm/io.h>
-#include <asm/arch/platform_lib/board/gpio.h>
+#include <asm-generic/gpio.h>
 #include <asm/arch/usb.h>
 #include <asm/arch/usb-phy.h>
 #include <asm/arch/cpu.h>
@@ -238,7 +238,7 @@ static void _rtk_usb_port_power(struct rtk_usb_port *usb_port, int port, int ena
 	printf("Port%d power %s\n", port, enable ? "on" : "off");
 	enable = usb_port[port].gpio_active ? enable : !enable;
 	debug("SET num=%d enable=%d\n", usb_port[port].gpio_num, enable);
-	setISOGPIO(usb_port[port].gpio_num, enable);
+	gpio_direction_output(usb_port[port].gpio_num, enable);
 }
 
 #define Rd_EN (1<<1)
@@ -321,16 +321,17 @@ static void _rtk_usb_power_on(struct udevice *dev, int port)
 
 	check = readl((volatile u32*)USB_TYPEC_STS);
 	debug("Realtek-usb: DFP check type_c cc status=0x%x\n", check);
+	gpio_request(53, "realtek,plug-side-switch-gpio");
 	if ((check & 0x7) != 0x7) {
 		debug("Realtek-usb: DFP cc1 detect (status=0x%x)\n", check);
 		type_c_have_device = 1;
 		debug("Realtek-usb: Set ISOGPIO 53 to high (cc1)\n");
-		setISOGPIO(53, 1);
+		gpio_direction_output(53, 1);
 	} else if ((check & 0x38) != 0x38) {
 		debug("Realtek-usb: DFP cc2 detect (status=0x%x)\n", check);
 		type_c_have_device = 1;
 		debug("Realtek-usb: Set ISOGPIO 53 to low (cc2)\n");
-		setISOGPIO(53, 0);
+		gpio_direction_output(53, 0);
 	}
 	} // !rtk_usb->disable_type_c
 
@@ -397,6 +398,7 @@ static void parse_usb_data(struct rtk_usb_config *rtk_usb)
 		}
 		else
 			continue;
+		gpio_request(rtk_usb->usb_port[port].gpio_num, "realtek,power-gpio");
 		debug("%s: port:%d, gpio_num:%d, active:%d\n", __func__, port, rtk_usb->usb_port[port].gpio_num, rtk_usb->usb_port[port].gpio_active);
 	}
 	rtk_usb->disable_usb = !usb_enabled;

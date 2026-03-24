@@ -1,0 +1,90 @@
+From 6427e012501e0d6682ba68a3015298f642c97f5f Mon Sep 17 00:00:00 2001
+From: htwang <htwang@realtek.com>
+Date: Fri, 23 Jan 2026 09:49:08 +0800
+Subject: [PATCH] Add Virtual Keyboard on Streaming Screen
+
+---
+ app/streaming/input/input.cpp | 49 +++++++++++++++++++++++++++++++++++
+ app/streaming/input/input.h   |  3 +++
+ 2 files changed, 52 insertions(+)
+
+diff --git a/app/streaming/input/input.cpp b/app/streaming/input/input.cpp
+index 1336d16b..b7c112de 100644
+--- a/app/streaming/input/input.cpp
++++ b/app/streaming/input/input.cpp
+@@ -453,6 +453,25 @@ void SdlInputHandler::handleTouchFingerEvent(SDL_TouchFingerEvent* event)
+     return;
+ #endif
+ 
++    if (event->type == SDL_FINGERDOWN) {
++        m_activeFingers++;
++        qDebug() << "Finger DOWN, ID:" << event->fingerId
++                 << " | Active fingers:" << m_activeFingers;
++
++        // Trigger shortcut only when the 3rd finger is pressed (i.e., 3 fingers down simultaneously)
++        if (m_activeFingers == 3) {
++            sendVirtualKeyboardShortcut();
++        }
++    }
++    else if (event->type == SDL_FINGERUP) {
++        if (m_activeFingers > 0) {
++            m_activeFingers--;
++        }
++        qDebug() << "Finger UP, ID:" << event->fingerId
++                 << " | Active fingers:" << m_activeFingers;
++    }
++    // SDL_FINGERMOTION does not affect finger count, pass directly to original logic
++
+     if (m_AbsoluteTouchMode) {
+         handleAbsoluteFingerEvent(event);
+     }
+@@ -460,3 +479,33 @@ void SdlInputHandler::handleTouchFingerEvent(SDL_TouchFingerEvent* event)
+         handleRelativeFingerEvent(event);
+     }
+ }
++
++// New function implementation (add to cpp file)
++void SdlInputHandler::sendVirtualKeyboardShortcut()
++{
++    qDebug() << "=== Three-finger touch detected! Sending Win + Ctrl + O to open osk.exe ===";
++
++    // Send Left Win down
++    LiSendKeyboardEvent(0x5B, KEY_ACTION_DOWN, 0);  // VK_LWIN
++    QThread::msleep(50);
++
++    // Send Left Ctrl down
++    LiSendKeyboardEvent(0xA2, KEY_ACTION_DOWN, 0);  // VK_LCONTROL
++    QThread::msleep(50);
++
++    // Send O down
++    LiSendKeyboardEvent(0x4F, KEY_ACTION_DOWN, 0);  // VK_O
++    QThread::msleep(100);  // Hold slightly longer to ensure trigger
++
++    // O up
++    LiSendKeyboardEvent(0x4F, KEY_ACTION_UP, 0);
++    QThread::msleep(50);
++
++    // Ctrl up
++    LiSendKeyboardEvent(0xA2, KEY_ACTION_UP, 0);
++    QThread::msleep(50);
++
++    // Win up
++    LiSendKeyboardEvent(0x5B, KEY_ACTION_UP, 0);
++
++}
+\ No newline at end of file
+diff --git a/app/streaming/input/input.h b/app/streaming/input/input.h
+index 20bbbc33..1d586d1a 100644
+--- a/app/streaming/input/input.h
++++ b/app/streaming/input/input.h
+@@ -248,4 +248,7 @@ private:
+     int m_NumFingersDown;
+ 
+     static const int k_ButtonMap[];
++
++    void sendVirtualKeyboardShortcut();
++    int m_activeFingers = 0;  // Track the number of active fingers
+ };
+-- 
+2.34.1
+

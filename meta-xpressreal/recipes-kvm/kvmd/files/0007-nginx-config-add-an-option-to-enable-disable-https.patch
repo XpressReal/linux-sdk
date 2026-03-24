@@ -1,0 +1,38 @@
+From d6ee0cbebb94d337aa356154904fd1168724da24 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 28 Oct 2025 11:19:12 +0800
+Subject: [PATCH] nginx: config: add an option to enable/disable https
+
+-enable https by default
+-disable http2
+---
+ configs/nginx/nginx.conf.mako | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/configs/nginx/nginx.conf.mako b/configs/nginx/nginx.conf.mako
+index ef76465f..1b5fed61 100644
+--- a/configs/nginx/nginx.conf.mako
++++ b/configs/nginx/nginx.conf.mako
+@@ -5,6 +5,10 @@ error_log stderr;
+ 
+ include /usr/share/kvmd/extras/*/nginx.ctx-main.conf;
+ 
++<%
++	https_enabled = True
++%>
++
+ events {
+ 	worker_connections 1024;
+ 	use epoll;
+@@ -58,7 +62,7 @@ http {
+ 		% if ipv6_enabled:
+ 		listen [${https_ipv6}]:${https_port} ssl;
+ 		% endif
+-		http2 on;
++		#http2 on;
+ 		include /etc/kvmd/nginx/ssl.conf;
+ 		include /etc/kvmd/nginx/kvmd.ctx-server.conf;
+ 		include /usr/share/kvmd/extras/*/nginx.ctx-server.conf;
+-- 
+2.34.1
+

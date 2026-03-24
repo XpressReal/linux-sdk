@@ -24,12 +24,15 @@ struct rr320010_regulator_desc {
 	struct regulator_desc desc;
 	unsigned int mode_reg;
 	unsigned int mode_mask;
+	unsigned int sleep_en_reg;
+	unsigned int sleep_en_mask;
 };
 
 struct rr320010_regulator_data {
 	struct regulator_dev *rdev;
 	struct rr320010_regulator_desc *desc;
 	struct regmap_field *mode;
+	struct regmap_field *sleep_en;
 };
 
 enum {
@@ -74,6 +77,26 @@ static unsigned int rr320010_regulator_get_mode(struct regulator_dev *rdev)
 	return REGULATOR_MODE_NORMAL;
 }
 
+static int rr320010_set_suspend_enable(struct regulator_dev *rdev)
+{
+	struct rr320010_regulator_data *data = rdev_get_drvdata(rdev);
+
+	if (!data->sleep_en)
+		return -EINVAL;
+
+	return regmap_field_write(data->sleep_en, 1);
+}
+
+static int rr320010_set_suspend_disable(struct regulator_dev *rdev)
+{
+	struct rr320010_regulator_data *data = rdev_get_drvdata(rdev);
+
+	if (!data->sleep_en)
+		return -EINVAL;
+
+	return regmap_field_write(data->sleep_en, 0);
+}
+
 static const struct regulator_ops rr320010_regulator_ops = {
 	.list_voltage         = regulator_list_voltage_linear_range,
 	.map_voltage          = regulator_map_voltage_linear_range,
@@ -84,6 +107,8 @@ static const struct regulator_ops rr320010_regulator_ops = {
 	.is_enabled           = regulator_is_enabled_regmap,
 	.set_mode             = rr320010_regulator_set_mode,
 	.get_mode             = rr320010_regulator_get_mode,
+	.set_suspend_enable   = rr320010_set_suspend_enable,
+	.set_suspend_disable  = rr320010_set_suspend_disable,
 };
 
 static const struct regulator_ops rr320010_fixed_regulator_ops = {
@@ -142,6 +167,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(0),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(0),
 	},
 	{
 		.desc = {
@@ -162,6 +189,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(1),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(1),
 	},
 	{
 		.desc = {
@@ -182,6 +211,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(2),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(2),
 	},
 	{
 		.desc = {
@@ -202,6 +233,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(3),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(3),
 	},
 	{
 		.desc = {
@@ -222,6 +255,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(4),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(4),
 	},
 	{
 		.desc = {
@@ -242,6 +277,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(5),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(5),
 	},
 	{
 		.desc = {
@@ -262,6 +299,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_00,
 		.mode_mask = BIT(6),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(6),
 	},
 	{
 		.desc = {
@@ -282,6 +321,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 		},
 		.mode_reg = RR320010_BUCKS_BUCK_MODE_01,
 		.mode_mask = GENMASK(1, 0),
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_2,
+		.sleep_en_mask = BIT(7),
 	},
 	{
 		.desc = {
@@ -296,6 +337,8 @@ static struct rr320010_regulator_desc rr320010_regulator_descs[] = {
 			.n_voltages = 1,
 			.fixed_uV = 5000000,
 		},
+		.sleep_en_reg = RR320010_SEQUENCER_CONV_CONF_3,
+		.sleep_en_mask = BIT(7),
 	},
 };
 
@@ -333,6 +376,11 @@ static int rr320010_regulator_register(struct rr320010_regulator_device *regdev,
 								   desc->mode_mask);
 	if (IS_ERR(data->mode))
 		return PTR_ERR(data->mode);
+
+	data->sleep_en = rr320010_regulator_regmap_field_alloc(regdev, desc->sleep_en_reg,
+								       desc->sleep_en_mask);
+	if (IS_ERR(data->sleep_en))
+		return PTR_ERR(data->sleep_en);
 
 	config.dev         = regdev->dev;
 	config.regmap      = regdev->regmap;

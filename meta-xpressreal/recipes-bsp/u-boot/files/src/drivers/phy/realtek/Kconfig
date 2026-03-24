@@ -21,3 +21,12 @@ config PHY_RTK_RTD_USB3PHY
 	  The DHC (digital home center) RTD series SoCs used the Synopsys
 	  DWC3 USB IP. This driver will do the PHY initialization
 	  of the parameters.
+
+config PHY_RTD_PCIE
+	tristate "Realtek PCIe PHY driver"
+	depends on PCI
+	select PHY
+	select REGMAP
+	select SYSCON
+	help
+	  Support for PCIe PHY on realtek chipsets.

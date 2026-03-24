@@ -1,0 +1,89 @@
+From a525656c5ba69d307864c4de14e911384cc7dc0c Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Wed, 10 Jul 2024 10:40:04 +0200
+Subject: [PATCH] android: boot: Add set_abootimg_addr() and
+ set_avendor_bootimg_addr()
+
+The only way to configure the load addresses for both bootimg and
+vendor_bootimg is by using the "abootimg" command.
+If we want to use the C API, there is no equivalent.
+
+Add set_abootimg_addr() and set_avendor_bootimg_addr() so that we can
+specify the load address from C.
+
+This can be useful for implementing an Android bootmethod.
+
+Reviewed-by: Igor Opaniuk <igor.opaniuk@gmail.com>
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+Reviewed-by: Guillaume La Roque <glaroque@baylibre.com>
+Tested-by: Guillaume La Roque <glaroque@baylibre.com>
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ cmd/abootimg.c  | 10 ++++++++++
+ include/image.h | 14 ++++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/cmd/abootimg.c b/cmd/abootimg.c
+index 327712a536c..ae7a1a7c83b 100644
+--- a/cmd/abootimg.c
++++ b/cmd/abootimg.c
+@@ -22,6 +22,11 @@ ulong get_abootimg_addr(void)
+ 	return (_abootimg_addr == -1 ? image_load_addr : _abootimg_addr);
+ }
+ 
++void set_abootimg_addr(ulong addr)
++{
++	_abootimg_addr = addr;
++}
++
+ ulong get_ainit_bootimg_addr(void)
+ {
+ 	return _ainit_bootimg_addr;
+@@ -32,6 +37,11 @@ ulong get_avendor_bootimg_addr(void)
+ 	return _avendor_bootimg_addr;
+ }
+ 
++void set_avendor_bootimg_addr(ulong addr)
++{
++	_avendor_bootimg_addr = addr;
++}
++
+ static int abootimg_get_ver(int argc, char *const argv[])
+ {
+ 	const struct andr_boot_img_hdr_v0 *hdr;
+diff --git a/include/image.h b/include/image.h
+index 9daaee15cdb..dd4042d1bd9 100644
+--- a/include/image.h
++++ b/include/image.h
+@@ -1971,6 +1971,13 @@ bool is_android_vendor_boot_image_header(const void *vendor_boot_img);
+  */
+ ulong get_abootimg_addr(void);
+ 
++/**
++ * set_abootimg_addr() - Set Android boot image address
++ *
++ * Return: no returned results
++ */
++void set_abootimg_addr(ulong addr);
++
+ /**
+  * get_ainit_bootimg_addr() - Get Android init boot image address
+  *
+@@ -1985,6 +1992,13 @@ ulong get_ainit_bootimg_addr(void);
+  */
+ ulong get_avendor_bootimg_addr(void);
+ 
++/**
++ * set_abootimg_addr() - Set Android vendor boot image address
++ *
++ * Return: no returned results
++ */
++void set_avendor_bootimg_addr(ulong addr);
++
+ /**
+  * board_fit_config_name_match() - Check for a matching board name
+  *
+-- 
+2.47.0
+

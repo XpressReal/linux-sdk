@@ -66,7 +66,7 @@
 #define DPRINTK(args...)
 #endif /* ENABLE_DEBUG_MSG */
 
-#define DEV_NAME "[RTK_VPU]"
+#define DEV_NAME "[RTK_VE4]"
 #define DISABLE_ORIGIN_SUSPEND
 #define USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT
 
@@ -173,6 +173,7 @@ static u32 s_vpu_reg_store[MAX_NUM_VPU_CORE][64];
 #define WriteVe4Register(addr, val, core) *(volatile unsigned int *)(s_ve4_register.virt_addr + addr) = (unsigned int)val
 #define WriteVe4Register2(addr, val, core) *(volatile unsigned int *)(s_ve4_register2.virt_addr + addr) = (unsigned int)val
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 static unsigned int to_heapflag(unsigned int mem_type)
 {
 	unsigned int flags;
@@ -190,6 +191,7 @@ static unsigned int to_heapflag(unsigned int mem_type)
         }
 	return flags;
 }
+#endif
 
 #define VE4_WRAP_CLKEN      0x100
 #define VE4_WRAP_SW_RSTN    0x104
@@ -261,25 +263,28 @@ int kent_ve4_alloc_dma_buffer(vpudrv_buffer_t *vb)
 		return -1;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
-	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
+	vb->phys_addr = (unsigned long)vmem_alloc(&s_vmem, vb->size, 0);
 	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
 		return -1;
 	}
 
-	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
+	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
 #else
 	mutex_lock(&p_vpu_dev->mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
-	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	mutex_unlock(&p_vpu_dev->mutex);
 	if ((void *)(vb->base) == NULL) {
 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
 		return -1;
 	}
+	vb->virt_addr = vb->base;
 	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
 #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
 
@@ -293,24 +298,27 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
 		return -1;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
-	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
+	vb->phys_addr = (unsigned long)vmem_alloc(&s_vmem, vb->size, 0);
 	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
 		return -1;
 	}
 
-	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
+	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 #else
 	mutex_lock(&p_vpu_dev->mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
-	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	mutex_unlock(&p_vpu_dev->mutex);
 	if ((void *)(vb->base) == NULL) {
 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
 		return -1;
 	}
+	vb->virt_addr = vb->base;
 #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
 
 	DPRINTK("%s [%d]vpu_alloc_dma_buffer2.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
@@ -1057,6 +1065,396 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	return ret;
 }
 
+int kent_ve4_vdi_ioctl_get_instance_pool(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0) {
+		kent_ve4_sem_up();
+		return -EFAULT;
+	}
+
+	if (s_instance_pool.base != 0) {
+		DPRINTK("%s [%d]%s.s_instance_pool(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).\n",DEV_NAME,__LINE__,__func__,s_instance_pool.base,s_instance_pool.virt_addr,s_instance_pool.phys_addr,s_instance_pool.size);
+		*vdb = s_instance_pool;
+	} else {
+		s_instance_pool = *vdb;
+
+	#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+		ret = kent_ve4_alloc_from_vm();
+		if (ret) {
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+	#else
+			ret = vpu_alloc_dma_buffer(&s_instance_pool);
+		if (ret) {
+		kent_ve4_sem_up();
+		return -EFAULT;
+		}
+	#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+		DPRINTK("%s [%d]%s.s_instance_pool(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).\n",DEV_NAME,__LINE__,__func__,s_instance_pool.base,s_instance_pool.virt_addr,s_instance_pool.phys_addr,s_instance_pool.size);
+		memset((void *)s_instance_pool.base, 0x0, s_instance_pool.size); /*clearing memory*/
+		*vdb = s_instance_pool;
+	}
+
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_instance_pool);
+
+int kent_ve4_vdi_ioctl_get_register_info(vpudrv_buffer_t *vdb)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+	*vdb = s_ve4_register;
+	DPRINTK("%s [%d]%s.s_ve4_register(virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_ve4_register.virt_addr,s_ve4_register.phys_addr,s_ve4_register.size);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_register_info);
+
+int kent_ve4_vdi_ioctl_get_wrap_register_info(vpudrv_buffer_t *vdb)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+	*vdb = s_ve4_register2;
+	DPRINTK("%s [%d]%s.s_ve4_register2(virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_ve4_register2.virt_addr,s_ve4_register2.phys_addr,s_ve4_register2.size);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_wrap_register_info);
+
+int kent_ve4_vdi_ioctl_set_rtk_clk_gating(vpu_clock_info_t* clockInfo)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	if (clockInfo == NULL)
+	{
+		pr_err("%s [%d]%s.clockInfo == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	kent_ve4_clock_getting(clockInfo);
+
+	DPRINTK("%s [-] [%d]%s.core_idx:%d.enable:%d\n",DEV_NAME,__LINE__,__func__,clockInfo->core_idx,clockInfo->enable);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_set_rtk_clk_gating);
+
+int kent_ve4_vdi_ioctl_get_common_memory(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	if (s_common_memory.base != 0)
+	{
+		DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+		*vdb = s_common_memory;
+	} else {
+		s_common_memory = *vdb;
+		DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+		if (kent_ve4_alloc_dma_buffer(&s_common_memory) != -1)
+		{
+			DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+			memset((void *)s_common_memory.virt_addr, 0x0, s_common_memory.size); /*clearing memory*/
+			*vdb = s_common_memory;
+			return ret;
+		}
+
+		ret = -EFAULT;
+	}
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_common_memory);
+
+ssize_t kent_ve4_vdi_write_bit_firmware(vpu_bit_firmware_info_t *buf, size_t len)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (!buf) {
+		pr_err("%s [%d]%s.buf == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	if (len == sizeof(vpu_bit_firmware_info_t) || len == sizeof(compat_vpu_bit_firmware_info_t))	{
+		vpu_bit_firmware_info_t *bit_firmware_info;
+
+		bit_firmware_info = kmalloc(sizeof(vpu_bit_firmware_info_t), GFP_KERNEL);
+		if (!bit_firmware_info) {
+			pr_err("%s [%d]%s.bit_firmware_info allocation error\n",DEV_NAME,__LINE__,__func__);
+			return -EFAULT;
+		}
+
+		if (len == sizeof(vpu_bit_firmware_info_t)) {
+			*bit_firmware_info = *buf;
+		}
+
+		if (bit_firmware_info->size == sizeof(vpu_bit_firmware_info_t)) {
+			DPRINTK("%s [%d]%s.set bit_firmware_info coreIdx=0x%x, reg_base_offset=0x%x size=0x%x, bit_code[0]=0x%x\n",
+					DEV_NAME,__LINE__,__func__,bit_firmware_info->core_idx,(int)bit_firmware_info->reg_base_offset,bit_firmware_info->size,bit_firmware_info->bit_code[0]);
+
+			if (bit_firmware_info->core_idx > MAX_NUM_VPU_CORE) {
+				pr_err("%s [%d]%s.coreIdx[%d] is exceeded than MAX_NUM_VPU_CORE[%d]\n",DEV_NAME,__LINE__,__func__,bit_firmware_info->core_idx,MAX_NUM_VPU_CORE);
+				kfree(bit_firmware_info);
+				return -ENODEV;
+			}
+
+			memcpy((void *)&s_bit_firmware_info[bit_firmware_info->core_idx], bit_firmware_info, sizeof(vpu_bit_firmware_info_t));
+			kfree(bit_firmware_info);
+
+			DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+			return len;
+		}
+
+		kfree(bit_firmware_info);
+	}
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return -1;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_write_bit_firmware);
+
+int kent_ve4_vdi_ioctl_allocate_physical_memory(void *filp, vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	vpudrv_buffer_pool_t *vbp;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || vdb == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return -EFAULT;
+
+	vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
+	if (!vbp) {
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.kzalloc() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	vbp->vb = *vdb;
+
+	ret = kent_ve4_alloc_dma_buffer(&(vbp->vb));
+	if (ret != 0) {
+		kfree(vbp);
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.vpu_alloc_dma_buffer() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+	DPRINTK("%s [%d]vbp->vb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,vbp->vb.base,vbp->vb.virt_addr,vbp->vb.phys_addr,vbp->vb.size);
+
+	*vdb = vbp->vb;
+	DPRINTK("%s [%d]%s.vdb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).filp:0x%px\n",DEV_NAME,__LINE__,__func__,vdb->base,vdb->virt_addr,vdb->phys_addr,vdb->size,filp);
+
+	kent_ve4_add_vbp_list(vbp, filp);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_allocate_physical_memory);
+
+int kent_ve4_vdi_ioctl_free_physical_memory(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return -EFAULT;
+
+	if (vdb->base)
+	{
+		kent_ve4_free_dma_buffer(vdb);
+		DPRINTK("%s [%d]%s.af vpu_free_dma_buffer\n",DEV_NAME,__LINE__,__func__);
+	}
+
+	kent_ve4_free_mem(vdb);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_free_physical_memory);
+
+int kent_ve4_vdi_ioctl_allocate_physical_memory_no_mmap(void *filp, vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	vpudrv_buffer_pool_t *vbp;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || vdb == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return -EFAULT;
+
+	vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
+	if (!vbp) {
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.kzalloc() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	vbp->vb = *vdb;
+
+	ret = kent_ve4_alloc_dma_buffer(&(vbp->vb));
+	if (ret != 0) {
+		kfree(vbp);
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.vpu_alloc_dma_buffer() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	*vdb = vbp->vb;
+	DPRINTK("%s [%d]%s.vdb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).filp:0x%px\n",DEV_NAME,__LINE__,__func__,vdb->base,vdb->virt_addr,vdb->phys_addr,vdb->size,filp);
+
+	kent_ve4_add_vbp_list(vbp, filp);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_allocate_physical_memory_no_mmap);
+
+int kent_ve4_vdi_ioctl_free_physical_memory_no_mmap(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return -EFAULT;
+
+	if (vdb->base)
+	{
+		kent_ve4_free_dma_buffer(vdb);
+		DPRINTK("%s [%d]%s.af vpu_free_dma_buffer\n",DEV_NAME,__LINE__,__func__);
+	}
+
+	kent_ve4_free_mem(vdb);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_free_physical_memory_no_mmap);
+
+int kent_ve4_vdi_ioctl_open_instance(void *filp, vpudrv_inst_info_t *inst_info)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || inst_info == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_open_inst(inst_info, filp);
+	if (ret)
+		return -ENOMEM;
+
+	/* flag just for that vpu is in opened or closed */
+	kent_ve4_open_ref_count_inc();
+
+	DPRINTK("%s [-] [%d]%s.core_idx=%d.inst_idx=%d.s_vpu_open_ref_count=%d.inst_open_count=%d\n",DEV_NAME,__LINE__,__func__,inst_info->core_idx,inst_info->inst_idx,s_vpu_open_ref_count,inst_info->inst_open_count);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_open_instance);
+
+int kent_ve4_vdi_ioctl_close_instance(vpudrv_inst_info_t *inst_info)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (inst_info == NULL)
+	{
+		pr_err("%s [%d]%s.inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	kent_ve4_close_inst(inst_info);
+
+	/* flag just for that vpu is in opened or closed */
+	kent_ve4_open_ref_count_dec();
+
+	DPRINTK("%s [-] [%d]%s.core_idx=%d.inst_idx=%d.s_vpu_open_ref_count=%d.inst_open_count=%d\n",DEV_NAME,__LINE__,__func__,inst_info->core_idx,inst_info->inst_idx,s_vpu_open_ref_count,inst_info->inst_open_count);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_close_instance);
+
+int kent_ve4_vdi_ioctl_wait_interrupt(vpudrv_intr_info_t *intr_info)
+{
+	int ret = 0;
+	struct vpu_drv_context_t *dev = (struct vpu_drv_context_t *)(&s_vpu_drv_context);
+
+	if (intr_info == NULL)
+	{
+		pr_err("%s [%d]%s.inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_wait_init(dev, intr_info);
+	if (ret != 0)
+		return -EFAULT;
+
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_wait_interrupt);
+
 static ssize_t vpu_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 {
 	return -1;
@@ -1347,7 +1745,9 @@ static int vpu_probe(struct platform_device *pdev)
 	s_vpu_dev.this_device->coherent_dma_mask = DMA_BIT_MASK(32);
 	s_vpu_dev.this_device->dma_mask = (u64 *)&s_vpu_dev.this_device
 						->coherent_dma_mask;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(s_vpu_dev.this_device, &rheap_dma_ops);
+#endif
 
 	p_vpu_dev = &pdev->dev;
 
@@ -1361,7 +1761,7 @@ static int vpu_probe(struct platform_device *pdev)
 	s_ve4_irq = irq;
 	pr_info("%s s_ve4_irq:%d want to register ve4_irq_handler\n", DEV_NAME, s_ve4_irq);
 	err = request_irq(s_ve4_irq, ve4_irq_handler, 0, "VE4_CODEC_IRQ", (void *)(&s_vpu_drv_context));
-	pr_info("%s s_ve4_irq:%d err:0x%x\n", DEV_NAME, err);
+	pr_info("%s s_ve4_irq:%d err:0x%x\n", DEV_NAME, s_ve4_irq, err);
 	err = 0;
 	if (err != 0) {
 		if (err == -EINVAL)

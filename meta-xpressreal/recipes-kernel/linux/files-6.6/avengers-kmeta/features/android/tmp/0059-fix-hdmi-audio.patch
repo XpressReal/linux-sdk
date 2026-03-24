@@ -1,0 +1,74 @@
+Index: common/drivers/gpu/drm/realtek/rtk_hdmi.c
+===================================================================
+--- common.orig/drivers/gpu/drm/realtek/rtk_hdmi.c
++++ common/drivers/gpu/drm/realtek/rtk_hdmi.c
+@@ -1160,17 +1160,11 @@ static int rtk_hdmi_audio_output_ctrl(st
+ 	}
+ 
+ 	rpc_data.version = AUDIO_CTRL_VERSION;
+-
+-	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS) &&
+-		soc_device_match(rtk_soc_kent))
+-		rpc_data.hdmi_en_state = enable&hdmi->audio_startup ? 1:0;
+-	else
+-		rpc_data.hdmi_en_state = enable ? 1:0;
+-
+-	dev_info(hdmi->dev, "set audio output %s",  rpc_data.hdmi_en_state ? "on":"off");
++	rpc_data.hdmi_en_state = enable ? 1:0;
+ 
+ 	ret = rpc_set_hdmi_audio_onoff(hdmi->rpc_info_ao, &rpc_data);
+ 
++	dev_info(hdmi->dev, "set audio output %s, ret:%d\n",  rpc_data.hdmi_en_state ? "on":"off", ret);
+ 	return ret;
+ }
+ 
+@@ -2510,13 +2504,15 @@ static bool rtk_hdmi_update_hpd_state(st
+ 		bool is_hdmi_audio;
+ 
+ 		is_hdmi_audio = is_connected && hdmi->edid_info.sink_has_audio;
+-
++    hdmi->hdmi_ops->audio_output_ctrl(hdmi, is_hdmi_audio);
++#if 0
+ 		if ((is_connected != pre_state) && (is_connected == is_hdmi_audio)) {
+ 			if (hdmi->plugged_cb && hdmi->codec_dev)
+ 				hdmi->plugged_cb(hdmi->codec_dev, is_hdmi_audio);
+ 			else
+ 				dev_err(hdmi->dev, "Failed to plugged_cb");
+ 		}
++#endif
+ 	}
+ 
+ 	return updae_state;
+@@ -3227,7 +3223,6 @@ static int rtk_hdmi_audio_startup(struct
+ 
+ 	dev_info(hdmi->dev, "audio startup");
+ 
+-	hdmi->hifi_ready = 1;
+ 	hdmi->audio_startup = 1;
+ 
+ 	return 0;
+@@ -3240,7 +3235,6 @@ static int rtk_hdmi_audio_hook_plugged_c
+ 	bool is_connected;
+ 	bool is_hdmi_audio;
+ 
+-	dev_info(hdmi->dev, "audio hook plugged cb");
+ 
+ 	hdmi->plugged_cb = fn;
+ 	hdmi->codec_dev = codec_dev;
+@@ -3248,11 +3242,16 @@ static int rtk_hdmi_audio_hook_plugged_c
+ 	is_connected = extcon_get_state(hdmi->edev, EXTCON_DISP_HDMI);
+ 	is_hdmi_audio = is_connected && hdmi->edid_info.sink_has_audio;
+ 
++	hdmi->hifi_ready = is_hdmi_audio;
++	dev_info(hdmi->dev, "audio hook plugged cb, is_connect:%d, is_hdmi_audio:%d", is_connected, is_hdmi_audio);
++
+ 	if (hdmi->plugged_cb && hdmi->codec_dev)
+ 		hdmi->plugged_cb(hdmi->codec_dev, is_hdmi_audio);
+ 	else
+ 		dev_err(hdmi->dev, "Failed to plugged_cb");
+ 
++  hdmi->hdmi_ops->audio_output_ctrl(hdmi, is_hdmi_audio);
++
+ 	return 0;
+ }
+ 

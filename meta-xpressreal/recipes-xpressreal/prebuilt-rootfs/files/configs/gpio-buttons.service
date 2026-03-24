@@ -1,0 +1,23 @@
+[Unit]
+Description=GPIO Volume and Power Control Service
+# Start after the sound system is ready
+After=sound.target multi-user.target
+
+[Service]
+# 'simple' means the script runs in the foreground and doesn't fork
+Type=simple
+
+# Run as root (required for GPIO and Input access)
+User=root
+
+ExecStart=/usr/bin/python3 /usr/sbin/key_control.py
+
+# IMPORTANT: Restart the script if it crashes (e.g. if USB is unplugged)
+Restart=always
+RestartSec=5
+
+# Send Python print() output to the system journal immediately
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

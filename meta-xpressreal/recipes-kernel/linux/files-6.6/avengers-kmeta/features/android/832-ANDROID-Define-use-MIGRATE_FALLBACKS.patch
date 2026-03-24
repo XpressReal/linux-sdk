@@ -1,0 +1,96 @@
+From a509aa2a39e044368722a0c4b890595fd048949a Mon Sep 17 00:00:00 2001
+From: Sukadev Bhattiprolu <quic_sukadev@quicinc.com>
+Date: Sun, 25 Feb 2024 18:25:23 -0800
+Subject: [PATCH 2/5] ANDROID: Define/use MIGRATE_FALLBACKS
+
+MIGRATE_PCPTYPES is used for two different purposes - one to specify
+number of migrate types with PCP lists (as its name implies) and
+the other as number of migrate-types that have fallbacks.
+
+Rather than overload MIGRATE_PCPTYPES, define and use a second value,
+MIGRATE_FALLBACKS to keep track of number of fallbacks. This would
+be useful if we add items to one list but not the other (a follow on
+patch will add MIGRATE_CMA to the pcp list but not to the fallbacks).
+
+Bug: 330201547
+Change-Id: Ife0af3a66f8d4fd12ca3642eea606076da3f7046
+Suggested-by: Chris Goldsworthy <quic_cgoldswo@quicinc.com>
+Signed-off-by: Sukadev Bhattiprolu <quic_sukadev@quicinc.com>
+---
+ include/linux/mmzone.h | 7 +++++--
+ mm/khugepaged.c        | 2 +-
+ mm/page_alloc.c        | 6 +++---
+ 3 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index bd8c85eda511..3427b4db5cac 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -48,7 +48,10 @@ enum migratetype {
+ 	MIGRATE_UNMOVABLE,
+ 	MIGRATE_MOVABLE,
+ 	MIGRATE_RECLAIMABLE,
+-	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
++	/* the number of types that have fallbacks */
++	MIGRATE_FALLBACKS,
++	/* the number of types on the pcp lists */
++	MIGRATE_PCPTYPES = MIGRATE_FALLBACKS,
+ 	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+ #ifdef CONFIG_CMA
+ 	/*
+@@ -93,7 +96,7 @@ static inline bool is_migrate_movable(int mt)
+  */
+ static inline bool migratetype_is_mergeable(int mt)
+ {
+-	return mt < MIGRATE_PCPTYPES;
++	return mt < MIGRATE_FALLBACKS;
+ }
+ 
+ #define for_each_migratetype_order(order, type) \
+diff --git a/mm/khugepaged.c b/mm/khugepaged.c
+index 88433cc25d8a..c071f41aed29 100644
+--- a/mm/khugepaged.c
++++ b/mm/khugepaged.c
+@@ -2602,7 +2602,7 @@ static void set_recommended_min_free_kbytes(void)
+ 	 * MIGRATE_TYPES we care about.
+ 	 */
+ 	recommended_min += pageblock_nr_pages * nr_zones *
+-			   MIGRATE_PCPTYPES * MIGRATE_PCPTYPES;
++			   MIGRATE_FALLBACKS * MIGRATE_FALLBACKS;
+ 
+ 	/* don't ever allow to reserve more than 5% of the lowmem */
+ 	recommended_min = min(recommended_min,
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 3182eed45aad..65c733116c26 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -430,7 +430,7 @@ void set_pfnblock_flags_mask(struct page *page, unsigned long flags,
+ void set_pageblock_migratetype(struct page *page, int migratetype)
+ {
+ 	if (unlikely(page_group_by_mobility_disabled &&
+-		     migratetype < MIGRATE_PCPTYPES))
++		     migratetype < MIGRATE_FALLBACKS))
+ 		migratetype = MIGRATE_UNMOVABLE;
+ 
+ 	set_pfnblock_flags_mask(page, (unsigned long)migratetype,
+@@ -1594,7 +1594,7 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
+  *
+  * The other migratetypes do not have fallbacks.
+  */
+-static int fallbacks[MIGRATE_TYPES][MIGRATE_PCPTYPES - 1] = {
++static int fallbacks[MIGRATE_TYPES][MIGRATE_FALLBACKS - 1] = {
+ 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE   },
+ 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE },
+ 	[MIGRATE_RECLAIMABLE] = { MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE   },
+@@ -1855,7 +1855,7 @@ int find_suitable_fallback(struct free_area *area, unsigned int order,
+ 		return -1;
+ 
+ 	*can_steal = false;
+-	for (i = 0; i < MIGRATE_PCPTYPES - 1 ; i++) {
++	for (i = 0; i < MIGRATE_FALLBACKS - 1 ; i++) {
+ 		fallback_mt = fallbacks[migratetype][i];
+ 		if (free_area_empty(area, fallback_mt))
+ 			continue;
+-- 
+2.34.1
+

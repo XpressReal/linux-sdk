@@ -556,7 +556,7 @@ static int rtk_spi_nor_remove(struct platform_device *pdev)
 
 static const struct of_device_id rtk_spi_nor_dt_ids[] = {
 	{ .compatible = "realtek,rtd1625-sfc"},
-	{ .compatible = "realtek,rtd16xxb-sfc"},
+	//{ .compatible = "realtek,rtd16xxb-sfc"},
 	{ /* sentinel */ }
 };
 

@@ -1,0 +1,41 @@
+From 26c811b53cb38582c5b8a8cb7b25a344f2a4671d Mon Sep 17 00:00:00 2001
+From: "brian.shen" <brian.shen@realtek.com>
+Date: Wed, 22 Oct 2025 11:37:01 +0800
+Subject: [PATCH] weston: fix bug that the transparency function of rtk gui
+ dose not work after hotplug HDMI
+Source: Realtek
+License: GPLV2
+Upstream-Status: Pending
+
+Signed-off-by: brian.shen <brian.shen@realtek.com>
+---
+ libweston/renderer-gl/gl-renderer.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
+index dee9de3..48cd2d4 100644
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -2413,8 +2413,17 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
+ 		assert(pixel_format_get_plane_count(buffer->pixel_format) == 1);
+ 		num_planes = 1;
+ 
+-		if (pixel_format_is_opaque(buffer->pixel_format))
+-			shader_variant = SHADER_VARIANT_RGBX;
++		if (pixel_format_is_opaque(buffer->pixel_format)) {
++			char desc[512] = {0};
++			if (!es->get_label ||
++				es->get_label(es, desc, sizeof(desc)) < 0) {
++				strcpy(desc, "[no description available]");
++			}
++			if (strstr(desc, "rtk") != NULL && strstr(desc, "rtk_video") == NULL) {
++				shader_variant = SHADER_VARIANT_RGBA;
++			} else
++				shader_variant = SHADER_VARIANT_RGBX;
++		}
+ 		else
+ 			shader_variant = SHADER_VARIANT_RGBA;
+ 
+-- 
+2.7.4
+

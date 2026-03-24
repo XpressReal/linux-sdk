@@ -27,4 +27,6 @@ SRC_URI:append = " \
     file://0024-Do-not-check-the-duration-of-each-video-tracks.patch \
     file://0025-fix-memory-leak-in-qtdemux_parse_trak.patch \
     file://0026-Fix-IS_MUTABLE-structure-issue.patch \
+    file://0027-Supports-Sorenson-Spark-Codec.patch \
+    file://0028-Avoid-advertising-empty-invalid-AVC-codec_data-in-ca.patch \
     "

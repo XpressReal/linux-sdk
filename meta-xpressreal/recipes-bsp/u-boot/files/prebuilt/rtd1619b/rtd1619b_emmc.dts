@@ -2,6 +2,10 @@
 /dts-v1/;
 #include "rtd1619b_emmc.dtsi"
 
+&binman {
+	size = <0x00120000>;
+};
+
 &scs_param {
 	filename = "scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.ext.bin";
 };

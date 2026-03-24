@@ -1,1 +1,3 @@
+patch 846-Enable-Stateless-Decoder.patch
+
 kconf hardware v4l2_stateless.cfg

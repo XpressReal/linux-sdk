@@ -1,1 +1,2 @@
-patch 001-drm-dts-disable-4K-tv-system.patch
+patch 001-dts-hdmi-disable-4K-capbilities.patch
+patch 002-drm-disable-HW-cursor-plane-for-X-Desktop.patch

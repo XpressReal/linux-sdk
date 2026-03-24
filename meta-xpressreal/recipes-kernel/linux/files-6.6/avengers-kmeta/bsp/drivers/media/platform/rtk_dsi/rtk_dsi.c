@@ -570,9 +570,11 @@ static int rtk_dsi_probe(struct platform_device *pdev)
 		dsi_ept_init(dsi->acpu_ept_info);
 	}
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(dev, "rtk_audio_heap", RTK_FLAG_NONCACHED |
 				 RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC, __func__);
+#endif
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	dev->dma_mask = (u64 *)&dev->coherent_dma_mask;

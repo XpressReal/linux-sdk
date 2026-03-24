@@ -125,10 +125,10 @@ struct hse_cmd {
 #define HSE_FLAGS_COPY_SWAP_OPT_MASK   0x0000001fLL
 #define HSE_FLAGS_COPY_SWAP_EN         0x00000020LL
 #define HSE_FLAGS_ROTATE_10BIT         0x00000001LL
-#define HSE_FLAGS_PREP_CMD             0x100000000LL
+#define HSE_FLAGS_PREP_CMD             0x100000000LL /* not supported */
 
 #define HSE_FLAGS_COPY_VALID_MASK     \
-	(HSE_FLAGS_COPY_SWAP_OPT_MASK | HSE_FLAGS_COPY_SWAP_EN | HSE_FLAGS_PREP_CMD)
+	(HSE_FLAGS_COPY_SWAP_OPT_MASK | HSE_FLAGS_COPY_SWAP_EN)
 #define HSE_FLAGS_ROTATE_VALID_MASK   (HSE_FLAGS_ROTATE_10BIT)
 
 /**
@@ -295,14 +295,14 @@ enum HSE_COLOR_FMT {
  * @dst_luma_offset:[in] destination buffer offset for  luma
  * @dst_chroma_va:    [in] HSE VA of a imported destination buffer for chroma (0 for RGB type)
  * @dst_chroma_offset:[in] destination buffer offset for chroma (0 for RGB type)
- * @dst_pitch:  [in] pitch to luma and chroma, must greater than or equal to width (unit: bytes, 16-byte alignment)
+ * @dst_pitch:  [in] pitch to luma and chroma, must greater than or equal to width (unit: bytes, 2-byte alignment)
  * @alpha_out : [in] Alpha value when YUV to ARGB
  * @src_fmt:     [in] enum HSE_COLOR_FMT; source color format
  * @src_luma_va:    [in] HSE VA of a imported src buffer for luma
  * @src_luma_offset:[in] src buffer offset for luma
  * @src_chroma_va:    [in] HSE VA of a imported src buffer for chroma (0 for RGB type)
  * @src_chroma_offset:[in] src buffer offset for chroma (0 for RGB type)
- * @src_pitch:  [in] pitch to src, must greater than or equal to width (unit: bytes, 16-byte alignment)
+ * @src_pitch:  [in] pitch to src, must greater than or equal to width (unit: bytes, 2-byte alignment)
  */
 struct hse_cmd_fmt_convert {
 	__u16 width;
@@ -408,7 +408,7 @@ struct hse_cmd_stretch {
 	__u32 src_pitch;
 	__u32 src_va;
 	__u32 src_offset;
-    __u16 colorSel;
+	__u16 colorSel;
 };
 
 #endif /* __UAPI_HSE_H */

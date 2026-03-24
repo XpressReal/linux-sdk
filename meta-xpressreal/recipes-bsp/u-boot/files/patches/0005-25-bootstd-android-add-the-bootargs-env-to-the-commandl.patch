@@ -1,0 +1,77 @@
+From 10da28729949f3e2160f98d82df45833d4c175cf Mon Sep 17 00:00:00 2001
+From: "Nicolas Belin (TI.com)" <nbelin@baylibre.com>
+Date: Fri, 24 Oct 2025 16:23:22 +0200
+Subject: [PATCH 25/25] bootstd: android: add the bootargs env to the
+ commandline
+
+When previously using script based bootflows, the U-Boot
+environment variable bootargs was used to customize the kernel
+commandline at boot time.
+In order to get the same behaviour, concatenate the bootflow
+commandline with the contents the bootargs environment variable.
+
+Signed-off-by: Nicolas Belin (TI.com) <nbelin@baylibre.com>
+Signed-off-by: Guillaume La Roque (TI.com) <glaroque@baylibre.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Link: https://lore.kernel.org/r/20251024-botargsappend-v1-1-0b78f05f9132@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ boot/bootmeth_android.c | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index 8c2bde10e17..1374551dbeb 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -512,6 +512,37 @@ static int run_avb_verification(struct bootflow *bflow)
+ }
+ #endif /* AVB_VERIFY */
+ 
++static int append_bootargs_to_cmdline(struct bootflow *bflow)
++{
++	char *bootargs;
++	int len = 0;
++
++	/*
++	 * Check any additionnal bootargs coming from U-Boot env. If any,
++	 * merge them with the current cmdline
++	 */
++	bootargs = env_get("bootargs");
++	if (bootargs) {
++		len += strlen(bootargs) + 1; /* Extra space character needed */
++		len += strlen(bflow->cmdline);
++
++		char *newcmdline = malloc(len + 1); /* +1 for the '\0' */
++
++		if (!newcmdline)
++			return log_msg_ret("newcmdline malloc", -ENOMEM);
++
++		strcpy(newcmdline, bootargs);
++		strcat(newcmdline, " ");
++		strcat(newcmdline, bflow->cmdline);
++
++		/* Free the previous cmdline and replace it */
++		free(bflow->cmdline);
++		bflow->cmdline = newcmdline;
++	}
++
++	return 0;
++}
++
+ static int boot_android_normal(struct bootflow *bflow)
+ {
+ 	struct blk_desc *desc = dev_get_uclass_plat(bflow->blk);
+@@ -546,6 +577,10 @@ static int boot_android_normal(struct bootflow *bflow)
+ 	if (priv->slot)
+ 		free(priv->slot);
+ 
++	ret = append_bootargs_to_cmdline(bflow);
++	if (ret < 0)
++		return log_msg_ret("bootargs append", ret);
++
+ 	ret = bootm_boot_start(loadaddr, bflow->cmdline);
+ 
+ 	return log_msg_ret("boot", ret);
+-- 
+2.47.0
+

@@ -12,7 +12,7 @@ config SND_HIFI_AO
 
 config RTK_CACHEABLE_HEADER
 	bool "HIFI with cacheable header"
-	depends on SND_HIFI_AO
+#	depends on SND_HIFI_AO
 	default n
 	help
 	  Enable cacheable HIFI header.

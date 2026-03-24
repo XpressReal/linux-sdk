@@ -1,0 +1,180 @@
+From 20178e53a8e5114ecb3b8a7d8b07d72e9a0a202e Mon Sep 17 00:00:00 2001
+From: simon_hsu <simon_hsu@realtek.com>
+Date: Thu, 6 Nov 2025 11:10:06 +0800
+Subject: [PATCH] sound: soc: realtek: add a way for user to get btpcm
+ passthough data
+
+Change-Id: I7e28478d9c3aefa5e80a831248f780045d619d08
+Signed-off-by: James Tai <james.tai@realtek.com>
+---
+ sound/soc/realtek/common/snd-hifi-realtek.c | 75 +++++++++++++++------
+ 1 file changed, 55 insertions(+), 20 deletions(-)
+
+diff --git a/sound/soc/realtek/common/snd-hifi-realtek.c b/sound/soc/realtek/common/snd-hifi-realtek.c
+index f3c36729c5bdb..cfd5c1e4791f9 100644
+--- a/sound/soc/realtek/common/snd-hifi-realtek.c
++++ b/sound/soc/realtek/common/snd-hifi-realtek.c
+@@ -695,7 +695,8 @@ static int rtk_snd_capture_lpcm_ringheader_ai(struct snd_pcm_runtime *runtime)
+ 
+ 	if (dpcm->source_in == ENUM_AIN_TDM_IN ||
+ 		dpcm->source_in == ENUM_AIN_TDM1_IN ||
+-		dpcm->source_in == ENUM_AIN_TDM2_IN) {
++		dpcm->source_in == ENUM_AIN_TDM2_IN ||
++		dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH) {
+ 		ret = rtk_snd_alloc(dev, size, (void *)&dat, (void **)&vaddr,
+ 				    RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
+ 				    RTK_FLAG_HIFIACC);
+@@ -717,10 +718,15 @@ static int rtk_snd_capture_lpcm_ringheader_ai(struct snd_pcm_runtime *runtime)
+ 		ring_header.ringbuffer_header_list[0] = (unsigned long)dpcm->phy_lpcm_pack_ring;
+ 
+ 		/* init AI ring header */
+-		ring_header.instance_id = dpcm->ai_agent_id;
++		if (dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH) {
++			ring_header.instance_id = dpcm->ao_agent_id;
++			ring_header.pin_id = PCM_OUT4;
++		} else {
++			ring_header.instance_id = dpcm->ai_agent_id;
++			ring_header.pin_id = PCM_PACKED_IN;
++		}
+ 		ring_header.read_idx = 0;
+ 		ring_header.list_size = 1;
+-		ring_header.pin_id = PCM_PACKED_IN;
+ 
+ 		/* RPC set AI ring header */
+ 		if (rpc_initringbuffer_header(dpcm->phy_addr_rpc,
+@@ -1530,6 +1536,21 @@ static int rtk_snd_capture_malloc_lpcm_ring(struct snd_pcm_runtime *runtime)
+ 		dpcm->lpcm_pack_ring_size = size;
+ 	}
+ 
++	if (dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH) {
++		size = RTK_ENC_LPCM_BUFFER_SIZE;
++		ret = rtk_snd_alloc(dev, size, (void *)&dat, (void **)&vaddr,
++				    RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
++				    RTK_FLAG_ACPUACC);
++		if (ret) {
++			pr_err("%s alloc mem fail\n", __func__);
++			return ret;
++		}
++
++		dpcm->phy_lpcm_pack_data = dat;
++		dpcm->lpcm_pack_data = vaddr;
++		dpcm->lpcm_pack_ring_size = size;
++	}
++
+ 	if (!dpcm->aec_feature)
+ 		goto SUCCESS;
+ 
+@@ -1650,6 +1671,8 @@ static int snd_realtek_hw_create_ai(struct snd_pcm_substream *substream)
+ 		}
+ 	}
+ 
++	dpcm->mixer->ai_agent_id = dpcm->ai_agent_id;
++
+ 	snd_open_ai_count++;
+ 
+ 	return 0;
+@@ -3196,8 +3219,6 @@ static int snd_card_capture_prepare_lpcm(struct snd_pcm_substream *substream)
+ 	}
+ 
+ 	switch (dpcm->source_in) {
+-	case ENUM_AIN_BTPCM_IN_PASSTHROUGH:
+-		break;
+ 	default:
+ 		/* malloc LPCM ring buf */
+ 		if (rtk_snd_capture_malloc_lpcm_ring(runtime)) {
+@@ -3369,7 +3390,6 @@ static int snd_card_capture_prepare_lpcm(struct snd_pcm_substream *substream)
+ 	switch (dpcm->source_in) {
+ 	case ENUM_AIN_AUDIO_V3:
+ 	case ENUM_AIN_AUDIO_V4:
+-	case ENUM_AIN_BTPCM_IN_PASSTHROUGH:
+ 		break;
+ 	default:
+ 		if (rpc_ai_connect_alsa(dpcm->phy_addr_rpc,
+@@ -3400,7 +3420,7 @@ static int snd_card_capture_prepare_lpcm(struct snd_pcm_substream *substream)
+ 		break;
+ 	}
+ 
+-	if (dpcm->aec_feature)
++	if (dpcm->aec_feature && dpcm->source_in != ENUM_AIN_BTPCM_OUT_PASSTHROUGH)
+ 		dpcm->hr_timer.function = &rtk_aec_timer_function;
+ 	else
+ 		dpcm->hr_timer.function = &rtk_capture_timer_function;
+@@ -3935,7 +3955,11 @@ static enum hrtimer_restart rtk_capture_timer_function(struct hrtimer *timer)
+ 			}
+ 		}
+ 
+-		ring_data_size = snd_card_get_ring_data(dpcm->lpcm_ring);
++		if (dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH)
++			ring_data_size = snd_card_get_ring_data(dpcm->lpcm_pack_ring);
++		else
++			ring_data_size = snd_card_get_ring_data(dpcm->lpcm_ring);
++
+ 		ring_data_frame = ring_data_size / dpcm->frame_bytes;
+ 		if (ring_data_frame >= runtime->period_size) {
+ 			period_count = ring_data_frame / runtime->period_size;
+@@ -3956,9 +3980,14 @@ static enum hrtimer_restart rtk_capture_timer_function(struct hrtimer *timer)
+ 			}
+ 
+ 			/* copy data from LPCM_ring to dma_buf */
+-			snd_card_capture_lpcm_copy(runtime, period_count,
+-						   dpcm->lpcm_data,
+-						   dpcm->lpcm_ring);
++			if (dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH)
++				snd_card_capture_lpcm_copy(runtime, period_count,
++							   dpcm->lpcm_pack_data,
++							   dpcm->lpcm_pack_ring);
++			else
++				snd_card_capture_lpcm_copy(runtime, period_count,
++							   dpcm->lpcm_data,
++							   dpcm->lpcm_ring);
+ 
+ 			/* calculate PTS */
+ 			switch (dpcm->source_in) {
+@@ -3966,6 +3995,8 @@ static enum hrtimer_restart rtk_capture_timer_function(struct hrtimer *timer)
+ 			case ENUM_AIN_AUDIO_V3:
+ 			case ENUM_AIN_AUDIO_V4:
+ 			case ENUM_AIN_DMIC_PASSTHROUGH:
++			case ENUM_AIN_BTPCM_OUT_PASSTHROUGH:
++			case ENUM_AIN_BTPCM_IN_PASSTHROUGH:
+ 			case ENUM_AIN_TDM_IN:
+ 			case ENUM_AIN_SPDIF_IN:
+ 			case ENUM_AIN_I2S1_IN:
+@@ -3979,11 +4010,19 @@ static enum hrtimer_restart rtk_capture_timer_function(struct hrtimer *timer)
+ 			}
+ 
+ 			/* update LPCM_ring rp */
+-			dpcm->lpcm_ring->read_ptr[0] =
+-				ring_add(dpcm->lpcm_ring->begin_addr,
+-					 (dpcm->lpcm_ring->begin_addr + dpcm->lpcm_ring->size),
+-					 (dpcm->lpcm_ring->read_ptr[0]),
+-					 period_count * runtime->period_size * dpcm->frame_bytes);
++			if (dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH) {
++				dpcm->lpcm_pack_ring->read_ptr[0] =
++					ring_add(dpcm->lpcm_pack_ring->begin_addr,
++						 (dpcm->lpcm_pack_ring->begin_addr + dpcm->lpcm_pack_ring->size),
++						 (dpcm->lpcm_pack_ring->read_ptr[0]),
++						 period_count * runtime->period_size * dpcm->frame_bytes);
++			} else {
++				dpcm->lpcm_ring->read_ptr[0] =
++					ring_add(dpcm->lpcm_ring->begin_addr,
++						 (dpcm->lpcm_ring->begin_addr + dpcm->lpcm_ring->size),
++						 (dpcm->lpcm_ring->read_ptr[0]),
++						 period_count * runtime->period_size * dpcm->frame_bytes);
++			}
+ 
+ 			dpcm->total_write += period_count * runtime->period_size;
+ 
+@@ -4142,10 +4181,6 @@ static int snd_card_capture_trigger(struct snd_pcm_substream *substream, int cmd
+ 	struct snd_rtk_cap_pcm *dpcm = runtime->private_data;
+ 	int ret = 0;
+ 
+-	if (dpcm->source_in == ENUM_AIN_BTPCM_IN_PASSTHROUGH ||
+-		dpcm->source_in == ENUM_AIN_BTPCM_OUT_PASSTHROUGH)
+-		return 0;
+-
+ 	/* error checking */
+ 	if (snd_pcm_capture_avail(runtime) > runtime->buffer_size ||
+ 	    snd_pcm_capture_hw_avail(runtime) > runtime->buffer_size) {
+-- 
+2.47.0
+

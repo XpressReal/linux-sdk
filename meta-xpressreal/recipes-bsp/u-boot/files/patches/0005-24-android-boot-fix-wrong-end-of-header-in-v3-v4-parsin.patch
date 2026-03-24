@@ -1,0 +1,57 @@
+From 5289b6e5540e571afd81482305e5623e9124ea66 Mon Sep 17 00:00:00 2001
+From: Guillaume Ranquet <ranquet.guillaume@gmail.com>
+Date: Thu, 11 Sep 2025 15:50:26 +0200
+Subject: [PATCH 24/25] android: boot: fix wrong end of header in v3/v4 parsing
+
+The android boot header is page aligned but the current code made the
+assumption that the header was always smaller than the current header
+format.
+
+When the page_size is defined as 2048, as this is the case with the
+cuttlefish target, the current code sets the end of the header in the
+middle of it as the v3 and v4 headers are respectively 2112 and 2128
+bytes long.
+
+Fix that by aligning to page_size
+
+Fixes: 1115027d2f75 ("android: boot: update android_image_get_data to support v3, v4")
+Signed-off-by: Guillaume Ranquet <ranquet.guillaume@gmail.com>
+---
+ boot/image-android.c    | 7 ++++++-
+ include/android_image.h | 2 ++
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 1cd2060bb3f..e46dee0d9b3 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -107,7 +107,12 @@ static void android_vendor_boot_image_v3_v4_parse_hdr(const struct andr_vnd_boot
+ 	data->dtb_load_addr = hdr->dtb_addr;
+ 	data->bootconfig_size = hdr->bootconfig_size;
+ 	end = (ulong)hdr;
+-	end += hdr->page_size;
++
++	if (hdr->header_version > 3)
++		end += ALIGN(ANDR_VENDOR_BOOT_V4_SIZE, hdr->page_size);
++	else
++		end += ALIGN(ANDR_VENDOR_BOOT_V3_SIZE, hdr->page_size);
++
+ 	if (hdr->vendor_ramdisk_size) {
+ 		data->vendor_ramdisk_ptr = end;
+ 		data->vendor_ramdisk_size = hdr->vendor_ramdisk_size;
+diff --git a/include/android_image.h b/include/android_image.h
+index 96820709b42..a2d80499ba3 100644
+--- a/include/android_image.h
++++ b/include/android_image.h
+@@ -21,6 +21,8 @@
+ #define ANDR_BOOT_ARGS_SIZE 512
+ #define ANDR_BOOT_EXTRA_ARGS_SIZE 1024
+ #define VENDOR_BOOT_MAGIC "VNDRBOOT"
++#define ANDR_VENDOR_BOOT_V3_SIZE 2112 /* sz(andr_vnd_boot_img_hdr) - sz(vendor_ramdisk_table*) */
++#define ANDR_VENDOR_BOOT_V4_SIZE 2128 /* sz(andr_vnd_boot_img_hdr) */
+ #define ANDR_VENDOR_BOOT_MAGIC_SIZE 8
+ #define ANDR_VENDOR_BOOT_ARGS_SIZE 2048
+ #define ANDR_VENDOR_BOOT_NAME_SIZE 16
+-- 
+2.47.0
+

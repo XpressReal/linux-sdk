@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
+#define pr_fmt(fmt)     KBUILD_MODNAME ": " fmt
+
 #include <linux/cpu.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -46,7 +48,7 @@ static int regulator_supply_alias_setter_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to get supply-name\n");
 
-	regulator = devm_regulator_get(dev, data->supply_name);;
+	regulator = devm_regulator_get(dev, data->supply_name);
 	if (IS_ERR(regulator)) {
 		ret = PTR_ERR(regulator);
 		if (ret == -EPROBE_DEFER)
@@ -130,7 +132,7 @@ static int device_match_of_parent(struct device *dev, const void *data)
 	return dev->of_node && dev->of_node->parent == data;
 }
 
-static int regulator_supply_alias_probe(struct platform_device *pdev)
+static int regulator_supply_alias_legacy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device *found;
@@ -149,6 +151,189 @@ static int regulator_supply_alias_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#define ALIAS_MAP_MAX 20
+
+struct alias_map {
+	struct device *dev;
+	const char *id;
+};
+
+struct regulator_supply_alias_data {
+	struct device *dev;
+	const char *id;
+	u32 n_maps;
+	struct alias_map maps[ALIAS_MAP_MAX];
+};
+
+static int strcmp_suffix(const char *str, const char *suffix)
+{
+	unsigned int len, suffix_len;
+
+	len = strlen(str);
+	suffix_len = strlen(suffix);
+	if (len <= suffix_len)
+		return -1;
+	return strcmp(str + len - suffix_len, suffix);
+}
+
+static const char *duplicate_supply_name(struct regulator_supply_alias_data *data,
+					 const char *supply_property_name)
+{
+	char *id;
+
+	id = devm_kstrdup(data->dev, supply_property_name, GFP_KERNEL);
+	if (!id)
+		return NULL;
+	id[strlen(id) - 7] = '\0';
+	return id;
+}
+
+static int lookup_regulator(struct regulator_supply_alias_data *data)
+{
+	struct device *dev = data->dev;
+	struct property *p;
+
+	for_each_property_of_node(dev->of_node, p) {
+		const char *id;
+		struct regulator *reg;
+
+		if (strcmp_suffix(p->name, "-supply"))
+			continue;
+
+		id = duplicate_supply_name(data, p->name);
+		if (!id)
+			return -ENOMEM;
+
+		reg = devm_regulator_get(dev, id);
+		if (IS_ERR(reg)) {
+			pr_debug("devm_regulator_get() id=%s returns %ld\n", id, PTR_ERR(reg));
+		} else  {
+			data->id = id;
+			pr_debug("regulator id=%s\n", id);
+			return 0;
+		}
+	}
+
+	return -EPROBE_DEFER;
+}
+
+static int new_alias_map(struct regulator_supply_alias_data *data,
+		   struct device *consumer_dev, const char *consumer_id)
+{
+	if (data->n_maps >= ALIAS_MAP_MAX)
+		return -EINVAL;
+	data->maps[data->n_maps].dev = consumer_dev;
+	data->maps[data->n_maps].id = consumer_id;
+	data->n_maps += 1;
+	return 0;
+}
+
+static int consumer_setup_supplies(struct regulator_supply_alias_data *data,
+				   struct device *consumer_dev)
+{
+	struct device_node *supply_np = data->dev->of_node;
+	struct property *p;
+	const char *consumer_id;
+	int ret;
+
+	for_each_property_of_node(consumer_dev->of_node, p) {
+		if (strcmp_suffix(p->name, "-supply"))
+			continue;
+
+		if (of_parse_phandle(consumer_dev->of_node, p->name, 0) == supply_np) {
+			consumer_id = duplicate_supply_name(data, p->name);
+			if (!consumer_id)
+				return -ENOMEM;
+
+			ret = new_alias_map(data, consumer_dev, consumer_id);
+			if (ret)
+				dev_warn(data->dev, "new_alias_map(dev=%s, id=%s) returns %d\n",
+					 dev_name(consumer_dev), consumer_id, ret);
+		}
+	}
+	return 0;
+}
+
+static int setup_consumers(struct regulator_supply_alias_data *data)
+{
+	struct device *dev = data->dev;
+	struct of_phandle_iterator it;
+	int ret;
+
+	of_for_each_phandle(&it, ret, dev->of_node, "consumer-devices", NULL, 0) {
+		struct device *consumer_dev = NULL;
+		struct device_node *consumer_np = it.node;
+		int cpu_id;
+		struct platform_device *pdev;
+
+		dev_dbg(data->dev, "%s: phandle=%pOF\n", __func__, consumer_np);
+		if (of_node_is_type(consumer_np, "cpu")) {
+			cpu_id = of_cpu_node_to_id(consumer_np);
+			consumer_dev = get_cpu_device(cpu_id);
+		} else {
+			pdev = of_find_device_by_node(consumer_np);
+			if (pdev) {
+				consumer_dev = &pdev->dev;
+				platform_device_put(pdev);
+			}
+		}
+
+		if (!consumer_dev)
+			continue;
+
+		dev_dbg(data->dev, "%s: consumer_dev=%s\n", __func__, dev_name(consumer_dev));
+		ret = consumer_setup_supplies(data, consumer_dev);
+		if (ret)
+			dev_warn(data->dev, "consumer_setup_supplies() returns %d\n", ret);
+	}
+
+	return 0;
+}
+
+static int setup_aliases(struct regulator_supply_alias_data *data)
+{
+	u32 i;
+	int ret;
+
+	for (i = 0; i < data->n_maps; i++) {
+		ret = regulator_register_supply_alias(data->maps[i].dev, data->maps[i].id,
+						      data->dev, data->id);
+		if (ret)
+			dev_warn(data->dev, "map%d: regulator_register_supply_alias() returns %d\n",
+				 i, ret);
+	}
+
+	return 0;
+}
+
+static int regulator_supply_alias_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct regulator_supply_alias_data *data;
+	int ret;
+
+	if (of_get_child_count(dev->of_node) != 0) {
+		dev_info(dev, "use legacy driver\n");
+		return regulator_supply_alias_legacy_probe(pdev);
+	}
+
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+	data->dev = dev;
+
+	ret = lookup_regulator(data);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed in lookup_regulator()\n");
+	ret = setup_consumers(data);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed in setup_consumers()\n");
+	ret = setup_aliases(data);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed in setup_aliases()\n");
+	return 0;
+}
+
 static const struct of_device_id regulator_supply_alias_ids[] = {
 	{ .compatible = "regulator-supply-alias" },
 	{}
@@ -157,7 +342,7 @@ static const struct of_device_id regulator_supply_alias_ids[] = {
 static struct platform_driver regulator_supply_alias_drv = {
 	.driver = {
 		.owner          = THIS_MODULE,
-		.name           = "regulator-supply-alia",
+		.name           = "regulator-supply-alias",
 		.of_match_table = of_match_ptr(regulator_supply_alias_ids),
 		.suppress_bind_attrs = true,
 	},

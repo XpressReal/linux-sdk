@@ -486,7 +486,7 @@ static int rtd_pcie_mac_msi_init(struct rtd_pcie_port *pp)
 	int ret;
 
 	pp->msi_max_vector = RTK_MSI_DEF_NUM_VECTORS;
-	pp->msi_page = alloc_page(GFP_KERNEL);
+	pp->msi_page = alloc_page(GFP_DMA32);
 	pp->msi_data = page_to_phys(pp->msi_page);
 	pp->ops->msi_ops->msi_host_init(pp);
 	pp->msi_irq_chip = &rtd_pci_mac_msi_bottom_irq_chip;

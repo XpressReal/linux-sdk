@@ -1,5 +1,6 @@
 patch 844-01-kernel-drivers-media-revert-to-ve1-default-behavior-.patch
 patch 844-02-DEV_FIX-SW-9141.patch
 patch 848-ve1-remove-xxx_vdi_ioctl-func-declare.patch
+patch 850-move-ve1-buffer-to-vo5.patch
 
 kconf hardware v4l2_stateful.cfg

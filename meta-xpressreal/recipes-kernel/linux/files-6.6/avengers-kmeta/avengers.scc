@@ -1,6 +1,6 @@
 #generic kernel configration and patches for DHC avengers SoC
 
-include features/android/android.scc
+#include features/android/android.scc
 include patches/avengers.scc
 include features/usb/usb.scc
 include features/rtknic/rtknic.scc
@@ -13,6 +13,9 @@ include features/wifi/wifi.scc
 include features/media/usb/uvc/uvc.scc
 include features/sdcard/sdcard.scc
 
+include features/fs/fs.scc
+
+kconf non-hardware features/android/namespace.cfg
 kconf non-hardware features/blk/blk.cfg
 kconf non-hardware features/fs/fs.cfg
 #kconf non-hardware features/docker/docker.cfg

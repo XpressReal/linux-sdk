@@ -84,7 +84,7 @@
 	};
 
 	vowb: vowb {
-		compatible = "realtek,vo-writeback";
+		compatible = "realtek,rtd1619b-vo-writeback";
 		status = "disabled";
 		vowb_io: port {
 		};

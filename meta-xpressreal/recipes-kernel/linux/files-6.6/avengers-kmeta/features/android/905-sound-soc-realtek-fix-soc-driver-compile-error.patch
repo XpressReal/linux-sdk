@@ -1,0 +1,42 @@
+From 8c68f9ac719f7e1787ecd548d53ee9dd215dc11a Mon Sep 17 00:00:00 2001
+From: simon_hsu <simon_hsu@realtek.com>
+Date: Thu, 30 Oct 2025 13:06:48 +0800
+Subject: [PATCH] sound: soc: realtek: fix soc driver compile error
+
+Change-Id: I7665382c927e910dea525f969910e58055ec8d9f
+Signed-off-by: James Tai <james.tai@realtek.com>
+---
+ sound/soc/realtek/rtk-afe-platdrv.c | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/sound/soc/realtek/rtk-afe-platdrv.c b/sound/soc/realtek/rtk-afe-platdrv.c
+index ad94c5c58f048..d6413ee8896c1 100644
+--- a/sound/soc/realtek/rtk-afe-platdrv.c
++++ b/sound/soc/realtek/rtk-afe-platdrv.c
+@@ -1071,9 +1071,9 @@ static int rtk_afe_pcm_new(struct snd_soc_component *component,
+ snd_pcm_uframes_t rtk_afe_pcm_pointer(struct snd_soc_component *component,
+ 				      struct snd_pcm_substream *substream)
+ {
+-	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
++	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+ 	struct rtk_afe_priv *afe = snd_soc_component_get_drvdata(component);
+-	struct rtk_afe_memif *memif = &afe->memif[asoc_rtd_to_cpu(rtd, 0)->id];
++	struct rtk_afe_memif *memif = &afe->memif[snd_soc_rtd_to_cpu(rtd, 0)->id];
+ 	struct ringbuf_header_ptrs *header = memif->ringbuf->hdr_ptrs;
+ 	struct snd_pcm_runtime *runtime = substream->runtime;
+ 	snd_pcm_uframes_t read_addsize = 0;
+@@ -1102,9 +1102,9 @@ snd_pcm_uframes_t rtk_afe_pcm_pointer(struct snd_soc_component *component,
+ static int rtk_afe_pcm_ack(struct snd_soc_component *component,
+ 			   struct snd_pcm_substream *substream)
+ {
+-	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
++	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+ 	struct rtk_afe_priv *afe = snd_soc_component_get_drvdata(component);
+-	struct rtk_afe_memif *memif = &afe->memif[asoc_rtd_to_cpu(rtd, 0)->id];
++	struct rtk_afe_memif *memif = &afe->memif[snd_soc_rtd_to_cpu(rtd, 0)->id];
+ 	struct ringbuf_header_ptrs *header = memif->ringbuf->hdr_ptrs;
+ 	struct snd_pcm_runtime *runtime = substream->runtime;
+ 	unsigned int period_count = 0;
+-- 
+2.47.0
+

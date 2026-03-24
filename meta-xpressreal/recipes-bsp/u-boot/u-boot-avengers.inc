@@ -1,16 +1,18 @@
 #common functions for Realtek Avengers SoC
-PREBUILT_DIR := "${THISDIR}/files/prebuilt/${@d.getVar('UBOOT_CONFIG').split('_')[0]}"
-HWSETTING_DIR := "${PREBUILT_DIR}/hw_setting/000*"
+PREBUILT_DIR_PREFIX := "${THISDIR}/files/prebuilt"
+DEFAULT_PREBUILT_DIR := "${PREBUILT_DIR_PREFIX}/${@d.getVar('UBOOT_CONFIG').split('_')[0]}"
 
 SUFFIX = "'' '_4gb'"
 SUFFIX:realtekevb-rtd1619b = "''"
 SUFFIX:kent = "''"
+SUFFIX:rtd16xx = "''"
 DDR_TYPE = "_ddr4"
 DDR_TYPE:backinblack-rtd1619b  = "_lpddr4"
 DDR_TYPE:badassium-rtd1315c  = "_lpddr4"
 DDR_TYPE:xpressreal-rtd1619b  = "_lpddr4"
 DDR_TYPE:realtekevb-rtd1619b = "''"
 DDR_TYPE:kent = "_lpddr4x"
+DDR_TYPE:rtd16xx = "''"
 
 DEV_KEY := "dev"
 # Prefer prod.key to dev.key
@@ -37,11 +39,17 @@ EXT_HWSETTINGS:realtekevb-rtd1619b:= " \
 	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_LPDDR4_16Gb_s2666.bin \
 	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.bin \
 	"
+EXT_HWSETTINGS:rtd16xx:= " \
+	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_LPDDR4_32Gb_ddp_s2666.bin \
+	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_16Gb_sdp_s2666.bin \
+	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_LPDDR4_16Gb_s2666.bin \
+	scs_param/0000/SCS_Params_Area_RTD1619B_hwsetting_BOOT_2DDR4_8Gb_s2666.bin \
+	"
 
 do_compile:prepend() {
-	if [ -d ${PREBUILT_DIR}/keys ]; then
+	if [ -d ${DEFAULT_PREBUILT_DIR}/keys ]; then
 		rm -rf ${B}/keys
-		cp -a ${PREBUILT_DIR}/keys ${B}
+		cp -a ${DEFAULT_PREBUILT_DIR}/keys ${B}
 		cd ${B}
 
 		if [ -d keys/cipher ]; then
@@ -80,9 +88,11 @@ do_deploy:append() {
 	cd ${DEPLOYDIR}
 	for config in ${UBOOT_MACHINE}; do
 		i=$(expr $i + 1);
+		board=$(echo ${config} | cut -d _ -f 1);
 
+		(mkdir -p hwsetting; cp -afL ${PREBUILT_DIR_PREFIX}/${board}/hw_setting/*/* hwsetting/)
 		install -d ${B}/${config}/prebuilt
-		cp -afL ${PREBUILT_DIR}/* ${B}/${config}/prebuilt/
+		cp -afL ${PREBUILT_DIR_PREFIX}/${board}/* ${B}/${config}/prebuilt/
 		install -m 644 ${B}/${config}/${SPL_BINARY} ${B}/${config}/u-boot.img ${B}/${config}/prebuilt/
 
 		for keyname in ${DTE_FW_KEYS}; do
@@ -108,6 +118,7 @@ do_deploy:append() {
 					[ -e ${B}/${config}/prebuilt/${type}${DDR_TYPE}${suffix}.dts ] || continue
 					k=0
 					for exthw in ${EXT_HWSETTINGS}; do
+						[ "${board}" = "rtd1619b" ] || break;
 						dd if=${B}/${config}/prebuilt/${exthw} of=${B}/${config}/prebuilt/ext_hwsetting_$k.bin bs=1 skip=8 count=8192
 						k=$(expr $k + 1);
 					done
@@ -126,7 +137,6 @@ do_deploy:append() {
 		unset j
 	done
 	unset i
-	(mkdir -p hwsetting; cp -af ${HWSETTING_DIR}/* hwsetting/)
 }
 
 include u-boot-avengers-config.inc

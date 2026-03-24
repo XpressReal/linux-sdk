@@ -1,0 +1,9 @@
+otg:
+    devices:
+        hid:
+            keyboard:
+                start: false
+            mouse:
+                start: false
+            mouse_alt:
+                start: false

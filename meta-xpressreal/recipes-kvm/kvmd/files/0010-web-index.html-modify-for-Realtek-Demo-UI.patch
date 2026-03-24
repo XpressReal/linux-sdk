@@ -1,0 +1,470 @@
+From a9397116d8aab099e2921002b908ad5fcab81acb Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 28 Oct 2025 17:24:26 +0800
+Subject: [PATCH] web: index.html: modify for Realtek Demo UI
+
+---
+ web/index.html       | 102 +++++--------------------------------------
+ web/kvm/index.html   |  81 ++++++++++++++++++++--------------
+ web/login/index.html |  35 +++++++++------
+ 3 files changed, 81 insertions(+), 137 deletions(-)
+
+diff --git a/web/index.html b/web/index.html
+index 732562d9..a9965ba5 100644
+--- a/web/index.html
++++ b/web/index.html
+@@ -1,94 +1,12 @@
+-<!DOCTYPE html>
+-<!--
+-==============================================================================
+-#                                                                            #
+-#    KVMD - The main PiKVM daemon.                                           #
+-#                                                                            #
+-#    Copyright (C) 2018-2024  Maxim Devaev <mdevaev@gmail.com>               #
+-#                                                                            #
+-#    This program is free software: you can redistribute it and/or modify    #
+-#    it under the terms of the GNU General Public License as published by    #
+-#    the Free Software Foundation, either version 3 of the License, or       #
+-#    (at your option) any later version.                                     #
+-#                                                                            #
+-#    This program is distributed in the hope that it will be useful,         #
+-#    but WITHOUT ANY WARRANTY; without even the implied warranty of          #
+-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           #
+-#    GNU General Public License for more details.                            #
+-#                                                                            #
+-#    You should have received a copy of the GNU General Public License       #
+-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.  #
+-#                                                                            #
+-==============================================================================
+-
+--->
+-<html lang="en">
+-  <head>
+-    <meta charset="utf-8">
+-    <title>PiKVM Index</title>
+-    <link rel="apple-touch-icon" sizes="180x180" href="./share/apple-touch-icon.png">
+-    <link rel="icon" type="image/png" sizes="32x32" href="./share/favicon-32x32.png">
+-    <link rel="icon" type="image/png" sizes="16x16" href="./share/favicon-16x16.png">
+-    <link rel="manifest" href="./share/site.webmanifest">
+-    <link rel="mask-icon" href="./share/safari-pinned-tab.svg" color="#5bbad5">
+-    <meta name="msapplication-TileColor" content="#2b5797">
+-    <meta name="theme-color" content="#ffffff">
+-    <link rel="stylesheet" href="./share/css/vars.css">
+-    <link rel="stylesheet" href="./share/css/main.css">
+-    <link rel="stylesheet" href="./share/css/start.css">
+-    <link rel="stylesheet" href="./share/css/window.css">
+-    <link rel="stylesheet" href="./share/css/modal.css">
+-    <link rel="stylesheet" href="./share/css/index/index.css">
+-    <link rel="stylesheet" href="./share/css/user.css">
+-    <script type="module">import {setRootPrefix} from "./share/js/vars.js";
+-      setRootPrefix("./");
+-      import {main} from "./share/js/index/main.js";
+-      main();
++<html lang="zh-TW">
++<head>
++    <meta charset="UTF-8">
++    <title>Redirecting...</title>
++    <script>
++        window.location.href = "https://" + window.location.hostname + "/kvm/";
+     </script>
+-  </head>
+-  <body>
+-    <div class="start-box">
+-      <div class="start">
+-        <table>
+-          <tr>
+-            <td class="logo"><a href="https://pikvm.org" target="_blank"><img class="svg-gray" src="./share/svg/logo.svg" alt="PiKVM" height="40"></a></td>
+-            <td>
+-              <table>
+-                <tr>
+-                  <td class="title" colspan="2">The Open Source KVM over IP</td>
+-                </tr>
+-                <tr>
+-                  <td class="copyright" colspan="2">Copyright &copy; 2018-2025 <a target="_blank" href="mailto:mdevaev@gmail.com">Maxim Devaev</a></td>
+-                </tr>
+-              </table>
+-            </td>
+-          </tr>
+-        </table>
+-        <hr>
+-        <table>
+-          <td class="server">
+-            <td>Name:</td>
+-            <td><a id="kvmd-meta-server-host" target="_blank" href="./api/info"></a></td>
+-          </td>
+-        </table>
+-        <hr>
+-        <div id="apps-box">
+-          <h4>Loading ...</h4>
+-        </div>
+-        <div id="app-keyboard-warning">
+-          <hr>
+-          <p class="text">
+-            Please note that when you are working with a KVM session or another application that captures the keyboard,
+-            you can't use some keyboard shortcuts such as Ctrl+Alt+Del (which will be caught by your OS) or Ctrl+W (caught by your browser).
+-          </p>
+-          <p class="text">To override this limitation you can use <a target="_blank" href="https://google.com/chrome">Google Chrome</a>
+-            or <a target="_blank" href="https://chromium.org/Home">Chromium</a> in application mode.
+-          </p>
+-          <div class="code" id="app-text"></div>
+-        </div>
+-        <hr>
+-        <p class="text credits"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></p>
+-      </div>
+-    </div>
+-  </body>
++</head>
++<body>
++    <p>Redirecting to KVM...</p>
++</body>
+ </html>
+\ No newline at end of file
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index f26b62f1..302dd4c7 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -25,7 +25,7 @@
+ <html lang="en">
+   <head>
+     <meta charset="utf-8">
+-    <title>PiKVM Session</title>
++    <title></title>
+     <link rel="apple-touch-icon" sizes="180x180" href="../share/apple-touch-icon.png">
+     <link rel="icon" type="image/png" sizes="32x32" href="../share/favicon-32x32.png">
+     <link rel="icon" type="image/png" sizes="16x16" href="../share/favicon-16x16.png">
+@@ -59,7 +59,10 @@
+   </head>
+   <body class="body-no-select">
+     <ul id="navbar">
+-      <li class="left"><a id="logo" href="../">&larr;&nbsp;&nbsp;<img class="svg-gray" src="../share/svg/logo.svg" alt="&amp;pi;-kvm"></a></li>
++      <li class="left"><a id="logo" href="//${window.location.hostname}/login/">&larr;&nbsp;&nbsp;<img class="svg-gray" src="../share/svg/logo.svg" alt="&amp;pi;-kvm"></a></li>
++      <script>
++        document.getElementById('logo').href = `//${window.location.hostname}/login/`;
++      </script>
+       <div class="hidden" id="hw-health-dropdown">
+         <li class="left"><a class="menu-button" href="#"><img class="hidden" id="hw-health-undervoltage-led" src="../share/svg/led-undervoltage.svg"><img class="hidden" id="hw-health-overheating-led" src="../share/svg/led-overheating.svg"></a>
+           <div class="menu">
+@@ -140,9 +143,10 @@
+           </div>
+         </li>
+       </div>
+-      <li class="right" id="system-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="link-led" src="../share/svg/led-link.svg"><img class="led-gray" id="stream-led" src="../share/svg/led-video.svg"><img class="led-gray" id="hid-keyboard-led" src="../share/svg/led-hid-keyboard.svg"><img class="led-gray" id="hid-mouse-led" src="../share/svg/led-hid-mouse.svg"><span>System</span></a>
++      <!--li class="right" id="system-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="link-led" src="../share/svg/led-link.svg"><img class="led-gray" id="stream-led" src="../share/svg/led-video.svg"><img class="led-gray" id="hid-keyboard-led" src="../share/svg/led-hid-keyboard.svg"><img class="led-gray" id="hid-mouse-led" src="../share/svg/led-hid-mouse.svg"><span>System</span></a-->
++      <li class="right" id="system-dropdown"><a class="menu-button" href="#"><img id="link-led"><img id="stream-led"><img id="hid-keyboard-led"><img id="hid-mouse-led"><span>System</span></a>
+         <div class="menu" id="system-menu">
+-          <table class="kv">
++          <table class="kv" style="display: none;">
+             <tr>
+               <td class="value">Runtime settings &amp; tools</td>
+               <td class="feature-disabled" id="system-tool-webterm">
+@@ -194,7 +198,7 @@
+             <hr>
+           </div>
+           <table class="kv">
+-            <tr class="feature-disabled" id="stream-resolution">
++            <tr class="hidden" id="stream-resolution">
+               <td>Resolution:</td>
+               <td>
+                 <select id="stream-resolution-selector" disabled></select>
+@@ -208,7 +212,7 @@
+                   </td>
+                   <td class="value-number" id="stream-quality-value"></td>
+             </tr>
+-            <tr>
++            <tr class="hidden">
+                   <td>JPEG max fps:
+                   </td>
+                   <td class="value-slider">
+@@ -216,7 +220,7 @@
+                   </td>
+                   <td class="value-number" id="stream-desired-fps-value"></td>
+             </tr>
+-            <tr class="feature-disabled" id="stream-h264-bitrate">
++            <tr class="hidden" id="stream-h264-bitrate">
+                   <td>H.264 kbps:
+                   </td>
+                   <td class="value-slider">
+@@ -224,7 +228,7 @@
+                   </td>
+                   <td class="value-number" id="stream-h264-bitrate-value"></td>
+             </tr>
+-            <tr class="feature-disabled" id="stream-h264-gop">
++            <tr class="hidden" id="stream-h264-gop">
+                   <td>H.264 gop:
+                   </td>
+                   <td class="value-slider">
+@@ -232,7 +236,7 @@
+                   </td>
+                   <td class="value-number" id="stream-h264-gop-value"></td>
+             </tr>
+-            <tr class="feature-disabled" id="stream-mode">
++            <tr class="hidden" id="stream-mode">
+                   <td><a target="_blank" href="https://docs.pikvm.org/webrtc">Video mode</a>:
+                   </td>
+                   <td>
+@@ -263,6 +267,21 @@
+                   </td>
+             </tr>
+             <!--tr id="stream-audio"-->
++            <!--div class="buttons buttons-row">
++              <button class="row33" id="stream-audio-button">Control Audio</button>
++            </div-->
++            <tr>
++              <td>Enable Audio:</td>
++              <td align="right">
++                <div class="switch-box">
++                  <input type="checkbox" id="audio-mute-switch">
++                  <label id="stream-audio-button" for="audio-mute-switch">
++                    <span class="switch-inner"></span>
++                    <span class="switch"></span>
++                  </label>
++                </div>
++              </td>
++            </tr>
+             <tr>
+                   <td>Audio volume:
+                   </td>
+@@ -283,7 +302,7 @@
+             </tr>
+           </table>
+           <hr>
+-          <div class="buttons buttons-row">
++          <div class="buttons buttons-row" style="display: none;">
+             <button class="row33" data-force-hide-menu data-show-window="stream-window">&bull; Show stream</button>
+             <button class="row33" id="stream-screenshot-button" data-force-hide-menu>&bull; Screenshot</button>
+             <button class="row33" id="stream-reset-button">Reset stream</button>
+@@ -303,7 +322,7 @@
+               </td>
+             </tr>
+           </table>
+-              <details>
++              <details class="hidden">
+                 <summary>Keyboard &amp; mouse (HID) settings</summary>
+                 <div class="spoiler">
+                       <table class="kv">
+@@ -403,7 +422,7 @@
+                   </table>
+                 </div>
+               </details>
+-              <details>
++              <details class="hidden">
+                 <summary>Web UI settings</summary>
+                 <div class="spoiler">
+                   <table class="kv">
+@@ -441,7 +460,7 @@
+                 </div>
+               </details>
+           <table class="kv">
+-            <tr>
++            <tr class="hidden">
+                   <td>Bad link mode (release keys immediately):
+                   </td>
+                   <td align="right">
+@@ -461,7 +480,7 @@
+                     </div>
+                   </td>
+             </tr>
+-            <tr class="feature-disabled" id="hid-jiggler">
++            <tr class="hidden" id="hid-jiggler">
+                   <td><a target="_blank" href="https://docs.pikvm.org/mouse_jiggler">Mouse jiggler</a>:
+                   </td>
+                   <td align="right">
+@@ -471,7 +490,7 @@
+                     </div>
+                   </td>
+             </tr>
+-            <tr>
++            <tr class="hidden">
+                   <td>Mute all input HID events:
+                   </td>
+                   <td align="right">
+@@ -481,7 +500,7 @@
+                     </div>
+                   </td>
+             </tr>
+-            <tr class="feature-disabled" id="v3-usb-breaker">
++            <tr class="hidden" id="v3-usb-breaker">
+                   <td>Connect main USB to Server:
+                   </td>
+                   <td align="right">
+@@ -491,7 +510,7 @@
+                     </div>
+                   </td>
+             </tr>
+-            <tr class="feature-disabled" id="v4-locator">
++            <tr class="hidden" id="v4-locator">
+                   <td>Enable locator LED:
+                   </td>
+                   <td align="right">
+@@ -503,7 +522,7 @@
+             </tr>
+           </table>
+           <hr>
+-          <div class="buttons buttons-row">
++          <div class="hidden">
+             <button class="row50" data-force-hide-menu data-show-window="keyboard-window">&bull; Show keyboard</button>
+             <button class="row50" id="hid-reset-button" disabled>Reset HID</button>
+           </div>
+@@ -599,7 +618,7 @@
+                       <td style="line-height:1.5"><b>Read-write mode is enabled</b></td>
+                     </tr>
+                     <tr>
+-                      <td><sup style="line-height:1">Do not turn off PiKVM while this is active to prevent<br>
++                      <td><sup style="line-height:1">Do not turn off System while this is active to prevent<br>
+                           filesystem corruption. Use read-only mode where possible,<br>
+                           as writing to SD card often can reduce its lifespan.</sup></td>
+                     </tr>
+@@ -612,7 +631,7 @@
+                   <table>
+                     <tr>
+                       <td rowspan="2"><img class="sign " src="../share/svg/info.svg"></td>
+-                      <td style="line-height:1.5"><b>The image is being downloaded from PiKVM</b></td>
++                      <td style="line-height:1.5"><b>The image is being downloaded from System</b></td>
+                     </tr>
+                     <tr>
+                       <td><sup style="line-height:1">Please wait</sup></td>
+@@ -637,7 +656,7 @@
+           </table>
+           <table class="kv">
+             <tr>
+-                  <td>Drive <a target="_blank" href="https://docs.pikvm.org/msd">mode</a>:
++                  <td>Drive mode:
+                   </td>
+                   <td>
+                     <div class="radio-box">
+@@ -737,7 +756,7 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="macro-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
++      <li class="right" id="macro-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="led-gray" id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
+         <div class="menu">
+           <div class="text"><b>Record and play HID/ATX/GPIO actions<br></b><sub>For security reasons, the record will not be saved on the PiKVM</sub></div>
+           <hr>
+@@ -780,7 +799,7 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="text-dropdown"><a class="menu-button" href="#"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
++      <li class="right" id="text-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
+         <div class="menu" id="text-menu" style="width: 360px">
+           <div class="text"><b>Paste text as keypress sequence<br></b><sub>Please note that PiKVM cannot switch the keyboard layout</sub></div>
+           <hr>
+@@ -861,7 +880,7 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="shortcuts-dropdown"><a class="menu-button" href="#">Shortcuts</a>
++      <li class="right" id="shortcuts-dropdown"><a class="menu-button" href="#" style="display: none;">Shortcuts</a>
+         <div class="menu" id="shortcuts-menu">
+           <div class="text"><b>Quick keyboard shortcuts<br></b><sub>Also see <i>System &rarr; Show keyboard</i></sub></div>
+           <hr>
+@@ -1015,12 +1034,7 @@
+         </div>
+       </div>
+       <div id="stream-info"></div>
+-      <audio id="stream-audio" autoplay></audio>
+-<!--div>
+-  <label>Audio Volume：</label>
+-  <input id="stream-audio-volume-slider" type="range" min="0" max="100" value="0">
+-  <span id="stream-audio-volume-value">50%</span>
+-</div-->
++      <audio id="stream-audio"></audio>
+       <button class="window-button-exit-full-tab">&#9660;</button>
+       <div id="stream-box"><img id="stream-image" src="../share/png/blank-stream.png">
+         <video class="hidden" id="stream-video" disablePictureInPicture="true" autoplay playsinline></video>
+@@ -2985,7 +2999,7 @@
+                 </div>
+               </div>
+         </div><br>
+-        <p class="text credits"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></p>
++        <!--p class="text credits"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></p-->
+       </div>
+     </div>
+     <div class="window window-resizable" id="webterm-window" data-show-centered style="display: flex; min-width: 720px; min-height: 480px">
+@@ -3009,9 +3023,12 @@
+         <pre id="kvmd-meta-tips-right"></pre>
+       </li>
+     </ul>
+-    <ul class="footer">
++    <!--ul class="footer">
+       <li class="left"><span id="kvmd-meta-server-host" title="KVM/Server name (see System/About)"></span>&nbsp; | &nbsp;<span id="kvmd-info-platform" title="PiKVM Platform"></span>&nbsp; | &nbsp;<span id="kvmd-version-kvmd" title="KVMD version"></span>&nbsp; | &nbsp;<span id="kvmd-version-streamer" title="Streamer version"></span></li>
+       <li class="right"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></li>
++    </ul-->
++    <ul class="footer">
++      <li class="left"><span id="kvmd-meta-server-host" title="KVM/Server name (see System/About)"></span></li>
+     </ul>
+   </body>
+ </html>
+diff --git a/web/login/index.html b/web/login/index.html
+index 95a8832d..4e7d54bb 100644
+--- a/web/login/index.html
++++ b/web/login/index.html
+@@ -51,10 +51,9 @@
+       <div id="login-box">
+         <div id="login">
+           <table>
+-            <tr>
++            <!-- <tr>
+               <td><img class="svg-gray" id="login-logo" src="../share/svg/logo.svg" alt="&amp;pi;-kvm"></td>
+-              <td></td>
+-            </tr>
++            </tr> 
+             <tr>
+               <td colspan="2">
+                 <hr>
+@@ -72,12 +71,6 @@
+                 <input id="passwd-input" type="password" autocapitalize="off">
+               </td>
+             </tr>
+-            <tr>
+-              <td>2FA code:&nbsp;</td>
+-              <td>
+-                <input id="code-input" type="text" placeholder="if enabled" autocomplete="off">
+-              </td>
+-            </tr>
+             <tr>
+               <td colspan="2">
+                 <hr>
+@@ -102,12 +95,28 @@
+               </td>
+             </tr>
+             <tr>
+-              <td></td>
+-              <td>
++              <td colspan="2">
+                 <button class="key" id="login-button">Login</button>
+               </td>
+             </tr>
+-          </table>
++          </table>-->
++          <div class="img-container"><img class="svg-gray" id="login-logo" src="../share/svg/tdesign_user-circle-filled.svg" alt="&amp;pi;-kvm"></div>
++          <form>
++            <input id="user-input" type="text" class="input-box" placeholder="Username" autocapitalize="off" value="admin">
++            <input id="passwd-input" type="password" class="input-box" placeholder="Password" autocapitalize="off" value="admin">
++            </form>
++          </br></br>
++            <div class="radio-box">
++              <a target="_blank" href="https://docs.pikvm.org/auth/#session-expiration">Remember me </a>
++              </br><input type="radio" id="expire-radio-3600" name="expire-radio" value="3600"/>
++              <label for="expire-radio-3600">1h</label>
++              <input type="radio" id="expire-radio-43200" name="expire-radio" value="43200"/>
++              <label for="expire-radio-43200">12h</label>
++              <input type="radio" id="expire-radio-0" name="expire-radio" value="0" checked="checked"/>
++              <label for="expire-radio-0">Forever</label>
++            </div>
++            <button class="key" id="login-button">LOGIN</button>
++          </form>
+         </div>
+       </div>
+     </form>
+@@ -118,4 +127,4 @@
+       </li>
+     </ul>
+   </body>
+-</html>
+\ No newline at end of file
++</html>
+-- 
+2.34.1
+

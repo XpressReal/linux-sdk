@@ -1,0 +1,180 @@
+From 4aebe3b5bdcf39d22b9b89fd88757f2949a11af3 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 26 Aug 2025 02:29:47 -0400
+Subject: [PATCH] dts: use AFW as AO instead
+
+- revert changes for alsa audio soc driver
+---
+ .../dts/realtek/rtd1619b-backinblack-2gb.dts  | 10 +++++-----
+ .../dts/realtek/rtd1619b-bleedingedge-2gb.dts | 10 +++++-----
+ .../dts/realtek/rtd1619b-bleedingedge-4gb.dts | 10 +++++-----
+ .../dts/realtek/rtd1619b-bleedingedge.dtsi    | 20 ++-----------------
+ 4 files changed, 17 insertions(+), 33 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+index add7cbfe250b..0fcc5e3fa825 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+@@ -100,11 +100,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-hifi";
++	compatible = "realtek,rtk-alsa-pcm";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <1>; /* 0: AFW 1: HIFI */
++	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -112,11 +112,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
++	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+ 	status = "okay";
+ };
+ 
+@@ -145,7 +145,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "okay";
++		status = "disabled";
+ 	};
+ 
+ 	ve3-rpmsg {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+index 842cbc8fb854..43b3dd5f99c7 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+@@ -52,11 +52,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-hifi";
++	compatible = "realtek,rtk-alsa-pcm";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <1>; /* 0: AFW 1: HIFI */
++	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -64,11 +64,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-    status = "okay";
++    status = "disabled";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
++	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+ 	status = "okay";
+ };
+ 
+@@ -97,7 +97,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "okay";
++		status = "disabled";
+ 	};
+ 
+ 	ve3-rpmsg {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+index 1213bf6c9c84..cde2bbcc2541 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+@@ -57,11 +57,11 @@ &hdmi {
+ };
+ 
+ &sound {
+-	compatible = "realtek,rtk-alsa-hifi";
++	compatible = "realtek,rtk-alsa-pcm";
+ };
+ 
+ &audio_out {
+-	remote-cpu = <1>; /* 0: AFW 1: HIFI */
++	remote-cpu = <0>; /* 0: AFW 1: HIFI */
+ };
+ 
+ &avcert_rproc {
+@@ -69,11 +69,11 @@ &avcert_rproc {
+ };
+ 
+ &hifi_rproc {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &acpu_rproc {
+-	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
++	firmware-name = "bluecore.audio.enc.A00-stark-audio-nonsecure";
+ 	status = "okay";
+ };
+ 
+@@ -102,7 +102,7 @@ vcpu-rpmsg {
+ 
+ 	hifi-rpmsg {
+ 		rproc = <&hifi_rproc>;
+-		status = "okay";
++		status = "disabled";
+ 	};
+ 
+ 	ve3-rpmsg {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+index b6d769963548..6900f351d739 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+@@ -46,11 +46,7 @@ &audio_out {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&spdif_pins>;
+ 	audio-gpios = <&gpio 47 GPIO_ACTIVE_HIGH>;
+-	status = "disabled";
+-	i2s{
+-		status="okay";
+-		realtek,ao-i2s-channel = <2>;
+-	};
++	status = "okay";
+ };
+ 
+ &cec {
+@@ -507,22 +503,10 @@ &sdio {
+ };
+ 
+ &sound {
+-	status = "disabled";
+-};
+-
+-&tp {
+-	status = "okay";
+-};
+-
+-&rtk_soc {
+ 	status = "okay";
+ };
+ 
+-&rtk_asoc_machine {
+-	pinctrl-names = "default";
+-	pinctrl-0 = <&spdif_pins>, <&ao_pins>, <&ai_loc0_6pins>;
+-	realtek,audio-platform = <&rtk_soc>;
+-	realtek,dai-link = "RDAI_DL1_FE", "RDAI_UL1_FE", "RDAI_SOC_AO0", "RDAI_SOC_I2S";
++&tp {
+ 	status = "okay";
+ };
+ 
+-- 
+2.34.1
+

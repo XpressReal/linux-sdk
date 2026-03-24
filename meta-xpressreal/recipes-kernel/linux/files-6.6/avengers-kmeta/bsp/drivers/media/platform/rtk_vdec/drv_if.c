@@ -867,7 +867,9 @@ static int vpu_probe(struct platform_device *pdev)
 		return ret;
 
 	dev->dev = &pdev->dev;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev->dev, &rheap_dma_ops);
+#endif
 	atomic_set(&dev->num_inst, 0);
 	mutex_init(&dev->dev_mutex);
 

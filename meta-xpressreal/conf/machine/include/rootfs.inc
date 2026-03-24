@@ -47,6 +47,7 @@ python() {
 
     if "xdesktop" in features and "panfrost" in features:
         d.setVar("PREBUILT_NAME", "desktop-" + name)
+        d.setVar("MACHINE_FEATURES", d.getVar("MACHINE_FEATURES") + " 2KUI")
     elif "mali" in features:
         d.setVar("PREBUILT_NAME", "weston-" + name)
 

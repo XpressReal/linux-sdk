@@ -1,6 +1,9 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-SRC_URI += " file://fstab-kvm"
+SRC_URI:append = " \
+		file://fstab-kvm \
+		file://custom.conf \
+		"
 
 do_install:append() {
 	if [ "${@bb.utils.contains("MACHINE_FEATURES", "qt", "1", "0", d)}" = "1" ]; then
@@ -13,4 +16,6 @@ do_install:append() {
 		install -m 0644 ${WORKDIR}/fstab-kvm ${D}${sysconfdir}/fstab
 	fi
 
+	install -d ${D}/etc/modules-load.d
+	install -m 0644 ${WORKDIR}/custom.conf ${D}/etc/modules-load.d/
 }

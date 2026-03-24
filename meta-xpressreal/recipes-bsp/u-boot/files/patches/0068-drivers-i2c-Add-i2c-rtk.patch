@@ -1,0 +1,43 @@
+From 9b531f01a2e1eea44541c271c1907669e7c2ae92 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Thu, 30 Oct 2025 14:02:14 +0800
+Subject: [PATCH] u-boot: rtd1625: add rtk i2c driver
+
+---
+ drivers/i2c/Kconfig  | 7 +++++++
+ drivers/i2c/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/i2c/Kconfig b/drivers/i2c/Kconfig
+index 4f42200f392..7c7a7437a61 100644
+--- a/drivers/i2c/Kconfig
++++ b/drivers/i2c/Kconfig
+@@ -299,6 +299,13 @@ config SYS_I2C_MTK
+ 	  If you want to use MediaTek I2C interface, say Y here.
+ 	  If unsure, say N.
+ 
++config SYS_I2C_RTK
++	bool "Realtek I2C driver"
++	default y
++	depends on DM_I2C
++	help
++	  Add support for the Realtek I2C driver.
++
+ config SYS_I2C_MICROCHIP
+ 	bool "Microchip I2C driver"
+ 	help
+diff --git a/drivers/i2c/Makefile b/drivers/i2c/Makefile
+index 3b3a91fc063..d755c1d0503 100644
+--- a/drivers/i2c/Makefile
++++ b/drivers/i2c/Makefile
+@@ -54,6 +54,7 @@ obj-$(CONFIG_SYS_I2C_UNIPHIER_F) += i2c-uniphier-f.o
+ obj-$(CONFIG_SYS_I2C_VERSATILE) += i2c-versatile.o
+ obj-$(CONFIG_SYS_I2C_XILINX_XIIC) += xilinx_xiic.o
+ obj-$(CONFIG_TEGRA186_BPMP_I2C) += tegra186_bpmp_i2c.o
++obj-$(CONFIG_SYS_I2C_RTK) += realtek/
+ 
+ obj-$(CONFIG_$(SPL_)I2C_MUX) += muxes/
+ 
+-- 
+2.48.0
+

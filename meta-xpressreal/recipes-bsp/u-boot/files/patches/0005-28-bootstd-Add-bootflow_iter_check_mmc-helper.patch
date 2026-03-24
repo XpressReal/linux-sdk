@@ -1,0 +1,66 @@
+From be0b076c55a3de8a1a10053a8db9ff9ca8ffb8ac Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Wed, 10 Jul 2024 10:40:03 +0200
+Subject: [PATCH] bootstd: Add bootflow_iter_check_mmc() helper
+
+Some bootflows might be able to only boot from MMC devices.
+
+Add a helper function these bootflows can use.
+
+Reviewed-by: Igor Opaniuk <igor.opaniuk@gmail.com>
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Guillaume La Roque <glaroque@baylibre.com>
+Tested-by: Guillaume La Roque <glaroque@baylibre.com>
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+---
+ boot/bootflow.c    | 12 ++++++++++++
+ include/bootflow.h |  9 +++++++++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/boot/bootflow.c b/boot/bootflow.c
+index 9aa3179c388..59d77d2385f 100644
+--- a/boot/bootflow.c
++++ b/boot/bootflow.c
+@@ -575,6 +575,18 @@ int bootflow_iter_check_blk(const struct bootflow_iter *iter)
+ 	return -ENOTSUPP;
+ }
+ 
++int bootflow_iter_check_mmc(const struct bootflow_iter *iter)
++{
++	const struct udevice *media = dev_get_parent(iter->dev);
++	enum uclass_id id = device_get_uclass_id(media);
++
++	log_debug("uclass %d: %s\n", id, uclass_get_name(id));
++	if (id == UCLASS_MMC)
++		return 0;
++
++	return -ENOTSUPP;
++}
++
+ int bootflow_iter_check_sf(const struct bootflow_iter *iter)
+ {
+ 	const struct udevice *media = dev_get_parent(iter->dev);
+diff --git a/include/bootflow.h b/include/bootflow.h
+index 6affc5e1a4f..4d2fc7b69b5 100644
+--- a/include/bootflow.h
++++ b/include/bootflow.h
+@@ -408,6 +408,15 @@ void bootflow_remove(struct bootflow *bflow);
+  */
+ int bootflow_iter_check_blk(const struct bootflow_iter *iter);
+ 
++/**
++ * bootflow_iter_check_mmc() - Check that a bootflow uses a MMC device
++ *
++ * This checks the bootdev in the bootflow to make sure it uses a mmc device
++ *
++ * Return: 0 if OK, -ENOTSUPP if some other device is used (e.g. ethernet)
++ */
++int bootflow_iter_check_mmc(const struct bootflow_iter *iter);
++
+ /**
+  * bootflow_iter_check_sf() - Check that a bootflow uses SPI FLASH
+  *
+-- 
+2.47.0
+

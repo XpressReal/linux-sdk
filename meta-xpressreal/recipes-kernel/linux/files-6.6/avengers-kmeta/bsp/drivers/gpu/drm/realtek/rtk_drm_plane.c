@@ -873,7 +873,9 @@ static int rtk_plane_rpc_init(struct rtk_drm_plane *rtk_plane,
 		flags = RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC;
 
 #ifndef CONFIG_CHROME_PLATFORMS
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(drm->dev, "rtk_audio_heap", flags, __func__);
+#endif
 
 	vaddr = dma_alloc_coherent(drm->dev, 65*1024, &rtk_plane->dma_handle,
 				GFP_KERNEL | __GFP_NOWARN);

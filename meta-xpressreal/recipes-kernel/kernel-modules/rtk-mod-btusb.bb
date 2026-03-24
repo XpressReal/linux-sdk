@@ -35,4 +35,8 @@ do_install(){
 	install -m 644 ${S}/usb/bluetooth_usb_driver/rtk_btusb.ko $MODULE_DIR/
 }
 
+# Ignore buildpaths check for the main package and the debug package
+INSANE_SKIP:${PN} += "buildpaths"
+INSANE_SKIP:${PN}-dbg += "buildpaths"
+
 KERNEL_MODULE_AUTOLOAD += "rtk_btusb"

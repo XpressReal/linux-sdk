@@ -1,8 +1,20 @@
-diff --git a/mount.sh b/mount.sh
-index eb84a468be..609d4850f7 100644
---- a/mount.sh
-+++ b/mount.sh
-@@ -85,9 +85,16 @@ automount_systemd() {
+Index: 1.1/mount.sh
+===================================================================
+--- 1.1.orig/mount.sh
++++ 1.1/mount.sh
+@@ -42,6 +42,11 @@ is_filesystem_supported() {
+        then
+            return 0
+        fi
++       # support ntfs ID_FS_TYPE with ntfs3 filesystems
++       if [ "ntfs" = "$1" ] && [ "${fs#nodev}" = "ntfs3" ];
++       then
++           return 0
++       fi
+     done < "/proc/filesystems"
+     return 1
+ }
+@@ -85,9 +90,19 @@ automount_systemd() {
  
      # If filesystemtype is vfat, change the ownership group to 'disk', and
      # grant it with  w/r/x permissions.
@@ -11,12 +23,24 @@ index eb84a468be..609d4850f7 100644
      vfat|fat)
 -        MOUNT="$MOUNT -o umask=007,gid=`awk -F':' '/^disk/{print $3}' /etc/group`"
 +        MOUNT="$MOUNT -o utf8,shortname=mixed,umask=007,gid=`awk -F':' '/^disk/{print $3}' /etc/group`"
++        MOUNT="$MOUNT -t auto"
 +        ;;
 +    exfat)
 +        MOUNT="$MOUNT -o utf8"
++        MOUNT="$MOUNT -t exfat"
 +        ;;
-+    ntfs3)
-+        MOUNT="$MOUNT -o iocharset=utf8,force"
++    ntfs|ntfs3)
++        MOUNT="$MOUNT -o iocharset=utf8"
++        MOUNT="$MOUNT -t ntfs3"
          ;;
      swap)
          return ;;
+@@ -98,7 +113,7 @@ automount_systemd() {
+         ;;
+     esac
+ 
+-    if ! $MOUNT --collect --no-block -t auto $DEVNAME "$MOUNT_BASE/$name"
++    if ! $MOUNT --collect --no-block $DEVNAME "$MOUNT_BASE/$name"
+     then
+         #logger "mount.sh/automount" "$MOUNT -t auto $DEVNAME \"$MOUNT_BASE/$name\" failed!"
+         rm_dir "$MOUNT_BASE/$name"

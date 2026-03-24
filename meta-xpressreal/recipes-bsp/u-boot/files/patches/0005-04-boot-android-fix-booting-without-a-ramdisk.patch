@@ -1,0 +1,81 @@
+From 6509c3fe1c7dddf1d598a9fd8234ed760b3a428b Mon Sep 17 00:00:00 2001
+From: Michael Walle <mwalle@kernel.org>
+Date: Mon, 29 Jul 2024 23:36:57 +0200
+Subject: [PATCH 04/25] boot: android: fix booting without a ramdisk
+
+android_image_get_ramdisk() will return an error if there is no ramdisk.
+Using the android image without a ramdisk worked until commit
+1ce8e10f3b4b ("image: Fix up ANDROID_BOOT_IMAGE ramdisk code") because
+the return code wasn't checked until then. Return -ENOENT in case
+there is no ramdisk and translate that into -ENOPKG in the calling
+code, which will then indicate "no ramdisk" to its caller
+(boot_get_ramdisk()).
+
+This way, we can get rid of the "*rd_data = *rd_len = 0;" in the error
+path, too.
+
+With this, I'm able to boot a linux kernel using fastboot again:
+
+  fastboot --base 0x41000000 --header-version 2 --dtb /path/to/dtb \
+  --cmdline "root=/dev/mmcblk0p1 rootwait" boot path/to/Image
+
+Signed-off-by: Michael Walle <mwalle@kernel.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+Link: https://lore.kernel.org/r/20240729213657.2550935-1-mwalle@kernel.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 7 +++----
+ boot/image-board.c   | 4 +++-
+ include/image.h      | 2 +-
+ 3 files changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 09c7a44e058..774565fd1fe 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -393,10 +393,9 @@ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 	if (!android_image_get_data(hdr, vendor_boot_img, &img_data))
+ 		return -EINVAL;
+ 
+-	if (!img_data.ramdisk_size) {
+-		*rd_data = *rd_len = 0;
+-		return -1;
+-	}
++	if (!img_data.ramdisk_size)
++		return -ENOENT;
++
+ 	if (img_data.header_version > 2) {
+ 		ramdisk_ptr = img_data.ramdisk_addr;
+ 		memcpy((void *)(ramdisk_ptr), (void *)img_data.vendor_ramdisk_ptr,
+diff --git a/boot/image-board.c b/boot/image-board.c
+index f2124013046..eca1b1d2bff 100644
+--- a/boot/image-board.c
++++ b/boot/image-board.c
+@@ -427,7 +427,9 @@ static int select_ramdisk(struct bootm_headers *images, const char *select, u8 a
+ 				unmap_sysmem(ptr);
+ 			}
+ 
+-			if (ret)
++			if (ret == -ENOENT)
++				return -ENOPKG;
++			else if (ret)
+ 				return ret;
+ 			done = true;
+ 		}
+diff --git a/include/image.h b/include/image.h
+index dd4042d1bd9..2ab17075287 100644
+--- a/include/image.h
++++ b/include/image.h
+@@ -1858,7 +1858,7 @@ int android_image_get_kernel(const void *hdr,
+  * @vendor_boot_img : Pointer to vendor boot image header
+  * @rd_data:	Pointer to a ulong variable, will hold ramdisk address
+  * @rd_len:	Pointer to a ulong variable, will hold ramdisk length
+- * Return: 0 if succeeded, -1 if ramdisk size is 0
++ * Return: 0 if OK, -ENOPKG if no ramdisk, -EINVAL if invalid image
+  */
+ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 			      ulong *rd_data, ulong *rd_len);
+-- 
+2.47.0
+

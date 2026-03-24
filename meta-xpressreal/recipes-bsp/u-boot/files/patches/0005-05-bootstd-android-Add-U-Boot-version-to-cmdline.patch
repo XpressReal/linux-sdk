@@ -1,0 +1,66 @@
+From 3af5b851b4c66c63ad0036d4a10ea5b67e7827a1 Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Thu, 12 Sep 2024 16:00:01 +0200
+Subject: [PATCH 05/25] bootstd: android: Add U-Boot version to cmdline
+
+When booting into Android fastbootd (a subset of recovery), the default
+UI shows the bootloader version in the screen [1].
+This is done via the ro.bootloader property which should come from the
+bootloader.
+
+Provide the U-Boot version via a kernel commandline argument so that
+fastbootd can show it properly on the screen.
+
+[1] https://android.googlesource.com/platform/bootable/recovery/+/refs/heads/main/fastboot/fastboot.cpp#42
+
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Guillaume La Roque <glaroque@baylibre.com>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+Link: https://lore.kernel.org/r/20240912-bootmeth-bootloader-version-v2-1-76d4c0b45024@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/bootmeth_android.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index 6e8d3e615db..19b1f2c377b 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -22,6 +22,7 @@
+ #include <malloc.h>
+ #include <mapmem.h>
+ #include <part.h>
++#include <version.h>
+ #include "bootmeth_android.h"
+ 
+ #define BCB_FIELD_COMMAND_SZ 32
+@@ -171,6 +172,12 @@ static int configure_serialno(struct bootflow *bflow)
+ 	return bootflow_cmdline_set_arg(bflow, "androidboot.serialno", serialno, false);
+ }
+ 
++static int configure_bootloader_version(struct bootflow *bflow)
++{
++	return bootflow_cmdline_set_arg(bflow, "androidboot.bootloader",
++					PLAIN_VERSION, false);
++}
++
+ static int android_read_bootflow(struct udevice *dev, struct bootflow *bflow)
+ {
+ 	struct blk_desc *desc = dev_get_uclass_plat(bflow->blk);
+@@ -264,8 +271,12 @@ static int android_read_bootflow(struct udevice *dev, struct bootflow *bflow)
+ 		goto free_priv;
+ 	}
+ 
+-	/* Ignoring return code: setting serial number is not mandatory for booting */
++	/*
++	 * Ignoring return code for the following configurations:
++	 * these are not mandatory for booting.
++	 */
+ 	configure_serialno(bflow);
++	configure_bootloader_version(bflow);
+ 
+ 	if (priv->boot_mode == ANDROID_BOOT_MODE_NORMAL) {
+ 		ret = bootflow_cmdline_set_arg(bflow, "androidboot.force_normal_boot",
+-- 
+2.47.0
+

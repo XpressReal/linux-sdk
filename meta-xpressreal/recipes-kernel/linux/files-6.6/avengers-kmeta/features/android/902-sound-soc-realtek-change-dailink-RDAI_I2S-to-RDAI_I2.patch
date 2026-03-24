@@ -1,0 +1,105 @@
+From 51fcc1ebb7fb15d0479282cfa81009331482a5f4 Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <yao.tsai@realtek.com>
+Date: Fri, 17 Oct 2025 13:48:52 +0800
+Subject: [PATCH] sound: soc: realtek: change dailink "RDAI_I2S" to
+ "RDAI_I2S0", refine HDMI&DP dailink flow
+
+[JIRA] CHROME-758
+
+Change-Id: Ia66b2ffa528c2a62bf87fbdd62460c72049e9a6a
+---
+ sound/soc/realtek/rtk-hifi-rt5650-mc.c | 36 ++++++++++++++------------
+ 1 file changed, 20 insertions(+), 16 deletions(-)
+
+diff --git a/sound/soc/realtek/rtk-hifi-rt5650-mc.c b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+index 58d143a6e0c39..58bed4696bc36 100644
+--- a/sound/soc/realtek/rtk-hifi-rt5650-mc.c
++++ b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+@@ -74,11 +74,13 @@ SND_SOC_DAILINK_DEFS(RDAI_I2S0, DAILINK_COMP_ARRAY(COMP_CPU("SOF_UL4")),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+ SND_SOC_DAILINK_DEFS(HDMI_AO, DAILINK_COMP_ARRAY(COMP_CPU("SOF_HDMI")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
++		     DAILINK_COMP_ARRAY(COMP_CODEC(NULL,
++						HDMI_CODEC_DAI)),
+                      DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+ SND_SOC_DAILINK_DEFS(DP_AO, DAILINK_COMP_ARRAY(COMP_CPU("SOF_DP")),
+-                     DAILINK_COMP_ARRAY(COMP_DUMMY()),
++                     DAILINK_COMP_ARRAY(COMP_CODEC(NULL,
++						HDMI_CODEC_DAI)),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ /* BE */
+ SND_SOC_DAILINK_DEFS(I2S0,
+@@ -257,7 +259,7 @@ static struct snd_soc_dai_link rtk_hifi_dai_links[] = {
+ 		SND_SOC_DAILINK_REG(RDAI_I2S1),
+ 	},
+ 	[DAI_LINK_SOF_RUL4_BE] = {
+-		.name = "RDAI_I2S",
++		.name = "RDAI_I2S0",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
+ 		.dpcm_capture = 1,
+@@ -277,12 +279,14 @@ static struct snd_soc_dai_link rtk_hifi_dai_links[] = {
+ 		.name = "RDAI_HDMI",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
++		.init = rtk_hdmi_codec_init,
+ 		SND_SOC_DAILINK_REG(HDMI_AO),
+ 	},
+ 	[DAI_LINK_DP_AUDIO_BE] = {
+ 		.name = "RDAI_DP",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
++		.init = rtk_dp_codec_init,
+ 		SND_SOC_DAILINK_REG(DP_AO),
+ 	},
+ 	[DAI_LINK_AO0_BE] = {
+@@ -513,7 +517,7 @@ static int rtk_hifi_dev_probe(struct platform_device *pdev)
+ 		dai_link->platforms->of_node = platform_node;
+ 		if (strcmp(dai_link->name, "RDAI_I2S_RT5650") == 0) {
+ 			dai_link->codecs->of_node = of_parse_phandle(dev->of_node, "realtek,audio-codec", 0);
+-		} else if (strcmp(dai_link->name, "RDAI_I2S") == 0 ||
++		} else if (strcmp(dai_link->name, "RDAI_I2S0") == 0 ||
+ 			   strcmp(dai_link->name, "RDAI_I2S1") == 0) {
+ 			card->dapm_routes = NULL;
+ 			card->num_dapm_routes = 0;//ARRAY_SIZE(rtk_hifi_routes),
+@@ -521,23 +525,23 @@ static int rtk_hifi_dev_probe(struct platform_device *pdev)
+ 		} else if (strcmp(dai_link->name,"RDAI_HDMI") == 0){
+ 			codec_node = of_parse_phandle(dev->of_node, "realtek,hdmi-audio", 0);
+ 
+-			if(of_device_is_available(codec_node)) {
+-				dai_link->codecs->name = NULL;
+-				dai_link->codecs->dai_name = HDMI_CODEC_DAI;
++			if (codec_node && of_device_is_available(codec_node)) {
+ 				dai_link->codecs->of_node = codec_node;
+-				dai_link->init = rtk_hdmi_codec_init;
+-			} else
+-				pr_info("Cant find CODEC,RDAI_HDMI use DUMMY CODEC");
++			} else {
++				dev_err(dev, "Bind codec node realtek,hdmi-audio FAIL!!!");
++				ret = -EINVAL;
++				goto put_exist_node;
++			}
+ 		} else if (strcmp(dai_link->name, "RDAI_DP") == 0) {
+                         codec_node = of_parse_phandle(dev->of_node, "realtek,dp-audio", 0);
+ 
+-                        if(of_device_is_available(codec_node)) {
+-				dai_link->codecs->name = NULL;
+-				dai_link->codecs->dai_name = DP_CODEC_DAI;
++			if (codec_node && of_device_is_available(codec_node)) {
+ 				dai_link->codecs->of_node = codec_node;
+-				dai_link->init = rtk_dp_codec_init;
+-                        } else
+-				pr_info("Cant find CODEC,RDAI_DP use DUMMY CODEC");
++			} else {
++				dev_err(dev, "Bind codec node realtek,dp-audio FAIL!!!");
++				ret = -EINVAL;
++				goto put_exist_node;
++			}
+ 		} else if (strcmp(dai_link->name, "RDAI_SOC_AO0") == 0 || strcmp(dai_link->name, "RDAI_SOC_I2S") == 0) {
+ 			card->dapm_routes = NULL;
+ 			card->num_dapm_routes = 0;//ARRAY_SIZE(rtk_hifi_routes),
+-- 
+2.47.0
+

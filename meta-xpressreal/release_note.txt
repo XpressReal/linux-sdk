@@ -7,18 +7,99 @@ If you are not the intended recipient, please notify the sender and delete this 
 Repository information:
 1. poky: https://git.yoctoproject.org/poky
 - branch: scarthgap
-- commit: dabe9e157f
-- version: 5.0.4 (scarthgap)
+- commit: 6b08410d0e
+- version: 5.0.8 (scarthgap)
 2. meta-openembedded: https://git.openembedded.org/meta-openembedded
 - branch: scarthgap
-- commit: 2338409efc
+- commit: fdd1894976
 3. meta-qt5: https://github.com/meta-qt5/meta-qt5
 - branch: scarthgap
 - commit: eb82841826
 4. meta-neural-network: https://github.com/nnstreamer/meta-neural-network
 - branch: scarthgap
 - commit: c14458c94e
+5. meta-browser: https://github.com/OSSystems/meta-browser
+- branch: scarthgap
+- commit: 168d284276
+6. meta-clang: https://github.com/kraj/meta-clang
+- branch: scarthgap-clang20
+- commit: 76596813cd
+7. meta-lts-mixins: https://git.yoctoproject.org/meta-lts-mixins
+- branch: scarthgap/rust
+- commit: 96deb45139
 =============================================================================================
+2026-03-16 Yocto Scarthgap SDK v2.5.0
+COMMIT="13b4dd5c44"
+
+New Features:
+1. Support AOSP on rtd1501s Phantom board and rtd1619b Bleedingedge/Backinblack
+- conf: realtekevb-rtd16xx-android
+- u-boot: support android boot image and fastboot cmd
+- kernel: Linux 6.6.77
+-- https://android.googlesource.com/kernel/common
+-- branch: android15-6.6-desktop
+-- commit: f2ce5ec8fb4f5ed596a874173a078253f820411e
+-- bt: support RTL8822ES UART BT load by hci_uart
+-- sound: sof: support HiFi SOF FW for rtd1501s and rtd1619b
+- script: build_for_aosp.sh
+2. Support secure boot with TEEOS on rtd1501s
+
+Changes:
+1. base-files: add /etc/modules-load.d/custom.conf for module load sequence
+2. kernel: add CMA optimization from Android common kernel
+3. u-boot: add/enable more DM drivers
+- add: rtd1625: clk, rtk i2c
+- add: pcie
+- enable: DM_SERIAL, dm-gpio, rtl8168, USB_ETHER_RTL8152
+4. u-boot: rtd1625: increase U-Boot SPL size from 150KB to 172KB
+5. u-boot: rtd1625: support USB boot
+6. u-boot: enable ARMV8_CRYPTO for CE_SHA256
+7. wic: enlarge 1st boot partition from 20MB to 64MB
+8. u-boot: rtd1619b: bl31: set trng self test threshold
+9. kernel: rtd1501: upscale SCPU frequency up to 2.0GHz
+
+Fixed Bugs:
+1. u-boot: rtd1625: fix S3 suspend/resume
+2. kernel: sync rtk_pm driver to fix parameters for pcpu
+3. kernel: fs/ntfs3: fs/buffer: sync upstream patches to fix hang on NTFS3 mount
+
+V4L2 changelog:
+Version: 1.1.0
+1.Support Sorenson Spark Codec (flv1)
+2.Fix kernel crash while there is no cma.
+3.Use memcpy instead of memcpy_toio to improve performance
+Version: 1.1.1
+1.Memory leakage while rpc timeout
+Version: 1.1.2
+1.Fix video frozen issue after seeking.
+2.Add error handling while malloc fail.
+Version: 1.1.3
+1.Add ve4 encoder for kent
+2.Pass v4l2-compliance 1.28.1
+3.ve1 supports tile mode
+Version: 1.1.7
+1.Add pid and process name in instance_info
+2.Pass v4l2-compliance foe ve3 encoder
+3.Fix jpeg of RGB888 format tarnscodes with scaling down failure
+Version: 1.1.8
+1.Fix ve1 vpu_try_fmt return zeor issue.
+2.Fix ve3 flush issues.
+Version: 1.1.9
+1.Decoder handles hevc nalu header
+2.Fix jpeg memcpy overflow issue
+3.Reduce sleep interval to improve performance
+4.Fix ve1 makes vfw crash
+5.Fix ve1 sometimes block
+6.Fix fluster CAMANL1_TOSHIBA_B issue
+7.Reduce the size of bs ringbuffer and add v4l2 set_enhance_mode ctl
+Version: 1.1.10
+1.Fix the testFlushNative item in the CtsMediaV2TestCases
+2.Fix the way to handle timestamp for interlace VC1.
+3.Use PTS2 to store timestamp and PTSH to store index.
+Version: 1.1.11
+1.support v4l2 jpeg decode/encode for rtd1501s
+
+
 2025-10-07 Yocto Scarthgap SDK v2.4.1
 COMMIT="cd300aa0550"
 
@@ -78,7 +159,6 @@ Changes:
 6. update NPU driver and library to v3.6.0 
 7. update ubuntu rootfs 24.04.02 and and debian rootfs 12.11
 8. add rtk wifi driver rtl8821cu/rtl8873bu/rtl8822be/rtl8822ce
-
 
 Fixed Bugs:
 1. u-boot: rtd1619b: bl31: enhance and fix OTP write in secure mode

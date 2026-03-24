@@ -187,6 +187,7 @@ static u32 s_vpu_reg_store[MAX_NUM_VPU_CORE][64];
 #define WriteVpuRegister(addr, val, core) *(volatile unsigned int *)(s_vpu_register.virt_addr + (0x8000 * core) + addr) = (unsigned int)val
 #define WriteVpu(addr, val) *(volatile unsigned int *)(addr) = (unsigned int)val;
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 static unsigned int to_heapflag(unsigned int mem_type)
 {
 	unsigned int flags;
@@ -204,6 +205,7 @@ static unsigned int to_heapflag(unsigned int mem_type)
         }
 	return flags;
 }
+#endif
 
 static void ve1_wrapper_setup(unsigned int coreIdx)
 {
@@ -256,8 +258,10 @@ int kent_vpu_alloc_dma_buffer(vpudrv_buffer_t *vb)
 	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 #else
 	mutex_lock(&p_vpu_dev->mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
 	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	mutex_unlock(&p_vpu_dev->mutex);
@@ -287,8 +291,10 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
 	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 #else
 	mutex_lock(&p_vpu_dev->mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
 	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	mutex_unlock(&p_vpu_dev->mutex);
@@ -411,7 +417,7 @@ static irqreturn_t ve1_irq_handler(int irq, void *dev_id)
 		WriteVpuRegister(BIT_INT_REASON, 0, core);
 		WriteVpuRegister(BIT_INT_CLEAR, 0x1, core);
 		if (interrupt_reason_ve1 == 0) {
-			pr_err("%s %d.DHCFAE-12940.interrupt_reason_ve1:%d\n",DEV_NAME,__LINE__,interrupt_reason_ve1);
+			pr_err("%s %d.DHCFAE-12940.interrupt_reason_ve1:%lu\n",DEV_NAME,__LINE__,interrupt_reason_ve1);
 		}
 	}
 
@@ -1723,7 +1729,9 @@ static int vpu_probe(struct platform_device *pdev)
 	s_vpu_dev.this_device->coherent_dma_mask = DMA_BIT_MASK(32);
 	s_vpu_dev.this_device->dma_mask = (u64 *)&s_vpu_dev.this_device
 						->coherent_dma_mask;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(s_vpu_dev.this_device, &rheap_dma_ops);
+#endif
 
 	p_vpu_dev = &pdev->dev;
 

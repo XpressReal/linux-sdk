@@ -411,7 +411,9 @@ static ssize_t fw_log_level_show(struct kobject *kobj,
 	}
 
 	flag_mask = RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC | RTK_FLAG_VCPU_FWACC;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(fw_dbg_dev, NULL, flag_mask, __func__);
+#endif
 	fw_rpc_info->vaddr =
 		dma_alloc_coherent(fw_dbg_dev, RPC_BUFFER_SIZE,
 				   &fw_rpc_info->paddr, GFP_DMA | GFP_KERNEL);
@@ -562,7 +564,9 @@ rpc_begin:
 	}
 	/* Allocate RPC buffer */
 	flag_mask = RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC | RTK_FLAG_VCPU_FWACC;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(fw_dbg_dev, NULL, flag_mask, __func__);
+#endif
 	fw_rpc_info->vaddr =
 		dma_alloc_coherent(fw_dbg_dev, RPC_BUFFER_SIZE,
 				   &fw_rpc_info->paddr, GFP_DMA | GFP_KERNEL);
@@ -655,7 +659,9 @@ static struct fw_debug_flag_memory *get_debug_flag_memory(struct device *dev)
 
 	flag_mask |= RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC | RTK_FLAG_VCPU_FWACC;
 	mutex_lock(&dev->mutex);
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(dev, NULL, flag_mask, __func__);
+#endif
 	vaddr = dma_alloc_coherent(dev, sizeof(struct fw_debug_flag), &daddr,
 				   GFP_KERNEL);
 	mutex_unlock(&dev->mutex);
@@ -695,7 +701,9 @@ static struct fw_debug_print_memory *get_debug_print_memory(struct device *dev)
 
 	mutex_lock(&dev->mutex);
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(dev, NULL, flag_mask, __func__);
+#endif
 	cookie = dma_alloc_attrs(dev, size, &daddr, GFP_KERNEL,
 				 DMA_ATTR_NO_KERNEL_MAPPING);
 	mutex_unlock(&dev->mutex);
@@ -991,7 +999,9 @@ static int rtk_fwdbg_probe(struct platform_device *pdev)
 
 	fw_dbg_dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	fw_dbg_dev->dma_mask = (u64 *)&fw_dbg_dev->coherent_dma_mask;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(fw_dbg_dev, &rheap_dma_ops);
+#endif
 
 	/* Parse KRPC agents in device tree & create SYSFS interface */
 	if (rtk_fwdbg_krpc_agent_dtb_parse(pdev) == true) {

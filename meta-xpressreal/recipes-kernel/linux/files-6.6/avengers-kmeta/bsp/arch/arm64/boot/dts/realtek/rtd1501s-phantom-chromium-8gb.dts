@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1501S Phantom EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1501s-phantom.dtsi"
+
+/ {
+	compatible = "realtek,phantom", "realtek,rtd1501s";
+	model = "Realtek Phantom EVB Chromium (8GB)";
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=2 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+	};
+
+	memory: memory@40000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x7ffb0000>,
+		      <0x00000000 0x8a100000 0x00000000 0x0def0000>,
+		      <0x00000000 0x98700000 0x00000000 0x07900000>,
+		      <0x00000000 0xa0600000 0x00000000 0x5ea00000>,
+		      <0x00000001 0x00000000 0x00000000 0xa0000000>,
+		      <0x00000001 0xa0600000 0x00000000 0x5fa00000>;
+	};
+
+	aliases {
+		ethernet = &nic;
+	};
+
+	vpu_legacy: vpu_legacy {
+		compatible = "realtek,kent-vpu-legacy";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+	vpu_ve4: vcpu_ve4 {
+		compatible = "realtek,kent-vpu-ve4";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+
+	ve2: ve2 {
+		compatible = "realtek,kent-ve2-sl";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+	rtk_ve2rpc: rtk_ve2rpc {
+		compatible = "realtek,ve2rpc";
+		realtek,krpc-agent = <&vcpu_kernel_agent>;
+	};
+};
+
+&sdio {
+	status = "disabled";
+};
+
+&npu_pp {
+	status = "disabled";
+};
+
+&rtk_urpc_service {
+	status = "disabled";
+};
+
+&sound {
+	status = "disabled";
+};
+
+&audio_out {
+	status = "disabled";
+};
+
+&irda {
+	status = "okay";
+};
+
+&avcert_rproc {
+	//firmware-name = "realtek/AFW_Certificate.bin";
+	status = "okay";
+};
+
+&hifi_rproc {
+	status = "disabled";
+};
+
+&hifi_rpmsg {
+	/delete-property/ rproc;
+	skip-handshake;
+};
+
+&kr4_rproc {
+	status = "okay";
+};
+
+&kr4_rpmsg {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+	memory-region = <&cma_reserved_2>;
+	ports = <&vo1_out>, <&vo0_out>, <&vo2_out>;
+};
+
+&ve1 {
+	memory-region = <&cma_reserved_2>;
+	status = "okay";
+};
+
+&vo0 {
+	status = "okay";
+	memory-region = <&cma_reserved_2>;
+
+	vo0_out: port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vo0_out_dp: endpoint@1 {
+			reg = <1>;
+			remote-endpoint = <&dp_in_vo0>;
+		};
+	};
+};
+
+&vo1 {
+	status = "okay";
+	memory-region = <&cma_reserved_2>;
+};
+
+&vo2 {
+	status = "disabled";
+	memory-region = <&cma_reserved_2>;
+};
+
+&hdmi {
+	memory-region = <&cma_reserved_2>;
+	//check-connector-limit;
+	ext-flags = <0x8>;
+};
+
+/delete-node/ &vo2_out_dp;
+/delete-node/ &dp_in_vo2;
+
+&dp {
+	status = "okay";
+	memory-region = <&cma_reserved_2>;
+	check-connector-limit;
+	realtek,iso = <&iso>;
+	extcon = <&usb1_u3phy>;
+	ports {
+		port@0 {
+			dp_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_dp>;
+			};
+		};
+	};
+};
+
+&edp {
+	status = "okay";
+	assr-en = <1>;
+	memory-region = <&cma_reserved_2>;
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "okay";
+	};
+
+	linux,cma {
+		alloc-ranges=<0x0 0x20000000 0x0 0x20000000>;
+	};
+
+	linux,cma_2 {
+		size = <0x0 0x50000000>; /* 1280M */
+	};
+};
+
+&vpu_legacy {
+	status = "okay";
+};
+
+&vpu_ve4  {
+        status = "okay";
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&rtk_pm {
+	wakeup-timer = <15>;
+};
+
+&rtk_sof {
+	status = "okay";
+	intr-syscon = <&sb2>;
+	ipc-syscon = <&sb2_pmu>;
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ao_i2s0_loc0_pins>, <&ao_i2s0_pins>, <&ao_i2s1_loc0_no_mck_pins>, <&ai_i2s0_d0_pins>, <&ai_dmic0_pins>;
+	realtek,audio-platform = <&rtk_sof>;
+	realtek,hdmi-audio = <&hdmi>;
+	realtek,dp-audio = <&dp>;
+	realtek,dai-link = "RDAI_I2S","RDAI_I2S1","RDAI_DMIC","RDAI_HDMI","RDAI_DP";
+	status = "okay";
+};
+
+&rtk_tee_mem {
+	status = "okay";
+};
+
+&sb2 {
+	kr4_rpmsg: kr4-rpmsg {
+		kr4-intr-channel{
+			memory-region = <&cma_reserved_2>;
+		};
+	};
+};
+
+&firmware {
+	chromeos {
+		compatible = "chromeos-firmware";
+		firmware-type = "nonchrome";
+	};
+};

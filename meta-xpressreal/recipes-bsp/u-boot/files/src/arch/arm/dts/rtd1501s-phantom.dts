@@ -22,12 +22,26 @@
 	bootph-all;
 };
 
+&iso {
+	bootph-all;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
 &nor_flash {
 	bootph-all;
 };
 
 &emmc {
 	bootph-all;
+};
+
+&gpio {
+	bootph-all;
+	status = "okay";
 };
 
 &usb_manager {
@@ -38,50 +52,10 @@
 	bootph-all;
 };
 
-&usb0_u3phy {
-	bootph-all;
-};
-
 &usb_port0 {
 	bootph-all;
 };
 
 &usb0_dwc3 {
-	bootph-all;
-};
-
-&usb1_u2phy {
-	bootph-all;
-};
-
-&usb1_u3phy {
-	bootph-all;
-};
-
-&usb_port1 {
-	bootph-all;
-};
-
-&usb2_u2phy {
-	bootph-all;
-};
-
-&usb_port2 {
-	bootph-all;
-};
-
-&usb2_dwc3 {
-	bootph-all;
-};
-
-&usb_port3 {
-	bootph-all;
-};
-
-&usb_port4 {
-	bootph-all;
-};
-
-&usb4_dwc3 {
 	bootph-all;
 };

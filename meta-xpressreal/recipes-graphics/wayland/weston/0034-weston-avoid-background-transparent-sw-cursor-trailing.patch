@@ -1,0 +1,73 @@
+From 9bfdbf2465b1a06b5b1f09fd7ecee1e6ee9a02fe Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Fri, 30 Jan 2026 16:39:35 +0800
+Subject: [PATCH] weston avoid background transparent sw cursor trailing
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c             | 10 ++++++++++
+ include/libweston/libweston.h |  2 ++
+ libweston/compositor.c        |  6 ++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 2afe62d..b159823 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3039,6 +3039,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 	struct wet_backend *wb;
+ 	bool without_input = false;
+ 	bool force_pixman = false;
++	uint32_t bg_color;
+ 
+ 	wet->drm_use_current_mode = false;
+ 
+@@ -3085,6 +3086,15 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
+ 	weston_config_section_get_bool(section, "ui-hole-punch", &c->ui_hole_punch, true);
++	weston_config_section_get_bool(section, "sw-cursor", &c->use_sw_cursor, true);
++
++	section = weston_config_get_section(wc, "shell", NULL, NULL);
++	weston_config_section_get_color(section, "background-color",&bg_color,0xff000000);
++
++	if(bg_color == 0x00ff0000 || bg_color == 0x0000ff00 || bg_color == 0x000000ff)
++		c->bg_transparent = true;
++	else
++		c->bg_transparent = false;
+ 
+ 	if (without_input)
+ 		c->require_input = !without_input;
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index 28e0a77..50795cf 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1528,6 +1528,8 @@ struct weston_compositor {
+ 	bool full_damage;
+ 	bool ui_hole_punch;
+ 	bool default_max_mode;
++	bool use_sw_cursor;
++	bool bg_transparent;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index b33de19..fdf29ce 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -3485,6 +3485,12 @@ weston_output_repaint(struct weston_output *output)
+ 				weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
+ 			}
+ 		}
++
++		if (ec->use_sw_cursor && ec->bg_transparent) {
++			// background transparent always repaint full to avoid sw_cursor trailing
++			weston_output_damage(output);
++		}
++
+ 		weston_compositor_build_view_list(ec);
+ 	}
+ 
+-- 
+2.45.2
+

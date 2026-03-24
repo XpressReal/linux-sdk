@@ -29,6 +29,8 @@
 	};
 
 	aliases {
+		i2c0 = &i2c_0;
+		i2c1 = &i2c_1;
 		mmc0 = &emmc;
 	};
 
@@ -106,6 +108,42 @@
 				reg-io-width = <4>;
 				#address-cells = <1>;
 				#size-cells = <1>;
+
+				ic: clock-controller@0 {
+					compatible = "realtek,rtd1625-iso-clk";
+					reg = <0 0x1000>;
+					#clock-cells = <1>;
+					#reset-cells = <1>;
+				};
+
+				i2c_0: i2c-0@d00 {
+					compatible = "realtek,i2c";
+					reg = <0xd00 0x100>,
+						<0x000 0x100>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					clock-frequency = <100000>;
+					clocks = <&ic RTD1625_ISO_CLK_EN_I2C0>;
+					clock-names = "i2c0";
+					status = "okay";
+					pmic: pmic@38 {
+						compatible = "i2c-chip";
+						reg = <0x38>;
+						u-boot,i2c-offset-len = <2>;
+					};
+				};
+
+				i2c_1: i2c-1@c00 {
+					compatible = "realtek,i2c";
+					reg = <0xc00 0x100>,
+						<0x000 0x100>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					clock-frequency = <50000>;
+					clocks = <&ic RTD1625_ISO_CLK_EN_I2C1>;
+					clock-names = "i2c1";
+					status = "okay";
+				};
 			};
 
 			usb_manager: rtk-usb-manager@7088 {
@@ -114,6 +152,11 @@
 				ranges;
 				#address-cells = <1>;
 				#size-cells = <1>;
+				status = "disabled";
+			};
+
+			nic: r8169soc@16000 {
+				compatible = "realtek,rtd1625-r8169soc";
 				status = "disabled";
 			};
 
@@ -198,6 +241,15 @@
 				compatible = "realtek,isosys", "simple-bus", "syscon";
 				reg = <0x129000 0x1000>;
 				ranges = <0x0 0x129000 0x1000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+
+			scpu_wrapper: syscon@130000 {
+				compatible = "realtek,rtd1625-scpu-wrapper", "syscon", "simple-mfd";
+				reg = <0x130000 0x10000>;
+				ranges = <0x0 0x130000 0x10000>;
+				reg-io-width = <4>;
 				#address-cells = <1>;
 				#size-cells = <1>;
 			};
@@ -349,5 +401,5 @@
 
 #include "kent-pinctrl.dtsi"
 #include "kent-usb.dtsi"
-
+#include "kent-pcie.dtsi"
 #include "sign.dtsi"

@@ -1,0 +1,36 @@
+From 072355d27ee2e3ad4dae4c6b7510b1cf4e8167d7 Mon Sep 17 00:00:00 2001
+From: Todd Kjos <tkjos@google.com>
+Date: Wed, 20 Nov 2024 00:28:10 +0000
+Subject: [PATCH] ANDROID: suppress FRAME_WARN if
+ IOMMU_IO_PGTABLE_LPAE_SELFTEST
+
+Kernelci allmodconfig tests fail for 32-bit because
+the arm_lpae_do_selftests exceeds the stack size. Increase
+the expected stack frame size if that test is enabled.
+
+    stack frame size (1184) exceeds limit (1024) in 'arm_lpae_do_selftests' [-Werror,-Wframe-larger-than] in drivers/iommu/io-pgtable-arm.o
+
+To suppress, set the max frame size to 2048 for io-pgtable-arm.o
+
+Bug: 379954362
+Signed-off-by: Todd Kjos <tkjos@google.com>
+Change-Id: Ie5527e65c3fa3f0873f842ee24d0589ba62b7e95
+---
+ drivers/iommu/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/iommu/Makefile b/drivers/iommu/Makefile
+index 58be1a9a5c1cd..946e4028ec656 100644
+--- a/drivers/iommu/Makefile
++++ b/drivers/iommu/Makefile
+@@ -8,6 +8,7 @@ obj-$(CONFIG_IOMMU_DMA) += dma-iommu.o
+ obj-$(CONFIG_IOMMU_IO_PGTABLE) += io-pgtable.o
+ obj-$(CONFIG_IOMMU_IO_PGTABLE_ARMV7S) += io-pgtable-arm-v7s.o
+ obj-$(CONFIG_IOMMU_IO_PGTABLE_LPAE) += io-pgtable-arm.o io-pgtable-arm-common.o
++CFLAGS_io-pgtable-arm.o := -Wframe-larger-than=2048
+ obj-$(CONFIG_IOMMU_IO_PGTABLE_DART) += io-pgtable-dart.o
+ obj-$(CONFIG_IOMMU_IOVA) += iova.o
+ obj-$(CONFIG_OF_IOMMU)	+= of_iommu.o
+-- 
+2.34.1
+

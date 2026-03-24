@@ -1,0 +1,39 @@
+From 7b4f726fb77c0765847785d1ae1f9b802f887dc8 Mon Sep 17 00:00:00 2001
+From: TY Chang <tychang@realtek.com>
+Date: Wed, 5 Nov 2025 19:44:42 +0800
+Subject: [PATCH] pci: Add realtek pcie support
+
+---
+ drivers/pci/Kconfig  | 5 +++++
+ drivers/pci/Makefile | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/drivers/pci/Kconfig b/drivers/pci/Kconfig
+index 463ec47eb9..07c266f773 100644
+--- a/drivers/pci/Kconfig
++++ b/drivers/pci/Kconfig
+@@ -413,4 +413,9 @@ config PCIE_STARFIVE_JH7110
+ 	  Say Y here if you want to enable PLDA XpressRich PCIe controller
+ 	  support on StarFive JH7110 SoC.
+ 
++config PCIE_RTD
++	bool "Realtek PCIe host controller"
++	select PHY_RTD_PCIE
++	help
++	  Realtek PCIe host controller support.
+ endif
+diff --git a/drivers/pci/Makefile b/drivers/pci/Makefile
+index 72ef8b4bc7..14da435ca9 100644
+--- a/drivers/pci/Makefile
++++ b/drivers/pci/Makefile
+@@ -53,3 +53,8 @@ obj-$(CONFIG_PCIE_UNIPHIER) += pcie_uniphier.o
+ obj-$(CONFIG_PCIE_XILINX_NWL) += pcie-xilinx-nwl.o
+ obj-$(CONFIG_PCIE_PLDA_COMMON) += pcie_plda_common.o
+ obj-$(CONFIG_PCIE_STARFIVE_JH7110) += pcie_starfive_jh7110.o
++ifdef CONFIG_TARGET_RTD1619B
++obj-$(CONFIG_PCIE_RTD) += pcie-rtd16xxb.o
++else
++obj-$(CONFIG_PCIE_RTD) += pcie-rtd.o
++endif
+-- 
+2.49.0

@@ -321,8 +321,10 @@ char *name, unsigned int flags)
 	memset(buf_obj, 0x0, sizeof(*buf_obj));
 
 #ifndef ENABLE_NPP_FPGA_TEST
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev->dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(dev->dev, name, flags, __func__);
+#endif
 
 	dev->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	dev->dev->dma_mask = (u64 *)&dev->dev->coherent_dma_mask;

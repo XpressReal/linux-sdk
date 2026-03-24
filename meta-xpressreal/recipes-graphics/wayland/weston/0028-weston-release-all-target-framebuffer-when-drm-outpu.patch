@@ -1,0 +1,28 @@
+From 8b6bd2b8f9e5ea3d56274589e357154e11f33770 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 16 Oct 2025 04:55:39 -0400
+Subject: [PATCH] weston: release all target framebuffer when drm output was
+ destroyed
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-gbm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index 601391a..99cad49 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -292,6 +292,9 @@ drm_output_fini_egl(struct drm_output *output)
+ 	struct drm_backend *b = output->backend;
+ 	const struct weston_renderer *renderer = b->compositor->renderer;
+ 
++	if (output->scanout_plane->prev_bo != NULL)
++		gbm_surface_release_buffer(output->gbm_surface, output->scanout_plane->prev_bo);
++
+ 	/* Destroying the GBM surface will destroy all our GBM buffers,
+ 	 * regardless of refcount. Ensure we destroy them here. */
+ 	if (!b->compositor->shutting_down &&
+-- 
+2.34.1
+

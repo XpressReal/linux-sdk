@@ -10,7 +10,7 @@ LICENSE = "MIT"
 
 WKS_FILE := "pikvm.wks"
 
-IMAGE_INSTALL:append = " ustreamer kvmd tesseract sudo iproute2 iptables janus libpython3 wpa-supplicant systemd-boot systemd-conf wifi-config"
+IMAGE_INSTALL:append = " ustreamer kvmd kvmd-wrapper tesseract sudo iproute2 iptables janus libpython3 wpa-supplicant systemd-boot systemd-conf wifi-config libgpiod libgpiod-tools qrencode imagemagick usbip-tools"
 
 IMAGE_INSTALL:append = " \
 		libdrm libdrm-tests \

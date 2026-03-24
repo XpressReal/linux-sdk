@@ -46,6 +46,8 @@ do_install() {
 	install -m 644 ${WORKDIR}/README ${D}/opt/realtek
 	install -m 644 ${WORKDIR}/libgl1-mesa-dri_22.3.6-1.deb ${D}/opt/realtek
 	install -m 644 ${WORKDIR}/libgl1-mesa-dri_24.0.9-0ubuntu0.2_arm64.deb ${D}/opt/realtek
+
+	touch ${D}/etc/postfiles
 }
 
 do_package_qa[noexec] = "1"

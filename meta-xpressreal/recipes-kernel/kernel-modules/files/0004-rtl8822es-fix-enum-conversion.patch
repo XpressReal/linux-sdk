@@ -1,0 +1,25 @@
+From 70b13fd1fe28c6dbd47f2bfe883044ebc4b9c0ed Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Fri, 9 Jan 2026 12:14:01 +0800
+Subject: [PATCH] rtl8822es: fix enum-conversion
+
+---
+ rtl8822es/os_dep/linux/ioctl_cfg80211.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rtl8822es/os_dep/linux/ioctl_cfg80211.c b/rtl8822es/os_dep/linux/ioctl_cfg80211.c
+index 3d3e8b77..13122411 100644
+--- a/rtl8822es/os_dep/linux/ioctl_cfg80211.c
++++ b/rtl8822es/os_dep/linux/ioctl_cfg80211.c
+@@ -7349,7 +7349,7 @@ void rtw_cfg80211_external_auth_request(_adapter *padapter, union recv_frame *rf
+ 	struct cfg80211_external_auth_params params = {0};
+ 	struct net_device *netdev = wdev_to_ndev(wdev);
+ 
+-	params.action = EXTERNAL_AUTH_START;
++	params.action = (enum nl80211_external_auth_action)EXTERNAL_AUTH_START;
+ 	_rtw_memcpy(params.bssid, get_my_bssid(&pmlmeinfo->network), ETH_ALEN);
+ 	params.ssid.ssid_len = pmlmeinfo->network.Ssid.SsidLength;
+ 	_rtw_memcpy(params.ssid.ssid, pmlmeinfo->network.Ssid.Ssid,
+-- 
+2.34.1
+

@@ -1,4 +1,4 @@
-# meta-avengers settings for console only applications
+# meta-xpressreal settings for console only applications
 
 DISTRO_FEATURES:remove = "x11"
 DISTRO_FEATURES:remove = "opengl"

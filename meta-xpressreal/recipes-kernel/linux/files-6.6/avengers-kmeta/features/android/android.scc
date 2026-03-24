@@ -1,1 +1,30 @@
+define KFEATURE_DESCRIPTION "Realtek patches for Android"
+
+patch 201-CHROMIUM-drm-realtek-fix-compile-error-for-file-not-.patch
+patch 202-drm-make-some-helpers-selectable.patch
+patch 303-dts-rtd1501.dtsi-reduce-linux-cma-memory.patch
+patch 304-CHROMIUM-soc-realtek-common-rpc-bind-CMA-memory-regi.patch
+patch 305-ANDROID-soc-realtek-common-drm-driver-bind-CMA-memor.patch
+patch 306-dma-buf-heaps-add-all-cma-areas-into-cma-heaps.patch
+patch 307-arm64-dts-realtek-rename-cma_2-to-vo5-for-cmaheap-pu.patch
+patch 308-ASoC-SOF-realtek-modify-contraint-of-period-size-and.patch
+
+patch 801-rtk_npp-no-npp_capture-if-SOF-HIFI-is-used.patch
+
+patch 901-sound-soc-realtek-add-compatible-for-rtd1920s-and-se.patch
+patch 902-sound-soc-realtek-change-dailink-RDAI_I2S-to-RDAI_I2.patch
+patch 903-sound-soc-realtek-add-a-way-for-user-to-get-btpcm-pa.patch
+patch 904-sound-soc-realtek-remove-invalid-ai_agent_id-assignm.patch
+patch 905-sound-soc-realtek-fix-soc-driver-compile-error.patch
+patch 906-CHROMIUM-sound-soc-sof-Add-RTK-flow-in-SOF-framework.patch
+patch 907-gpu-drm-realtek-Add-startup-shutdown-callback-for-ke.patch
+patch 908-sound-soc-realtek-refine-SOF-driver-and-machine-rt56.patch
+patch 909-sound-soc-realtek-refine-machine-driver-without-code.patch
+patch 910-modify-for-stark-SOF-driver-with-codec-rt5650.patch
+
+patch tmp/0059-fix-hdmi-audio.patch
+
+kconf non-hardware android-arm64_defconfig
+kconf non-hardware chromiumos-realtek.flavour.config
+kconf non-hardware kent.fragment
 kconf non-hardware android.cfg

@@ -12,3 +12,7 @@
 		stdout-path = "serial0:460800n8";
 	};
 };
+
+&nic {
+	status = "okay";
+};

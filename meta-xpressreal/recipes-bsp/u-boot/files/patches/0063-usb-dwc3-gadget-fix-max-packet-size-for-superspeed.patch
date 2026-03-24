@@ -1,0 +1,20 @@
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+index 406d36ceafe..98f559a0d1b 100644
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -1610,8 +1610,14 @@ static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
+ 				dwc->gadget.ep0 = &dep->endpoint;
+ 		} else {
+ 			int		ret;
++			int 		size;
+ 
+-			usb_ep_set_maxpacket_limit(&dep->endpoint, 512);
++			if (gadget_is_superspeed(&dwc->gadget))
++				size = 1024;
++			else
++				size = 512;
++
++			usb_ep_set_maxpacket_limit(&dep->endpoint, size);
+ 			dep->endpoint.max_streams = 15;
+ 			dep->endpoint.ops = &dwc3_gadget_ep_ops;
+ 			list_add_tail(&dep->endpoint.ep_list,

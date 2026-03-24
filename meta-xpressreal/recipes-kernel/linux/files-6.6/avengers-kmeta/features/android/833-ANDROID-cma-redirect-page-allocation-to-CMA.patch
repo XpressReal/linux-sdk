@@ -1,0 +1,305 @@
+From 89b65ec3a21d9009fa025e8f78b52d475d3a56f6 Mon Sep 17 00:00:00 2001
+From: Heesub Shin <heesub.shin@samsung.com>
+Date: Mon, 12 Feb 2024 12:39:40 -0800
+Subject: [PATCH 3/5] ANDROID: cma: redirect page allocation to CMA
+
+CMA pages are designed to be used as fallback for movable allocations
+and cannot be used for non-movable allocations. If CMA pages are
+utilized poorly, non-movable allocations may end up getting starved if
+all regular movable pages are allocated and the only pages left are
+CMA. Always using CMA pages first creates unacceptable performance
+problems. As a midway alternative, use CMA pages for certain
+userspace allocations. The userspace pages can be migrated or dropped
+quickly which giving decent utilization.
+
+Additionally, add a fall-backs for failed CMA allocations in rmqueue()
+and __rmqueue_pcplist() (the latter addition being driven by a report
+by the kernel test robot); these fallbacks were dealt with differently
+in the original version of the patch as the rmqueue() call chain has
+changed).
+
+[ACK6.6 port notes]
+    Add a command line option, 'restrict_cma_fallback` and redirect page
+    allocation to CMA only if this option is specified.  If the option is
+    not specified, there should be no change in behavior. When the option
+    is specified, only allocations tagged with __GFP_CMA are redirected
+    (as in ACK 6.1). We considered adding a vendor hook, but couldn't
+    find a good place for the hook. We only need to initialize the flag
+    once - unlike normal vendor hooks which operate on other variables
+    in the context of the hook. But the vendor hook can't be too early
+    in the boot since the trace infrastructure is not yet initialized.
+
+Bug: 330201547
+Change-Id: Iad46f0405b416e29ae788f82b79c9953513a9c9d
+Link: https://lore.kernel.org/lkml/cover.1604282969.git.cgoldswo@codeaurora.org/
+Reported-by: kernel test robot <rong.a.chen@intel.com>
+Signed-off-by: Kyungmin Park <kyungmin.park@samsung.com>
+Signed-off-by: Heesub Shin <heesub.shin@samsung.com>
+Signed-off-by: Vinayak Menon <vinmenon@codeaurora.org>
+[cgoldswo@codeaurora.org: Place in bugfixes; remove cma_alloc zone flag]
+Signed-off-by: Chris Goldsworthy <cgoldswo@codeaurora.org>
+[isaacm@codeaurora.org: Resolve merge conflicts to account for new mm
+features]
+Signed-off-by: Isaac J. Manjarres <isaacm@codeaurora.org>
+[Port to ACK6.6 with input from Chris Goldsworthy and Patrick Daly]
+Signed-off-by: Sukadev Bhattiprolu <quic_sukadev@quicinc.com>
+---
+ arch/arm64/mm/fault.c       |  3 +-
+ arch/x86/include/asm/page.h |  2 +-
+ include/linux/gfp_types.h   | 14 ++++++-
+ include/linux/highmem.h     |  2 +-
+ include/linux/mmzone.h      |  2 +
+ mm/page_alloc.c             | 83 +++++++++++++++++++++++++++++++++----
+ 6 files changed, 95 insertions(+), 11 deletions(-)
+
+diff --git a/arch/arm64/mm/fault.c b/arch/arm64/mm/fault.c
+index 2e5d1e238af9..374bbc68c460 100644
+--- a/arch/arm64/mm/fault.c
++++ b/arch/arm64/mm/fault.c
+@@ -25,6 +25,7 @@
+ #include <linux/perf_event.h>
+ #include <linux/preempt.h>
+ #include <linux/hugetlb.h>
++#include <linux/gfp_types.h>
+ 
+ #include <asm/acpi.h>
+ #include <asm/bug.h>
+@@ -940,7 +941,7 @@ NOKPROBE_SYMBOL(do_debug_exception);
+ struct folio *vma_alloc_zeroed_movable_folio(struct vm_area_struct *vma,
+ 						unsigned long vaddr)
+ {
+-	gfp_t flags = GFP_HIGHUSER_MOVABLE | __GFP_ZERO;
++	gfp_t flags = GFP_HIGHUSER_MOVABLE | __GFP_ZERO | __GFP_CMA;
+ 
+ 	/*
+ 	 * If the page is mapped with PROT_MTE, initialise the tags at the
+diff --git a/arch/x86/include/asm/page.h b/arch/x86/include/asm/page.h
+index 1b93ff80b43b..82f505be9b62 100644
+--- a/arch/x86/include/asm/page.h
++++ b/arch/x86/include/asm/page.h
+@@ -35,7 +35,7 @@ static inline void copy_user_page(void *to, void *from, unsigned long vaddr,
+ }
+ 
+ #define vma_alloc_zeroed_movable_folio(vma, vaddr) \
+-	vma_alloc_folio(GFP_HIGHUSER_MOVABLE | __GFP_ZERO, 0, vma, vaddr, false)
++	vma_alloc_folio(GFP_HIGHUSER_MOVABLE | __GFP_ZERO | __GFP_CMA, 0, vma, vaddr, false)
+ 
+ #ifndef __pa
+ #define __pa(x)		__phys_addr((unsigned long)(x))
+diff --git a/include/linux/gfp_types.h b/include/linux/gfp_types.h
+index dfde1e1e321c..5c769c63d585 100644
+--- a/include/linux/gfp_types.h
++++ b/include/linux/gfp_types.h
+@@ -55,8 +55,19 @@ typedef unsigned int __bitwise gfp_t;
+ #define ___GFP_SKIP_ZERO	0
+ #define ___GFP_SKIP_KASAN	0
+ #endif
++
++#ifdef CONFIG_CMA
++#define ___GFP_CMA		0x4000000u
++#else
++#define ___GFP_CMA		0
++#endif
++
+ #ifdef CONFIG_LOCKDEP
++#ifdef CONFIG_CMA
++#define ___GFP_NOLOCKDEP	0x8000000u
++#else
+ #define ___GFP_NOLOCKDEP	0x4000000u
++#endif
+ #else
+ #define ___GFP_NOLOCKDEP	0
+ #endif
+@@ -73,6 +84,7 @@ typedef unsigned int __bitwise gfp_t;
+ #define __GFP_HIGHMEM	((__force gfp_t)___GFP_HIGHMEM)
+ #define __GFP_DMA32	((__force gfp_t)___GFP_DMA32)
+ #define __GFP_MOVABLE	((__force gfp_t)___GFP_MOVABLE)  /* ZONE_MOVABLE allowed */
++#define __GFP_CMA	((__force gfp_t)___GFP_CMA)
+ #define GFP_ZONEMASK	(__GFP_DMA|__GFP_HIGHMEM|__GFP_DMA32|__GFP_MOVABLE)
+ 
+ /**
+@@ -251,7 +263,7 @@ typedef unsigned int __bitwise gfp_t;
+ #define __GFP_NOLOCKDEP ((__force gfp_t)___GFP_NOLOCKDEP)
+ 
+ /* Room for N __GFP_FOO bits */
+-#define __GFP_BITS_SHIFT (26 + IS_ENABLED(CONFIG_LOCKDEP))
++#define __GFP_BITS_SHIFT (26 + IS_ENABLED(CONFIG_LOCKDEP) + IS_ENABLED(CONFIG_CMA))
+ #define __GFP_BITS_MASK ((__force gfp_t)((1 << __GFP_BITS_SHIFT) - 1))
+ 
+ /**
+diff --git a/include/linux/highmem.h b/include/linux/highmem.h
+index 75607d4ba26c..ccef475c0d44 100644
+--- a/include/linux/highmem.h
++++ b/include/linux/highmem.h
+@@ -226,7 +226,7 @@ struct folio *vma_alloc_zeroed_movable_folio(struct vm_area_struct *vma,
+ {
+ 	struct folio *folio;
+ 
+-	folio = vma_alloc_folio(GFP_HIGHUSER_MOVABLE, 0, vma, vaddr, false);
++	folio = vma_alloc_folio(GFP_HIGHUSER_MOVABLE | __GFP_CMA, 0, vma, vaddr, false);
+ 	if (folio)
+ 		clear_user_highpage(&folio->page, vaddr);
+ 
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index 3427b4db5cac..a8c535517245 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -78,9 +78,11 @@ extern const char * const migratetype_names[MIGRATE_TYPES];
+ #ifdef CONFIG_CMA
+ #  define is_migrate_cma(migratetype) unlikely((migratetype) == MIGRATE_CMA)
+ #  define is_migrate_cma_page(_page) (get_pageblock_migratetype(_page) == MIGRATE_CMA)
++#  define get_cma_migrate_type() MIGRATE_CMA
+ #else
+ #  define is_migrate_cma(migratetype) false
+ #  define is_migrate_cma_page(_page) false
++#  define get_cma_migrate_type() MIGRATE_MOVABLE
+ #endif
+ 
+ static inline bool is_migrate_movable(int mt)
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 65c733116c26..8c50aee2fe0e 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -167,6 +167,34 @@ EXPORT_PER_CPU_SYMBOL(numa_node);
+ 
+ DEFINE_STATIC_KEY_TRUE(vm_numa_stat_key);
+ 
++/*
++ * By default, when restrict_cma_redirect is false, all movable allocations
++ * are eligible for redirection to CMA region (i.e movable allocations are
++ * not restricted from CMA region), when there is sufficient space there.
++ * (see __rmqueue()).
++ *
++ * If restrict_cma_redirect is set to true, only MOVABLE allocations marked
++ * __GFP_CMA are eligible to be redirected to CMA region. These allocations
++ * are redirected if *any* free space is available in the CMA region.
++ */
++DEFINE_STATIC_KEY_FALSE(restrict_cma_redirect);
++
++static int __init restrict_cma_redirect_setup(char *str)
++{
++#ifdef CONFIG_CMA
++	static_branch_enable(&restrict_cma_redirect);
++#else
++	pr_warn("CONFIG_CMA not set. Ignoring restrict_cma_redirect option\n");
++#endif
++	return 1;
++}
++__setup("restrict_cma_redirect", restrict_cma_redirect_setup);
++
++static inline bool cma_redirect_restricted(void)
++{
++	return static_key_enabled(&restrict_cma_redirect);
++}
++
+ #ifdef CONFIG_HAVE_MEMORYLESS_NODES
+ /*
+  * N.B., Do NOT reference the '_numa_mem_' per cpu variable directly.
+@@ -2093,7 +2121,7 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
+ 		 * allocating from CMA when over half of the zone's free memory
+ 		 * is in the CMA area.
+ 		 */
+-		if (alloc_flags & ALLOC_CMA &&
++		if (!cma_redirect_restricted() && alloc_flags & ALLOC_CMA &&
+ 		    zone_page_state(zone, NR_FREE_CMA_PAGES) >
+ 		    zone_page_state(zone, NR_FREE_PAGES) / 2) {
+ 			page = __rmqueue_cma_fallback(zone, order);
+@@ -2104,7 +2132,7 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
+ retry:
+ 	page = __rmqueue_smallest(zone, order, migratetype);
+ 	if (unlikely(!page)) {
+-		if (alloc_flags & ALLOC_CMA)
++		if (!cma_redirect_restricted() && alloc_flags & ALLOC_CMA)
+ 			page = __rmqueue_cma_fallback(zone, order);
+ 
+ 		if (!page && __rmqueue_fallback(zone, order, migratetype,
+@@ -2128,8 +2156,18 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
+ 
+ 	spin_lock_irqsave(&zone->lock, flags);
+ 	for (i = 0; i < count; ++i) {
+-		struct page *page = __rmqueue(zone, order, migratetype,
+-								alloc_flags);
++		struct page *page;
++
++		/*
++		 * If CMA redirect is restricted, use CMA region only for
++		 * MIGRATE_CMA pages. cma_rediret_restricted() is false
++		 * if CONFIG_CMA is not set.
++		 */
++		if (cma_redirect_restricted() && is_migrate_cma(migratetype))
++			page = __rmqueue_cma_fallback(zone, order);
++		else
++			page = __rmqueue(zone, order, migratetype, alloc_flags);
++
+ 		if (unlikely(page == NULL))
+ 			break;
+ 
+@@ -2650,8 +2688,13 @@ struct page *rmqueue_buddy(struct zone *preferred_zone, struct zone *zone,
+ 		if (alloc_flags & ALLOC_HIGHATOMIC)
+ 			page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
+ 		if (!page) {
+-			page = __rmqueue(zone, order, migratetype, alloc_flags);
++			if (cma_redirect_restricted() &&
++			    alloc_flags & ALLOC_CMA)
++				page = __rmqueue_cma_fallback(zone, order);
+ 
++			if (!page)
++				page = __rmqueue(zone, order, migratetype,
++						 alloc_flags);
+ 			/*
+ 			 * If the allocation fails, allow OOM handling access
+ 			 * to HIGHATOMIC reserves as failing now is worse than
+@@ -2679,7 +2722,7 @@ struct page *rmqueue_buddy(struct zone *preferred_zone, struct zone *zone,
+ 
+ /* Remove page from the per-cpu list, caller must protect the list */
+ static inline
+-struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
++struct page *___rmqueue_pcplist(struct zone *zone, unsigned int order,
+ 			int migratetype,
+ 			unsigned int alloc_flags,
+ 			struct per_cpu_pages *pcp,
+@@ -2718,6 +2761,27 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
+ 	return page;
+ }
+ 
++static inline
++struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
++			int migratetype,
++			unsigned int alloc_flags,
++			struct per_cpu_pages *pcp,
++			struct list_head *list)
++{
++
++	if (cma_redirect_restricted() && alloc_flags & ALLOC_CMA) {
++		struct page *page;
++
++		page = ___rmqueue_pcplist(zone, order, get_cma_migrate_type(),
++					  alloc_flags, pcp, list);
++		if (page)
++			return page;
++	}
++
++	return ___rmqueue_pcplist(zone, order, migratetype, alloc_flags, pcp,
++				  list);
++}
++
+ /* Lock and remove page from the per-cpu list */
+ static struct page *rmqueue_pcplist(struct zone *preferred_zone,
+ 			struct zone *zone, unsigned int order,
+@@ -3037,7 +3101,12 @@ static inline unsigned int gfp_to_alloc_flags_cma(gfp_t gfp_mask,
+ 						  unsigned int alloc_flags)
+ {
+ #ifdef CONFIG_CMA
+-	if (gfp_migratetype(gfp_mask) == MIGRATE_MOVABLE)
++	/*
++	 * If cma_redirect_restricted is true, set ALLOC_CMA only for
++	 * movable allocations that have __GFP_CMA.
++	 */
++	if ((!cma_redirect_restricted() || gfp_mask & __GFP_CMA) &&
++	    gfp_migratetype(gfp_mask) == MIGRATE_MOVABLE)
+ 		alloc_flags |= ALLOC_CMA;
+ #endif
+ 	return alloc_flags;
+-- 
+2.34.1
+

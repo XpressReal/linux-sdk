@@ -1,0 +1,85 @@
+From 2f70e634d85fc2becc45cb7dc3e78b4dac72ef3f Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Wed, 7 Jan 2026 14:25:42 +0800
+Subject: [PATCH] gpu: drm: panel: rpi-touchscreen: support backlight
+ brightness control
+
+- refs: drivers/regulator/rpi-panel-attiny-regulator.c
+
+---
+ drivers/gpu/drm/panel/Kconfig                 |  1 +
+ .../drm/panel/panel-raspberrypi-touchscreen.c | 25 +++++++++++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index 3f81728766275..fda0b54c6a15b 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -536,6 +536,7 @@ config DRM_PANEL_PANASONIC_VVX10F034N00
+ config DRM_PANEL_RASPBERRYPI_TOUCHSCREEN
+ 	tristate "Raspberry Pi 7-inch touchscreen panel"
+ 	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
+ 	help
+ 	  Say Y here if you want to enable support for the Raspberry
+ 	  Pi 7" Touchscreen.  To compile this driver as a module,
+diff --git a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
+index bda974a36d078..d2c1dee0ab877 100644
+--- a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
++++ b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
+@@ -41,6 +41,7 @@
+  * device with a drm_panel.
+  */
+ 
++#include <linux/backlight.h>
+ #include <linux/delay.h>
+ #include <linux/err.h>
+ #include <linux/i2c.h>
+@@ -211,6 +212,21 @@ static const struct drm_display_mode rpi_touchscreen_modes[] = {
+ 	},
+ };
+ 
++static void rpi_touchscreen_i2c_write(struct rpi_touchscreen *ts, u8 reg, u8 val);
++static int rpi_update_status(struct backlight_device *bl)
++{
++	struct rpi_touchscreen *ts = bl_get_data(bl);
++	int brightness = backlight_get_brightness(bl);
++
++	rpi_touchscreen_i2c_write(ts, REG_PWM, brightness);
++
++	return 0;
++}
++
++static const struct backlight_ops rpi_bl = {
++	.update_status	= rpi_update_status,
++};
++
+ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
+ {
+ 	return container_of(panel, struct rpi_touchscreen, base);
+@@ -373,6 +389,8 @@ static const struct drm_panel_funcs rpi_touchscreen_funcs = {
+ 
+ static int rpi_touchscreen_probe(struct i2c_client *i2c)
+ {
++	struct backlight_properties props = { };
++	struct backlight_device *bl;
+ 	struct device *dev = &i2c->dev;
+ 	struct rpi_touchscreen *ts;
+ 	struct device_node *endpoint, *dsi_host_node;
+@@ -449,6 +467,13 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
+ 	 */
+ 	drm_panel_add(&ts->base);
+ 
++	props.type = BACKLIGHT_RAW;
++	props.max_brightness = 0xff;
++	bl = devm_backlight_device_register(dev, dev_name(dev),
++					    dev, ts, &rpi_bl,
++					    &props);
++	bl->props.brightness = 0xff;
++
+ 	return 0;
+ 
+ error:
+-- 
+2.34.1
+

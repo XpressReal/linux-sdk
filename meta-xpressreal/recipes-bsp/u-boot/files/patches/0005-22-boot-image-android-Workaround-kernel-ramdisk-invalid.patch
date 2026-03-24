@@ -1,0 +1,84 @@
+From e122850933ccf5e755338b4ca300204c65ed0f04 Mon Sep 17 00:00:00 2001
+From: George Chan <gchan9527@gmail.com>
+Date: Sun, 18 May 2025 19:16:18 +0800
+Subject: [PATCH 22/25] boot/image-android: Workaround kernel/ramdisk invalid
+ addr
+
+Some androidboot image have invalid kernel/ramdisk load addr,
+force to ignore those value and use loadaddr instead.
+
+There is a concern on exposing the whole memory to image loading is
+dangerous. Also, since it's not always possible to change the load
+addr by repacking the boot.img (mainly due to AVB signature mismatch),
+we need a way to use kernel_addr_r and ramdisk_addr_r.
+
+Suggested-by: Casey Connolly <casey.connolly@linaro.org>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Tested-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Signed-off-by: George Chan <gchan9527@gmail.com>
+Link: https://lore.kernel.org/r/20250518-android-boot-v3-1-02c8768e131f@gmail.com
+Signed-off-by: Casey Connolly <casey.connolly@linaro.org>
+---
+ boot/Kconfig         | 11 +++++++++++
+ boot/image-android.c |  9 ++++++---
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/boot/Kconfig b/boot/Kconfig
+index 1f5ecb60c77..a671d78e570 100644
+--- a/boot/Kconfig
++++ b/boot/Kconfig
+@@ -11,6 +11,17 @@ config ANDROID_BOOT_IMAGE
+ 	  This enables support for booting images which use the Android
+ 	  image format header.
+ 
++config ANDROID_BOOT_IMAGE_IGNORE_BLOB_ADDR
++	bool "Android Boot Image ignore addr"
++	default n
++	help
++	  This ignore kernel/ramdisk load addr specified in androidboot header.
++
++	  There is a concern on exposing the whole memory to image loading is
++	  dangerous. Also, since it's not always possible to change the load
++	  addr by repacking the boot.img (mainly due to AVB signature mismatch),
++	  we need a way to use kernel_addr_r and ramdisk_addr_r.
++
+ config TIMESTAMP
+ 	bool "Show image date and time when displaying image information"
+ 	default y if CMD_DATE
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 459cdb8456c..14cf611cee5 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -268,7 +268,8 @@ static ulong android_image_get_kernel_addr(struct andr_image_data *img_data,
+ 	 *
+ 	 * Otherwise, we will return the actual value set by the user.
+ 	 */
+-	if (img_data->kernel_addr  == ANDROID_IMAGE_DEFAULT_KERNEL_ADDR) {
++	if (img_data->kernel_addr  == ANDROID_IMAGE_DEFAULT_KERNEL_ADDR ||
++	    IS_ENABLED(CONFIG_ANDROID_BOOT_IMAGE_IGNORE_BLOB_ADDR)) {
+ 		if (comp == IH_COMP_NONE)
+ 			return img_data->kernel_ptr;
+ 		return env_get_ulong("kernel_addr_r", 16, 0);
+@@ -464,7 +465,8 @@ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 	 */
+ 	if (img_data.header_version > 2) {
+ 		/* Ramdisk can't be used in-place, copy it to ramdisk_addr_r */
+-		if (img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR) {
++		if (img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR ||
++		    IS_ENABLED(CONFIG_ANDROID_BOOT_IMAGE_IGNORE_BLOB_ADDR)) {
+ 			ramdisk_ptr = env_get_ulong("ramdisk_addr_r", 16, 0);
+ 			if (!ramdisk_ptr) {
+ 				printf("Invalid ramdisk_addr_r to copy ramdisk into\n");
+@@ -489,7 +491,8 @@ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 		/* Ramdisk can be used in-place, use current ptr */
+ 		if (img_data.ramdisk_addr == 0 ||
+ 		    img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR ||
+-		    img_data.ramdisk_addr == img_data.kernel_addr) {
++		    img_data.ramdisk_addr == img_data.kernel_addr ||
++		    IS_ENABLED(CONFIG_ANDROID_BOOT_IMAGE_IGNORE_BLOB_ADDR)) {
+ 			*rd_data = img_data.ramdisk_ptr;
+ 		} else {
+ 			ramdisk_ptr = img_data.ramdisk_addr;
+-- 
+2.47.0
+

@@ -1,0 +1,46 @@
+From 1b1ffda4207125c5bc618d4b0ca718b52cf7a4c0 Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Thu, 3 Oct 2024 14:42:39 +0200
+Subject: [PATCH 06/25] boot: android: Fix ramdisk loading for v2 header
+
+Before
+commit da3447d09fa0 ("android: Fix ramdisk loading for bootimage v3+"),
+the ramdisk was loaded from img_data.ramdisk_ptr, ignoring offset
+provided via mkbootimg.
+
+commit da3447d09fa0 ("android: Fix ramdisk loading for bootimage v3+")
+rightfully fixes this by switching to use img_data.ramdisk_addr instead.
+
+However, it does not copy the ramdisk content to img_data.ramdisk_addr
+in case we use boot image v2.
+
+Because of this, we can no longer boot Android on Khadas vim3 board:
+
+[    3.940361] RAMDISK: Couldn't find valid RAM disk image starting at 0.
+
+Add the missing memcpy() to fix the issue.
+
+Fixes: da3447d09fa0 ("android: Fix ramdisk loading for bootimage v3+")
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 774565fd1fe..8934491c35f 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -409,6 +409,10 @@ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 			       (ramdisk_ptr), (void *)img_data.bootconfig_addr,
+ 			       img_data.bootconfig_size);
+ 		}
++	} else {
++		ramdisk_ptr = img_data.ramdisk_addr;
++		memcpy((void *)(ramdisk_ptr), (void *)img_data.ramdisk_ptr,
++		       img_data.ramdisk_size);
+ 	}
+ 
+ 	printf("RAM disk load addr 0x%08lx size %u KiB\n",
+-- 
+2.47.0
+

@@ -20,7 +20,21 @@
 	bootph-all;
 };
 
+&iso {
+	bootph-all;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
 &sd {
+	bootph-all;
+	status = "okay";
+};
+
+&gpio {
 	bootph-all;
 	status = "okay";
 };

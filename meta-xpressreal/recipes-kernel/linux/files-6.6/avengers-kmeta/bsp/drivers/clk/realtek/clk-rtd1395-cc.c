@@ -381,7 +381,7 @@ static struct clk_regmap_gate clk_en_sc = {
 };
 
 static struct clk_regmap_gate clk_en_hse = {
-	.clkr.hw.init = CLK_HW_INIT_NO_PARENT("clk_en_hse", &clk_regmap_gate_ops, 0),
+	.clkr.hw.init = CLK_HW_INIT_NO_PARENT("clk_en_hse", &clk_regmap_gate_ops, CLK_IS_CRITICAL),
 	.gate_ofs = 0x10,
 	.bit_idx = 25,
 };

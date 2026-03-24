@@ -1,0 +1,171 @@
+From e056390cfcc58d280d2e37bb915608a6208a15c4 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 28 Oct 2025 16:49:39 +0800
+Subject: [PATCH 4/4] web: javascript: modify for Realtek Demo purpose
+
+---
+ web/share/js/kvm/info.js   | 10 +++++-----
+ web/share/js/kvm/main.js   |  3 +++
+ web/share/js/kvm/stream.js | 29 +++++++++++++++++++++++++----
+ web/share/js/login/main.js |  5 +++--
+ 4 files changed, 36 insertions(+), 11 deletions(-)
+
+diff --git a/web/share/js/kvm/info.js b/web/share/js/kvm/info.js
+index 32f167fc..cf9f1ea6 100644
+--- a/web/share/js/kvm/info.js
++++ b/web/share/js/kvm/info.js
+@@ -58,10 +58,10 @@ export function Info() {
+ 
+ 			if (state.server && state.server.host) {
+ 				$("kvmd-meta-server-host").innerText = state.server.host;
+-				document.title = `${state.server.host} | PiKVM Session`;
++				document.title = `${state.server.host}`;
+ 			} else {
+ 				$("kvmd-meta-server-host").innerText = "";
+-				document.title = "PiKVM Session";
++				document.title = "KVM";
+ 			}
+ 
+ 			for (let place of ["left", "right"]) {
+@@ -204,9 +204,9 @@ export function Info() {
+ 			${tools.escape(state.kernel.system)} kernel:
+ 			${__formatUname(state.kernel)}
+ 		`;
+-		$("kvmd-info-platform").innerText = p.model;
+-		$("kvmd-version-kvmd").innerText = state.kvmd.version;
+-		$("kvmd-version-streamer").innerText = s.version;
++		//$("kvmd-info-platform").innerText = p.model;
++		//$("kvmd-version-kvmd").innerText = state.kvmd.version;
++		//$("kvmd-version-streamer").innerText = s.version;
+ 	};
+ 
+ 	var __formatStreamerFeatures = function(features) {
+diff --git a/web/share/js/kvm/main.js b/web/share/js/kvm/main.js
+index e3cf6d04..561b1634 100644
+--- a/web/share/js/kvm/main.js
++++ b/web/share/js/kvm/main.js
+@@ -32,6 +32,8 @@ import {Session} from "./session.js";
+ 
+ export function main() {
+ 	if (checkBrowser(null, "kvm/x-mobile.css")) {
++		//mark for avoid turning off the sound when a confirmation window appears
++		/*
+ 		tools.storage.bindSimpleSwitch($("page-close-ask-switch"), "page.close.ask", true, function(value) {
+ 			if (value) {
+ 				window.onbeforeunload = function(ev) {
+@@ -45,6 +47,7 @@ export function main() {
+ 				window.onbeforeunload = null;
+ 			}
+ 		});
++		*/
+ 
+ 		initWindowManager();
+ 
+diff --git a/web/share/js/kvm/stream.js b/web/share/js/kvm/stream.js
+index c24d9c91..45214985 100644
+--- a/web/share/js/kvm/stream.js
++++ b/web/share/js/kvm/stream.js
+@@ -45,7 +45,7 @@ export function Streamer() {
+ 	var __init__ = function() {
+ 		__streamer = new MjpegStreamer(__setActive, __setInactive, __setInfo, __organizeHook);
+ 
+-		$("stream-led").title = "No stream from PiKVM";
++		$("stream-led").title = "No stream from System";
+ 
+ 		tools.slider.setParams($("stream-quality-slider"), 5, 100, 5, 80, function(value) {
+ 			$("stream-quality-value").innerText = `${value}%`;
+@@ -84,7 +84,7 @@ export function Streamer() {
+ 			}
+ 		}, false);
+ 
+-		tools.slider.setParams($("stream-audio-volume-slider"), 0, 100, 1, 50, function(value) {
++		tools.slider.setParams($("stream-audio-volume-slider"), 0, 100, 1, 60, function(value) {
+ 			$("stream-audio").muted = (value === 0);
+ 			$("stream-audio").volume = value / 100;
+ 			$("stream-audio-volume-value").innerText = value + "%";
+@@ -101,6 +101,7 @@ export function Streamer() {
+ 
+ 		tools.el.setOnClick($("stream-screenshot-button"), __clickScreenshotButton);
+ 		tools.el.setOnClick($("stream-reset-button"), __clickResetButton);
++		tools.el.setOnClick($("stream-audio-button"), __clickAudioButton);
+ 
+ 		tools.storage.bindSimpleSwitch($("stream-suspend-switch"), "stream.suspend", false, __visibilityHook);
+ 
+@@ -244,6 +245,10 @@ export function Streamer() {
+ 			if (mode === "media" && !has_media) {
+ 				mode = "mjpeg";
+ 			}
++
++			//directly set mjpeg for demo
++			mode = "mjpeg";
++
+ 			tools.radio.clickValue("stream-mode-radio", mode);
+ 		}
+ 
+@@ -279,7 +284,7 @@ export function Streamer() {
+ 
+ 	var __setInactive = function() {
+ 		$("stream-led").className = "led-gray";
+-		$("stream-led").title = "No stream from PiKVM";
++		$("stream-led").title = "No stream from System";
+ 	};
+ 
+ 	var __setControlsEnabled = function(enabled) {
+@@ -307,7 +312,7 @@ export function Streamer() {
+ 			if (text.length > 0) {
+ 				title += text;
+ 			} else {
+-				title += "No stream from PiKVM";
++				title += "No stream from System";
+ 			}
+ 		}
+ 		el_grab.innerText = el_info.innerText = title;
+@@ -379,6 +384,22 @@ export function Streamer() {
+ 		});
+ 	};
+ 
++	var __clickAudioButton = function() {
++		const audio = document.getElementById("stream-audio");
++		if (audio) {
++			if (audio.paused) {
++				console.log("Audio is paused or stopped");
++				audio.play();
++				$("audio-mute-switch").checked = true;
++			} else {
++				console.log("Audio is playing");
++				audio.pause();
++    			audio.currentTime = 0;
++				$("audio-mute-switch").checked = false;
++			}
++		}
++	};
++
+ 	var __sendParam = function(name, value) {
+ 		tools.httpPost("api/streamer/set_params", {[name]: value}, function(http) {
+ 			if (http.status !== 200) {
+diff --git a/web/share/js/login/main.js b/web/share/js/login/main.js
+index beab8848..ee9666ee 100644
+--- a/web/share/js/login/main.js
++++ b/web/share/js/login/main.js
+@@ -40,7 +40,7 @@ export function main() {
+ 		}, false);
+ 
+ 		tools.el.setOnClick($("login-button"), __login);
+-		$("user-input").onkeyup = $("passwd-input").onkeyup = $("code-input").onkeyup = function(ev) {
++		$("user-input").onkeyup = $("passwd-input").onkeyup = function(ev) {
+ 			if (ev.code === "Enter") {
+ 				ev.preventDefault();
+ 				$("login-button").click();
+@@ -58,7 +58,8 @@ function __login() {
+ 		return;
+ 	}
+ 
+-	let e_passwd = encodeURIComponent($("passwd-input").value + $("code-input").value);
++	//let e_passwd = encodeURIComponent($("passwd-input").value + $("code-input").value);
++	let e_passwd = encodeURIComponent($("passwd-input").value);
+ 	let e_expire = encodeURIComponent(tools.radio.getValue("expire-radio"));
+ 	let body = `user=${e_user}&passwd=${e_passwd}&expire=${e_expire}`;
+ 
+-- 
+2.34.1
+

@@ -10,7 +10,9 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/mfd/syscon.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/regmap.h>
+#include <linux/firmware.h>
 
 #include <sound/sof.h>
 #include <soc/realtek/rtk-krpc-agent.h>
@@ -72,6 +74,43 @@ struct rtk_hifi_priv {
 	struct regmap *intr_regmap;
 	struct regmap *ipc_regmap;
 };
+
+static int rtk_hifi_load_firmware(struct snd_sof_dev *sdev)
+{
+	dma_addr_t dma;
+	void *vaddr;
+	struct arm_smccc_res res;
+	const struct firmware *fw;
+	int ret = 0;
+
+	vaddr = dma_alloc_coherent(sdev->dev, 0x800000, &dma, GFP_KERNEL);
+
+	if(!vaddr) {
+		pr_err("%s alloc dma buffer FAIL!",__func__);
+		ret = -EINVAL;
+		goto load_fw_end;
+	}
+
+	sdev->bar[SOF_FW_BLK_TYPE_SRAM] = vaddr;
+	snd_sof_load_firmware_memcpy(sdev);
+	fw = sdev->basefw.fw;
+
+	arm_smccc_smc(0x8200000d, dma, fw->size, 0, 0, 0, 0, 0, &res);
+	ret = (unsigned int)res.a0;
+
+	if(ret) {
+		pr_err("%s load fw to protected region FAIL",__func__);
+		dma_free_coherent(sdev->dev, 0x800000, vaddr, dma);
+		ret = -EINVAL;
+		goto load_fw_end;
+	}
+
+	sdev->bar[SOF_FW_BLK_TYPE_SRAM] = devm_ioremap(sdev->dev, 0x0f800000, 0x800000);
+	dma_free_coherent(sdev->dev, 0x800000, vaddr, dma);
+
+load_fw_end:
+	return ret;
+}
 
 static int hifi_poweron(struct snd_sof_dev *sdev)
 {
@@ -433,7 +472,8 @@ void set_hifi_pll_and_ssc_control(uint32_t freq_setting)
 
 static void rtk_hifi_log_shm_setup(struct snd_sof_dev *sdev)
 {
-	struct device_node *log_dev;
+	struct device_node *log_dev, *np;
+	struct reserved_mem *rmem;
 	const __be32 *prop;
 	int len;
 	uint32_t log_addr, log_size, log_level;
@@ -442,41 +482,43 @@ static void rtk_hifi_log_shm_setup(struct snd_sof_dev *sdev)
 	void __iomem *map_bit;
 
 	/* Locate the log buffer */
-	log_dev = of_find_node_by_path("/reserved-memory/hlog0");
-	if (log_dev) {
-		prop = of_get_property(log_dev, "reg", &len);
-		if (prop) {
-			if (len != (2 * sizeof(__be32)))
-				dev_info(sdev->dev,
-					 "Invalid hlog0 property setting.\n");
-			else {
-				log_addr = cpu_to_be32(*prop);
-				log_size = cpu_to_be32(*(++prop));
-				dev_info(
-					sdev->dev,
-					"Found hlog0 buffer at 0x%x, size:0x%x.\n",
-					log_addr, log_size);
-			}
-		}
+	log_dev = of_find_node_by_path("/rtk_avcpu/hlog");
+	if (!log_dev) {
+		dev_info(sdev->dev, "Failed to find log device\n");
+		return;
 	}
-	of_node_put(log_dev);
+
+	np = of_parse_phandle(log_dev, "memory-region", 0);
+	if (!np) {
+		dev_info(sdev->dev, "Failed to find memory region\n");
+		of_node_put(log_dev);
+		return;
+	}
+
+	rmem = of_reserved_mem_lookup(np);
+	if (!rmem) {
+		dev_info(sdev->dev, "Failed to find log buffer\n");
+		of_node_put(np);
+		of_node_put(log_dev);
+		return;
+	}
+	log_addr = rmem->base;
+	log_size = rmem->size;
+	dev_info(sdev->dev, "Found hlog buffer at 0x%x, size:0x%x.\n", log_addr,
+		 log_size);
 
 	/* Get the log level setting */
-	log_dev = of_find_node_by_path("/rtk_avcpu/hlog");
-	if (log_dev) {
-		prop = of_get_property(log_dev, "lvl", &len);
-		if (prop) {
-			if (len != sizeof(__be32))
-				dev_info(sdev->dev,
-					 "Invalid hlog0 level setting.\n");
-			else {
-				log_level = cpu_to_be32(*prop);
-				dev_info(sdev->dev,
-					 "Found hlog0 level setting:0x%x.\n",
-					 log_level);
-			}
+	prop = of_get_property(log_dev, "lvl", &len);
+	if (prop) {
+		if (len != sizeof(__be32))
+			dev_info(sdev->dev, "Invalid hlog level setting.\n");
+		else {
+			log_level = cpu_to_be32(*prop);
+			dev_info(sdev->dev, "Found hlog level setting:0x%x.\n",
+				 log_level);
 		}
 	}
+	of_node_put(np);
 	of_node_put(log_dev);
 
 	/* Update log setting to RPC common area */
@@ -486,9 +528,9 @@ static void rtk_hifi_log_shm_setup(struct snd_sof_dev *sdev)
 	if (avlog_p) {
 		/* Check if buffer info is valid */
 		if ((log_addr && (!log_size)) || ((!log_addr) && log_size))
-			dev_err(sdev->dev,
-				"Invalid hlog0 setting (addr:0x%x, size:0x%x)",
-				log_addr, log_size);
+			dev_info(sdev->dev,
+				 "Invalid hlog setting (addr:0x%x, size:0x%x)",
+				 log_addr, log_size);
 		else {
 			avlog_p->log_buf_addr = log_addr;
 			avlog_p->log_buf_len = log_size;
@@ -814,7 +856,7 @@ struct snd_sof_dsp_ops sof_hifi_ops = {
 	.pcm_pointer = rtk_hifi_pcm_pointer,
 
 	/* firmware loading */
-	.load_firmware = snd_sof_load_firmware_memcpy,
+	.load_firmware = rtk_hifi_load_firmware,
 
 	/* DAI drivers */
 	.drv = rtk_hifi_dai,

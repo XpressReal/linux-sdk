@@ -27,8 +27,14 @@
 	status = "okay";
 };
 
+&pcie1 {
+        status = "okay";
+        perst-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>;
+};
+
 &pcie2 {
 	status = "okay";
+	perst-gpios = <&gpio 65 GPIO_ACTIVE_HIGH>;
 };
 
 &pcie2_phy {

@@ -1,0 +1,66 @@
+From 5c035ea680f4f8d2eba9ae193baadce0b2842a10 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 8 Oct 2025 03:02:27 -0400
+Subject: [PATCH] weston: fix weston crash when hotplug
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/compositor.c | 38 +++++++++++++++++++-------------------
+ 1 file changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index b0697cf..95e9793 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -3453,29 +3453,29 @@ weston_output_repaint(struct weston_output *output)
+ 	if (output->destroying)
+ 		return 0;
+ 
+-	if (ec->ui_hole_punch == false) {
+-		struct weston_layer *layer, *layer_bg = NULL;
+-		struct weston_view *view, *view_rtk_video = NULL;
+-		wl_list_for_each(layer, &ec->layer_list, link) {
+-			if (layer->position == WESTON_LAYER_POSITION_BACKGROUND)
+-				layer_bg = layer;
+-			wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
+-				if(layer->position != WESTON_LAYER_POSITION_BACKGROUND &&
+-					strncmp(view->surface->app_id, "rtk_video", 9) == 0)
+-					view_rtk_video = view;
+-			}
+-		}
+-		if (layer_bg != NULL && view_rtk_video != NULL) {
+-			// move rtk_video to layer WESTON_LAYER_POSITION_BACKGROUND in order to control UI
+-			weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
+-		}
+-	}
+-
+ 	TL_POINT(ec, "core_repaint_begin", TLP_OUTPUT(output), TLP_END);
+ 
+ 	/* Rebuild the surface list and update surface transforms up front. */
+-	if (ec->view_list_needs_rebuild)
++	if (ec->view_list_needs_rebuild) {
++		if (ec->ui_hole_punch == false) {
++			struct weston_layer *layer, *layer_bg = NULL;
++			struct weston_view *view, *view_rtk_video = NULL;
++			wl_list_for_each(layer, &ec->layer_list, link) {
++				if (layer->position == WESTON_LAYER_POSITION_BACKGROUND)
++					layer_bg = layer;
++				wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
++					if(layer->position != WESTON_LAYER_POSITION_BACKGROUND &&
++						strncmp(view->surface->app_id, "rtk_video", 9) == 0)
++						view_rtk_video = view;
++				}
++			}
++			if (layer_bg != NULL && view_rtk_video != NULL) {
++				// move rtk_video to layer WESTON_LAYER_POSITION_BACKGROUND in order to control UI
++				weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
++			}
++		}
+ 		weston_compositor_build_view_list(ec);
++	}
+ 
+ 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
+ 			 z_order_link) {
+-- 
+2.34.1
+

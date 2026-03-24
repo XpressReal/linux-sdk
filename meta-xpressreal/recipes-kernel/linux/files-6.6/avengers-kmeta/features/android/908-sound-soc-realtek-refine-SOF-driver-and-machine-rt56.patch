@@ -1,0 +1,243 @@
+From fb2752fcfee05631549415c689c85dd4a2c28d36 Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <yao.tsai@realtek.com>
+Date: Fri, 17 Oct 2025 10:26:59 +0800
+Subject: [PATCH] sound: soc: realtek: refine SOF driver and machine
+ rt5650 drvier for kernel 6.6
+
+[JIRA] CHROME-758
+
+- change default fw_path and tplg_path to "sof"
+
+Change-Id: I93c5cd63cf57f78bf3e1b73eca788ad323be2b80
+---
+ sound/soc/realtek/Kconfig              |  5 ++
+ sound/soc/realtek/rtk-hifi-rt5650-mc.c | 26 +++----
+ sound/soc/sof/realtek/hifi-dsp.c       | 93 +++-----------------------
+ 3 files changed, 26 insertions(+), 98 deletions(-)
+
+diff --git a/sound/soc/realtek/rtk-hifi-rt5650-mc.c b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+index 58bed4696bc36..709951160be1a 100644
+--- a/sound/soc/realtek/rtk-hifi-rt5650-mc.c
++++ b/sound/soc/realtek/rtk-hifi-rt5650-mc.c
+@@ -120,9 +120,9 @@ static int rtk_sof_be_hw_params(struct snd_pcm_substream *substream,
+ static int rtk_rt5650_i2s_hw_params(struct snd_pcm_substream *substream,
+ 				    struct snd_pcm_hw_params *params)
+ {
+-	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
++	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+ //	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+-	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
++	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
+ 	int ret = 0;
+ 	int mclk;
+ 
+@@ -161,7 +161,7 @@ static struct snd_soc_jack rtk_rt5650_jack;
+ static int rtk_rt5650_init(struct snd_soc_pcm_runtime *runtime)
+ {
+ 	struct snd_soc_card *card = runtime->card;
+-	struct snd_soc_component *component = asoc_rtd_to_codec(runtime, 0)->component;
++	struct snd_soc_component *component = snd_soc_rtd_to_codec(runtime, 0)->component;
+ 	int ret;
+ 	int type =	SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
+ 				SND_JACK_BTN_0 | SND_JACK_BTN_1 |
+@@ -195,7 +195,7 @@ static struct snd_soc_jack rtk_hdmi_jack;
+ static int rtk_hdmi_codec_init(struct snd_soc_pcm_runtime *rtd)
+ {
+ 	struct snd_soc_jack *jack = &rtk_hdmi_jack;
+-	struct snd_soc_component *cmpnt_codec =	asoc_rtd_to_codec(rtd,0)->component;
++	struct snd_soc_component *cmpnt_codec =	snd_soc_rtd_to_codec(rtd,0)->component;
+ 	int ret = 0;
+ 
+ 	ret = snd_soc_card_jack_new(rtd->card, "HDMI Jack", SND_JACK_LINEOUT, jack);
+@@ -219,7 +219,7 @@ static struct snd_soc_jack rtk_dp_jack;
+ static int rtk_dp_codec_init(struct snd_soc_pcm_runtime *rtd)
+ {
+         struct snd_soc_jack *jack = &rtk_dp_jack;
+-        struct snd_soc_component *cmpnt_codec = asoc_rtd_to_codec(rtd,0)->component;
++        struct snd_soc_component *cmpnt_codec = snd_soc_rtd_to_codec(rtd,0)->component;
+         int ret = 0;
+ 
+         ret = snd_soc_card_jack_new(rtd->card, "DP Jack", SND_JACK_LINEOUT, jack);
+@@ -525,23 +525,23 @@ static int rtk_hifi_dev_probe(struct platform_device *pdev)
+ 		} else if (strcmp(dai_link->name,"RDAI_HDMI") == 0){
+ 			codec_node = of_parse_phandle(dev->of_node, "realtek,hdmi-audio", 0);
+ 
+-			if (codec_node && of_device_is_available(codec_node)) {
+-				dai_link->codecs->of_node = codec_node;
+-			} else {
+-				dev_err(dev, "Bind codec node realtek,hdmi-audio FAIL!!!");
++			if (!codec_node) {
++				pr_err("Can NOT find node realtek,hdmi-audio");
+ 				ret = -EINVAL;
+ 				goto put_exist_node;
+ 			}
++
++			dai_link->codecs->of_node = codec_node;
+ 		} else if (strcmp(dai_link->name, "RDAI_DP") == 0) {
+                         codec_node = of_parse_phandle(dev->of_node, "realtek,dp-audio", 0);
+ 
+-			if (codec_node && of_device_is_available(codec_node)) {
+-				dai_link->codecs->of_node = codec_node;
+-			} else {
+-				dev_err(dev, "Bind codec node realtek,dp-audio FAIL!!!");
++			if (!codec_node) {
++				pr_err("Can NOT find node realtek,dp-audio");
+ 				ret = -EINVAL;
+ 				goto put_exist_node;
+ 			}
++
++			dai_link->codecs->of_node = codec_node;
+ 		} else if (strcmp(dai_link->name, "RDAI_SOC_AO0") == 0 || strcmp(dai_link->name, "RDAI_SOC_I2S") == 0) {
+ 			card->dapm_routes = NULL;
+ 			card->num_dapm_routes = 0;//ARRAY_SIZE(rtk_hifi_routes),
+diff --git a/sound/soc/sof/realtek/hifi-dsp.c b/sound/soc/sof/realtek/hifi-dsp.c
+index 78b9ad78b017c..4a1cb313c272c 100644
+--- a/sound/soc/sof/realtek/hifi-dsp.c
++++ b/sound/soc/sof/realtek/hifi-dsp.c
+@@ -272,14 +272,6 @@ static void rtk_get_reply(struct snd_sof_dev *sdev)
+ 		memcpy(msg->reply_data, &reply, sizeof(reply));
+ 		ret = reply.error;
+ 	} else {
+-		/* reply has correct size? */
+-		if (reply.hdr.size != msg->reply_size) {
+-			dev_err(sdev->dev,
+-				"error: reply expected %zu got %u bytes\n",
+-				msg->reply_size, reply.hdr.size);
+-			ret = -EINVAL;
+-		}
+-
+ 		/* read the message */
+ 		if (msg->reply_size > 0)
+ 			sof_mailbox_read(sdev, sdev->host_box.offset,
+@@ -410,7 +402,7 @@ static int rtk_hifi_probe(struct snd_sof_dev *sdev)
+ 	return 0;
+ }
+ 
+-static int rtk_hifi_remove(struct snd_sof_dev *sdev)
++static void rtk_hifi_remove(struct snd_sof_dev *sdev)
+ {
+ 	struct rtk_hifi_priv *priv = sdev->pdata->hw_pdata;
+ 
+@@ -418,8 +410,6 @@ static int rtk_hifi_remove(struct snd_sof_dev *sdev)
+ 	krpc_ept_info_put(priv->sof_ept);
+ 
+ 	hifi_powerdown(sdev);
+-
+-	return 0;
+ }
+ 
+ static int rtk_hifi_shutdown(struct snd_sof_dev *sdev)
+@@ -724,7 +714,7 @@ static int rtk_hifi_pcm_close(struct snd_sof_dev *sdev,
+ snd_pcm_uframes_t rtk_hifi_pcm_pointer(struct snd_sof_dev *sdev,
+ 				       struct snd_pcm_substream *substream)
+ {
+-	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
++	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+ 	struct snd_soc_component *scomp = sdev->component;
+ 	struct snd_sof_pcm *spcm;
+ 	struct sof_ipc_stream_posn posn;
+@@ -882,16 +872,16 @@ static struct snd_soc_acpi_mach sof_rtk_machs[] = {
+ 
+ static struct sof_dev_desc snd_sof_rtd1920s_desc = {
+ 	.machines = sof_rtk_machs,
+-	.ipc_supported_mask	= BIT(SOF_IPC),
+-	.ipc_default		= SOF_IPC,
++	.ipc_supported_mask	= BIT(SOF_IPC_TYPE_3),
++	.ipc_default		= SOF_IPC_TYPE_3,
+ 	.default_fw_path = {
+-		[SOF_IPC] = "rtd1920s",
++		[SOF_IPC_TYPE_3] = "sof",
+ 	},
+ 	.default_tplg_path = {
+-		[SOF_IPC] = "rtd1920s",
++		[SOF_IPC_TYPE_3] = "sof",
+ 	},
+ 	.default_fw_filename = {
+-		[SOF_IPC] = "sof-adsp-rtd1920s.ri",
++		[SOF_IPC_TYPE_3] = "sof-adsp-rtd1920s.ri",
+ 	},
+ 	.nocodec_tplg_filename = "",
+ 	.ops = &sof_hifi_ops,
+@@ -903,78 +893,11 @@ static const struct of_device_id sof_of_rtk_ids[] = {
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, sof_of_rtk_ids);
+-static void sof_rtk_probe_complete(struct device *dev)
+-{
+-	pr_info("%s %d\n", __func__, __LINE__);
+-
+-	/* allow runtime_pm */
+-	pm_runtime_set_autosuspend_delay(dev, SND_SOF_SUSPEND_DELAY_MS);
+-	pm_runtime_use_autosuspend(dev);
+-	pm_runtime_set_active(dev);
+-	pm_runtime_enable(dev);
+-
+-	pm_runtime_mark_last_busy(dev);
+-	pm_runtime_put_autosuspend(dev);
+-}
+-
+-static int sof_rtk_probe(struct platform_device *pdev)
+-{
+-	struct device *dev = &pdev->dev;
+-	struct snd_sof_pdata *sof_pdata;
+-	const struct sof_dev_desc *desc;
+-
+-	sof_pdata = devm_kzalloc(dev, sizeof(*sof_pdata), GFP_KERNEL);
+-	if (!sof_pdata)
+-		return -ENOMEM;
+-
+-	desc = device_get_match_data(dev);
+-	if (!desc)
+-		return -ENODEV;
+-
+-	if (!desc->ops) {
+-		dev_err(dev, "error: no matching DT descriptor ops\n");
+-		return -ENODEV;
+-	}
+-
+-	sof_pdata->desc = desc;
+-	sof_pdata->dev = &pdev->dev;
+-	sof_pdata->fw_filename = desc->default_fw_filename;
+-
+-
+-
+-	if (fw_path)
+-		sof_pdata->fw_filename_prefix = fw_path;
+-	else
+-		sof_pdata->fw_filename_prefix =
+-			sof_pdata->desc->default_fw_path;
+-
+-	if (tplg_path)
+-		sof_pdata->tplg_filename_prefix = tplg_path;
+-	else
+-		sof_pdata->tplg_filename_prefix =
+-			sof_pdata->desc->default_tplg_path;
+-
+-	/* set callback to be called on successful device probe to enable runtime_pm */
+-	sof_pdata->sof_probe_complete = sof_rtk_probe_complete;
+-
+-	/* call sof helper for DSP hardware probe */
+-	return snd_sof_device_probe(dev, sof_pdata);
+-}
+-
+-static int sof_rtk_remove(struct platform_device *pdev)
+-{
+-	pm_runtime_disable(&pdev->dev);
+-
+-	/* call sof helper for DSP hardware remove */
+-	snd_sof_device_remove(&pdev->dev);
+-
+-	return 0;
+-}
+ 
+ /* DT driver definition */
+ static struct platform_driver snd_sof_rtk_driver = {
+ 	.probe = sof_of_probe,
+-	.remove = sof_of_remove,
++	.remove_new = sof_of_remove,
+ 	.driver = {
+ 		.name = "sof-audio-of-rtk",
+ 		.of_match_table = sof_of_rtk_ids,
+-- 
+2.47.0
+

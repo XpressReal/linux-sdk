@@ -682,19 +682,25 @@
 	};
 
 	emmc_sdr50_pins: emmc-sdr50-pins {
-		pins = "emmc_clk",
-			"emmc_cmd",
-			"emmc_data_0",
-			"emmc_data_1",
-			"emmc_data_2",
-			"emmc_data_3",
-			"emmc_data_4",
-			"emmc_data_5",
-			"emmc_data_6",
-			"emmc_data_7";
-		function = "emmc";
-		realtek,pdrive = <0x0>;
-		realtek,ndrive = <0x0>;
+		pinconf1 {
+			pins = "emmc_clk",
+				"emmc_cmd",
+				"emmc_data_0",
+				"emmc_data_1",
+				"emmc_data_2",
+				"emmc_data_3",
+				"emmc_data_4",
+				"emmc_data_5",
+				"emmc_data_6",
+				"emmc_data_7";
+			function = "emmc";
+			realtek,pdrive = <0x0>;
+			realtek,ndrive = <0x0>;
+		};
+		pinconf2 {
+			pins = "emmc_dd_sb";
+			input-schmitt-enable;
+		};
 	};
 	emmc_ddr50_pins: emmc-ddr50-pins {
 		pins = "emmc_clk",

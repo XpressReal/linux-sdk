@@ -1,0 +1,359 @@
+From 11cf1077e30e0e4311a9ae67c2f25d2be4b11c95 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 28 Oct 2025 16:42:58 +0800
+Subject: [PATCH 2/4] web: css: patch for Realtek Demo style
+
+---
+ web/share/css/kvm/stream.css  |   4 ++
+ web/share/css/led.css         |   2 +-
+ web/share/css/login/login.css | 110 +++++++++++++++++++++++++++++++++-
+ web/share/css/main.css        |  20 ++++++-
+ web/share/css/navbar.css      |  14 +++--
+ web/share/css/vars.css        |  15 +++--
+ 6 files changed, 147 insertions(+), 18 deletions(-)
+
+diff --git a/web/share/css/kvm/stream.css b/web/share/css/kvm/stream.css
+index eb699802..8ef1e57d 100644
+--- a/web/share/css/kvm/stream.css
++++ b/web/share/css/kvm/stream.css
+@@ -62,10 +62,14 @@ div#stream-box {
+ 	border: var(--border-window-default-thin);
+ 	margin: -1px -1px -1px -1px; /* See pikvm/kvm#86, pikvm/pikvm#599 */
+ }
++/*
+ div.stream-box-offline {
+ 	-webkit-filter: grayscale(100%) brightness(75%) sepia(75%);
+ 	filter: grayscale(100%) brightness(75%) sepia(75%);
+ }
++*/
++div.stream-box-offline {
++}
+ div.stream-box-offline::after {
+ 	cursor: wait;
+ 	content: "";
+diff --git a/web/share/css/led.css b/web/share/css/led.css
+index 4f5a437e..3e77c657 100644
+--- a/web/share/css/led.css
++++ b/web/share/css/led.css
+@@ -33,7 +33,7 @@
+ }
+ 
+ :root {
+-	--led-filter-gray: invert(0.5);
++	--led-filter-gray: invert(0.8);
+ 	--led-filter-green: invert(0.5) sepia(1) saturate(5) hue-rotate(100deg);
+ 	--led-filter-red: invert(0.5) sepia(1) saturate(15) hue-rotate(320deg);
+ 	--led-filter-yellow: invert(0.5) sepia(1) saturate(5) hue-rotate(0deg);
+diff --git a/web/share/css/login/login.css b/web/share/css/login/login.css
+index 7bcf2e75..7aa9e224 100644
+--- a/web/share/css/login/login.css
++++ b/web/share/css/login/login.css
+@@ -27,6 +27,7 @@ div#login-box {
+ 	align-items: center;
+ 	text-align: center;
+ 	min-height: 100vh;
++	font-family: Arial, sans-serif;
+ }
+ 
+ div#login {
+@@ -39,15 +40,30 @@ div#login {
+ 	box-sizing: border-box;
+ 	box-shadow: var(--shadow-big);
+ 	background-color: var(--cs-window-default-bg);
+-	padding: 15px;
++	padding: 28px;
++}
++div#login .img-container{
++	display: inline-block;
++    height: 0px;
++	width: 100%;
++	text-align:center;
+ }
+ 
+ img#login-logo {
+-	height: 30px;
++	position: relative;
++    background: #fff;
++    border-radius: 80px;
++    display: inline-block;
++    height: 120px;
++    top: -100px;
++	box-shadow: var(--shadow-big);
++    opacity: 0.95;
++    filter: hue-rotate(0deg);
+ }
+ 
+ button#login-button {
+ 	width: 100%;
++	mix-blend-mode: multiply;
+ }
+ 
+ input[type="text"]#user-input,
+@@ -56,3 +72,93 @@ input[type="text"]#code-input {
+ 	text-align: center;
+ 	border: thin;
+ }
++input[type="text"]#user-input:hover,
++input[type="password"]#passwd-input:hover,
++input[type="text"]#code-input:hover,
++.radio-box label:hover {
++	mix-blend-mode: exclusion;
++	filter: hue-rotate(330deg);
++}
++div#login .radio-box{
++	margin-top: 20px;
++}
++div#login a{
++	display: flex;
++	align-items: center;
++	margin-right: 10px;
++}
++div#login div.radio-box input[type=radio] + label{
++	border: var(--border-default-2px-light);
++	background-color: var(--cs-login-default-bg);
++}
++div#login input[type=text], input[type=password]{
++	color: #000;
++}
++.login-box {
++	width: 350px;
++	background: #cfd8dc;
++	border-radius: 12px;
++	padding: 60px 40px 40px;
++	box-shadow: 0 4px 10px rgba(0,0,0,0.1);
++	text-align: center;
++	position: relative;
++}
++.avatar {
++	width: 80px;
++	height: 80px;
++	background: #90a4ae;
++	border-radius: 50%;
++	position: absolute;
++	top: -40px;
++	left: 50%;
++	transform: translateX(-50%);
++	display: flex;
++	align-items: center;
++	justify-content: center;
++	color: white;
++	font-size: 40px;
++}
++.input-box {
++	width: 100%;
++	padding: 12px 15px;
++	margin: 10px 0;
++	border: none;
++	border-radius: 6px;
++	font-size: 14px;
++}
++.remember {
++	display: flex;
++	align-items: center;
++	margin: 10px 0 20px;
++	font-size: 13px;
++	color: #555;
++	input {
++		margin-right: 8px;
++	}
++}
++.key {
++	height: 40px;
++	width: 100%;
++	padding: 8px;
++	border: none;
++	border-radius: 20px;
++	background: #29b6f6;
++	color: white;
++	font-size: 16px;
++	cursor: pointer;
++	transition: 0.3s;
++	margin-top: 20px;
++	&:hover {
++		background: #0288d1;
++		}
++}
++.forgot {
++	display: block;
++	margin-top: 15px;
++	font-size: 12px;
++	color: #777;
++	text-decoration: none;
++	&:hover {
++		text-decoration: underline;
++		}
++}
+diff --git a/web/share/css/main.css b/web/share/css/main.css
+index a543b06f..127043e1 100644
+--- a/web/share/css/main.css
++++ b/web/share/css/main.css
+@@ -24,8 +24,12 @@ body {
+ 	margin: 0;
+ 	overflow: hidden;
+ 	color: var(--cs-page-default-fg);
+-	background-color: var(--cs-page-default-bg);
++	/* background-color: var(--cs-page-default-bg); */
+ 	font-family: arial, sans-serif !important;
++	background: url("../png/bg.png") no-repeat;
++	background-position: center;
++	background-size: cover;
++	height: 100vh;
+ }
+ body.body-no-select {
+ 	-webkit-user-select: none;
+@@ -83,7 +87,7 @@ div.code span.code-comment {
+ 
+ img.svg-gray {
+ 	-webkit-filter: invert(0.7);
+-	filter: invert(0.7);
++	filter: invert(0.6);
+ 	vertical-align: middle;
+ }
+ 
+@@ -281,6 +285,15 @@ table.kv td.value-number {
+ 	min-width: 40px;
+ 	max-width: 40px;
+ }
++.ic-btn-container{
++	display: flex;
++	justify-content: center;
++	align-items: center;
++}
++.ic-btn-container .led-gray{
++	width: 24px;
++	padding-right: 10px;
++}
+ 
+ ul.footer {
+ 	list-style-type: none;
+@@ -291,6 +304,7 @@ ul.footer {
+ 	font-size: 0.7em;
+ 	color: var(--cs-page-obscure-fg);
+ 	z-index: -10;
++	text-align: center;
+ }
+ ul.footer li {
+ 	padding: 0 10px;
+@@ -309,7 +323,7 @@ ul.footer li a {
+ 	font-size: 0.8em;
+ }
+ 
+-.feature-disabled {
++.feature-disabled:not(#msd-dropdown) {
+ 	display: none !important;
+ }
+ 
+diff --git a/web/share/css/navbar.css b/web/share/css/navbar.css
+index ab85fe49..c8f368b1 100644
+--- a/web/share/css/navbar.css
++++ b/web/share/css/navbar.css
+@@ -21,11 +21,11 @@
+ 
+ 
+ ul#navbar {
+-	box-shadow: var(--shadow-small);
++	/* box-shadow: var(--shadow-small); */
+ 	list-style-type: none;
+ 	margin: 0;
+ 	padding: 0;
+-	background-color: var(--cs-navbar-default-bg);
++	/* background-color: var(--cs-navbar-default-bg); */
+ 	position: fixed;
+ 	top: 0;
+ 	width: 100%;
+@@ -34,12 +34,12 @@ ul#navbar {
+ }
+ 
+ ul#navbar li.right {
+-	border-left: var(--border-navbar-item-thin);
++	/* border-left: var(--border-navbar-item-thin); */
+ 	float: right;
+ }
+ 
+ ul#navbar li.left {
+-	border-right: var(--border-navbar-item-thin);
++	/* border-right: var(--border-navbar-item-thin); */
+ 	float: left;
+ }
+ 
+@@ -80,7 +80,9 @@ ul#navbar li a.menu-button {
+ 
+ ul#navbar li a#logo:hover:not(.active),
+ ul#navbar li a.menu-button:hover:not(.active) {
+-	background-color: var(--cs-navbar-item-hovered-bg);
++	background: linear-gradient(to bottom, #000000, #00000000);
++	opacity: 0.5;
++	mix-blend-mode: overlay;
+ }
+ 
+ ul#navbar li a#logo img {
+@@ -110,7 +112,7 @@ ul#navbar li div.menu {
+ 	overflow-y: auto;
+ 	max-height: calc(100vh - 55px);
+ 	white-space: nowrap;
+-	border: var(--border-navbar-menu-default-2px);
++	/* border: var(--border-navbar-menu-default-2px); */
+ 	border-top: var(--border-navbar-menu-top-thin);
+ 	border-radius: 0 0 8px 8px;
+ 	position: absolute;
+diff --git a/web/share/css/vars.css b/web/share/css/vars.css
+index cfa5a0b1..5899452a 100644
+--- a/web/share/css/vars.css
++++ b/web/share/css/vars.css
+@@ -22,9 +22,11 @@
+ 
+ :root {
+ 	--cs-page-default-bg: #36393f;
+-	--cs-page-default-fg: #c3c3c3;
++	--cs-page-default-fg: #686868;
+ 	--cs-page-obscure-fg: #6c7481;
+ 
++	--cs-login-default-bg: #8a8e97;
++
+ 	--cs-control-default-bg: #36393f;
+ 	--cs-control-default-fg: #c3c3c3;
+ 	--cs-control-intensive-fg: white;
+@@ -39,7 +41,7 @@
+ 	--cs-navbar-item-hovered-bg: #1a1c1f;
+ 	--cs-navbar-item-pressed-bg: #171717;
+ 
+-	--cs-window-default-bg: #484b51;
++	--cs-window-default-bg: #ffffffdd;
+ 	--cs-window-default-fg: #c3c3c3;
+ 	--cs-window-header-default-fg: #aaaaaa;
+ 	--cs-window-header-grabbed-bg: #436a8a;
+@@ -47,7 +49,7 @@
+ 	--cs-window-closer-default-fg: #6c7481;
+ 	--cs-window-button-special-fg: #009b48;
+ 
+-	--cs-code-default-bg: #17191d;
++	--cs-code-default-bg: #9da3ae66;
+ 	--cs-code-default-fg: #aaaaaa;
+ 	--cs-code-comment-fg: #6c7481;
+ 
+@@ -79,18 +81,19 @@
+ 	--shadow-navbar-item-pressed: 0 5px 0 #5b90bb inset;
+ 	/*--shadow-window-fullscreen-active: 0 0 0 2px #5b90bb inset;*/
+ 
+-	--border-default-thin: thin solid #36393f;
++	--border-default-thin: thin solid #36393f33;
++	--border-default-2px-light: 2px solid #8a8e97;
+ 	--border-default-2px: 2px solid #36393f;
+ 	--border-hovered-2px: 2px solid #2a2d31;
+ 	--border-navbar-item-thin: thin solid #101010;
+ 	--border-control-thin: thin solid #17191d;
+-	--border-key-thin: thin solid #202225;
++	--border-key-thin: thin solid #20222522;
+ 	--border-intensive-2px: 2px solid #5b90bb;
+ 	--border-intensive-thin: thin solid #5b90bb;
+ 
+ 	--border-window-default-2px: 2px solid #282a2e;
+ 	--border-window-active-2px: 2px solid #5b90bb;
+-	--border-window-default-thin: thin solid #17191d;
++	--border-window-default-thin: thin solid #17191d22;
+ 
+ 	--border-navbar-menu-default-2px: 2px solid black;
+ 	--border-navbar-menu-active-2px: 2px solid #5b90bb;
+-- 
+2.34.1
+

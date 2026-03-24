@@ -1,0 +1,320 @@
+From 0b8ee8adb8a1dafbeaf4180683ddc6c19dccbebe Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 12 Jan 2026 01:01:06 -0500
+Subject: [PATCH] weston: fix weston crash when receiving consecutive hotplug
+ event
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-gbm.c      |  4 +--
+ libweston/backend-drm/drm-internal.h |  2 +-
+ libweston/backend-drm/drm.c          | 44 +++++++++++++++++++++-------
+ libweston/backend-drm/kms.c          | 24 +++++++--------
+ 4 files changed, 48 insertions(+), 26 deletions(-)
+
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index 99cad49..ff58945 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -203,14 +203,14 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
+ 	if (!weston_drm_format_has_modifier(fmt, DRM_FORMAT_MOD_INVALID)) {
+ 		modifiers = weston_drm_format_get_modifiers(fmt, &num_modifiers);
+ 		if (b->compositor->gbm_afbc == true) {
+-			printf("choose best modifier support\n");
++			weston_log("choose best modifier support\n");
+ 			output->gbm_surface =
+ 				gbm_surface_create_with_modifiers(gbm,
+ 								  mode->width, mode->height,
+ 								  output->format->format,
+ 								  modifiers, num_modifiers);
+ 		} else {
+-			printf("force linear mode support\n");
++			weston_log("force linear mode support\n");
+ 			output->gbm_surface =
+ 				gbm_surface_create_with_modifiers(gbm,
+ 						mode->width, mode->height,
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 6f4f3c0..342f308 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -370,7 +370,7 @@ struct drm_device {
+ 	drmModeConnection prev_state;
+ 	struct wl_event_source *process_hotplug_source;
+ 	struct udev_device *udev_event;
+-
++	bool output_finish;
+ };
+ 
+ struct drm_backend {
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 2d16185..4b1e3cd 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -2263,7 +2263,7 @@ drm_output_enable(struct weston_output *base)
+ 
+ 	assert(output);
+ 	assert(!output->virtual);
+-
++	weston_log("drm_output_enable\n");
+ 	/* TODO: drop this hack when we rework the output configuration API. For
+ 	 * now we need this because the frontend may call
+ 	 * weston_output_destroy() or weston_output_disable() but it may have a
+@@ -2333,6 +2333,7 @@ drm_output_enable(struct weston_output *base)
+ 	output->kms_ipc_run = true;
+ 	pthread_mutex_init(&output->kms_ipc_mutex, NULL);
+ 	pthread_create(&output->kms_ipc_thread, NULL, kms_ipc, output);
++	device->output_finish = true;
+ 	return 0;
+ 
+ err_planes:
+@@ -2420,7 +2421,7 @@ static int
+ drm_output_disable(struct weston_output *base)
+ {
+ 	struct drm_output *output = to_drm_output(base);
+-
++	weston_log("drm_output_disable\n");
+ 	assert(output);
+ 	assert(!output->virtual);
+ 
+@@ -3169,6 +3170,14 @@ drm_backend_update_connectors2(void *data)
+ 	uint32_t connector_id;
+ 	int i, ret;
+ 
++	if (device->output_finish == false) {
++		weston_log("process hotplug output_finish is false, reset timer\n");
++		if (device->process_hotplug_source) {
++			wl_event_source_timer_update(device->process_hotplug_source, 600);
++			return 0;
++		}
++	}
++
+ 	resources = drmModeGetResources(device->drm.fd);
+ 	if (!resources) {
+ 		weston_log("drmModeGetResources failed\n");
+@@ -3193,6 +3202,7 @@ drm_backend_update_connectors2(void *data)
+ 		if (head) {
+ 			if (conn->connection == DRM_MODE_CONNECTED) {
+ 				if (device->prev_state == DRM_MODE_CONNECTED) {
++					weston_log("process hotplug connect -> connect\n");
+ 					conn->connection = DRM_MODE_DISCONNECTED;
+ 					ret = drm_head_update_info(head, conn);
+ 					if (head->base.device_changed)
+@@ -3204,12 +3214,15 @@ drm_backend_update_connectors2(void *data)
+ 						wl_event_source_timer_update(device->process_hotplug_source, 600);
+ 
+ 				} else {
++					weston_log("process hotplug disconnect -> connect\n");
+ 					ret = drm_head_update_info(head, conn);
+ 					if (head->base.device_changed)
+ 						drm_head_log_info(head, "updated");
+ 					device->prev_state = DRM_MODE_CONNECTED;
++					device->output_finish = false;
+ 				}
+ 			} else {
++				weston_log("process hotplug disconnect\n");
+ 				ret = drm_head_update_info(head, conn);
+ 				if (head->base.device_changed)
+ 					drm_head_log_info(head, "updated");
+@@ -3457,13 +3470,21 @@ udev_drm_event(int fd, uint32_t mask, void *data)
+ 		if (udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id))
+ 			drm_backend_update_conn_props(b, conn_id, prop_id);
+ 		else {
++			weston_log("receive hotplug event\n");
+ 			need_unref = false;
+ 			if (b->drm->udev_event)
+ 				udev_device_unref(b->drm->udev_event);
+ 
+ 			b->drm->udev_event = event;
+-			if (b->drm->process_hotplug_source)
+-				wl_event_source_timer_update(b->drm->process_hotplug_source, 600);
++			if (b->drm->process_hotplug_source) {
++				if (b->drm->prev_state == DRM_MODE_CONNECTED) {
++					weston_log("receive hotplug event, prev_state is connected\n");
++					wl_event_source_timer_update(b->drm->process_hotplug_source, 1000);
++				} else {
++					weston_log("receive hotplug event, prev_state is disconnected\n");
++					wl_event_source_timer_update(b->drm->process_hotplug_source, 600);
++				}
++			}
+ 		}
+ 	}
+ 
+@@ -3685,7 +3706,7 @@ void *handle_client(void *data) {
+ 
+ 	shutdown(c_info->client_fd, SHUT_RDWR);
+ 	free(c_info);
+-	printf("%s exit\n", __func__);
++	weston_log("%s exit\n", __func__);
+ 	pthread_exit(NULL);
+ }
+ 
+@@ -3704,13 +3725,13 @@ void *handle_server(void *data)
+ 	strcpy(addr.sun_path, DRM_MASTER_MANAGER);
+ 
+ 	if (bind(s_info->server_fd ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
+-		printf("%s bind socket fail\n", __func__);
++		weston_log("%s bind socket fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+ 	if (listen(s_info->server_fd, 100) < 0)
+ 	{
+-		printf("%s listen fail\n", __func__);
++		weston_log("%s listen fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+@@ -3735,7 +3756,7 @@ void *handle_server(void *data)
+ finish:
+ 	shutdown(s_info->server_fd, SHUT_RDWR);
+ 	free(s_info);
+-	printf("%s exit\n", __func__);
++	weston_log("%s exit\n", __func__);
+ 	pthread_exit(NULL);
+ }
+ 
+@@ -4221,7 +4242,7 @@ void *drm_device_ipc_process (void *data) {
+ 	unlink(DRM_DEVICE_IPC_SOCKET_PATH);
+ 	device->drm_device_ipc_socket = socket(AF_UNIX,SOCK_DGRAM, 0);
+ 	if (device->drm_device_ipc_socket < 0) {
+-		printf("open socket fail\n");
++		weston_log("open socket fail\n");
+ 		goto finish;
+ 	}
+ 
+@@ -4230,7 +4251,7 @@ void *drm_device_ipc_process (void *data) {
+ 	strcpy(addr.sun_path, DRM_DEVICE_IPC_SOCKET_PATH);
+ 
+ 	if (bind(device->drm_device_ipc_socket ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
+-		printf("bind socket fail\n");
++		weston_log("bind socket fail\n");
+ 		goto finish;
+ 	}
+ 
+@@ -4239,7 +4260,7 @@ void *drm_device_ipc_process (void *data) {
+ 		struct drm_device_ipc_info info = {0};
+ 		ret = recvfrom(device->drm_device_ipc_socket, &info, sizeof(struct drm_device_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
+ 		if (ret < 0) {
+-			printf("recvfrom ret:%d\n", ret);
++			weston_log("recvfrom ret:%d\n", ret);
+ 			continue;
+ 		}
+ 		switch (info.cmd_type) {
+@@ -4517,6 +4538,7 @@ drm_backend_create(struct weston_compositor *compositor,
+ 	pthread_create(&device->drm_device_ipc_thread, NULL, drm_device_ipc_process, device);
+ 	device->process_hotplug_source = wl_event_loop_add_timer(loop, drm_backend_update_connectors2, device);
+ 	device->prev_state = DRM_MODE_CONNECTED;
++	device->output_finish = true;
+ 	return b;
+ 
+ err_udev_monitor:
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 1e1e5e6..fcd2222 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -1521,10 +1521,10 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 	drm_debug(b, "[atomic] drmModeAtomicCommit\n");
+ 
+ 	if (ret != 0) {
+-		printf("add modeset flag and atomic commit again\n");
++		weston_log("add modeset flag and atomic commit again\n");
+ 		flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
+ 		ret = drmModeAtomicCommit(device->drm.fd, req, flags | tear_flag, device);
+-		printf("add modeset flag and atomic commit again:%d\n", ret);
++		weston_log("add modeset flag and atomic commit again:%d\n", ret);
+ 	}
+ 
+ 	if (ret != 0 && may_tear && mode == DRM_STATE_TEST_ONLY) {
+@@ -1973,7 +1973,7 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, struct kms_ipc_in
+ 	drmModeAtomicReq *req = NULL;
+ 
+ 	if (crtc_id != crtc->crtc_id) {
+-		printf("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
+ 		return -1;
+ 	}
+ 
+@@ -1981,7 +1981,7 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, struct kms_ipc_in
+ 	output->base.tv_current_mode = &tv_current->base;
+ 	ret = drm_mode_ensure_blob(device, tv_current);
+ 	if (ret != 0) {
+-		printf("%s:drm_mode_ensure_blob error\n", __func__);
++		weston_log("%s:drm_mode_ensure_blob error\n", __func__);
+ 		return -1;
+ 	}
+ 
+@@ -1999,7 +1999,7 @@ static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, struct kms_ipc_in
+ 	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
+ 
+ 	if (ret != 0) {
+-		printf("%s:add property fail\n", __func__);
++		weston_log("%s:add property fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+@@ -2042,7 +2042,7 @@ static int kms_ipc_crtc_set_dpms_mode(struct drm_output *output, struct kms_ipc_
+ 	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
+ 
+ 	if (ret != 0) {
+-		printf("%s:add property fail\n", __func__);
++		weston_log("%s:add property fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+@@ -2061,7 +2061,7 @@ static int kms_ipc_crtc_active_reset(struct drm_output *output, struct kms_ipc_i
+ 	drmModeAtomicReq *req = NULL;
+ 
+ 	if (crtc_id != crtc->crtc_id) {
+-		printf("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
+ 		return -1;
+ 	}
+ 
+@@ -2069,7 +2069,7 @@ static int kms_ipc_crtc_active_reset(struct drm_output *output, struct kms_ipc_i
+ 	req = drmModeAtomicAlloc();
+ 	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 0);
+ 	if (ret != 0) {
+-		printf("%s:active 0 fail\n", __func__);
++		weston_log("%s:active 0 fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+@@ -2079,7 +2079,7 @@ static int kms_ipc_crtc_active_reset(struct drm_output *output, struct kms_ipc_i
+ 	req = drmModeAtomicAlloc();
+ 	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
+ 	if (ret != 0) {
+-		printf("%s:active 1 fail\n", __func__);
++		weston_log("%s:active 1 fail\n", __func__);
+ 		goto finish;
+ 	}
+ 
+@@ -2120,7 +2120,7 @@ void *kms_ipc(void *data) {
+ 	unlink(KMS_IPC_SOCKET_PATH);
+ 	output->kms_ipc_socket = socket(AF_UNIX,SOCK_DGRAM, 0);
+ 	if (output->kms_ipc_socket < 0) {
+-		printf("open socket fail\n");
++		weston_log("open socket fail\n");
+ 		goto finish;
+ 	}
+ 
+@@ -2129,7 +2129,7 @@ void *kms_ipc(void *data) {
+ 	strcpy(addr.sun_path, KMS_IPC_SOCKET_PATH);
+ 
+ 	if (bind(output->kms_ipc_socket ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
+-		printf("bind socket fail\n");
++		weston_log("bind socket fail\n");
+ 		goto finish;
+ 	}
+ 
+@@ -2138,7 +2138,7 @@ void *kms_ipc(void *data) {
+ 		struct kms_ipc_info info = {0};
+ 		ret = recvfrom(output->kms_ipc_socket, &info, sizeof(struct kms_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
+ 		if (ret < 0) {
+-			printf("recvfrom ret:%d\n", ret);
++			weston_log("recvfrom ret:%d\n", ret);
+ 			continue;
+ 		}
+ 
+-- 
+2.34.1
+

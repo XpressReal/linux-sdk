@@ -6,9 +6,6 @@ require conf/machine/include/arm/armv8-2a/tune-cortexa55.inc
 require conf/machine/include/avengers.inc
 require conf/machine/include/overlayfs.inc
 
-SPL_SUFFIX = "bin_pad"
-SPL_BINARY = "spl/u-boot-spl.bin_pad"
-
 #UBOOT_MACHINE = "rtd1619b_emmc_defconfig"
 UBOOT_CONFIG ??= "rtd1619b_emmc rtd1619b_spi"
 UBOOT_CONFIG[rtd1619b_emmc] = "rtd1619b_bleedingedge_defconfig,,u-boot.itb"
@@ -24,6 +21,7 @@ KERNEL_DEVICETREE = " \
 	realtek/rtd1619b-bleedingedge-2gb.dtb \
 	realtek/rtd1619b-backinblack-2gb.dtb \
 	realtek/rtd1315c-badassium-2gb.dtb \
+	realtek/rtd1619b-hulkbuster-4gb.dtb \
 	realtek/rtd1619b-rescue.dtb \
 	"
 KERNEL_DEVICETREE:append = " realtek/rtd1619b-bleedingedge-2gb-spi.dtb"

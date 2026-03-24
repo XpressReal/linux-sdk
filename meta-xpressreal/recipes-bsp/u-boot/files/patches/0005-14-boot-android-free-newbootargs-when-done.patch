@@ -1,0 +1,32 @@
+From fd8b44a81be55b33c7defbe96a1ddd79ed286eb4 Mon Sep 17 00:00:00 2001
+From: Nicolas Belin <nbelin@baylibre.com>
+Date: Tue, 17 Dec 2024 14:29:09 +0100
+Subject: [PATCH 14/25] boot: android: free newbootargs when done
+
+Free newbootargs when the concatenation is done and bootargs env
+is set.
+
+Fixes: 86f4695b ("image: Fix Android boot image support")
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Nicolas Belin <nbelin@baylibre.com>
+Link: https://lore.kernel.org/r/20241217-fix-bootargs-concatenation-v2-2-b2fd7cf4e130@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 57158280b41..362a5c7435a 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -322,6 +322,7 @@ int android_image_get_kernel(const void *hdr,
+ 	}
+ 
+ 	env_set("bootargs", newbootargs);
++	free(newbootargs);
+ 
+ 	if (os_data) {
+ 		if (image_get_magic(ihdr) == IH_MAGIC) {
+-- 
+2.47.0
+

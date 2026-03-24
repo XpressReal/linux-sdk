@@ -1,0 +1,13 @@
+/ {
+	fragment@0 {
+		target = <&firmware>;
+
+		__overlay__ {
+			optee {
+				compatible = "linaro,optee-tz";
+				method = "smc";
+			};
+		};
+	};
+};
+

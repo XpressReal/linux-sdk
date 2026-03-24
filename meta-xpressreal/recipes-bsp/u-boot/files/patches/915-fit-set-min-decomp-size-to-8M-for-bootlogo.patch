@@ -6,7 +6,7 @@ index 3cc556b727f..f5c912ae4ac 100644
  
  	comp = IH_COMP_NONE;
  	loadbuf = buf;
-+#define BOOT_LOGO_ADDR          0x2F700000
++#define BOOT_LOGO_ADDR          0x27700000
  	/* Kernel images get decompressed later in bootm_load_os(). */
  	if (!fit_image_get_comp(fit, noffset, &comp) &&
  	    comp != IH_COMP_NONE &&

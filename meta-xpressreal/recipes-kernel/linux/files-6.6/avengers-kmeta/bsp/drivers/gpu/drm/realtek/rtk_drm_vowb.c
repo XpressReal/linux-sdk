@@ -4,6 +4,7 @@
 #include <linux/dma-fence.h>
 #include <linux/platform_device.h>
 #include <linux/sync_file.h>
+#include <linux/of.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
 #include <drm/drm_gem.h>
@@ -78,7 +79,7 @@ struct rtk_drm_vowb {
 	spinlock_t lock;
 	spinlock_t tx_lock;
 
-	u64 emit_job_id;
+	atomic64_t emit_job_id;
 	atomic64_t resp_job_id;
 	wait_queue_head_t wq;
 	struct delayed_work work;
@@ -89,9 +90,27 @@ struct rtk_drm_vowb {
 
 	struct rtk_drm_vowb_func1_data func1_data;
 	struct rtk_drm_vowb_func2_data func2_data;
+
+	const struct vowb_quirks *quirks;
 };
 
 static void rtk_drm_vowb_check_resp(struct work_struct *work);
+
+static inline int vowb_support_deinterlace(struct rtk_drm_vowb *vowb)
+{
+	if (!vowb->quirks)
+		return 0;
+
+	return vowb->quirks->support_deinterlace;
+}
+
+static inline int vowb_support_video_osd_mix(struct rtk_drm_vowb *vowb)
+{
+	if (!vowb->quirks)
+		return 0;
+
+	return vowb->quirks->support_video_osd_mix;
+}
 
 static int rtk_drm_alloc_refclock(struct rtk_drm_vowb *vowb)
 {
@@ -458,7 +477,7 @@ static void rtk_drm_vowb_check_resp(struct work_struct *work)
 		job_id = ((u64)rpmsg32_to_cpu(rpdev, ret_obj.bufferID_H) << 32) |
 			rpmsg32_to_cpu(rpdev, ret_obj.bufferID_L);
 
-		if (job_id > atomic64_read(&vowb->resp_job_id)) {
+		if (job_id != atomic64_read(&vowb->resp_job_id)) {
 			atomic64_set(&vowb->resp_job_id, job_id);
 			trace_vowb_update_resp_job_id(job_id);
 		}
@@ -502,7 +521,7 @@ static int rtk_drm_vowb_queue_job(struct rtk_drm_vowb *vowb, struct rtk_drm_vowb
 		return ret;
 	}
 
-	job->job_id = vowb->emit_job_id;
+	job->job_id = atomic64_read(&vowb->emit_job_id);
 	job->time = ktime_get();
 	job->status = RTK_DRM_VOWB_JOB_STATUS_START;
 	trace_vowb_job_update_status(job);
@@ -548,11 +567,12 @@ static void inband_cmd_video_transcode_picture_object(struct rpmsg_device *rpdev
 						      dma_addr_t dst_addr,
 						      struct rtk_drm_vowb_src_pic *src,
 						      dma_addr_t src_addr,
-						      u64 job_id)
+						      u64 job_id,
+						      struct video_object *vobj)
 {
 	cmd->header.size  = cpu_to_rpmsg32(rpdev, sizeof(*cmd));
 	cmd->header.type  = cpu_to_rpmsg32(rpdev, VIDEO_TRANSCODE_INBAND_CMD_TYPE_PICTURE_OBJECT);
-	cmd->version      = cpu_to_rpmsg32(rpdev, 0x54524134);
+	cmd->version      = cpu_to_rpmsg32(rpdev, 0x54524137);
 	cmd->bufferID_H   = cpu_to_rpmsg32(rpdev, job_id >> 32);
 	cmd->bufferID_L   = cpu_to_rpmsg32(rpdev, job_id & 0xffffffff);
 
@@ -581,6 +601,20 @@ static void inband_cmd_video_transcode_picture_object(struct rpmsg_device *rpdev
 	cmd->saturation   = cpu_to_rpmsg32(rpdev, src->saturation);
 	cmd->sharp_en     = cpu_to_rpmsg32(rpdev, src->sharp_en);
 	cmd->sharp_value  = cpu_to_rpmsg32(rpdev, src->sharp_value);
+
+	if (vobj &&
+		vobj->lumaOffTblAddr != 0xFFFFFFFF &&
+		vobj->chromaOffTblAddr != 0xFFFFFFFF) {
+		cmd->tvve_picture_width = cpu_to_rpmsg32(rpdev, vobj->tvve_picture_width);
+		cmd->tvve_lossy_en = cpu_to_rpmsg32(rpdev, vobj->tvve_lossy_en);
+		cmd->tvve_bypass_en = cpu_to_rpmsg32(rpdev, vobj->tvve_bypass_en);
+		cmd->tvve_qlevel_sel_y = cpu_to_rpmsg32(rpdev, vobj->tvve_qlevel_sel_y);
+		cmd->tvve_qlevel_sel_c = cpu_to_rpmsg32(rpdev, vobj->tvve_qlevel_sel_c);
+		cmd->lumaOffTblAddr = cpu_to_rpmsg32(rpdev, vobj->lumaOffTblAddr);
+		cmd->chromaOffTblAddr = cpu_to_rpmsg32(rpdev, vobj->chromaOffTblAddr);
+	}
+	cmd->is_ve_tile_mode = cpu_to_rpmsg32(rpdev, vobj->is_ve_tile_mode);
+
 }
 
 static int rtk_drm_vowb_func1_prepare_cmds(struct rtk_drm_vowb *vowb,
@@ -591,6 +625,8 @@ static int rtk_drm_vowb_func1_prepare_cmds(struct rtk_drm_vowb *vowb,
 {
 	struct drm_file *file_priv = func1->file_priv;
 	dma_addr_t src_addr[RTK_DRM_VOWB_MAX_SRC_PIC] = {};
+	struct video_object *vobj = NULL;
+	void *virt;
 	int i, j = 0;
 	int ret;
 	unsigned long flags;
@@ -611,8 +647,16 @@ static int rtk_drm_vowb_func1_prepare_cmds(struct rtk_drm_vowb *vowb,
 			continue;
 		}
 
+		ret = rtk_drm_vowb_handle_to_vaddr(file_priv, src->handle, &virt);
+		if (ret) {
+			DRM_WARN("failed to get vaddr of src%d\n", i);
+			continue;
+		}
+		vobj = (struct video_object *)virt;
+		if (!(vobj && vobj->header.type == METADATA_HEADER))
+			vobj = NULL;
 		inband_cmd_video_transcode_picture_object(rpdev, &cmds[j], func1, func1->addrs[dst_id],
-							  &func1->srcs[i], src_addr[i], ++job_id);
+							  &func1->srcs[i], src_addr[i], ++job_id, vobj);
 		j++;
 	}
 	spin_unlock_irqrestore(&func1->data_lock, flags);
@@ -631,13 +675,13 @@ static int rtk_drm_vowb_func1_start_cmd(struct rtk_drm_vowb *vowb,
 		return -ENOMEM;
 
 	ret = rtk_drm_vowb_func1_prepare_cmds(vowb, func1, vowb->tx.rpdev, cmds, func1->num_srcs,
-					      vowb->emit_job_id, func1->dst_id);
+					      atomic64_read(&vowb->emit_job_id), func1->dst_id);
 	if (ret <= 0) {
 		DRM_INFO("rtk_drm_vowb_func1_prepare_cmds() returns %d\n", ret);
 		goto free_cmds;
 	}
 
-	vowb->emit_job_id += ret;
+	atomic64_add(ret, &vowb->emit_job_id);
 
 	ret = rtk_drm_vowb_queue_job(vowb, &func1->job, cmds, sizeof(*cmds) * ret);
 	if (!ret)
@@ -876,9 +920,12 @@ int rtk_drm_vowb_release(struct inode *inode, struct file *filp)
 	if (rtk_drm_vowb_func1_check_file(vowb, file_priv)) {
 		rtk_drm_vowb_func1_stop(vowb);
 		rtk_drm_vowb_func1_teardown(vowb);
+		rtk_drm_vowb_wait_job_done(vowb);
+		rtk_drm_vowb_clear_job(vowb);
+	} else {
+		rtk_drm_vowb_wait_job_done(vowb);
 	}
-	rtk_drm_vowb_wait_job_done(vowb);
-	rtk_drm_vowb_clear_job(vowb);
+
 	return 0;
 }
 
@@ -888,6 +935,8 @@ int rtk_drm_vowb_add_src_pic_ioctl(struct drm_device *dev, void *data, struct dr
 	struct rtk_drm_vowb *vowb = ((struct rtk_drm_private *)dev->dev_private)->vowb;
 	struct rtk_drm_vowb_func1_data *func1 = &vowb->func1_data;
 	unsigned long flags;
+	bool fence_exist = false;
+	struct dma_fence *f = NULL;
 	int fd = -1;
 
 	if (!vowb)
@@ -901,18 +950,23 @@ int rtk_drm_vowb_add_src_pic_ioctl(struct drm_device *dev, void *data, struct dr
 	func1->srcs[arg->index] = arg->src;
 	spin_unlock_irqrestore(&func1->data_lock, flags);
 
-	arg->fence_fd = -1;
-
 	spin_lock_irqsave(&vowb->lock, flags);
 	if (func1->create_fence && vowb->fence) {
-		fd = rtk_drm_vowb_sync_file_create(vowb->fence);
-		if (fd <= 0) {
+		f = dma_fence_get(vowb->fence);
+		fence_exist = true;
+	}
+	spin_unlock_irqrestore(&vowb->lock, flags);
+
+	if (fence_exist) {
+		fd = rtk_drm_vowb_sync_file_create(f);
+		if (fd < 0) {
 			DRM_ERROR("failed to create sync_file: %d\n", fd);
 			fd = -1;
 		}
-		arg->fence_fd = fd;
+		dma_fence_put(f);
 	}
-	spin_unlock_irqrestore(&vowb->lock, flags);
+
+	arg->fence_fd = fd;
 
 	return 0;
 }
@@ -967,7 +1021,7 @@ static void func2_inband_cmd_video_transcode_picture_object(struct rpmsg_device 
 	cmd->header.size  = cpu_to_rpmsg32(rpdev, sizeof(*cmd));
 	cmd->header.type  = cpu_to_rpmsg32(rpdev, VIDEO_TRANSCODE_INBAND_CMD_TYPE_PICTURE_OBJECT);
 
-	cmd->version      = cpu_to_rpmsg32(rpdev, 0x54524136);
+	cmd->version      = cpu_to_rpmsg32(rpdev, 0x54524137);
 
 	cmd->bufferID_H   = cpu_to_rpmsg32(rpdev, job_id >> 32);
 	cmd->bufferID_L   = cpu_to_rpmsg32(rpdev, job_id & 0xffffffff);
@@ -1023,31 +1077,37 @@ static void func2_inband_cmd_video_transcode_picture_object(struct rpmsg_device 
 	cmd->tvve_bypass_en       = cpu_to_rpmsg32(rpdev, pic->tvve_bypass_en);
 	cmd->tvve_qlevel_sel_y       = cpu_to_rpmsg32(rpdev, pic->tvve_qlevel_sel_y);
 	cmd->tvve_qlevel_sel_c       = cpu_to_rpmsg32(rpdev, pic->tvve_qlevel_sel_c);
+
+	cmd->transferCharacteristics       = cpu_to_rpmsg32(rpdev, pic->transferCharacteristics);
+	cmd->video_full_range_flag       = cpu_to_rpmsg32(rpdev, pic->video_full_range_flag);
+	cmd->matrix_coefficients       = cpu_to_rpmsg32(rpdev, pic->matrix_coefficients);
 }
 
 static int rtk_drm_vowb_run_cmd_get_addrs(struct drm_file *file_priv,
 					  struct rtk_drm_vowb_run_cmd *arg,
 					  dma_addr_t addrs[11])
 {
-	int ret;
+	int ret = 0;
 
 	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.src_handle, arg->pic.y_offset,
 						 &addrs[0]);
 	if (ret)
-		return ret;
+		goto exit;
+
 	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.src_handle, arg->pic.c_offset,
 						 &addrs[1]);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.wb_handle, arg->pic.wb_y_offset,
 						 &addrs[2]);
 	if (ret)
-		return ret;
+		goto exit;
+
 	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.wb_handle, arg->pic.wb_c_offset,
 						 &addrs[3]);
 	if (ret)
-		return ret;
+		goto exit;
 
 	if (arg->pic.luma_off_tbl_addr)
 		addrs[4] = (dma_addr_t)arg->pic.luma_off_tbl_addr;
@@ -1059,75 +1119,169 @@ static int rtk_drm_vowb_run_cmd_get_addrs(struct drm_file *file_priv,
 	else
 		addrs[5] = -1L;
 
-	if (arg->pic.y_addr_prev)
-		addrs[7] = (dma_addr_t)arg->pic.y_addr_prev;
-	else
-		addrs[7] = 0;
-
-	if (arg->pic.c_addr_prev)
-		addrs[8] = (dma_addr_t)arg->pic.c_addr_prev;
-	else
-		addrs[8] = 0;
-
-	if (arg->pic.y_addr_next)
-		addrs[9] = (dma_addr_t)arg->pic.y_addr_next;
-	else
-		addrs[9] = 0;
-
-	if (arg->pic.c_addr_next)
-		addrs[10] = (dma_addr_t)arg->pic.c_addr_next;
-	else
-		addrs[10] = 0;
-
 	addrs[6] = -1L;
 	if (arg->pic.sub_enable) {
 		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.sub_handle,
-							 arg->pic.sub_offset, &addrs[6]);
+						 arg->pic.sub_offset, &addrs[6]);
 		if (ret)
-			return ret;
+			goto exit;
 	}
-	return 0;
+
+	if (arg->pic.prev_handle) {
+		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.prev_handle,
+						 arg->pic.prev_y_offset, &addrs[7]);
+		if (ret)
+			goto exit;
+
+		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.prev_handle,
+						 arg->pic.prev_c_offset, &addrs[8]);;
+		if (ret)
+			goto exit;
+	}
+
+	if (arg->pic.next_handle) {
+		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.next_handle,
+						 arg->pic.next_y_offset, &addrs[9]);
+		if (ret)
+			goto exit;
+
+		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.next_handle,
+						 arg->pic.next_c_offset, &addrs[10]);
+		if (ret)
+			goto exit;
+	}
+
+exit:
+	return ret;
+}
+
+static int rtk_drm_vowb_verify_args(struct rtk_drm_vowb *vowb, struct rtk_drm_vowb_pic pic)
+{
+	int ret = 0;
+
+	if (pic.src_handle == pic.wb_handle) {
+		DRM_ERROR("src buffer is equal to dst buffer\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (pic.w == 0 || pic.h == 0) {
+		DRM_ERROR("Err: source width(%d) or height(%d) is zero\n", pic.w, pic.h);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if ((pic.crop_x + pic.crop_w) > pic.w ||
+		(pic.crop_y + pic.crop_h) > pic.h) {
+		DRM_ERROR("Err: crop setting is incorrect\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if ((pic.y_pitch < pic.w) || (pic.c_pitch < pic.w)) {
+		DRM_ERROR("Err: src picth should not be small than widthv");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (pic.wb_pitch < pic.wb_w) {
+		DRM_ERROR("Err: wb picth should not be small than width\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (pic.sub_pitch < pic.sub_w) {
+		DRM_ERROR("Err: sub picth should not be small than width\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (!vowb_support_deinterlace(vowb) &&
+		(pic.prev_handle || pic.next_handle)) {
+		DRM_ERROR("Err: Not support deinterlace\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (!vowb_support_video_osd_mix(vowb) && pic.sub_handle) {
+		DRM_ERROR("Err: Not support video/osd mix by fw\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+exit:
+	return ret;
 }
 
 int rtk_drm_vowb_run_cmd(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
 	struct rtk_drm_vowb *vowb = ((struct rtk_drm_private *)dev->dev_private)->vowb;
-	struct rtk_drm_vowb_func2_data *func2 = &vowb->func2_data;
 	struct rtk_drm_vowb_run_cmd *arg = data;
 	struct video_transcode_picture_object cmd = {};
 	dma_addr_t addrs[11] = {};
-	unsigned long flags;
+	unsigned long flags1;
+	unsigned long flags2;
+	u64 emit_job_id = 0;
 	int ret;
 
-	spin_lock_irqsave(&vowb->lock, flags);
-	ret = rtk_drm_vowb_run_cmd_get_addrs(file_priv, arg, addrs);
-	spin_unlock_irqrestore(&vowb->lock, flags);
+	ret = rtk_drm_vowb_verify_args(vowb, arg->pic);
 	if (ret)
 		return ret;
 
-	func2_inband_cmd_video_transcode_picture_object(vowb->tx.rpdev, &cmd, &arg->pic, addrs,
-							++vowb->emit_job_id);
+	spin_lock_irqsave(&vowb->lock, flags1);
+	ret = rtk_drm_vowb_run_cmd_get_addrs(file_priv, arg, addrs);
+	spin_unlock_irqrestore(&vowb->lock, flags1);
+	if (ret)
+		return ret;
 
-	ret = rtk_drm_vowb_queue_job(vowb, &func2->job, &cmd, sizeof(cmd));
-	if (!ret)
-		arg->job_id = func2->job.job_id;
+	emit_job_id = (u64)atomic64_inc_return(&vowb->emit_job_id);
+	func2_inband_cmd_video_transcode_picture_object(vowb->tx.rpdev, &cmd, &arg->pic, addrs,
+							emit_job_id);
+
+	spin_lock_irqsave(&vowb->tx_lock, flags2);
+	ret = rtk_drm_ringbuffer_write(&vowb->tx, &cmd, sizeof(cmd));
+	spin_unlock_irqrestore(&vowb->tx_lock, flags2);
+	if (ret) {
+		DRM_ERROR("rtk_drm_ringbuffer_write() returns %d\n", ret);
+	} else {
+		arg->job_id = emit_job_id;
+	}
 
 	return ret;
+}
+
+static inline bool job_id_done(u64 current_id, u64 target_id)
+{
+	return (s64)(current_id - target_id) >= 0;
 }
 
 int rtk_drm_vowb_check_cmd(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
 	struct rtk_drm_vowb *vowb = ((struct rtk_drm_private *)dev->dev_private)->vowb;
+	struct rtk_drm_vowb_func2_data *func2 = &vowb->func2_data;
 	struct rtk_drm_vowb_check_cmd *arg = data;
+	struct rtk_drm_vowb_job *job = &func2->job;
 	u32 arg_flags = arg->flags & RTK_DRM_VOWB_FLAGS_VALID_CHECK_CMD_FLAGS;
 	int ret = -EAGAIN;
 
-	if (arg_flags & RTK_DRM_VOWB_FLAGS_CHECK_CMD_BLOCK) {
-		ret = wait_event_interruptible(vowb->wq,
-					       arg->job_id <= atomic64_read(&vowb->resp_job_id));
+	ret = rtk_drm_vowb_set_job(vowb, job);
+	if (ret) {
+		DRM_DEBUG("queue job %p failed (cur_job %p)\n", job, vowb->cur_job);
+		return ret;
 	}
 
-	if (arg->job_id <= atomic64_read(&vowb->resp_job_id)) {
+	job->job_id = arg->job_id;
+	job->time = ktime_get();
+	job->status = RTK_DRM_VOWB_JOB_STATUS_START;
+	trace_vowb_job_update_status(job);
+
+	schedule_delayed_work(&vowb->work, 1);
+
+	if (arg_flags & RTK_DRM_VOWB_FLAGS_CHECK_CMD_BLOCK) {
+		ret = wait_event_interruptible(vowb->wq,
+					       job_id_done(atomic64_read(&vowb->resp_job_id), arg->job_id));
+	}
+
+	if (job_id_done(atomic64_read(&vowb->resp_job_id), arg->job_id)) {
 		arg->job_done = 1;
 		return 0;
 	}
@@ -1143,32 +1297,19 @@ void rtk_drm_vowb_isr(struct drm_device *dev)
 	rtk_drm_vowb_func1_vsync_isr(vowb);
 }
 
-int rtk_drm_vowb_reinit(struct drm_device *dev, void *data, struct drm_file *file_priv)
+int rtk_drm_vowb_get_features_ioctl(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
 	struct rtk_drm_vowb *vowb = ((struct rtk_drm_private *)dev->dev_private)->vowb;
-	int ret;
+	u64 *features = (u64 *)data;
 
-	if (vowb->instance != U32_MAX)
-		rtk_drm_destroy_agent(vowb);
-	rtk_drm_ringbuffer_reset(&vowb->tx);
-	rtk_drm_ringbuffer_reset(&vowb->rx);
+	*features = 0;
+	if (vowb_support_deinterlace(vowb))
+		*features |= RTK_DRM_VOWB_FEATURE_DEINTERLACE_SUPPORT;
 
-	ret = rtk_drm_vowb_setup_agent(vowb);
-	if (ret)
-		goto destroy_agent;
-	ret = rtk_drm_vowb_setup_refclock(vowb);
-	if (ret)
-		goto destroy_agent;
-	ret = rtk_drm_vowb_setup_ringbuffer(vowb, &vowb->tx, 0);
-	if (ret)
-		goto destroy_agent;
-	ret = rtk_drm_vowb_setup_ringbuffer(vowb, &vowb->rx, 0x20140507);
-	if (ret)
-		goto destroy_agent;
+	if (vowb_support_video_osd_mix(vowb))
+		*features |= RTK_DRM_VOWB_FEATURE_VIDEO_OSD_MIX_SUPPORT;
+
 	return 0;
-destroy_agent:
-	rtk_drm_destroy_agent(vowb);
-	return ret;
 }
 
 static int rtk_vowb_bind(struct device *dev, struct device *master, void *data)
@@ -1182,6 +1323,13 @@ static int rtk_vowb_bind(struct device *dev, struct device *master, void *data)
 	if (!vowb)
 		return -ENOMEM;
 	vowb->dev = drm;
+	vowb->quirks = of_device_get_match_data(dev);
+	if (!vowb->quirks) {
+		dev_err(dev, "failed to get vowb device data\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	vowb->rpc_info = get_rpc_info(priv);
 	vowb->fence_context = dma_fence_context_alloc(1);
 	INIT_DELAYED_WORK(&vowb->work, rtk_drm_vowb_check_resp);
@@ -1195,7 +1343,7 @@ static int rtk_vowb_bind(struct device *dev, struct device *master, void *data)
 				       RTK_DRM_VOWB_BRINGBUFFER_SIZE);
 	if (ret) {
 		DRM_ERROR("failed to alloc tx ringbuffer\n");
-		return ret;
+		goto exit;
 	}
 	ret = rtk_drm_ringbuffer_alloc(vowb->dev, get_rpdev(vowb->rpc_info), &vowb->rx,
 				       RTK_DRM_VOWB_BRINGBUFFER_SIZE);
@@ -1232,6 +1380,8 @@ free_rxbuf:
 	rtk_drm_ringbuffer_free(&vowb->rx);
 free_txbuf:
 	rtk_drm_ringbuffer_free(&vowb->tx);
+exit:
+	kfree(vowb);
 	return ret;
 }
 
@@ -1265,10 +1415,28 @@ static int rtk_vowb_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct vowb_quirks rtd1619b_quirks = {
+	.support_deinterlace = 1,
+	.support_video_osd_mix = 1,
+};
+
+static const struct vowb_quirks kent_quirks = {
+        .support_deinterlace = 1,
+        .support_video_osd_mix = 0,
+};
+
+static const struct vowb_quirks prince_quirks = {
+	.support_deinterlace = 0,
+	.support_video_osd_mix = 0,
+};
+
 static const struct of_device_id rtk_vowb_of_ids[] = {
-	{ .compatible = "realtek,vo-writeback", },
+	{ .compatible = "realtek,rtd1619b-vo-writeback", .data = &rtd1619b_quirks},
+	{ .compatible = "realtek,kent-vo-writeback", .data = &kent_quirks},
+	{ .compatible = "realtek,prince-vo-writeback", .data = &prince_quirks},
 	{},
 };
+
 MODULE_DEVICE_TABLE(of, rtk_vowb_of_ids);
 
 struct platform_driver rtk_vowb_driver = {

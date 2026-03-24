@@ -1,0 +1,43 @@
+From 53a0ddb6d3bed9f9607af79934a7625299c36793 Mon Sep 17 00:00:00 2001
+From: Nicolas Belin <nbelin@baylibre.com>
+Date: Tue, 17 Dec 2024 14:29:08 +0100
+Subject: [PATCH 13/25] boot: android: fix extra command line support
+
+Check that the value at the address kcmdline_extra is not 0
+instead of checking the address value itself keeping it
+consistent with what is done for kcmdline.
+
+Fixes: b36b227b ("android: boot: support extra command line")
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Nicolas Belin <nbelin@baylibre.com>
+Link: https://lore.kernel.org/r/20241217-fix-bootargs-concatenation-v2-1-b2fd7cf4e130@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index cd01278f211..57158280b41 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -292,7 +292,7 @@ int android_image_get_kernel(const void *hdr,
+ 		len += strlen(img_data.kcmdline);
+ 	}
+ 
+-	if (img_data.kcmdline_extra) {
++	if (*img_data.kcmdline_extra) {
+ 		printf("Kernel extra command line: %s\n", img_data.kcmdline_extra);
+ 		len += strlen(img_data.kcmdline_extra);
+ 	}
+@@ -316,7 +316,7 @@ int android_image_get_kernel(const void *hdr,
+ 	if (*img_data.kcmdline)
+ 		strcat(newbootargs, img_data.kcmdline);
+ 
+-	if (img_data.kcmdline_extra) {
++	if (*img_data.kcmdline_extra) {
+ 		strcat(newbootargs, " ");
+ 		strcat(newbootargs, img_data.kcmdline_extra);
+ 	}
+-- 
+2.47.0
+

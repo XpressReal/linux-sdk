@@ -1,0 +1,49 @@
+From 0a33d587d761fb75da8f7a231cf6288aed400af1 Mon Sep 17 00:00:00 2001
+From: ivan_chung <ivan_chung@realtek.com>
+Date: Wed, 10 Dec 2025 17:15:04 +0800
+Subject: [PATCH] kernel: upscale SCPU frequency up to 2.0GHz
+
+---
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi    | 7 +++++++
+ arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi | 7 +++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+index f715e9a825..4e2e82268d 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+@@ -118,6 +118,13 @@ opp1900: opp-1900000000 {
+ 			clock-latency-ns = <150000>;
+ 			status = "okay";
+ 		};
++
++		opp2000: opp-2000000000 {
++			opp-hz = /bits/ 64 <2000000000>;
++			opp-microvolt = <1100000 1100000 1100000>;
++			clock-latency-ns = <150000>;
++			status = "okay";
++		};
+ 	};
+ };
+ 
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+index d11397ac9a..852f0160d6 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+@@ -158,6 +158,13 @@ opp1900: opp-1900000000 {
+ 			clock-latency-ns = <150000>;
+ 			status = "okay";
+ 		};
++
++		opp2000: opp-2000000000 {
++			opp-hz = /bits/ 64 <2000000000>;
++			opp-microvolt = <1100000 1100000 1100000>;
++			clock-latency-ns = <150000>;
++			status = "okay";
++		};
+ 	};
+ };
+ 
+-- 
+2.34.1
+

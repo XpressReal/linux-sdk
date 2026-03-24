@@ -1,0 +1,186 @@
+From b7f49799d475c54f823c94b330f851cb7cf0ac54 Mon Sep 17 00:00:00 2001
+From: Jean-Philippe Brucker <jean-philippe@linaro.org>
+Date: Wed, 23 Nov 2022 17:44:17 +0000
+Subject: [PATCH] BACKPORT: FROMLIST: iommu/io-pgtable: Add configure()
+ operation
+
+Allow IOMMU drivers to create the io-pgtable configuration without
+allocating any tables. This will be used by the SMMUv3-KVM driver to
+initialize a config and pass it to KVM.
+
+Link: https://lore.kernel.org/kvmarm/20230201125328.2186498-5-jean-philippe@linaro.org/
+
+(cherry picked from commit b04020f092a7ec516ef36955f0c57787450c8a34
+https://jpbrucker.net/git/linux/log/?h=pkvm/smmu)
+
+Bug: 277989609
+Bug: 278749606
+Change-Id: Ifdbc2cffe2aa4f9b253a99a25585a47c58124b28
+Signed-off-by: Jean-Philippe Brucker <jean-philippe@linaro.org>
+---
+ drivers/iommu/io-pgtable-arm.c | 46 ++++++++++++++++++++++++++--------
+ drivers/iommu/io-pgtable.c     | 15 +++++++++++
+ include/linux/io-pgtable.h     | 16 ++++++++++++
+ 3 files changed, 67 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/iommu/io-pgtable-arm.c b/drivers/iommu/io-pgtable-arm.c
+index b2b188bb86b39..800ccdd7d09a3 100644
+--- a/drivers/iommu/io-pgtable-arm.c
++++ b/drivers/iommu/io-pgtable-arm.c
+@@ -118,6 +118,18 @@ arm_64_lpae_alloc_pgtable_s1(struct io_pgtable_cfg *cfg, void *cookie)
+ 	return NULL;
+ }
+ 
++static int arm_64_lpae_configure_s1(struct io_pgtable_cfg *cfg, size_t *pgd_size)
++{
++	int ret;
++	struct arm_lpae_io_pgtable data = {};
++
++	ret = arm_lpae_init_pgtable_s1(cfg, &data);
++	if (ret)
++		return ret;
++	*pgd_size = sizeof(arm_lpae_iopte) << data.pgd_bits;
++	return 0;
++}
++
+ static struct io_pgtable *
+ arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
+ {
+@@ -148,6 +160,18 @@ arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
+ 	return NULL;
+ }
+ 
++static int arm_64_lpae_configure_s2(struct io_pgtable_cfg *cfg, size_t *pgd_size)
++{
++	int ret;
++	struct arm_lpae_io_pgtable data = {};
++
++	ret = arm_lpae_init_pgtable_s2(cfg, &data);
++	if (ret)
++		return ret;
++	*pgd_size = sizeof(arm_lpae_iopte) << data.pgd_bits;
++	return 0;
++}
++
+ static struct io_pgtable *
+ arm_32_lpae_alloc_pgtable_s1(struct io_pgtable_cfg *cfg, void *cookie)
+ {
+@@ -231,28 +255,30 @@ arm_mali_lpae_alloc_pgtable(struct io_pgtable_cfg *cfg, void *cookie)
+ }
+ 
+ struct io_pgtable_init_fns io_pgtable_arm_64_lpae_s1_init_fns = {
+-	.alloc	= arm_64_lpae_alloc_pgtable_s1,
+-	.free	= arm_lpae_free_pgtable,
++	.alloc		= arm_64_lpae_alloc_pgtable_s1,
++	.free		= arm_lpae_free_pgtable,
++	.configure	= arm_64_lpae_configure_s1,
+ };
+ 
+ struct io_pgtable_init_fns io_pgtable_arm_64_lpae_s2_init_fns = {
+-	.alloc	= arm_64_lpae_alloc_pgtable_s2,
+-	.free	= arm_lpae_free_pgtable,
++	.alloc		= arm_64_lpae_alloc_pgtable_s2,
++	.free		= arm_lpae_free_pgtable,
++	.configure	= arm_64_lpae_configure_s2,
+ };
+ 
+ struct io_pgtable_init_fns io_pgtable_arm_32_lpae_s1_init_fns = {
+-	.alloc	= arm_32_lpae_alloc_pgtable_s1,
+-	.free	= arm_lpae_free_pgtable,
++	.alloc		= arm_32_lpae_alloc_pgtable_s1,
++	.free		= arm_lpae_free_pgtable,
+ };
+ 
+ struct io_pgtable_init_fns io_pgtable_arm_32_lpae_s2_init_fns = {
+-	.alloc	= arm_32_lpae_alloc_pgtable_s2,
+-	.free	= arm_lpae_free_pgtable,
++	.alloc		= arm_32_lpae_alloc_pgtable_s2,
++	.free		= arm_lpae_free_pgtable,
+ };
+ 
+ struct io_pgtable_init_fns io_pgtable_arm_mali_lpae_init_fns = {
+-	.alloc	= arm_mali_lpae_alloc_pgtable,
+-	.free	= arm_lpae_free_pgtable,
++	.alloc		= arm_mali_lpae_alloc_pgtable,
++	.free		= arm_lpae_free_pgtable,
+ };
+ 
+ #ifdef CONFIG_IOMMU_IO_PGTABLE_LPAE_SELFTEST
+diff --git a/drivers/iommu/io-pgtable.c b/drivers/iommu/io-pgtable.c
+index b843fcd365d28..60c39b5fe680e 100644
+--- a/drivers/iommu/io-pgtable.c
++++ b/drivers/iommu/io-pgtable.c
+@@ -76,3 +76,18 @@ void free_io_pgtable_ops(struct io_pgtable_ops *ops)
+ 	io_pgtable_init_table[iop->fmt]->free(iop);
+ }
+ EXPORT_SYMBOL_GPL(free_io_pgtable_ops);
++
++int io_pgtable_configure(struct io_pgtable_cfg *cfg, size_t *pgd_size)
++{
++	const struct io_pgtable_init_fns *fns;
++
++	if (cfg->fmt >= IO_PGTABLE_NUM_FMTS)
++		return -EINVAL;
++
++	fns = io_pgtable_init_table[cfg->fmt];
++	if (!fns || !fns->configure)
++		return -EOPNOTSUPP;
++
++	return fns->configure(cfg, pgd_size);
++}
++EXPORT_SYMBOL_GPL(io_pgtable_configure);
+diff --git a/include/linux/io-pgtable.h b/include/linux/io-pgtable.h
+index 1b7a44b35616c..85c50072ed082 100644
+--- a/include/linux/io-pgtable.h
++++ b/include/linux/io-pgtable.h
+@@ -49,6 +49,7 @@ struct iommu_flush_ops {
+ /**
+  * struct io_pgtable_cfg - Configuration data for a set of page tables.
+  *
++ * @fmt:	       Format used for these page tables
+  * @quirks:        A bitmap of hardware quirks that require some special
+  *                 action by the low-level page table allocator.
+  * @pgsize_bitmap: A bitmap of page sizes supported by this set of page
+@@ -62,6 +63,7 @@ struct iommu_flush_ops {
+  *                 page table walker.
+  */
+ struct io_pgtable_cfg {
++	enum io_pgtable_fmt		fmt;
+ 	/*
+ 	 * IO_PGTABLE_QUIRK_ARM_NS: (ARM formats) Set NS and NSTABLE bits in
+ 	 *	stage 1 PTEs, for hardware which insists on validating them
+@@ -191,6 +193,18 @@ struct io_pgtable_ops *alloc_io_pgtable_ops(enum io_pgtable_fmt fmt,
+  */
+ void free_io_pgtable_ops(struct io_pgtable_ops *ops);
+ 
++/**
++ * io_pgtable_configure - Create page table config
++ *
++ * @cfg:	The page table configuration.
++ * @pgd_size:	On success, size of the top-level table in bytes.
++ *
++ * Initialize @cfg in the same way as alloc_io_pgtable_ops(), without allocating
++ * anything.
++ *
++ * Not all io_pgtable drivers implement this operation.
++ */
++int io_pgtable_configure(struct io_pgtable_cfg *cfg, size_t *pgd_size);
+ 
+ /*
+  * Internal structures for page table allocator implementations.
+@@ -243,10 +257,12 @@ io_pgtable_tlb_add_page(struct io_pgtable *iop,
+  *
+  * @alloc: Allocate a set of page tables described by cfg.
+  * @free:  Free the page tables associated with iop.
++ * @configure: Create the configuration without allocating anything. Optional.
+  */
+ struct io_pgtable_init_fns {
+ 	struct io_pgtable *(*alloc)(struct io_pgtable_cfg *cfg, void *cookie);
+ 	void (*free)(struct io_pgtable *iop);
++	int (*configure)(struct io_pgtable_cfg *cfg, size_t *pgd_size);
+ };
+ 
+ extern struct io_pgtable_init_fns io_pgtable_arm_32_lpae_s1_init_fns;
+-- 
+2.34.1
+

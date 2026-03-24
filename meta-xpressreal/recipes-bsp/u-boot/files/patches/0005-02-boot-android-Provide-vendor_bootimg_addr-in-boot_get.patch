@@ -1,0 +1,59 @@
+From 58fed99f46115fe8547e7978fa361bbbbb3f3b50 Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Wed, 10 Jul 2024 10:40:02 +0200
+Subject: [PATCH 02/25] boot: android: Provide vendor_bootimg_addr in
+ boot_get_fdt()
+
+When calling android_image_get_dtb_by_index() using boot image v3+,
+we should also pass the vendor_boot ramdisk address.
+
+Use get_avendor_bootimg_addr() to do so.
+
+Notes: on boot image v2, this is harmless since get_avendor_bootimg_addr()
+       returns -1.
+       for legacy implementations that don't have CMD_ABOOTIMG, add a weak
+       implementation to avoid linking errors.
+
+Reviewed-by: Simon Glass <sjg@chromium.org>
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Igor Opaniuk <igor.opaniuk@gmail.com>
+Reviewed-by: Guillaume La Roque <glaroque@baylibre.com>
+Tested-by: Guillaume La Roque <glaroque@baylibre.com>
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 5 +++++
+ boot/image-fdt.c     | 2 +-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index ee626972c11..09c7a44e058 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -56,6 +56,11 @@ static ulong add_trailer(ulong bootconfig_start_addr, ulong bootconfig_size)
+ 	return BOOTCONFIG_TRAILER_SIZE;
+ }
+ 
++__weak ulong get_avendor_bootimg_addr(void)
++{
++	return -1;
++}
++
+ static void android_boot_image_v3_v4_parse_hdr(const struct andr_boot_img_hdr_v3 *hdr,
+ 					       struct andr_image_data *data)
+ {
+diff --git a/boot/image-fdt.c b/boot/image-fdt.c
+index 56dd7687f51..8332792b8e8 100644
+--- a/boot/image-fdt.c
++++ b/boot/image-fdt.c
+@@ -502,7 +502,7 @@ int boot_get_fdt(void *buf, const char *select, uint arch,
+ 		 * Firstly check if this android boot image has dtb field.
+ 		 */
+ 		dtb_idx = (u32)env_get_ulong("adtb_idx", 10, 0);
+-		if (android_image_get_dtb_by_index((ulong)hdr, 0,
++		if (android_image_get_dtb_by_index((ulong)hdr, get_avendor_bootimg_addr(),
+ 						   dtb_idx, &fdt_addr, &fdt_size)) {
+ 			fdt_blob = (char *)map_sysmem(fdt_addr, 0);
+ 			if (fdt_check_header(fdt_blob))
+-- 
+2.47.0
+

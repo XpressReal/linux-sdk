@@ -1,0 +1,212 @@
+From abadcda24b100b8eb0f138085cca6595518cec85 Mon Sep 17 00:00:00 2001
+From: Julien Masson <jmasson@baylibre.com>
+Date: Thu, 21 Nov 2024 11:59:55 +0100
+Subject: [PATCH 12/25] bootstd: android: don't read whole partition sizes
+
+The current implementation is reading the whole partition for boot and
+vendor_boot image which can be long following the size of the
+partition or the time to read blocks (driver/SoC specific).
+
+For example with mediatek mt8365 EVK board, we have a 64MiB boot
+partition and the boot image flashed in this partition is only 42MiB.
+It takes ~8-9 secs to read the boot partition.
+
+Instead we can retrieved the boot image and vendor boot image size
+with these new functions:
+- android_image_get_bootimg_size
+- android_image_get_vendor_bootimg_size
+Use these information and read only the necessary.
+
+By doing this with mt8365 EVK board, we read boot image in ~5 secs.
+
+Signed-off-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Link: https://lore.kernel.org/r/20241121-bootmeth-android-part-sizes-v1-1-25760bbd0f08@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/bootmeth_android.c | 28 ++++++++++++++++++++-----
+ boot/image-android.c    | 45 +++++++++++++++++++++++++++++++++++++++++
+ include/image.h         | 24 ++++++++++++++++++++++
+ 3 files changed, 92 insertions(+), 5 deletions(-)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index 2aac32331d3..3a5144aaa3b 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -45,6 +45,8 @@ struct android_priv {
+ 	enum android_boot_mode boot_mode;
+ 	char *slot;
+ 	u32 header_version;
++	u32 boot_img_size;
++	u32 vendor_boot_img_size;
+ };
+ 
+ static int android_check(struct udevice *dev, struct bootflow_iter *iter)
+@@ -98,7 +100,13 @@ static int scan_boot_part(struct udevice *blk, struct android_priv *priv)
+ 		return log_msg_ret("header", -ENOENT);
+ 	}
+ 
++	if (!android_image_get_bootimg_size(buf, &priv->boot_img_size)) {
++		free(buf);
++		return log_msg_ret("get bootimg size", -EINVAL);
++	}
++
+ 	priv->header_version = ((struct andr_boot_img_hdr_v0 *)buf)->header_version;
++
+ 	free(buf);
+ 
+ 	return 0;
+@@ -138,6 +146,12 @@ static int scan_vendor_boot_part(struct udevice *blk, struct android_priv *priv)
+ 		free(buf);
+ 		return log_msg_ret("header", -ENOENT);
+ 	}
++
++	if (!android_image_get_vendor_bootimg_size(buf, &priv->vendor_boot_img_size)) {
++		free(buf);
++		return log_msg_ret("get vendor bootimg size", -EINVAL);
++	}
++
+ 	free(buf);
+ 
+ 	return 0;
+@@ -330,15 +344,17 @@ static int android_read_file(struct udevice *dev, struct bootflow *bflow,
+  * @blk: Block device to read
+  * @name: Partition name to read
+  * @slot: Nul-terminated slot suffixed to partition name ("a\0" or "b\0")
++ * @image_size: Image size in bytes used when reading the partition
+  * @addr: Address where the partition content is loaded into
+  * Return: 0 if OK, negative errno on failure.
+  */
+ static int read_slotted_partition(struct blk_desc *desc, const char *const name,
+-				  const char slot[2], ulong addr)
++				  const char slot[2], ulong image_size, ulong addr)
+ {
+ 	struct disk_partition partition;
+ 	char partname[PART_NAME_LEN];
+ 	size_t partname_len;
++	ulong num_blks = DIV_ROUND_UP(image_size, desc->blksz);
+ 	int ret;
+ 	u32 n;
+ 
+@@ -364,8 +380,8 @@ static int read_slotted_partition(struct blk_desc *desc, const char *const name,
+ 	if (ret < 0)
+ 		return log_msg_ret("part", ret);
+ 
+-	n = blk_dread(desc, partition.start, partition.size, map_sysmem(addr, 0));
+-	if (n < partition.size)
++	n = blk_dread(desc, partition.start, num_blks, map_sysmem(addr, 0));
++	if (n < num_blks)
+ 		return log_msg_ret("part read", -EIO);
+ 
+ 	return 0;
+@@ -498,12 +514,14 @@ static int boot_android_normal(struct bootflow *bflow)
+ 	if (ret < 0)
+ 		return log_msg_ret("read slot", ret);
+ 
+-	ret = read_slotted_partition(desc, "boot", priv->slot, loadaddr);
++	ret = read_slotted_partition(desc, "boot", priv->slot, priv->boot_img_size,
++				     loadaddr);
+ 	if (ret < 0)
+ 		return log_msg_ret("read boot", ret);
+ 
+ 	if (priv->header_version >= 3) {
+-		ret = read_slotted_partition(desc, "vendor_boot", priv->slot, vloadaddr);
++		ret = read_slotted_partition(desc, "vendor_boot", priv->slot,
++					     priv->vendor_boot_img_size, vloadaddr);
+ 		if (ret < 0)
+ 			return log_msg_ret("read vendor_boot", ret);
+ 		set_avendor_bootimg_addr(vloadaddr);
+diff --git a/boot/image-android.c b/boot/image-android.c
+index cd01278f211..93b54bf8d79 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -178,6 +178,51 @@ static void android_boot_image_v0_v1_v2_parse_hdr(const struct andr_boot_img_hdr
+ 	data->boot_img_total_size = end - (ulong)hdr;
+ }
+ 
++bool android_image_get_bootimg_size(const void *hdr, u32 *boot_img_size)
++{
++	struct andr_image_data data;
++
++	if (!hdr || !boot_img_size) {
++		printf("hdr or boot_img_size can't be NULL\n");
++		return false;
++	}
++
++	if (!is_android_boot_image_header(hdr)) {
++		printf("Incorrect boot image header\n");
++		return false;
++	}
++
++	if (((struct andr_boot_img_hdr_v0 *)hdr)->header_version <= 2)
++		android_boot_image_v0_v1_v2_parse_hdr(hdr, &data);
++	else
++		android_boot_image_v3_v4_parse_hdr(hdr, &data);
++
++	*boot_img_size = data.boot_img_total_size;
++
++	return true;
++}
++
++bool android_image_get_vendor_bootimg_size(const void *hdr, u32 *vendor_boot_img_size)
++{
++	struct andr_image_data data;
++
++	if (!hdr || !vendor_boot_img_size) {
++		printf("hdr or vendor_boot_img_size can't be NULL\n");
++		return false;
++	}
++
++	if (!is_android_vendor_boot_image_header(hdr)) {
++		printf("Incorrect vendor boot image header\n");
++		return false;
++	}
++
++	android_vendor_boot_image_v3_v4_parse_hdr(hdr, &data);
++
++	*vendor_boot_img_size = data.vendor_boot_img_total_size;
++
++	return true;
++}
++
+ bool android_image_get_data(const void *boot_hdr, const void *vendor_boot_hdr,
+ 			    struct andr_image_data *data)
+ {
+diff --git a/include/image.h b/include/image.h
+index c52fced9b40..9be5acd8158 100644
+--- a/include/image.h
++++ b/include/image.h
+@@ -1801,6 +1801,30 @@ int fit_image_cipher_get_algo(const void *fit, int noffset, char **algo);
+ struct cipher_algo *image_get_cipher_algo(const char *full_name);
+ struct andr_image_data;
+ 
++/**
++ * android_image_get_bootimg_size() - Extract size of Android boot image
++ *
++ * This is used to extract the size of an Android boot image
++ * from boot image header.
++ *
++ * @hdr: Pointer to boot image header
++ * @boot_img_size: On exit returns the size in bytes of the boot image
++ * Return: true if succeeded, false otherwise
++ */
++bool android_image_get_bootimg_size(const void *hdr, u32 *boot_img_size);
++
++/**
++ * android_image_get_vendor_bootimg_size() - Extract size of Android vendor-boot image
++ *
++ * This is used to extract the size of an Android vendor-boot image
++ * from vendor-boot image header.
++ *
++ * @hdr: Pointer to vendor-boot image header
++ * @vendor_boot_img_size: On exit returns the size in bytes of the vendor-boot image
++ * Return: true if succeeded, false otherwise
++ */
++bool android_image_get_vendor_bootimg_size(const void *hdr, u32 *vendor_boot_img_size);
++
+ /**
+  * android_image_get_data() - Parse Android boot images
+  *
+-- 
+2.47.0
+

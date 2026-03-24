@@ -264,8 +264,10 @@ int rtd13xxd_vpu_alloc_dma_buffer(vpudrv_buffer_t *vb)
 
 	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 #else
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
 	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	if ((void *)(vb->base) == NULL) {
@@ -293,8 +295,10 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
 
 	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
 #else
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
 				to_heapflag(vb->mem_type), __func__);
+#endif
 
 	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
 	if ((void *)(vb->base) == NULL) {
@@ -1353,7 +1357,9 @@ static int vpu_probe(struct platform_device *pdev)
 	s_vpu_dev.this_device->coherent_dma_mask = DMA_BIT_MASK(32);
 	s_vpu_dev.this_device->dma_mask = (u64 *)&s_vpu_dev.this_device
 						->coherent_dma_mask;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(s_vpu_dev.this_device, &rheap_dma_ops);
+#endif
 
 	p_vpu_dev = &pdev->dev;
 

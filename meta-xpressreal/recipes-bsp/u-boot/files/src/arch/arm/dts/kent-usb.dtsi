@@ -57,7 +57,7 @@
 		status = "disabled";
 
 		usb0_dwc3: dwc3@20000 {
-			compatible = "snps,dwc3";
+			compatible = "snps,dwc3", "realtek,usb3dwc3";
 			reg = <0x20000 0xd000>;
 			interrupts = <0 95 4>;
 			usb-phy = <&usb0_u2phy &usb0_u3phy>;

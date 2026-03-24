@@ -1,21 +1,29 @@
-From 61fb955b92b9931c278e63604bfc104f33c0c96e Mon Sep 17 00:00:00 2001
+From 91279aa9a8d5d5e8de26a364cfd10df97e13a59e Mon Sep 17 00:00:00 2001
 From: "ray.tang" <ray.tang@realtek.com>
-Date: Mon, 16 Sep 2024 16:23:01 +0800
+Date: Thu, 8 Jan 2026 18:04:24 +0800
 Subject: [PATCH] support-raspberrypi-touchscreen
 
 ---
- .../drm/panel/panel-raspberrypi-touchscreen.c |  65 +++--
+ .../drm/panel/panel-raspberrypi-touchscreen.c |  72 ++++--
  drivers/input/touchscreen/Kconfig             |  12 +
  drivers/input/touchscreen/Makefile            |   1 +
  drivers/input/touchscreen/dfr0550-ts.c        | 224 ++++++++++++++++++
- 4 files changed, 276 insertions(+), 26 deletions(-)
+ 4 files changed, 284 insertions(+), 25 deletions(-)
  create mode 100644 drivers/input/touchscreen/dfr0550-ts.c
 
 diff --git a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
-index 4618c892cdd6..bda974a36d07 100644
+index 4618c892cdd6..324381ee48c8 100644
 --- a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
 +++ b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
-@@ -216,10 +216,10 @@ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
+@@ -192,6 +192,7 @@ struct rpi_touchscreen {
+ 	struct drm_panel base;
+ 	struct mipi_dsi_device *dsi;
+ 	struct i2c_client *i2c;
++	enum drm_panel_orientation orientation;
+ };
+ 
+ static const struct drm_display_mode rpi_touchscreen_modes[] = {
+@@ -216,10 +217,10 @@ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
  	return container_of(panel, struct rpi_touchscreen, base);
  }
  
@@ -30,11 +38,12 @@ index 4618c892cdd6..bda974a36d07 100644
  
  static void rpi_touchscreen_i2c_write(struct rpi_touchscreen *ts,
  				      u8 reg, u8 val)
-@@ -267,14 +267,18 @@ static int rpi_touchscreen_noop(struct drm_panel *panel)
+@@ -267,14 +268,17 @@ static int rpi_touchscreen_noop(struct drm_panel *panel)
  static int rpi_touchscreen_prepare(struct drm_panel *panel)
  {
  	struct rpi_touchscreen *ts = panel_to_ts(panel);
 -	int i;
++	//int i;
  
  	rpi_touchscreen_i2c_write(ts, REG_POWERON, 1);
  	/* Wait for nPWRDWN to go low to indicate poweron is done. */
@@ -43,10 +52,8 @@ index 4618c892cdd6..bda974a36d07 100644
 -			break;
 -	}
 +	// for (i = 0; i < 100; i++) {
-+	// 	if (rpi_touchscreen_i2c_read(ts, REG_PORTB) & 1) {
-+	// 		printk(KERN_ALERT"[fn_name]:[\x1b[31m%s\033[0m], [line]: \x1b[33m%d\033[0m\n", __func__, __LINE__);
++	// 	if (rpi_touchscreen_i2c_read(ts, REG_PORTB) & 1)
 +	// 		break;
-+	// 	}
 +	// }
 +
 +	msleep(100);
@@ -79,15 +86,25 @@ index 4618c892cdd6..bda974a36d07 100644
  
  	return 0;
  }
-@@ -338,7 +350,6 @@ static int rpi_touchscreen_get_modes(struct drm_panel *panel,
- 			mode->type |= DRM_MODE_TYPE_PREFERRED;
+@@ -317,6 +329,7 @@ static int rpi_touchscreen_enable(struct drm_panel *panel)
+ static int rpi_touchscreen_get_modes(struct drm_panel *panel,
+ 				     struct drm_connector *connector)
+ {
++	struct rpi_touchscreen *ts = panel_to_ts(panel);
+ 	unsigned int i, num = 0;
+ 	static const u32 bus_format = MEDIA_BUS_FMT_RGB888_1X24;
  
- 		drm_mode_set_name(mode);
--
- 		drm_mode_probed_add(connector, mode);
- 		num++;
- 	}
-@@ -366,7 +377,7 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
+@@ -349,6 +362,9 @@ static int rpi_touchscreen_get_modes(struct drm_panel *panel,
+ 	drm_display_info_set_bus_formats(&connector->display_info,
+ 					 &bus_format, 1);
+ 
++	dev_info(panel->dev, "ts orientation = %d\n", ts->orientation);
++	connector->display_info.panel_orientation = ts->orientation;
++
+ 	return num;
+ }
+ 
+@@ -366,12 +382,13 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
  	struct rpi_touchscreen *ts;
  	struct device_node *endpoint, *dsi_host_node;
  	struct mipi_dsi_host *host;
@@ -96,7 +113,13 @@ index 4618c892cdd6..bda974a36d07 100644
  	struct mipi_dsi_device_info info = {
  		.type = RPI_DSI_DRIVER_NAME,
  		.channel = 0,
-@@ -381,20 +392,22 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
+ 		.node = NULL,
+ 	};
++	int err;
+ 
+ 	ts = devm_kzalloc(dev, sizeof(*ts), GFP_KERNEL);
+ 	if (!ts)
+@@ -381,20 +398,20 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
  
  	ts->i2c = i2c;
  
@@ -115,8 +138,6 @@ index 4618c892cdd6..bda974a36d07 100644
 -		return -ENODEV;
 -	}
 +	// ver = rpi_touchscreen_i2c_read(ts, REG_ID);
-+	// printk(KERN_ALERT"ver = %d\n", ver);
-+
 +	// if (ver < 0) {
 +	// 	dev_err(dev, "Atmel I2C read failed: %d\n", ver);
 +	// 	return -ENODEV;
@@ -133,6 +154,18 @@ index 4618c892cdd6..bda974a36d07 100644
  
  	/* Turn off at boot, so we can cleanly sequence powering on. */
  	rpi_touchscreen_i2c_write(ts, REG_POWERON, 0);
+@@ -428,6 +445,11 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
+ 		return PTR_ERR(ts->dsi);
+ 	}
+ 
++	err = of_drm_get_panel_orientation(dev->of_node, &ts->orientation);
++	if (err) {
++		dev_err(dev, "%pOF: failed to get orientation %d\n", dev->of_node, err);
++	}
++
+ 	drm_panel_init(&ts->base, dev, &rpi_touchscreen_funcs,
+ 		       DRM_MODE_CONNECTOR_DSI);
+ 
 diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
 index e3e2324547b9..74f6a308d5cd 100644
 --- a/drivers/input/touchscreen/Kconfig
@@ -399,5 +432,5 @@ index 000000000000..30ae8005c120
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("DFR0550 touchscreen kernel module");
 -- 
-2.46.0
+2.34.1
 

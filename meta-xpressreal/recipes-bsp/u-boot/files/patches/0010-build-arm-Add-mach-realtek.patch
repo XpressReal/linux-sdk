@@ -75,7 +75,7 @@ index 9d28a485be..e9327ce934 100644
 +
 +dtb-$(CONFIG_TARGET_RTD1625) += \
 +	cipher.dtbo \
-+	tee.dtbo \
++	rtd1501-tee.dtbo \
 +	rtd1501s-phantom.dtb
 +
  dtb-$(CONFIG_ARCH_MEDIATEK) += \

@@ -69,6 +69,7 @@ dtb-$(CONFIG_ARCH_REALTEK) += rtd1395-lionskin.dtb
 
 dtb-$(CONFIG_ARCH_REALTEK) += rtd1501-rescue.dtb
 dtb-$(CONFIG_ARCH_REALTEK) += rtd1501s-phantom-8gb.dtb
+dtb-$(CONFIG_ARCH_REALTEK) += rtd1501s-phantom-chromium-8gb.dtb
 
 dtb-$(CONFIG_ARCH_REALTEK) += rtd1619-mjolnir.dtb
 

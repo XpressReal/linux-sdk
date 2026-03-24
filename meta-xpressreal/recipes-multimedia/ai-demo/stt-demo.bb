@@ -6,8 +6,10 @@ inherit pkgconfig
 DEPENDS += "libnpu"
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
+SOC_NAME:hank= "1619b"
 SOC_NAME:stark = "1619b"
 SOC_NAME:kent = "kent"
+SOC_NAME:rtd16xx = "1619b"
 
 SRC_URI = " \
     file://stt/libquartznet.so \

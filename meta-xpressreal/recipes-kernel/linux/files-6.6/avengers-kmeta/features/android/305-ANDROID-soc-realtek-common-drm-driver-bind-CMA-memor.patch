@@ -1,0 +1,75 @@
+From 1cd77794d117cd54fabbdaecc35ec058272764b3 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Wed, 11 Mar 2026 14:08:29 +0800
+Subject: [PATCH 2/2] ANDROID: soc: realtek: common: drm driver bind CMA
+ memory-region to limit the range of address
+
+jira: CHROME-113, SW-7823
+
+Chromium/AIOT don't need Secure Media Path
+No need to use RTK media/dma heap driver.
+
+Calling dma_alloc_coherent() could use system default CMA directly.
+The range of address could be limited by CMA reserved memory.
+
+However, Linux upstream will use alloc_page instead of cma_alloc if your
+requesting size is less than or equal 4K
+
+dma_alloc_contiguous()
+{
+...
+        if (dev->cma_area)
+                return cma_alloc_aligned(dev->cma_area, size, gfp);
+        if (size <= PAGE_SIZE)
+                return NULL;
+...
+        return cma_alloc_aligned(dma_contiguous_default_area, size, gfp);
+}
+
+alloc_page can't limit address and causes unlimited address returned.
+RTK a/v/hifi fw can use limit address range, it causes fw misbehavior then.
+
+Use dts and of_reserved_mem_device_init() to binding CMA. Our device has cma_area member.
+So could go into the first condition cma_alloc_aligned() even size is less than or equal 4K.
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
+index 8830483072d54..005e26ee5b706 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
+@@ -7,12 +7,14 @@ display_subsystem: display-subsystem {
+ 		hwlocks = <&sb2_lock5 1>;
+ 		krpc-vo-opt = <0>, <3>;
+ 		realtek,krpc-agent = <&acpu_kernel_agent>, <&hifi_kernel_agent>;
++		memory-region = <&cma_reserved_0>;
+ 		status = "disabled";
+ 	};
+ 
+ 	vo: vo {
+ 		compatible = "realtek,rtd-crtc-main";
+ 		interrupts = <0 33 4>, <0 104 4>;
++		memory-region = <&cma_reserved_0>;
+ 		vo_out: port {
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+@@ -45,6 +47,7 @@ hdmi: hdmi {
+ 		rxsense-mode = <1>;
+ 		hdcp = <2>;
+ 		realtek,krpc-agent = <&acpu_kernel_agent>;
++		memory-region = <&cma_reserved_0>;
+ 		hdmi_in: port {
+ 			hdmi_vo: endpoint {
+ 				remote-endpoint = <&vo_hdmi>;
+@@ -55,6 +58,7 @@ hdmi_vo: endpoint {
+ 	cvbs: cvbs@9804D140 {
+ 		compatible = "realtek,rtk-cvbs";
+ 		reg = <0x9804D140 0x18>;
++		memory-region = <&cma_reserved_0>;
+ 		status = "disabled";
+ 		cvbs_in: port {
+ 			cvbs_vo: endpoint {
+-- 
+2.43.0
+

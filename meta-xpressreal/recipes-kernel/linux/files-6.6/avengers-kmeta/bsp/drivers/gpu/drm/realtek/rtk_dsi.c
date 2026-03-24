@@ -2,7 +2,7 @@
 
 #include <drm/drm_of.h>
 #include <drm/drm_print.h>
-
+#include <linux/of_address.h>
 #include <linux/component.h>
 #include <linux/platform_device.h>
 #include <linux/of_device.h>
@@ -14,12 +14,14 @@
 #include <linux/regmap.h>
 #include <linux/pwm.h>
 #include <linux/module.h>
+#include <linux/kthread.h>
 #include <video/mipi_display.h>
 
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_modes.h>
-
+#include <drm/drm_debugfs.h>
+#include <drm/drm_file.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_probe_helper.h>
@@ -39,7 +41,10 @@ struct rtk_dsi;
 #define to_rtk_dsi(x) container_of(x, struct rtk_dsi, x)
 
 struct rtk_dsi_data {
+	unsigned int reg;
+	unsigned int id;
 	unsigned int type;
+	enum rtk_display_interface display_interface;
 	int (*enable)(struct drm_encoder *encoder);
 	int (*disable)(struct drm_encoder *encoder);
 	int (*query_timings)(struct device_node *np, struct rtk_dsi *dsi);
@@ -61,13 +66,107 @@ struct rtk_dsi {
 	struct rtk_rpc_info *rpc_info;
 	enum dsi_fmt fmt;
 	struct mipi_dsi_device *device;
-	unsigned int swap_enable;
 	unsigned int lk_initialized;
 	unsigned int mixer;
 
 	const struct rtk_dsi_data *dsi_data;
 	enum display_panel_usage display_panel_usage;
+
+	struct task_struct *hpd_thread;
+	bool force_hpd;
+	bool connected;
+	struct mutex lock;
+
+	struct drm_info_list *debugfs_files;
+	int num_data_lanes;
 };
+
+#if defined(CONFIG_DEBUG_FS)
+
+#define DEBUGFS_REG32(_name) { .name = #_name, .offset = _name }
+
+static const struct debugfs_reg32 rtk_dsi_regs[] = {
+	DEBUGFS_REG32(CTRL_REG),
+	DEBUGFS_REG32(TC0),
+	DEBUGFS_REG32(TC1),
+	DEBUGFS_REG32(TC2),
+	DEBUGFS_REG32(TC3),
+	DEBUGFS_REG32(TC4),
+	DEBUGFS_REG32(TC5),
+	DEBUGFS_REG32(CLOCK_GEN),
+	DEBUGFS_REG32(TX_DATA0),
+	DEBUGFS_REG32(TX_DATA1),
+	DEBUGFS_REG32(TX_DATA2),
+	DEBUGFS_REG32(TX_DATA3),
+	DEBUGFS_REG32(SSC0),
+	DEBUGFS_REG32(SSC1),
+	DEBUGFS_REG32(SSC2),
+	DEBUGFS_REG32(SSC3),
+	DEBUGFS_REG32(TX_SWAP),
+	DEBUGFS_REG32(RX_SWAP),
+	DEBUGFS_REG32(MPLL),
+	DEBUGFS_REG32(LF),
+	DEBUGFS_REG32(TXF),
+	DEBUGFS_REG32(DF),
+};
+
+static int rtk_dsi_show_regs(struct seq_file *s, void *data)
+{
+	struct drm_info_node *node = s->private;
+	struct rtk_dsi *dsi = node->info_ent->data;
+	struct drm_encoder *encoder = &dsi->encoder;
+	struct drm_crtc *crtc = encoder->crtc;
+	struct drm_device *drm = node->minor->dev;
+	unsigned int i, val;
+	int err = 0;
+
+	drm_modeset_lock_all(drm);
+
+	if (!crtc || !crtc->state->active) {
+		dev_err(dsi->dev, "No crtc or not activated\n");
+		err = -EBUSY;
+		goto unlock;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(rtk_dsi_regs); i++) {
+		unsigned int offset = rtk_dsi_regs[i].offset;
+
+		regmap_read(dsi->reg, offset, &val);
+		dev_info(dsi->dev, "%-32s %#05x %08x\n",
+			rtk_dsi_regs[i].name, offset, val);
+	}
+
+unlock:
+	drm_modeset_unlock_all(drm);
+	return err;
+}
+
+static struct drm_info_list debugfs_files[] = {
+	{ "regs", rtk_dsi_show_regs, 0, NULL },
+};
+
+static int rtk_dsi_late_register(struct drm_connector *connector)
+{
+	struct rtk_dsi *dsi = to_rtk_dsi(connector);
+	unsigned int i, count = ARRAY_SIZE(debugfs_files);
+	struct drm_minor *minor = connector->dev->primary;
+	struct dentry *root = connector->debugfs_entry;
+
+	dev_info(dsi->dev, "rtk_dsi: late register\n");
+
+	dsi->debugfs_files = kmemdup(debugfs_files, sizeof(debugfs_files),
+				     GFP_KERNEL);
+	if (!dsi->debugfs_files)
+		return -ENOMEM;
+
+	for (i = 0; i < count; i++)
+		dsi->debugfs_files[i].data = dsi;
+
+	drm_debugfs_create_files(dsi->debugfs_files, count, root, minor);
+
+	return 0;
+}
+#endif /* CONFIG_DEBUG_FS */
 
 static struct regmap *dsi_reg;
 
@@ -226,7 +325,7 @@ static void rtk_dsi_setup_dphy(struct rtk_dsi *dsi,	unsigned int speed,
 	reg_clk_zero_time = (300 << FIXED_SHIFT) * 1 / time_period + 1;
 
 	// TX_DATA2[15:8] = if time_period > 40 -> INT(95 / time_period) - 1
-	// 					if time_period <= 40 -> INT( 38 / time_period) + 1)
+	//					if time_period <= 40 -> INT( 38 / time_period) + 1)
 	reg_clk_prpr_time = ((time_period >> FIXED_SHIFT) > 40) ?
 					(95 << FIXED_SHIFT) * 1 / time_period - 1 :
 					(38 << FIXED_SHIFT) * 1 / time_period + 1;
@@ -292,20 +391,20 @@ static void rtk_dsi_setup_timings(struct rtk_dsi *dsi, struct drm_display_mode *
 
 	if (device->format == MIPI_DSI_FMT_RGB888)
 		regmap_write(dsi->reg, TC0,
-			(mode->htotal - mode->hsync_end) << 16 | mode->hdisplay * 3);
+			(mode->hsync_end - mode->hsync_start) << 16 | mode->hdisplay * 3);
 	else if (device->format == MIPI_DSI_FMT_RGB565)
 		regmap_write(dsi->reg, TC0,
-			(mode->htotal - mode->hsync_end) << 16 | mode->hdisplay * 2);
+			(mode->hsync_end - mode->hsync_start) << 16 | mode->hdisplay * 2);
 	else if (device->format == MIPI_DSI_FMT_RGB666)
 		regmap_write(dsi->reg, TC0,
-			(mode->htotal - mode->hsync_end) << 16 | mode->hdisplay * 225 / 100);
+			(mode->hsync_end - mode->hsync_start) << 16 | mode->hdisplay * 225 / 100);
 
 	regmap_write(dsi->reg, TC2,
-		(mode->vtotal - mode->vsync_end) << 16 | mode->vdisplay);
+		(mode->vsync_end - mode->vsync_start) << 16 | mode->vdisplay);
 	regmap_write(dsi->reg, TC1,
-		(mode->hsync_end - mode->hsync_start) << 16 | (mode->hsync_start - mode->hdisplay));
+		(mode->htotal - mode->hsync_end) << 16 | (mode->hsync_start - mode->hdisplay));
 	regmap_write(dsi->reg, TC3,
-		(mode->vsync_end - mode->vsync_start) << 16 | (mode->vsync_start - mode->vdisplay));
+		(mode->vtotal - mode->vsync_end) << 16 | (mode->vsync_start - mode->vdisplay));
 }
 
 static void rtk_dsi_init(struct rtk_dsi *dsi, struct drm_display_mode *mode)
@@ -318,6 +417,7 @@ static void rtk_dsi_init(struct rtk_dsi *dsi, struct drm_display_mode *mode)
 	unsigned int pll;
 	unsigned int line_time;
 	unsigned int time_period;
+	int bpp = mipi_dsi_pixel_format_to_bpp(device->format);
 
 	if (!strcmp(device->name, "rpi-ts-dsi")) {
 		dev_info(dsi->dev, "Init raspberry pi 7 inch touch panel\n");
@@ -326,7 +426,7 @@ static void rtk_dsi_init(struct rtk_dsi *dsi, struct drm_display_mode *mode)
 	}
 
 	frame_rate = drm_mode_vrefresh(mode);
-	data_rate = mode->htotal * mode->vtotal * frame_rate * 24 / TOTAL_LANE_NUM;
+	data_rate = mode->htotal * mode->vtotal * frame_rate * bpp / dsi->num_data_lanes;
 	speed = DIV_ROUND_UP(data_rate, MHZ(27))  * XTAL_FREQ;
 	div_num = (speed < 200) ? 4 : ((speed > 400) ? 1 : 2);
 	pll = speed * div_num;
@@ -334,12 +434,14 @@ static void rtk_dsi_init(struct rtk_dsi *dsi, struct drm_display_mode *mode)
 	/* 1000 / (speed / 8); */
 	time_period = (1000 << FIXED_SHIFT) * 8 / speed;
 
-	DRM_DEBUG_DRIVER("data_rate   = %d\n", data_rate);
-	DRM_DEBUG_DRIVER("speed       = %d\n", speed);
-	DRM_DEBUG_DRIVER("div_num     = %d\n", div_num);
-	DRM_DEBUG_DRIVER("pll         = %d\n", pll);
-	DRM_DEBUG_DRIVER("line_time   = %d\n", line_time);
-	DRM_DEBUG_DRIVER("time_period = %d\n", time_period);
+	DRM_DEBUG_DRIVER("bpp            = %d\n", bpp);
+	DRM_DEBUG_DRIVER("num_data_lanes = %d\n", dsi->num_data_lanes);
+	DRM_DEBUG_DRIVER("data_rate      = %d\n", data_rate);
+	DRM_DEBUG_DRIVER("speed          = %d\n", speed);
+	DRM_DEBUG_DRIVER("div_num        = %d\n", div_num);
+	DRM_DEBUG_DRIVER("pll            = %d\n", pll);
+	DRM_DEBUG_DRIVER("line_time      = %d\n", line_time);
+	DRM_DEBUG_DRIVER("time_period    = %d\n", time_period);
 
 	rtk_dsi_setup_dphy(dsi, speed, div_num, pll, time_period);
 	rtk_dsi_setup_timings(dsi, mode, line_time);
@@ -347,8 +449,6 @@ static void rtk_dsi_init(struct rtk_dsi *dsi, struct drm_display_mode *mode)
 
 	regmap_write(dsi->reg, WATCHDOG, 0x161a);
 	regmap_write(dsi->reg, CLK_CONTINUE, 0x80);
-
-	return;
 }
 
 static int rtk_dsi_enable(struct drm_encoder *encoder)
@@ -356,9 +456,23 @@ static int rtk_dsi_enable(struct drm_encoder *encoder)
 	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct rtk_dsi *dsi = to_rtk_dsi(encoder);
 	struct rtk_rpc_info *rpc_info = dsi->rpc_info;
+	struct drm_connector *connector = &dsi->connector;
 	struct mipi_dsi_device *device = dsi->device;
 	struct rpc_set_display_out_interface interface;
 	int ret;
+
+	if (dsi->lk_initialized) {
+		dev_info(dsi->dev, "dsi already enabled\n");
+		dsi->lk_initialized = 0;
+		return 0;
+	}
+
+	if (connector->display_info.panel_orientation !=
+		DRM_MODE_PANEL_ORIENTATION_NORMAL) {
+		dev_info(dsi->dev, "%s panel_orientation = %d\n",
+			__func__, connector->display_info.panel_orientation);
+		mode = &dsi->disp_mode;
+	}
 
 	ret = clk_prepare_enable(dsi->clk);
 	if (ret)
@@ -386,14 +500,14 @@ static int rtk_dsi_enable(struct drm_encoder *encoder)
 
 	regmap_write(dsi->reg, PAT_GEN, 0x9000000);
 
-	interface.display_interface       = DISPLAY_INTERFACE_MIPI;
+	interface.display_interface       = dsi->dsi_data->display_interface;
 	interface.width                   = mode->hdisplay;
 	interface.height                  = mode->vdisplay;
 	interface.frame_rate              = drm_mode_vrefresh(mode);
 	interface.display_interface_mixer = DISPLAY_INTERFACE_MIXER2;
 
 	dev_info(dsi->dev, "enable %s %dx%d@%d on %s\n",
-		interface_names[DISPLAY_INTERFACE_MIPI],
+		interface_names[interface.display_interface],
 		mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode),
 		mixer_names[DISPLAY_INTERFACE_MIXER2]);
 
@@ -414,11 +528,11 @@ static int rtk_car_dsi_enable(struct drm_encoder *encoder)
 	struct rpc_hw_init_display_out_interface hw_init_rpc;
 	int ret;
 
-	hw_init_rpc.display_interface = DISPLAY_INTERFACE_MIPI;
+	hw_init_rpc.display_interface = dsi->dsi_data->display_interface;
 	hw_init_rpc.enable = 1;
 
 	dev_info(dsi->dev, "enable interface %s\n",
-		interface_names[DISPLAY_INTERFACE_MIPI]);
+		interface_names[hw_init_rpc.display_interface]);
 
 	ret = rpc_hw_init_out_interface(rpc_info, &hw_init_rpc);
 	if (ret)
@@ -432,10 +546,18 @@ static int rtk_dsi_disable(struct drm_encoder *encoder)
 	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct rtk_dsi *dsi = to_rtk_dsi(encoder);
 	struct rtk_rpc_info *rpc_info = dsi->rpc_info;
+	struct drm_connector *connector = &dsi->connector;
 	struct rpc_set_display_out_interface interface;
 	int ret;
 
-	interface.display_interface       = DISPLAY_INTERFACE_MIPI;
+	if (connector->display_info.panel_orientation !=
+		DRM_MODE_PANEL_ORIENTATION_NORMAL) {
+		dev_info(dsi->dev, "%s panel_orientation = %d\n",
+			__func__, connector->display_info.panel_orientation);
+		mode = &dsi->disp_mode;
+	}
+
+	interface.display_interface       = dsi->dsi_data->display_interface;
 	interface.width                   = mode->hdisplay;
 	interface.height                  = mode->vdisplay;
 	interface.frame_rate              = drm_mode_vrefresh(mode);
@@ -464,6 +586,30 @@ static int rtk_dsi_disable(struct drm_encoder *encoder)
 	return 0;
 }
 
+static int rtk_dsi_query_timings(struct device_node *np, struct rtk_dsi *dsi)
+{
+	struct drm_display_mode *mode;
+	struct device_node *timings_np;
+	int ret = 0;
+
+	timings_np = of_get_child_by_name(np, "display-timings");
+	if (!timings_np) {
+		dev_warn(dsi->dev, "Please add display-timings node if needed(ex:rotation)\n");
+		return ret;
+	}
+
+	mode = &dsi->disp_mode;
+
+	ret = of_get_drm_display_mode(np, mode, NULL, OF_USE_NATIVE_MODE);
+	if (ret)
+		dev_warn(dsi->dev, "of_get_drm_display_mode failed\n");
+
+	dev_info(dsi->dev, "%s (%dx%d)@%d\n", __func__,
+		mode->hdisplay, mode->vdisplay,	drm_mode_vrefresh(mode));
+
+	return ret;
+}
+
 static int rtk_car_dsi_disable(struct drm_encoder *encoder)
 {
 	struct rtk_dsi *dsi = to_rtk_dsi(encoder);
@@ -471,11 +617,11 @@ static int rtk_car_dsi_disable(struct drm_encoder *encoder)
 	struct rpc_hw_init_display_out_interface hw_init_rpc;
 	int ret;
 
-	hw_init_rpc.display_interface = DISPLAY_INTERFACE_MIPI;
+	hw_init_rpc.display_interface = dsi->dsi_data->display_interface;
 	hw_init_rpc.enable = 0;
 
 	dev_info(dsi->dev, "disable interface %s\n",
-		interface_names[DISPLAY_INTERFACE_MIPI]);
+		interface_names[hw_init_rpc.display_interface]);
 
 	ret = rpc_hw_init_out_interface(rpc_info, &hw_init_rpc);
 	if (ret)
@@ -501,7 +647,7 @@ static int get_display_panel_usage_by_mixer(struct rtk_dsi *dsi)
 	dsi->display_panel_usage = panel_usage.display_panel_usage;
 
 	dev_info(dsi->dev, "%s is for %d\n",
-		interface_names[DISPLAY_INTERFACE_MIPI], dsi->display_panel_usage);
+		interface_names[dsi->dsi_data->display_interface], dsi->display_panel_usage);
 
 	return 0;
 }
@@ -533,11 +679,15 @@ static int rtk_car_dsi_query_timings(struct device_node *np, struct rtk_dsi *dsi
 	struct rpc_query_display_out_interface_timing interface_timing;
 	int ret = 0;
 
-	interface_timing.display_interface = DISPLAY_INTERFACE_MIPI;
-
 	disp_mode = &dsi->disp_mode;
 
+	interface_timing.display_interface = dsi->dsi_data->display_interface;
+
+	dev_info(dsi->dev, "(%s) get_modes\n",
+		interface_names[dsi->dsi_data->display_interface]);
+
 	rpc_query_out_interface_timing(rpc_info, &interface_timing);
+
 	disp_mode->clock       = interface_timing.clock;
 	disp_mode->hdisplay    = interface_timing.hdisplay;
 	disp_mode->hsync_start = interface_timing.hsync_start;
@@ -703,11 +853,20 @@ static enum drm_connector_status rtk_dsi_conn_detect(
 	struct rtk_dsi *dsi = to_rtk_dsi(connector);
 	enum drm_connector_status status = connector_status_disconnected;
 
-	if (dsi->dsi_data->type == RTK_AUTOMOTIVE_TYPE)
-		return connector_status_connected;
+	if (dsi->force_hpd) {
+		mutex_lock(&dsi->lock);
+		if (dsi->connected) {
+			dev_dbg(dsi->dev, "rtk dsi connected\n");
+			status = connector_status_connected;
+		}
+		mutex_unlock(&dsi->lock);
+	} else {
+		if (dsi->dsi_data->type == RTK_AUTOMOTIVE_TYPE)
+			return connector_status_connected;
 
-	if (dsi->panel)
-		status = connector_status_connected;
+		if (dsi->panel)
+			status = connector_status_connected;
+	}
 
 	return status;
 }
@@ -758,12 +917,123 @@ static const struct drm_connector_funcs rtk_dsi_connector_funcs = {
 	.reset                  = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state   = drm_atomic_helper_connector_destroy_state,
+#if defined(CONFIG_DEBUG_FS)
+	.late_register          = rtk_dsi_late_register,
+#endif
 };
 
 static struct drm_connector_helper_funcs rtk_dsi_connector_helper_funcs = {
 	.get_modes  = rtk_dsi_conn_get_modes,
 	.mode_valid = rtk_dsi_conn_mode_valid,
 };
+
+static int rtk_dsi_get_hpd_status(struct rtk_dsi *dsi)
+{
+	unsigned int val, offset;
+	bool connected = false;
+
+	val = readl(ioremap(DUMMY_SERDES_HPD, 0x1));
+	offset = dsi->dsi_data->id + SERDES_HPD_DSI_OFFSET;
+
+	DRM_DEBUG_DRIVER("dsi%d hpd val = 0x%x\n", dsi->dsi_data->id, val);
+
+	if (val & (1 << offset))
+		connected = true;
+
+	return connected;
+}
+
+/* DSI detect hpd by dummy register for serdes IC */
+static void rtk_dsi_poll_hpd(struct rtk_dsi *dsi)
+{
+	struct drm_connector *connector = &dsi->connector;
+	enum drm_connector_status old_status;
+	int val = 0;
+
+	val = rtk_dsi_get_hpd_status(dsi);
+
+	mutex_lock(&dsi->lock);
+	dsi->connected = val;
+	old_status = connector->status;
+	mutex_unlock(&dsi->lock);
+
+	connector->status = connector->funcs->detect(connector, false);
+
+	DRM_DEBUG_DRIVER("old_status = %d, new_status = %d\n",
+						old_status, connector->status);
+
+	if (old_status != connector->status) {
+		dev_info(dsi->dev, "dsi status changed, send hotplug event\n");
+		drm_kms_helper_hotplug_event(dsi->drm_dev);
+	}
+}
+
+static int rtk_dsi_hpd_thread(void *data)
+{
+	struct rtk_dsi *dsi = (struct rtk_dsi *) data;
+
+	while (!kthread_should_stop()) {
+		rtk_dsi_poll_hpd(dsi);
+		msleep_interruptible(DSI_POLL_HPD_MS);
+	}
+
+	return 0;
+}
+
+static int rtk_dsi_start_hpd_thread(struct rtk_dsi *dsi)
+{
+	dev_info(dsi->dev, "dsi: start hpd thread\n");
+
+	dsi->hpd_thread = kthread_run(rtk_dsi_hpd_thread, dsi, "dsi_hpd_thread");
+	if (IS_ERR(dsi->hpd_thread)) {
+		dev_err(dsi->dev, "Failed to create dsi hpd thread\n");
+		dsi->hpd_thread = NULL;
+		return PTR_ERR(dsi->hpd_thread);
+	}
+
+	return 0;
+}
+
+static int rtk_dsi_stop_hpd_thread(struct rtk_dsi *dsi)
+{
+	dev_info(dsi->dev, "dsi: stop hpd thread\n");
+
+	if (dsi->hpd_thread) {
+		kthread_stop(dsi->hpd_thread);
+		dsi->hpd_thread = NULL;
+	}
+
+	dsi->connected = false;
+
+	return 0;
+}
+
+static int rtk_dsi_parse_lane_data(struct rtk_dsi *dsi,
+						struct device_node *np)
+{
+	struct device *dev = dsi->dev;
+	struct property *prop;
+	int len, num_lanes;
+
+	prop = of_find_property(np, "data-lanes", &len);
+	if (!prop) {
+		dev_err(dev, "failed to find data-lanes property, using default\n");
+		/* date lanes to 4 by default. */
+		dsi->num_data_lanes = 4;
+		return 0;
+	}
+
+	num_lanes = len / sizeof(u32);
+
+	if (num_lanes < 1 || num_lanes > 4) {
+		dev_err(dev, "wrong number of data lanes\n");
+		return -EINVAL;
+	}
+
+	dsi->num_data_lanes = num_lanes;
+
+	return 0;
+}
 
 static int rtk_dsi_bind(struct device *dev, struct device *master,
 				 void *data)
@@ -773,8 +1043,13 @@ static int rtk_dsi_bind(struct device *dev, struct device *master,
 	struct drm_connector *connector;
 	struct rtk_drm_private *priv = drm->dev_private;
 	struct rtk_dsi *dsi = dev_get_drvdata(dev);
+	char encoder_name[20];
 	int ret;
 	int err = 0;
+
+	dev_info(dev, "[rtk_dsi: bind] dsi%d\n", dsi->dsi_data->id);
+
+	snprintf(encoder_name, sizeof(encoder_name), "rtk_dsi%d", dsi->dsi_data->id);
 
 	dsi->clk = devm_clk_get(dev, "clk_en_dsi");
 	if (IS_ERR(dsi->clk)) {
@@ -804,6 +1079,10 @@ static int rtk_dsi_bind(struct device *dev, struct device *master,
 
 	of_property_read_u32(dev->of_node, "lk-init", &dsi->lk_initialized);
 
+	dsi->force_hpd = of_property_read_bool(dev->of_node, "force-hpd");
+
+	rtk_dsi_parse_lane_data(dsi, dev->of_node);
+
 	dsi->rpc_info = &priv->rpc_info[RTK_RPC_MAIN];
 	dev_info(dev, "dsi->rpc_info (%p)\n", dsi->rpc_info);
 
@@ -823,7 +1102,7 @@ static int rtk_dsi_bind(struct device *dev, struct device *master,
 	dev_info(dev, "dsi possible_crtcs (0x%x)\n", encoder->possible_crtcs);
 
 	drm_encoder_init(drm, encoder, &rtk_dsi_encoder_funcs,
-			 DRM_MODE_ENCODER_DSI, NULL);
+			 DRM_MODE_ENCODER_DSI, encoder_name);
 
 	drm_encoder_helper_add(encoder, &rtk_dsi_encoder_helper_funcs);
 
@@ -837,6 +1116,9 @@ static int rtk_dsi_bind(struct device *dev, struct device *master,
 	err = device_create_file(drm->dev, &dev_attr_enable_dsi_pattern_gen);
 	if (err < 0)
 		DRM_ERROR("failed to create dsi pattern gen\n");
+
+	if (dsi->force_hpd)
+		rtk_dsi_start_hpd_thread(dsi);
 
 	return 0;
 }
@@ -864,18 +1146,28 @@ static int rtk_dsi_host_attach(struct mipi_dsi_host *host,
 	struct device *dev = host->dev;
 	int ret;
 
-	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, 0, &panel, NULL);
-	if (ret) {
-		DRM_ERROR("Failed to find panel\n");
-		return ret;
+	if (!dsi->drm_dev || !dsi->drm_dev->registered) {
+		dev_err(dsi->host.dev, "Invalid drm_dev\n");
+		return -EPROBE_DEFER;
 	}
 
-	of_property_read_u32(dev->of_node, "swap", &dsi->swap_enable);
+	if (device->lanes > TOTAL_LANE_NUM) {
+		dev_err(dsi->host.dev, "Unsupport data lanes %d\n", device->lanes);
+		return -EINVAL;
+	}
+
+	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, 0, &panel, NULL);
+	if (ret) {
+		dev_err(dsi->host.dev, "Failed to find panel\n");
+		return ret;
+	}
 
 	dsi->panel = panel;
 	dsi->device = device;
 
-	dev_info(dev, "panel(%px)(%d lane) %s attached\n",
+	drm_kms_helper_hotplug_event(dsi->drm_dev);
+
+	dev_info(dev, "panel(%p)(%d lane) %s attached\n",
 		dsi->panel, device->lanes, device->name);
 
 	return ret;
@@ -914,6 +1206,7 @@ static ssize_t rtk_dsi_host_transfer(struct mipi_dsi_host *host,
 	switch (msg->type) {
 	case MIPI_DSI_DCS_SHORT_WRITE:
 	case MIPI_DSI_DCS_SHORT_WRITE_PARAM:
+	case MIPI_DSI_GENERIC_SHORT_WRITE_1_PARAM:
 	case MIPI_DSI_GENERIC_SHORT_WRITE_2_PARAM:
 		DRM_DEBUG_DRIVER("cmd : %d, len : %d\n", cmd, len);
 
@@ -924,7 +1217,7 @@ static ssize_t rtk_dsi_host_transfer(struct mipi_dsi_host *host,
 
 		// pkt |= (((u8 *)msg->tx_buf)[0] << 8);
 		// if (msg->tx_len > 1)
-		// 	pkt |= (((u8 *)msg->tx_buf)[1] << 16);
+		// pkt |= (((u8 *)msg->tx_buf)[1] << 16);
 
 		regmap_write(dsi->reg, CMD0, tmp);
 		DRM_DEBUG_DRIVER("write CMD0 0x%x\n", tmp);
@@ -979,6 +1272,11 @@ static ssize_t rtk_dsi_host_transfer(struct mipi_dsi_host *host,
 
 	regmap_write(dsi->reg, INTS, 0x4);
 
+	if (len > 2) {
+		DRM_DEBUG_DRIVER("len = %d > 2, delay 5ms\n", len);
+		mdelay(5);
+	}
+
 	return ret;
 }
 
@@ -988,26 +1286,60 @@ static const struct mipi_dsi_host_ops rtk_dsi_host_ops = {
 	.transfer = rtk_dsi_host_transfer,
 };
 
-static const struct rtk_dsi_data rtk_normal_dsi_data = {
-	.type = RTK_NORMAL_TYPE,
-	.enable = rtk_dsi_enable,
-	.disable = rtk_dsi_disable,
-	.query_timings = NULL,
-	.get_modes = NULL,
+static const struct rtk_dsi_data rtk_normal_dsi_data[] = {
+	{
+		.reg = 0x98033000,
+		.id = DSI1,
+		.type = RTK_NORMAL_TYPE,
+		.display_interface = DISPLAY_INTERFACE_MIPI,
+		.enable = rtk_dsi_enable,
+		.disable = rtk_dsi_disable,
+		.query_timings = rtk_dsi_query_timings,
+		.get_modes = NULL,
+	},
+	{
+		.reg = 0x98167000,
+		.id = DSI2,
+		.type = RTK_NORMAL_TYPE,
+		.display_interface = DISPLAY_INTERFACE_MIPI,
+		.enable = rtk_dsi_enable,
+		.disable = rtk_dsi_disable,
+		.query_timings = rtk_dsi_query_timings,
+		.get_modes = NULL,
+	},
 };
 
-static const struct rtk_dsi_data rtk_car_dsi_data = {
-	.type = RTK_AUTOMOTIVE_TYPE,
-	.enable = rtk_car_dsi_enable,
-	.disable = rtk_car_dsi_disable,
-	.query_timings = rtk_car_dsi_query_timings,
-	.get_modes = rtk_car_dsi_get_modes,
+static const struct rtk_dsi_data rtk_car_dsi_data[] = {
+	{
+		.reg = 0x98033000,
+		.id = DSI1,
+		.type = RTK_AUTOMOTIVE_TYPE,
+		.display_interface = DISPLAY_INTERFACE_MIPI,
+		.enable = rtk_car_dsi_enable,
+		.disable = rtk_car_dsi_disable,
+		.query_timings = rtk_car_dsi_query_timings,
+		.get_modes = rtk_car_dsi_get_modes,
+	},
+	{
+		.reg = 0x98167000,
+		.id = DSI2,
+		.type = RTK_AUTOMOTIVE_TYPE,
+		.display_interface = DISPLAY_INTERFACE_MIPI,
+		.enable = rtk_car_dsi_enable,
+		.disable = rtk_car_dsi_disable,
+		.query_timings = rtk_car_dsi_query_timings,
+		.get_modes = rtk_car_dsi_get_modes,
+	}
 };
 
 static int rtk_dsi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct device_node *np;
+	struct resource res;
 	struct rtk_dsi *dsi;
+	const struct rtk_dsi_data *dsi_data = of_device_get_match_data(dev);
+	int ret, i;
 
 	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
@@ -1016,13 +1348,42 @@ static int rtk_dsi_probe(struct platform_device *pdev)
 	dev_set_drvdata(dev, dsi);
 	dsi->dev = dev;
 
-	dsi->dsi_data = of_device_get_match_data(dev);
-	if (!dsi->dsi_data)
-		return -EINVAL;
-
 	dsi->host.ops = &rtk_dsi_host_ops;
 	dsi->host.dev = dev;
 	mipi_dsi_host_register(&dsi->host);
+
+	np = of_parse_phandle(dev->of_node, "syscon", 0);
+	if (!np) {
+		dev_err(dev, "Failed to parse syscon phandle\n");
+		return -ENODEV;
+	}
+
+	ret = of_address_to_resource(np, 0, &res);
+	if (ret) {
+		dev_err(dev, "Failed to get resource from syscon node\n");
+		of_node_put(np);
+		return ret;
+	}
+
+	i = 0;
+	while (dsi_data[i].reg) {
+		if (dsi_data[i].reg == res.start) {
+			dsi->dsi_data = &dsi_data[i];
+			dev_info(dev, "Find MIPI DSI%d\n", i);
+			break;
+		}
+
+		i++;
+	}
+
+	if (!dsi->dsi_data) {
+		dev_err(dev, "no dsi config for %s node\n", np->name);
+		return -EINVAL;
+	}
+
+	mutex_init(&dsi->lock);
+
+	of_node_put(np);
 
 	return component_add(&pdev->dev, &rtk_dsi_ops);
 }
@@ -1042,6 +1403,11 @@ static int rtk_dsi_suspend(struct device *dev)
 	if (!dsi)
 		return 0;
 
+	dev_info(dsi->dev, "dsi: suspend\n");
+
+	if (dsi->force_hpd)
+		rtk_dsi_stop_hpd_thread(dsi);
+
 	return 0;
 }
 
@@ -1051,6 +1417,11 @@ static int rtk_dsi_resume(struct device *dev)
 
 	if (!dsi)
 		return 0;
+
+	dev_info(dsi->dev, "dsi: resume\n");
+
+	if (dsi->force_hpd)
+		rtk_dsi_start_hpd_thread(dsi);
 
 	return 0;
 }

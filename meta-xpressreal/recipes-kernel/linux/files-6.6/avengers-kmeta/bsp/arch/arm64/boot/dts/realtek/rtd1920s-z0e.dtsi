@@ -9,7 +9,7 @@
 
 #include <dt-bindings/thermal/thermal.h>
 #include "rtd1920.dtsi"
-#include "rtd1920s-z0e.rds.dtsi"
+#include "rtd1920s-smallville.rds.dtsi"
 
 / {
 	chosen {

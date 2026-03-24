@@ -1,0 +1,21 @@
+From 21a6f33ef3229d4e61d10f7ef4f8740987067d22 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Thu, 23 Oct 2025 16:08:21 +0800
+Subject: [PATCH] u-boot: rtd1625: add rtk clk driver
+
+---
+ drivers/clk/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clk/Makefile b/drivers/clk/Makefile
+index af27ceb27da..e4c51a54e62 100644
+--- a/drivers/clk/Makefile
++++ b/drivers/clk/Makefile
+@@ -55,3 +55,4 @@ obj-$(CONFIG_MACH_PIC32) += clk_pic32.o
+ obj-$(CONFIG_SANDBOX_CLK_CCF) += clk_sandbox_ccf.o
+ obj-$(CONFIG_SANDBOX) += clk_sandbox.o
+ obj-$(CONFIG_SANDBOX) += clk_sandbox_test.o
++obj-$(CONFIG_ARCH_REALTEK) += realtek/
+-- 
+2.48.0
+

@@ -331,6 +331,7 @@ static struct rtk_gem_object *rtk_gem_object_create(struct drm_device *drm,
 		return ERR_CAST(rtk_obj);
 
 #ifndef CONFIG_CHROME_PLATFORMS
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	if (is_media_heap(flags))
 		rheap_setup_dma_pools(dev, "rtk_media_heap",
 				get_rtk_flags(flags), __func__);
@@ -340,6 +341,7 @@ static struct rtk_gem_object *rtk_gem_object_create(struct drm_device *drm,
 	else
 		rheap_setup_dma_pools(dev, NULL,
 				get_rtk_flags(flags), __func__);
+#endif
 #endif
 
 	rtk_obj->vaddr = dma_alloc_coherent(dev, size,

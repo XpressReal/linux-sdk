@@ -33,6 +33,7 @@
 *
 ***************************************************************************/
 #include <common.h>
+#include <dm.h>
 #include <malloc.h>
 #include <net.h>
 #include <netdev.h>
@@ -796,7 +797,7 @@ static const struct {
 };
 
 struct rtl8168_private {
-	struct eth_device *dev;
+	//struct udevice *dev;
 	phys_addr_t mmio_addr;  /* memory map physical address */
 	pci_dev_t devno;
 	int chipset;
@@ -1255,12 +1256,12 @@ static int rtl8168_eri_write(phys_addr_t ioaddr, int addr, int len, u32 value, i
 /**************************************************************************
 RECV - Receive a frame
 ***************************************************************************/
-static int rtl8168_recv(struct eth_device *dev)
+static int rtl8168_recv(struct udevice *dev, int flags, uchar **packetp)
 {
     /* return true if there's an ethernet packet ready to read */
     /* nic->packet should contain data on return */
     /* nic->packetlen should contain length of data */
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int cur_rx;
     int length = 0;
@@ -1340,7 +1341,8 @@ static int rtl8168_recv(struct eth_device *dev)
 
         } else {
           //  printf ("NetReceive %d packets\n",count);
-            return count;
+            //return count;
+            return length;
         }
 
     return (0);     /* initially as this is called to flush the input */
@@ -1386,13 +1388,13 @@ static void print_packet( u8 * buf, int length )
 /**************************************************************************
 SEND - Transmit a frame
 ***************************************************************************/
-static int rtl8168_send(struct eth_device *dev, void *packet, int length)
+static int rtl8168_send(struct udevice *dev, void *packet, int length)
 {
     /* send the packet to destination */
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     u32 to, len = length;
-    int ret, cur_tx;
+    int cur_tx;
 
 
 #ifdef DEBUG_RTL8168_TX
@@ -1447,23 +1449,24 @@ static int rtl8168_send(struct eth_device *dev, void *packet, int length)
         puts ("tx timeout/error\n");
         printf ("%s elapsed time : %d\n", __FUNCTION__, currticks()-stime);
 #endif
-        ret = 0;
+        //ret = 0;
+        return -ETIMEDOUT;
     } else {
 #ifdef DEBUG_RTL8168_TX
         puts("tx done\n");
         printf ("%s elapsed time : %d\n", __FUNCTION__, currticks()-stime);
 #endif
-        ret = length;
+        //ret = length;
     }
 
     /* Delay to make net console (nc) work properly */
     udelay(20);
-    return ret;
+    return 0;
 }
 
-static void rtl8168_hw_set_rx_packet_filter(struct eth_device *dev)
+static void rtl8168_hw_set_rx_packet_filter(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int rx_mode;
     u32 tmp = 0;
@@ -1487,9 +1490,9 @@ static void rtl8168_hw_set_rx_packet_filter(struct eth_device *dev)
 }
 
 static void
-rtl8168_enable_rxdvgate(struct eth_device *dev)
+rtl8168_enable_rxdvgate(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     switch (tp->mcfg) {
@@ -1507,9 +1510,9 @@ rtl8168_enable_rxdvgate(struct eth_device *dev)
 }
 
 static void
-rtl8168_disable_rxdvgate(struct eth_device *dev)
+rtl8168_disable_rxdvgate(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     switch (tp->mcfg) {
@@ -1528,9 +1531,9 @@ rtl8168_disable_rxdvgate(struct eth_device *dev)
 }
 
 static void
-rtl8168_wait_txrx_fifo_empty(struct eth_device *dev)
+rtl8168_wait_txrx_fifo_empty(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int i;
 
@@ -1566,9 +1569,9 @@ rtl8168_irq_mask_and_ack(phys_addr_t ioaddr)
 }
 
 static void
-rtl8168_nic_reset(struct eth_device *dev)
+rtl8168_nic_reset(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int i;
 
@@ -1628,9 +1631,9 @@ rtl8168_nic_reset(struct eth_device *dev)
 }
 
 static void
-rtl8168_hw_reset(struct eth_device *dev)
+rtl8168_hw_reset(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     /* Disable interrupts */
@@ -1640,9 +1643,9 @@ rtl8168_hw_reset(struct eth_device *dev)
 }
 
 static void
-rtl8168_wait_ll_share_fifo_ready(struct eth_device *dev)
+rtl8168_wait_ll_share_fifo_ready(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int i;
 
@@ -1654,9 +1657,9 @@ rtl8168_wait_ll_share_fifo_ready(struct eth_device *dev)
 }
 
 static void
-rtl8168_exit_oob(struct eth_device *dev)
+rtl8168_exit_oob(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     u16 data16;
 
@@ -1939,10 +1942,10 @@ rtl8168_desc_addr_fill(struct rtl8168_private *tp)
     RTL_W32(RxDescAddrHigh, (unsigned long)0);
 }
 
-static void rtl8168_hw_start(struct rtl8168_private *tp)
+static void rtl8168_hw_start(struct udevice *dev)
 {
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
-    struct eth_device *dev = tp->dev;
     u16 mac_ocp_data;
     u32 csi_tmp;
 
@@ -2785,7 +2788,7 @@ rtl8168_rx_desc_init(struct rtl8168_private *tp)
 
 static u32
 rtl8168_rx_fill(struct rtl8168_private *tp,
-                struct eth_device *dev,
+                struct udevice *dev,
                 u32 start,
                 u32 end)
 {
@@ -2815,9 +2818,9 @@ rtl8168_rx_fill(struct rtl8168_private *tp,
 }
 
 static int
-rtl8168_init_ring(struct eth_device *dev)
+rtl8168_init_ring(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
 #ifdef DEBUG_RTL8168
     int stime = currticks();
     printf ("%s\n", __FUNCTION__);
@@ -2840,9 +2843,9 @@ rtl8168_init_ring(struct eth_device *dev)
 }
 
 static void
-rtl8168_hw_d3_para(struct eth_device *dev)
+rtl8168_hw_d3_para(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     RTL_W16(RxMaxSize, 0);
@@ -2888,9 +2891,9 @@ rtl8168_hw_d3_para(struct eth_device *dev)
     rtl8168_disable_rxdvgate(dev);
 }
 
-static void rtl8168_down(struct eth_device *dev)
+static void rtl8168_down(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
 
     if (tp->hw_fail == 1)
         return;
@@ -2967,9 +2970,9 @@ static int rtl8168_set_speed_xmii(struct rtl8168_private *tp,
 #endif
 
 static void
-rtl8168_hw_init(struct eth_device *dev)
+rtl8168_hw_init(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     switch (tp->mcfg) {
@@ -3035,9 +3038,9 @@ rtl8168_hw_init(struct eth_device *dev)
 }
 
 static void
-rtl8168_hw_ephy_config(struct eth_device *dev)
+rtl8168_hw_ephy_config(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     u16 ephy_data;
 
@@ -3273,9 +3276,9 @@ rtl8168_hw_ephy_config(struct eth_device *dev)
 }
 
 static void
-rtl8168_xmii_reset_enable(struct eth_device *dev)
+rtl8168_xmii_reset_enable(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     int i, val = 0;
 
     return ;
@@ -3293,9 +3296,9 @@ rtl8168_xmii_reset_enable(struct eth_device *dev)
 }
 
 static void
-rtl8168_hw_phy_config(struct eth_device *dev)
+rtl8168_hw_phy_config(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     unsigned int gphy_val;
 
     rtl8168_xmii_reset_enable(dev);
@@ -5224,9 +5227,9 @@ rtl8168_hw_phy_config(struct eth_device *dev)
 }
 
 static void
-rtl8168_phy_power_up (struct eth_device *dev)
+rtl8168_phy_power_up (struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     u32 csi_tmp;
 
@@ -5265,9 +5268,9 @@ rtl8168_phy_power_up (struct eth_device *dev)
     MDIO_UNLOCK;
 }
 
-static void rtl8168_powerup_pll(struct eth_device *dev)
+static void rtl8168_powerup_pll(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
 
     switch (tp->mcfg) {
@@ -5296,7 +5299,7 @@ static void rtl8168_powerup_pll(struct eth_device *dev)
 /**************************************************************************
 HALT - Turn off ethernet interface
 ***************************************************************************/
-static void rtl8168_halt(struct eth_device *dev)
+static void rtl8168_halt(struct udevice *dev)
 {
 #ifdef DEBUG_RTL8168
     printf ("%s\n", __FUNCTION__);
@@ -5440,9 +5443,10 @@ static void rtl8168_get_mac_version(struct rtl8168_private *tp, phys_addr_t ioad
 #endif
 }
 
-static void rtl8168_get_mac_address(struct rtl8168_private *tp)
+static void rtl8168_get_mac_address(struct udevice *dev)
 {
-    struct eth_device *dev = tp->dev;
+    struct eth_pdata *plat = dev_get_plat(dev);
+    struct rtl8168_private *tp = dev_get_priv(dev);
     phys_addr_t ioaddr = tp->mmio_addr;
     int i;
     uint8_t env_enetaddr[6];
@@ -5462,12 +5466,12 @@ static void rtl8168_get_mac_address(struct rtl8168_private *tp)
     RTL_W8(Cfg9346, Cfg9346_Lock);
 
     for (i = 0; i < MAC_ADDR_LEN; i++)
-        dev->enetaddr[i] = RTL_R8(MAC0 + i);
+        plat->enetaddr[i] = RTL_R8(MAC0 + i);
 
 #ifdef DEBUG_RTL8168
     printf("MAC Address");
     for (i = 0; i < MAC_ADDR_LEN; i++)
-        printf(":%02x", dev->enetaddr[i]);
+        printf(":%02x", plat->enetaddr[i]);
     putc('\n');
 #endif
 }
@@ -5475,9 +5479,9 @@ static void rtl8168_get_mac_address(struct rtl8168_private *tp)
 /**************************************************************************
 INIT - setting up the ethernet interface
 ***************************************************************************/
-static int rtl8168_init(struct eth_device *dev, struct bd_info *bis)
+static int rtl8168_init(struct udevice *dev)
 {
-    struct rtl8168_private *tp = (struct rtl8168_private *)dev->priv;
+    struct rtl8168_private *tp = dev_get_priv(dev);
 #if defined(CONFIG_TARGET_RTD1319)
     u32 tmp;
     u32 phy_status;
@@ -5532,9 +5536,9 @@ static int rtl8168_init(struct eth_device *dev, struct bd_info *bis)
 
     rtl8168_hw_phy_config(dev);
 
-    rtl8168_hw_start(tp);
+    rtl8168_hw_start(dev);
 
-    rtl8168_get_mac_address(tp);
+    rtl8168_get_mac_address(dev);
 #ifdef DEBUG_RTL8168
     printf ("Default Set Speed To 100 Mbps\n");
 #endif
@@ -6737,12 +6741,10 @@ static void r8168_pinmux_init(struct rtl8168_private *tp)
 }
 #endif /* CONFIG_TARGET_RTD1319 */
 
-int rtl8168_initialize(struct bd_info *bis)
+static int rtl8168_initialize(struct udevice *dev)
 {
     pci_dev_t devno=0;
-    int card_number = 0;
-    struct eth_device *dev;
-    struct rtl8168_private *tp;
+    struct rtl8168_private *tp = dev_get_priv(dev);
     u32 iobase, tmp;
     //int idx = 0;
     int i;
@@ -6760,24 +6762,9 @@ int rtl8168_initialize(struct bd_info *bis)
 
         debug ("r8168: REALTEK RTL8168 @0x%x\n", iobase);
 
-        dev = (struct eth_device *)malloc(sizeof *dev);
-        if (!dev) {
-            printf("Can not allocate memory of r8168\n");
-            return -ENOMEM;
-        }
-        memset(dev, 0, sizeof(*dev));
-
-        tp = (struct rtl8168_private *)malloc(sizeof *tp);
-        if (!tp) {
-            printf("Can not allocate memory of r8168\n");
-            free(dev);
-            return -ENOMEM;
-        }
-        memset(tp, 0, sizeof(*tp));
         //tp->mmio_addr = pci_mem_to_phys(devno, iobase);
         tp->mmio_addr = iobase;
         tp->devno = devno;
-        tp->dev = dev;
         tp->rx_buf_sz = RX_BUF_SIZE;
         tp->hw_fail = 0;
         rtl8168_get_env_para(tp);
@@ -6806,9 +6793,7 @@ int rtl8168_initialize(struct bd_info *bis)
 
         rtl8168_print_mac_version(tp);
 
-        sprintf(dev->name, "r8168#%d", card_number);
-        printf("dev->name=%s\n",dev->name);
-        rtl8168_get_mac_address(tp);
+        rtl8168_get_mac_address(dev);
 
         for (i = ARRAY_SIZE(rtl_chip_info) - 1; i >= 0; i--) {
             if (tp->mcfg == rtl_chip_info[i].mcfg)
@@ -6823,17 +6808,12 @@ int rtl8168_initialize(struct bd_info *bis)
 
         tp->chipset = i;
 
-        dev->priv = (void *)tp;
-        dev->iobase = (int)tp->mmio_addr;
+        //dev->init = rtl8168_init;
+        //dev->halt = rtl8168_halt;
+        //dev->send = rtl8168_send;
+        //dev->recv = rtl8168_recv;
 
-        dev->init = rtl8168_init;
-        dev->halt = rtl8168_halt;
-        dev->send = rtl8168_send;
-        dev->recv = rtl8168_recv;
-
-        eth_register (dev);
-
-        card_number++;
+        //eth_register (dev);
 
         // LED setting
        #if defined(CONFIG_TARGET_RTD1319)
@@ -6843,5 +6823,35 @@ int rtl8168_initialize(struct bd_info *bis)
        #endif
     }
 
-    return card_number;
+    return 0;
 }
+
+static const struct udevice_id rtk_eth_ids[] = {
+#if defined(CONFIG_TARGET_RTD1319)
+	{ .compatible = "realtek,rtd13xx-r8169soc" },
+#endif
+#if defined(CONFIG_TARGET_RTD1619B)
+	{ .compatible = "realtek,rtd16xxb-r8169soc" },
+#endif
+#if defined(CONFIG_TARGET_RTD1625)
+	{ .compatible = "realtek,rtd1625-r8169soc" },
+#endif
+	{}
+};
+
+static const struct eth_ops rtk_eth_ops = {
+	.start = rtl8168_init,
+	.stop = rtl8168_halt,
+	.send = rtl8168_send,
+	.recv = rtl8168_recv,
+};
+
+U_BOOT_DRIVER(rtk_eth) = {
+	.name = "rtk-eth",
+	.id = UCLASS_ETH,
+	.of_match = rtk_eth_ids,
+	.probe = rtl8168_initialize,
+	.ops = &rtk_eth_ops,
+	.priv_auto	= sizeof(struct rtl8168_private),
+	.plat_auto	= sizeof(struct eth_pdata),
+};

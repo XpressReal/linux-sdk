@@ -22,20 +22,23 @@ do_xz_install()
 
     if [ -e /usr/bin/pixz ];then
         echo "[pixz -d < $1 > /dev/mmcblk${MMC_IDX}]"
-        pixz -d < $1 > /dev/mmcblk${MMC_IDX}
+	#estimated ratio use 7
+	SIZE=$(( $(stat -c %s $1) * 7 ))
+	#can't use pv first since pixz will complain input seek error
+	pixz -d < $1 | pv -s $SIZE -f -W -pterb 2> /dev/tty1 | dd of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
         ret=$?
     fi
     if [ $ret != 0 ]; then
         echo "[do pixz failed, change to xzcat]"
         echo "[xzcat $1 > /dev/mmcblk${MMC_IDX}]"
-        xzcat $1 > /dev/mmcblk${MMC_IDX}
+	pv -f -W -pterb $1 2> /dev/tty1 | xzcat > /dev/mmcblk${MMC_IDX}
     fi
 }
 
 upgrade() {
     case "$2" in
         "wic")
-            dd if=$1 of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
+	    pv -f -W -pterb $1 2> /dev/tty1 | dd of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
             ;;
         "xz")
             do_xz_install $1

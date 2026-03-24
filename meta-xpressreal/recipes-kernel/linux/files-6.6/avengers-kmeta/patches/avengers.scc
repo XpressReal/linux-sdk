@@ -3,7 +3,6 @@ patch 800-Add-ahci-driver-for-Realtek-DHC-SoCs.patch
 patch 801-Add-Realtek-random-number-generator.patch
 patch 802-Add-Realtek-DHC-SoCs-clock-drivers.patch
 patch 802-01-add-pll_scpu-in-rtd1619b-cc.patch
-patch 802-02-add-rtk-cpufreq-dt-for-rtd1319d-with-get-tar.patch
 patch 803-01-Add-ifcp-firmware-driver-for-Realtek-DHC-SoCs.patch
 patch 803-02-Add-ifcp-mailbox-driver-for-Realtek-DHC-SoCs.patch
 patch 804-Add-Realtek-DHC-SoCs-gpio-driver.patch
@@ -36,6 +35,7 @@ patch 827-perf-realtek-Support-1619b-Dbus-PMU.patch
 #patch 828-support_import_dmabuf.patch
 #patch 829-fixed-colorimetry-not-metch.patch
 #patch 830-Support-nv16-in-m2m-device.patch
+patch 831-kernel-upscale-SCPU-frequency-up-to-2.0GHz.patch
 patch 900-backinblack-gpu-align-with-bleedingedge.patch
 
 kconf hardware avengers.cfg

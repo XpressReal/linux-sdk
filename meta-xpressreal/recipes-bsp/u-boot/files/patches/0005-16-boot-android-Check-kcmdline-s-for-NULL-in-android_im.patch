@@ -1,0 +1,62 @@
+From 4e599aa73a386dd1ba5091937ef2fc388d01ddd2 Mon Sep 17 00:00:00 2001
+From: Aaron Kling <webgeek1234@gmail.com>
+Date: Mon, 13 Jan 2025 10:11:45 +0100
+Subject: [PATCH 16/25] boot: android: Check kcmdline's for NULL in
+ android_image_get_kernel()
+
+kcmdline and kcmdline_extra strings can be NULL. In that case, we still
+read the content from 0x00000 and pass that to the kernel, which is
+completely wrong.
+
+Fix android_image_get_kernel() to check for NULL before checking if
+they are empty strings.
+
+Fixes: 53a0ddb6d3be ("boot: android: fix extra command line support")
+Signed-off-by: Aaron Kling <webgeek1234@gmail.com>
+Reviewed-by: Nicolas Belin <nbelin@baylibre.com>
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Tested-by: Sam Day <me@samcday.com>
+Link: https://lore.kernel.org/r/20250113-kcmdline-extra-fix-v1-1-03cc9c039159@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 60a422dfb74..fa4e14ca469 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -337,12 +337,12 @@ int android_image_get_kernel(const void *hdr,
+ 	if (bootargs)
+ 		len += strlen(bootargs);
+ 
+-	if (*img_data.kcmdline) {
++	if (img_data.kcmdline && *img_data.kcmdline) {
+ 		printf("Kernel command line: %s\n", img_data.kcmdline);
+ 		len += strlen(img_data.kcmdline) + (len ? 1 : 0); /* +1 for extra space */
+ 	}
+ 
+-	if (*img_data.kcmdline_extra) {
++	if (img_data.kcmdline_extra && *img_data.kcmdline_extra) {
+ 		printf("Kernel extra command line: %s\n", img_data.kcmdline_extra);
+ 		len += strlen(img_data.kcmdline_extra) + (len ? 1 : 0); /* +1 for extra space */
+ 	}
+@@ -357,13 +357,13 @@ int android_image_get_kernel(const void *hdr,
+ 	if (bootargs)
+ 		strcpy(newbootargs, bootargs);
+ 
+-	if (*img_data.kcmdline) {
++	if (img_data.kcmdline && *img_data.kcmdline) {
+ 		if (*newbootargs) /* If there is something in newbootargs, a space is needed */
+ 			strcat(newbootargs, " ");
+ 		strcat(newbootargs, img_data.kcmdline);
+ 	}
+ 
+-	if (*img_data.kcmdline_extra) {
++	if (img_data.kcmdline_extra && *img_data.kcmdline_extra) {
+ 		if (*newbootargs) /* If there is something in newbootargs, a space is needed */
+ 			strcat(newbootargs, " ");
+ 		strcat(newbootargs, img_data.kcmdline_extra);
+-- 
+2.47.0
+

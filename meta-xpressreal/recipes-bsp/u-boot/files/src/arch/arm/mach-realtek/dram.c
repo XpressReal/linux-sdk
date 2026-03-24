@@ -53,6 +53,14 @@ static struct mm_region rtd161xb_mem_map[] = {
 			 PTE_BLOCK_NON_SHARE |
 			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
 	}, {
+		/* PCIe memory regions*/
+		.virt = 0xa0000000,
+		.phys = 0xa0000000,
+		.size = 0x00600000,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRE) |
+			 PTE_BLOCK_NON_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
 		/* List terminator */
 		0,
 	}

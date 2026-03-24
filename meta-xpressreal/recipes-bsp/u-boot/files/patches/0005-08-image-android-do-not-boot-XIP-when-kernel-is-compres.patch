@@ -1,0 +1,86 @@
+From d5a85e8e95db57e350a092af62077917c7edd571 Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Thu, 17 Oct 2024 16:44:43 +0200
+Subject: [PATCH 08/25] image: android: do not boot XIP when kernel is
+ compressed
+
+When trying to boot an android boot image with a compressed
+kernel, if the kernel is used in-place because it was created
+with mkbootimg, the space will be too small to properly
+uncompress.
+
+Take in account the compressed state, and if compressed
+use the kernel_addr_r which should be big enough.
+
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Tested-by: Guillaume La Roque <glaroque@baylibre.com>
+Link: https://lore.kernel.org/r/20241017-topic-fastboot-fixes-mkbootimg-v2-2-c3927102d931@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index bb5f4f84487..3adcc69a392 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -208,7 +208,8 @@ bool android_image_get_data(const void *boot_hdr, const void *vendor_boot_hdr,
+ 	return true;
+ }
+ 
+-static ulong android_image_get_kernel_addr(struct andr_image_data *img_data)
++static ulong android_image_get_kernel_addr(struct andr_image_data *img_data,
++					   ulong comp)
+ {
+ 	/*
+ 	 * All the Android tools that generate a boot.img use this
+@@ -221,8 +222,11 @@ static ulong android_image_get_kernel_addr(struct andr_image_data *img_data)
+ 	 *
+ 	 * Otherwise, we will return the actual value set by the user.
+ 	 */
+-	if (img_data->kernel_addr  == ANDROID_IMAGE_DEFAULT_KERNEL_ADDR)
+-		return img_data->kernel_ptr;
++	if (img_data->kernel_addr  == ANDROID_IMAGE_DEFAULT_KERNEL_ADDR) {
++		if (comp == IH_COMP_NONE)
++			return img_data->kernel_ptr;
++		return env_get_ulong("kernel_addr_r", 16, 0);
++	}
+ 
+ 	/*
+ 	 * abootimg creates images where all load addresses are 0
+@@ -258,11 +262,14 @@ int android_image_get_kernel(const void *hdr,
+ 	struct andr_image_data img_data = {0};
+ 	ulong kernel_addr;
+ 	const struct legacy_img_hdr *ihdr;
++	ulong comp;
+ 
+ 	if (!android_image_get_data(hdr, vendor_boot_img, &img_data))
+ 		return -EINVAL;
+ 
+-	kernel_addr = android_image_get_kernel_addr(&img_data);
++	comp = android_image_get_kcomp(hdr, vendor_boot_img);
++
++	kernel_addr = android_image_get_kernel_addr(&img_data, comp);
+ 	ihdr = (const struct legacy_img_hdr *)img_data.kernel_ptr;
+ 
+ 	/*
+@@ -359,11 +366,14 @@ ulong android_image_get_kload(const void *hdr,
+ 			      const void *vendor_boot_img)
+ {
+ 	struct andr_image_data img_data;
++	ulong comp;
+ 
+ 	if (!android_image_get_data(hdr, vendor_boot_img, &img_data))
+ 		return -EINVAL;
+ 
+-	return android_image_get_kernel_addr(&img_data);
++	comp = android_image_get_kcomp(hdr, vendor_boot_img);
++
++	return android_image_get_kernel_addr(&img_data, comp);
+ }
+ 
+ ulong android_image_get_kcomp(const void *hdr,
+-- 
+2.47.0
+

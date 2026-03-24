@@ -1,64 +1,49 @@
-From bc03bc55b2f6e7ba129e4b1bd8c514b1cb2ffebb Mon Sep 17 00:00:00 2001
+From 0ca3308edefa3e23274b9614b74722bf0133392c Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
-Date: Mon, 22 Sep 2025 19:53:48 +0800
+Date: Mon, 27 Oct 2025 19:29:07 +0800
 Subject: [PATCH 1/1] Fix EOS flush running during resolution change event
  dispatch
 Upstream-Status: Inappropriate [rtk specific]
 
 ---
- sys/v4l2/gstv4l2videodec.c | 11 +++++++++++
- sys/v4l2/gstv4l2videodec.h |  2 ++
- 2 files changed, 13 insertions(+)
+ sys/v4l2/gstv4l2videodec.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
-index 32579a9..a5d130d 100644
+index 6138b24..805e5ec 100644
 --- a/sys/v4l2/gstv4l2videodec.c
 +++ b/sys/v4l2/gstv4l2videodec.c
-@@ -730,6 +730,8 @@ gst_v4l2_video_dec_finish (GstVideoDecoder * decoder)
+@@ -878,6 +878,7 @@ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
+   GstVideoCodecFrame *frame;
+   GstBuffer *buffer = NULL;
+   GstFlowReturn ret;
++  gboolean should_stop_v4l2capture = FALSE;
  
-   GST_DEBUG_OBJECT (self, "Finishing decoding");
+   GST_LOG_OBJECT (self, "Looping.");
  
-+  g_atomic_int_set (&self->skip_negotiate, 1);
-+
-   GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
- 
-   /* If we are in the middle of a source change, cancel it */
-@@ -782,6 +784,8 @@ gst_v4l2_video_dec_finish (GstVideoDecoder * decoder)
- 
-   GST_DEBUG_OBJECT (decoder, "Done draining buffers");
- 
-+  g_atomic_int_set (&self->skip_negotiate, 0);
-+
-   /* Draining of the capture buffer has completed.
-    * If any pending frames remain at this point there is a decoder error.
-    * This has been observed as a driver bug, where eos is sent too early.
-@@ -890,6 +894,13 @@ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
-       goto beach;
+@@ -1056,9 +1057,8 @@ beach:
+     GST_VIDEO_DECODER_STREAM_LOCK (decoder);
+     if (self->draining) {
+       self->draining = FALSE;
+-      gst_v4l2_object_stop (self->v4l2capture);
++      should_stop_v4l2capture = TRUE;
+       GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+-      return;
      }
  
-+    if (g_atomic_int_get (&self->skip_negotiate)) {
-+      GST_WARNING_OBJECT (decoder, "skip_negotiate is set, skipping negotiate and returning");
-+      GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
-+      ret = GST_V4L2_FLOW_LAST_BUFFER;
-+      goto beach;
-+    }
+     GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+@@ -1071,6 +1071,11 @@ beach:
+   self->output_flow = ret;
+   gst_v4l2_object_unlock (self->v4l2output);
+   gst_pad_pause_task (decoder->srcpad);
 +
-     GST_DEBUG_OBJECT (decoder, "Setup the capture queue");
-     if (G_UNLIKELY (!GST_V4L2_IS_ACTIVE (self->v4l2capture))) {
-       if (!gst_video_decoder_negotiate (decoder)) {
-diff --git a/sys/v4l2/gstv4l2videodec.h b/sys/v4l2/gstv4l2videodec.h
-index 601e3cd..006b253 100644
---- a/sys/v4l2/gstv4l2videodec.h
-+++ b/sys/v4l2/gstv4l2videodec.h
-@@ -72,6 +72,8 @@ struct _GstV4l2VideoDec
++  if (should_stop_v4l2capture) {
++    GST_INFO_OBJECT (decoder, "Stopping v4l2capture after pausing task");
++    gst_v4l2_object_stop (self->v4l2capture);
++  }
+ }
  
-   /* Previous Caps (Realtek Specific) */
-   GstCaps *pre_caps;
-+
-+  gint32  skip_negotiate;
- };
- 
- struct _GstV4l2VideoDecClass
+ static GstFlowReturn
 -- 
 2.34.1
 

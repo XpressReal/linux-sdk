@@ -1,0 +1,59 @@
+From b22a276f039f818d5564bec6637071cfc8a7e432 Mon Sep 17 00:00:00 2001
+From: Eddie Kovsky <ekovsky@redhat.com>
+Date: Wed, 21 May 2025 15:26:59 -0600
+Subject: [PATCH 21/25] image: android: fix ramdisk default address
+
+Commit 21e7fa0e3ac5 ("image: android: handle ramdisk default address")
+changed the default behavior for header versions less than or equal to 2.
+
+The ramdisk address (img_data.ramdisk_ptr) is only assigned to *rd_data
+if the physical load address (img_data.ramdisk_addr) is equal to 0 or
+the Android default ramdisk address.
+
+    /* Ramdisk can be used in-place, use current ptr */
+    if (img_data.ramdisk_addr == 0 ||
+            img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR) {
+        *rd_data = img_data.ramdisk_ptr;
+    } else {
+        ramdisk_ptr = img_data.ramdisk_addr;
+        *rd_data = ramdisk_ptr;
+        memcpy((void *)(ramdisk_ptr), (void *)img_data.ramdisk_ptr,
+                img_data.ramdisk_size);
+    }
+
+When the img_data.ramdisk_addr and the img_data.kernel_addr are the same
+*rd_data needs to be assigned to the ramdisk address (ramdisk_ptr), not
+the physical address (ramdisk_addr).
+
+As a result of the current behavior, we can no longer boot a kernel on
+the Renesas R-Car S4 board.
+
+Add an additional check to the if clause so that the ramdisk address is
+assigned when the kernel address and the ramdisk address are the same,
+restoring the previous default behavior.
+
+Fixes: 21e7fa0e3ac5 ("image: android: handle ramdisk default address")
+Signed-off-by: Eddie Kovsky <ekovsky@redhat.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Tested-by: Mattijs Korpershoek <mkorpershoek@kernel.org> # khadas vim3
+---
+ boot/image-android.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 1746b018900..459cdb8456c 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -488,7 +488,8 @@ int android_image_get_ramdisk(const void *hdr, const void *vendor_boot_img,
+ 	} else {
+ 		/* Ramdisk can be used in-place, use current ptr */
+ 		if (img_data.ramdisk_addr == 0 ||
+-		    img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR) {
++		    img_data.ramdisk_addr == ANDROID_IMAGE_DEFAULT_RAMDISK_ADDR ||
++		    img_data.ramdisk_addr == img_data.kernel_addr) {
+ 			*rd_data = img_data.ramdisk_ptr;
+ 		} else {
+ 			ramdisk_ptr = img_data.ramdisk_addr;
+-- 
+2.47.0
+

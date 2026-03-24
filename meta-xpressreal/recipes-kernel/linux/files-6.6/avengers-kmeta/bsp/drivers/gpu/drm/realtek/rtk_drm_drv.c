@@ -151,7 +151,9 @@ static int rtk_drm_bind(struct device *dev)
 	dev_set_drvdata(dev, drm);
 
 #ifndef CONFIG_CHROME_PLATFORMS
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev, &rheap_dma_ops);
+#endif
 #endif
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -301,7 +303,7 @@ static struct drm_ioctl_desc rtk_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(RTK_VOWB_SET_CRTC_VBLANK, rtk_drm_vowb_set_crtc_vblank_ioctl, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(RTK_VOWB_RUN_CMD, rtk_drm_vowb_run_cmd, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(RTK_VOWB_CHECK_CMD, rtk_drm_vowb_check_cmd, DRM_RENDER_ALLOW),
-	DRM_IOCTL_DEF_DRV(RTK_VOWB_REINIT, rtk_drm_vowb_reinit, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(RTK_VOWB_GET_FEATURES, rtk_drm_vowb_get_features_ioctl, DRM_RENDER_ALLOW),
 };
 
 DEFINE_DRM_GEM_FOPS(rtk_drm_driver_fops);

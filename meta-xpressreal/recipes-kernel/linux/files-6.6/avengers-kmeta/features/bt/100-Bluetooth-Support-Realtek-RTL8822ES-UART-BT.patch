@@ -1,0 +1,265 @@
+From 2cf63f7925eaf00f184e532ca6fd30a224a7d668 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 20 Jan 2026 15:25:51 +0800
+Subject: [PATCH] Bluetooth: Support Realtek RTL8822ES UART BT
+
+- dts: rtd1619b-backinblack: add bluetooth in uart1
+- btrtl: load RTL8822ES FWs in rtlbt
+- hci_h5: check CONFIG_BT_RTKBTRFKILL
+-- set h5->enable_gpio to bt_reset on EBUSY
+-- call rtk_voltage_detect_and_set()
+- rtk_rfkill: add voltage detection by LSADC
+-- export struct gpio_desc *bt_reset
+---
+ .../dts/realtek/rtd1619b-backinblack.dtsi     |  5 ++
+ drivers/bluetooth/btrtl.c                     | 12 +++
+ drivers/bluetooth/hci_h5.c                    | 20 +++++
+ drivers/bluetooth/rtk_rfkill.c                | 79 +++++++++++--------
+ 4 files changed, 83 insertions(+), 33 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+index 535975054502b..13545ca65602a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+@@ -478,6 +478,11 @@ &uart0 {
+ /* M.2 slot (CON2) */
+ &uart1 {
+ 	status = "okay";
++
++	bluetooth {
++		compatible = "realtek,rtl8822es-bt";
++		enable-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>;
++	};
+ };
+ 
+ &uart2 {
+diff --git a/drivers/bluetooth/btrtl.c b/drivers/bluetooth/btrtl.c
+index 812f6941b2633..3f3699a5ced48 100644
+--- a/drivers/bluetooth/btrtl.c
++++ b/drivers/bluetooth/btrtl.c
+@@ -246,6 +246,15 @@ static const struct id_table ic_id_table[] = {
+ 	  .cfg_name = "rtl_bt/rtl8822cs_config",
+ 	  .hw_info  = "rtl8822cs" },
+ 
++	/* 8822E with UART interface */
++	{ IC_INFO(RTL_ROM_LMP_8822B, 0xe, 0xc, HCI_UART),
++	  .config_needed = true,
++	  .has_rom_version = true,
++	  .has_msft_ext = false,
++	  .fw_name  = "rtlbt/rtl8822es_fw",
++	  .cfg_name = "rtlbt/rtl8822es_config",
++	  .hw_info  = "rtl8822es" },
++
+ 	/* 8822C with USB interface */
+ 	{ IC_INFO(RTL_ROM_LMP_8822B, 0xc, 0xa, HCI_USB),
+ 	  .config_needed = false,
+@@ -654,6 +663,7 @@ static int rtlbt_parse_firmware(struct hci_dev *hdev,
+ 		{ RTL_ROM_LMP_8852A, 18 },	/* 8852A */
+ 		{ RTL_ROM_LMP_8852A, 20 },	/* 8852B */
+ 		{ RTL_ROM_LMP_8852A, 25 },	/* 8852C */
++		{ RTL_ROM_LMP_8822B, 33 },	/* 8822E */
+ 		{ RTL_ROM_LMP_8851B, 36 },	/* 8851B */
+ 		{ RTL_ROM_LMP_8852A, 47 },	/* 8852BT */
+ 	};
+@@ -1549,6 +1559,8 @@ MODULE_FIRMWARE("rtl_bt/rtl8822b_fw.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8822b_config.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8822cs_fw.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8822cs_config.bin");
++MODULE_FIRMWARE("rtlbt/rtl8822es_fw.bin");
++MODULE_FIRMWARE("rtlbt/rtl8822es_config.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8822cu_fw.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8822cu_config.bin");
+ MODULE_FIRMWARE("rtl_bt/rtl8851bu_fw.bin");
+diff --git a/drivers/bluetooth/hci_h5.c b/drivers/bluetooth/hci_h5.c
+index c0436881a533c..da284bdcf43b1 100644
+--- a/drivers/bluetooth/hci_h5.c
++++ b/drivers/bluetooth/hci_h5.c
+@@ -104,6 +104,7 @@ struct h5 {
+ 
+ enum h5_driver_info {
+ 	H5_INFO_WAKEUP_DISABLE = BIT(0),
++	H5_VOLT_DETECT_LSADC = BIT(1),
+ };
+ 
+ struct h5_vnd {
+@@ -816,6 +817,10 @@ static const struct hci_uart_proto h5p = {
+ 	.flush		= h5_flush,
+ };
+ 
++#if IS_ENABLED(CONFIG_BT_RTKBTRFKILL)
++extern struct gpio_desc *bt_reset;
++void rtk_voltage_detect_and_set(int method, int mode);
++#endif
+ static int h5_serdev_probe(struct serdev_device *serdev)
+ {
+ 	struct device *dev = &serdev->dev;
+@@ -856,6 +861,9 @@ static int h5_serdev_probe(struct serdev_device *serdev)
+ 		set_bit(H5_WAKEUP_DISABLE, &h5->flags);
+ 
+ 	h5->enable_gpio = devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
++#if IS_ENABLED(CONFIG_BT_RTKBTRFKILL)
++	if (IS_ERR(h5->enable_gpio) && (PTR_ERR(h5->enable_gpio) == -EBUSY)) h5->enable_gpio = bt_reset;
++#endif
+ 	if (IS_ERR(h5->enable_gpio))
+ 		return PTR_ERR(h5->enable_gpio);
+ 
+@@ -864,6 +872,11 @@ static int h5_serdev_probe(struct serdev_device *serdev)
+ 	if (IS_ERR(h5->device_wake_gpio))
+ 		return PTR_ERR(h5->device_wake_gpio);
+ 
++#if IS_ENABLED(CONFIG_BT_RTKBTRFKILL)
++	if (data->driver_info & H5_VOLT_DETECT_LSADC)
++		rtk_voltage_detect_and_set(1, 0);
++#endif
++
+ 	return hci_uart_register_device_priv(&h5->serdev_hu, &h5p,
+ 					     h5->vnd->sizeof_priv);
+ }
+@@ -1079,6 +1092,11 @@ static const struct h5_device_data h5_data_rtl8822cs = {
+ 	.vnd = &rtl_vnd,
+ };
+ 
++static const struct h5_device_data h5_data_rtl8822es = {
++	.driver_info = H5_VOLT_DETECT_LSADC,
++	.vnd = &rtl_vnd,
++};
++
+ static const struct h5_device_data h5_data_rtl8723bs = {
+ 	.driver_info = H5_INFO_WAKEUP_DISABLE,
+ 	.vnd = &rtl_vnd,
+@@ -1105,6 +1123,8 @@ static const struct of_device_id rtl_bluetooth_of_match[] = {
+ #ifdef CONFIG_BT_HCIUART_RTL
+ 	{ .compatible = "realtek,rtl8822cs-bt",
+ 	  .data = (const void *)&h5_data_rtl8822cs },
++	{ .compatible = "realtek,rtl8822es-bt",
++	  .data = (const void *)&h5_data_rtl8822es },
+ 	{ .compatible = "realtek,rtl8723bs-bt",
+ 	  .data = (const void *)&h5_data_rtl8723bs },
+ 	{ .compatible = "realtek,rtl8723cs-bt",
+diff --git a/drivers/bluetooth/rtk_rfkill.c b/drivers/bluetooth/rtk_rfkill.c
+index a044ffa63cd54..f3f09f2fbf028 100644
+--- a/drivers/bluetooth/rtk_rfkill.c
++++ b/drivers/bluetooth/rtk_rfkill.c
+@@ -30,6 +30,8 @@
+ 
+ #define LSADC0_PAD0 0x900
+ #define ISO_PFUNC21 0x74
++#define ADC_VAL0_MASK	GENMASK(7, 0)
++#define ADC_VAL0	0x94
+ 
+ #define ISO_DBG_STATUS 0x190
+ #define ISO_PFUNC0 0x2c
+@@ -46,12 +48,15 @@ enum voltage_config {
+ 
+ static struct rfkill *bt_rfk;
+ static const char bt_name[] = "bluetooth";
+-static struct gpio_desc *bt_reset;
++struct gpio_desc *bt_reset = NULL;
++EXPORT_SYMBOL_GPL(bt_reset);
+ 
+-struct pinctrl *pinctrl;
+-struct pinctrl_state *pins_default;
+-struct pinctrl_state *pins_1v8;
+-struct pinctrl_state *pins_3v3;
++static struct regmap *iso_dbg = NULL;
++static struct regmap *pinctrl_base = NULL;
++static struct pinctrl *pinctrl = NULL;
++static struct pinctrl_state *pins_default = NULL;
++static struct pinctrl_state *pins_1v8 = NULL;
++static struct pinctrl_state *pins_3v3 = NULL;
+ 
+ static int bluetooth_set_power(void *data, bool blocked)
+ {
+@@ -92,13 +97,43 @@ static void rfkill_gpio_deinit(void)
+ 	gpiod_put(bt_reset);
+ }
+ 
++void rtk_voltage_detect_and_set(int method, int mode)
++{
++	if (mode == DETECT) {
++	if (method == 0 && pinctrl_base) {
++		unsigned int val = 0x0;
++		val = BIT(6);
++		regmap_update_bits_base(pinctrl_base, ISO_DBG_STATUS, val, val,
++					NULL, false, true);
++		mdelay(100);
++		regmap_read(pinctrl_base, ISO_DBG_STATUS, &val);
++
++		mode = (val & BIT(3)) ? FIX_3V3 : FIX_1V8;
++	}
++	else if (method == 1 && iso_dbg) {
++		u32 reg, val_mask;
++		regmap_read(iso_dbg, LSADC0_PAD0, &reg);
++		val_mask = reg & ADC_VAL0_MASK;
++
++		mode = (val_mask >= ADC_VAL0) ? FIX_3V3 : FIX_1V8;
++	}
++	}
++	if (mode == FIX_1V8) {
++		if (pins_1v8)
++			pinctrl_select_state(pinctrl, pins_1v8);
++	}
++	else if (mode == FIX_3V3) {
++		if (pins_3v3)
++			pinctrl_select_state(pinctrl, pins_3v3);
++	}
++}
++EXPORT_SYMBOL_GPL(rtk_voltage_detect_and_set);
++
+ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+ {
+ 	struct device_node *node = pdev->dev.of_node;
+ 	struct device *dev = &pdev->dev;
+ 	bool default_state = true;
+-	struct regmap *iso_dbg;
+-	unsigned int val = 0x0;
+ 	const u32 *prop;
+         int size;
+ 	int rc = 0;
+@@ -117,6 +152,9 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+ 		dev_dbg(dev, "no pinctrl\n");
+ 		mode = DETECT_NONE;
+ 	} else {
++		iso_dbg = syscon_regmap_lookup_by_phandle(node, "realtek,iso");
++		pinctrl_base = syscon_regmap_lookup_by_phandle(
++					node, "realtek,pinctrl");
+ 	        pins_default = pinctrl_lookup_state(pinctrl, PINCTRL_STATE_DEFAULT);
+ 		if (IS_ERR(pins_default)) {
+ 			dev_warn(dev, "could not get default state\n");
+@@ -140,32 +178,7 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+         if (prop)
+                 mode = of_read_number(prop, 1);
+ 
+-	if (mode == DETECT) {
+-		iso_dbg = syscon_regmap_lookup_by_phandle(
+-					node, "realtek,pinctrl");
+-
+-		val = BIT(6);
+-		regmap_update_bits_base(iso_dbg, ISO_DBG_STATUS, val, val,
+-					NULL, false, true);
+-		mdelay(100);
+-		regmap_read(iso_dbg, ISO_DBG_STATUS, &val);
+-
+-		if(val & BIT(3)) {	/* 3.3v */
+-			if (pins_3v3)
+-				pinctrl_select_state(pinctrl, pins_3v3);
+-		} else {			/* 1.8v */
+-			if (pins_1v8)
+-				pinctrl_select_state(pinctrl, pins_1v8);
+-		}
+-	}
+-	else if (mode == FIX_1V8) {
+-		if (pins_1v8)
+-			pinctrl_select_state(pinctrl, pins_1v8);
+-	}
+-	else if (mode == FIX_3V3) {
+-		if (pins_3v3)
+-			pinctrl_select_state(pinctrl, pins_3v3);
+-	}
++	rtk_voltage_detect_and_set(0, mode);
+ 
+ 	bt_rfk = rfkill_alloc(bt_name, &pdev->dev, RFKILL_TYPE_BLUETOOTH,
+ 				&rfkill_bluetooth_ops, NULL);
+-- 
+2.34.1
+

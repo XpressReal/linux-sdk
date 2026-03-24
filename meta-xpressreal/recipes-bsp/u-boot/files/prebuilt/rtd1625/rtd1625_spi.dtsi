@@ -42,7 +42,7 @@
 			};
 		};
 		section@2 {
-			size = <0x78000>; //480k
+			size = <0x75000>; //468k
 			pad-byte = <0xff>;
 			align-size = <0x1000>;
 			fit {
@@ -103,7 +103,7 @@
 			pad-byte = <0xff>;
 			blob@1 {
 				filename = "u-boot-spl.bin_pad";
-				size = <0x25800>; // 150k
+				size = <0x2B000>; // 172k
 				align-size = <0x200>;
 			};
 		};
@@ -112,7 +112,7 @@
 			pad-byte = <0xff>;
 			blob@1 {
 				filename = "u-boot.img";
-				size = <0xA0000>;
+				size = <0xB0000>;
 				align-size = <0x200>;
 			};
 		};

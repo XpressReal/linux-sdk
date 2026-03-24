@@ -5,8 +5,8 @@ Subject: [PATCH] gpu: drm: realtek: add vic 4/16/95 to default modes when get
  edid fail
 
 ---
- drivers/gpu/drm/realtek/rtk_hdmi.c | 22 ++++++++++++++++++++++
- 1 file changed, 22 insertions(+)
+ drivers/gpu/drm/realtek/rtk_hdmi.c | 19 ++++++++++++++++++++++
+ 1 file changed, 18 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.c b/drivers/gpu/drm/realtek/rtk_hdmi.c
 index e4e43d6c8de4..846c9fe805d1 100644
@@ -39,26 +39,15 @@ index e4e43d6c8de4..846c9fe805d1 100644
  };
  
  #define LINE_BUF_SIZE  (EDID_LENGTH * 2 + 2)
-@@ -1850,12 +1865,19 @@ rtk_hdmi_conn_mode_valid(struct drm_connector *connector,
- {
- 	struct rtk_hdmi *hdmi = to_rtk_hdmi(connector);
- 	u8 vic;
-+	int i;
- 	int max_tmds_khz;
+@@ -1871,7 +1886,8 @@ rtk_hdmi_conn_mode_valid(struct drm_connector *connector,
+ 	if ((hdmi->ext_flags & RTK_EXT_DIS_4KP30_UPPER) && (vic > VIC_3840X2160P30))
+ 		return MODE_CLOCK_HIGH;
  
- 	vic = drm_match_cea_mode(mode);
+-	if ((vic >= VIC_3840X2160P24) && (max_tmds_khz < 297000))
++	if ((hdmi->edid_cache != NULL) &&
++	    (vic >= VIC_3840X2160P24) && (max_tmds_khz < 297000))
+ 		return MODE_CLOCK_HIGH;
  
- 	DRM_DEBUG_DRIVER("vic=%u\n", vic);
- 
-+	for (i = 0; i < ARRAY_SIZE(rtk_default_modes); i++) {
-+		if (vic ==  drm_match_cea_mode(&rtk_default_modes[i])) {
-+			return MODE_OK;
-+		}
-+	}
-+
- 	max_tmds_khz = connector->display_info.max_tmds_clock;
- 
- 	if (connector->force == DRM_FORCE_ON)
+ #ifdef CONFIG_CHROME_PLATFORMS
 -- 
 2.34.1
-

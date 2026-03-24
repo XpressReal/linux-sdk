@@ -1,4 +1,4 @@
-From 0923888bbbeed7660f77c83d8c6cadbb516438f3 Mon Sep 17 00:00:00 2001
+From 47df0f4787ce55fd725734381ee06fd28e9ee9ef Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
 Date: Tue, 26 Aug 2025 03:39:44 -0400
 Subject: [PATCH] dts: mipi only mode for gamepad on backinblack
@@ -8,16 +8,19 @@ Subject: [PATCH] dts: mipi only mode for gamepad on backinblack
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
-index 0fcc5e3fa825..c1306a2cf003 100644
+index 62ee19057f87..15992b5dcabf 100644
 --- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
 +++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
-@@ -34,18 +34,18 @@ ve2: ve2 {
+@@ -34,7 +34,7 @@ ve2: ve2 {
  };
  
  &display_subsystem {
 -	ports = <&voext_out>, <&vo_out>;
 +	ports = <&voext_out>;
  	status = "okay";
+ };
+ 
+@@ -43,13 +43,13 @@ &vowb {
  };
  
  &vo {
@@ -33,7 +36,7 @@ index 0fcc5e3fa825..c1306a2cf003 100644
  	voext_out: port {
  		voext_out_dsi: endpoint {
  			remote-endpoint = <&dsi_in_voext>;
-@@ -97,6 +97,7 @@ panel_in_dsi: endpoint {
+@@ -101,6 +101,7 @@ panel_in_dsi: endpoint {
  
  &hdmi {
  	ext-flags = <0x0>;

@@ -1,0 +1,179 @@
+From 850ef417a06b561db420af56bbdd1a70f61892ed Mon Sep 17 00:00:00 2001
+From: htwang <htwang@realtek.com>
+Date: Fri, 12 Dec 2025 10:19:33 +0800
+Subject: [PATCH] kvmd: Add WoL feature
+
+- Add customized RESTful API
+- Add WoL mac addr and button on WebUI
+---
+ configs/nginx/kvmd.ctx-server.conf |  12 +++
+ web/kvm/index.html                 | 115 +++++++++++++++++++++++++++--
+ 2 files changed, 120 insertions(+), 7 deletions(-)
+
+diff --git a/configs/nginx/kvmd.ctx-server.conf b/configs/nginx/kvmd.ctx-server.conf
+index cd375218..c683168a 100644
+--- a/configs/nginx/kvmd.ctx-server.conf
++++ b/configs/nginx/kvmd.ctx-server.conf
+@@ -131,3 +131,15 @@ location /redfish {
+ 	include /etc/kvmd/nginx/loc-proxy.conf;
+ 	auth_request off;
+ }
++
++location /wol {
++        proxy_pass http://127.0.0.1:8766/wol;
++        proxy_http_version 1.1;
++        proxy_set_header Upgrade $http_upgrade;
++        proxy_set_header Connection 'upgrade';
++        proxy_set_header Host $host;
++        proxy_set_header X-Real-IP $remote_addr;
++        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
++        proxy_set_header X-Forwarded-Proto $scheme;
++	proxy_cache_bypass $http_upgrade;
++}
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index 975d4787..89f328b0 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -162,24 +162,35 @@
+         </a>
+         <span class="nav-tooltip">System</span>
+         <div class="menu" id="system-menu">
+-          <table class="kv" style="display: none;">
++          <div class="text"><b>WoL</b></div><hr>
++          <table class="kv">
+             <tr>
+-              <td class="value">Runtime settings &amp; tools</td>
++              <td class="feature-disabled">Runtime settings &amp; tools</td>
+               <td class="feature-disabled" id="system-tool-webterm">
+                 <button class="small" data-force-hide-menu data-show-window="webterm-window">&bull; Term</button>
+               </td>
+-              <td id="system-tool-about">
++              <td id="system-tool-about" class="feature-disabled">
+                 <button class="small" data-force-hide-menu data-show-window="about-window">&bull; About</button>
+               </td>
+-              <td id="system-tool-log">
++              <td id="system-tool-log" class="feature-disabled">
+                 <button class="small" id="open-log-button" data-force-hide-menu>&bull; Log</button>
+               </td>
+-              <td class="feature-disabled" id="system-tool-wol">
+-                <button class="__gpio-button-__wol__ __gpio-button small" data-force-hide-menu data-channel="__wol__" data-confirm="Are you sure to send Wake-on-LAN packet to the server?">&bull; WoL</button>
++              <td class="feature-disabled" id="system-tool-wol" style="display: flex; align-items: center; gap: 8px;">
++                <label for="wol-mac">MAC:</label>
++                <input type="text" id="wol-mac" value="00:11:22:33:44:55" placeholder="Enter MAC address" style="width: 140px;">
++                <!--button id="wol-button" class="__gpio-button-__wol__ __gpio-button small" data-force-hide-menu data-channel="__wol__" data-confirm="Are you sure to send Wake-on-LAN packet to the server?">&bull; WoL</button-->
++                <button id="wol-button"
++                        class="__gpio-button-__wol__ __gpio-button small"
++                        data-force-hide-menu
++                        data-channel="__wol__"
++                        data-confirm="Are you sure to send Wake-on-LAN packet to the server?"
++                        onclick="handleWolClick(event)"
++                        style="cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
++                  &bull; WoL
++                </button>
+               </td>
+             </tr>
+           </table>
+-          <hr>
+           <div class="hidden" id="stream-message-no-webrtc">
+                 <div class="text">
+                   <table>
+@@ -3102,6 +3113,96 @@
+         if (logoutLink) {
+             logoutLink.href = '//' + window.location.hostname + '/login/';
+         }
++
++        const WOL_URL = location.origin + '/wol';
++        const macInput = document.getElementById('wol-mac');
++        const wolButton = document.getElementById('wol-button');
++
++        // Feature 1: Send a GET request on page load to retrieve the MAC address and fill it into the input field
++        fetch(WOL_URL, {
++          method: 'GET',
++          headers: {
++            'Content-Type': 'application/json',
++          },
++        })
++        .then(response => {
++          if (!response.ok) {
++            throw new Error(`HTTP error! status: ${response.status}`);
++          }
++          return response.text();
++        })
++        .then(mac => {
++          if (mac && mac.trim() !== '') {
++            macInput.value = mac.trim();
++          } else {
++            console.warn('No MAC received from server');
++          }
++        })
++        .catch(error => {
++          console.error('Error fetching MAC:', error);
++        });
++
++        // Feature 2: When the button is clicked, send a POST request first; after it succeeds, perform the subsequent WoL action
++        let isUpdatingMac = false;  // Added: A flag to prevent repeated triggers.
++
++        function handleWolClick(event) {  // Can be shared by both onclick and addEventListener
++          event.preventDefault();
++          event.stopPropagation();
++
++          if (isUpdatingMac) {
++            console.warn('MAC update in progress, ignoring click');
++            return;
++          }
++
++          const newMac = macInput.value.trim();
++          if (!newMac) {
++            alert('Please enter a valid MAC address');
++            return;
++          }
++
++          isUpdatingMac = true;
++
++          fetch(WOL_URL, {
++            method: 'POST',
++            headers: {
++              'Content-Type': 'application/json',
++            },
++            body: JSON.stringify({ mac: newMac }),
++          })
++          .then(response => {
++            if (!response.ok) {
++              throw new Error(`HTTP error! status: ${response.status}`);
++            }
++            return response.json();
++          })
++          .then(data => {
++            if (data.status === 'ok') {
++              console.log('MAC updated successfully, sending WoL...');
++              const wolEvent = new CustomEvent('wol:send', {
++                detail: { mac: newMac, channel: wolButton.dataset.channel },
++                bubbles: true
++              });
++              wolButton.dispatchEvent(wolEvent);
++            } else if (data.status === 'restartKvm') {
++              console.log('kvmd restarting due to MAC update...');
++              alert('kvmd is restarting; you need to log in again');
++            } else {
++              throw new Error('Invalid response from server');
++            }
++          })
++          .catch(error => {
++            console.error('Error updating MAC:', error);
++            alert('Failed to update MAC address: ' + error.message);
++          })
++          .finally(() => {
++            isUpdatingMac = false;
++          });
++        }
++
++        // Bind multiple events: click + touchstart + touchend (iOS compatible)
++        wolButton.addEventListener('click', handleWolClick);
++        wolButton.addEventListener('touchstart', handleWolClick);
++        wolButton.addEventListener('touchend', handleWolClick);
+     });
+     </script>
+   </body>
+-- 
+2.34.1
+

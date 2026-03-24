@@ -1,1 +1,3 @@
+patch 0001-adjust-dts-for-mali-r54-reg-size.patch
+
 kconf hardware mali.cfg

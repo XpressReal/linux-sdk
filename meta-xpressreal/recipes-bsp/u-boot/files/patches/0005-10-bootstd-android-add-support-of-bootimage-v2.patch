@@ -1,0 +1,71 @@
+From 51a2fc40d399888ee45c452d2f40fa1b0cb1456e Mon Sep 17 00:00:00 2001
+From: Guillaume La Roque <glaroque@baylibre.com>
+Date: Tue, 26 Nov 2024 09:06:09 +0100
+Subject: [PATCH 10/25] bootstd: android: add support of bootimage v2
+
+Android bootmeth only support boot image v3/4.
+
+Add support of Android Boot Image version 2 [1].
+Vendor boot image is only supported in version 3 and 4 so don't try to
+read it when header version is less than 3.
+
+[1] https://source.android.com/docs/core/architecture/bootloader/boot-image-header#header-v2
+
+Tested-by: Julien Masson <jmasson@baylibre.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Guillaume La Roque <glaroque@baylibre.com>
+Link: https://lore.kernel.org/r/20241126-adnroidv2-v4-1-11636106dc69@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/bootmeth_android.c | 27 ++++++++++++---------------
+ 1 file changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index 19b1f2c377b..2e7f85e4a70 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -259,16 +259,12 @@ static int android_read_bootflow(struct udevice *dev, struct bootflow *bflow)
+ 		goto free_priv;
+ 	}
+ 
+-	if (priv->header_version != 4) {
+-		log_debug("only boot.img v4 is supported %u\n", priv->header_version);
+-		ret = -EINVAL;
+-		goto free_priv;
+-	}
+-
+-	ret = scan_vendor_boot_part(bflow->blk, priv);
+-	if (ret < 0) {
+-		log_debug("scan vendor_boot failed: err=%d\n", ret);
+-		goto free_priv;
++	if (priv->header_version >= 3) {
++		ret = scan_vendor_boot_part(bflow->blk, priv);
++		if (ret < 0) {
++			log_debug("scan vendor_boot failed: err=%d\n", ret);
++			goto free_priv;
++		}
+ 	}
+ 
+ 	/*
+@@ -476,12 +472,13 @@ static int boot_android_normal(struct bootflow *bflow)
+ 	if (ret < 0)
+ 		return log_msg_ret("read boot", ret);
+ 
+-	ret = read_slotted_partition(desc, "vendor_boot", priv->slot, vloadaddr);
+-	if (ret < 0)
+-		return log_msg_ret("read vendor_boot", ret);
+-
++	if (priv->header_version >= 3) {
++		ret = read_slotted_partition(desc, "vendor_boot", priv->slot, vloadaddr);
++		if (ret < 0)
++			return log_msg_ret("read vendor_boot", ret);
++		set_avendor_bootimg_addr(vloadaddr);
++	}
+ 	set_abootimg_addr(loadaddr);
+-	set_avendor_bootimg_addr(vloadaddr);
+ 
+ 	ret = bootm_boot_start(loadaddr, bflow->cmdline);
+ 
+-- 
+2.47.0
+

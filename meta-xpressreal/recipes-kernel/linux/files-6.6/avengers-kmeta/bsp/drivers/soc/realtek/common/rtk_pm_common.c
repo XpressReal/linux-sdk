@@ -238,14 +238,18 @@ void rtk_pm_notfiy_pcpu_mode(struct device *dev, int mode)
 	struct pm_private *dev_pm = dev_get_drvdata(dev);
 	unsigned int wakeup_source = rtk_pm_get_wakeup_source(dev_pm);
 	struct pm_conf_data *config;
-	dma_addr_t pcpu_param_pa;
+	phys_addr_t pcpu_param_pa;
 	struct arm_smccc_res res;
 	void *pcpu_param_va;
 
 	wakeup_source &= rtk_pm_get_param_mask();
 	rtk_pm_set_wakeup_source(dev_pm, wakeup_source);
 
-	pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct pm_conf_data), &pcpu_param_pa, GFP_KERNEL);
+	pcpu_param_va = kzalloc(sizeof(struct pm_conf_data), GFP_KERNEL);
+	if (pcpu_param_va == NULL)
+		return;
+
+	pcpu_param_pa = virt_to_phys(pcpu_param_va);
 	config = (struct pm_conf_data *) pcpu_param_va;
 
 	if (mode == POWER_S3) {
@@ -260,7 +264,7 @@ void rtk_pm_notfiy_pcpu_mode(struct device *dev, int mode)
 
 	arm_smccc_smc(SIP_PWR_SYS_SET, pcpu_param_pa, sizeof(struct pm_conf_data), 0, 0, 0, 0, 0, &res);
 
-	dma_free_coherent(dev, sizeof(struct pm_conf_data), pcpu_param_va, pcpu_param_pa);
+	kfree(pcpu_param_va);
 }
 
 static int rtk_pm_check_wakeup_disabled(struct pm_private *dev_pm, enum rtk_pm_driver_id id)
@@ -278,9 +282,9 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 	struct ipc_shm_irda_v2 *irda;
 	struct rtc_wakeup_param *rtc;
 	struct ipc_shm_cec_v2 *cec;
+	phys_addr_t pcpu_param_pa;
 	struct pm_dev_param *node;
 	struct arm_smccc_res res;
-	dma_addr_t pcpu_param_pa;
 	void *pcpu_param_va;
 	int key_tbl_size;
 	int i, idx, pos;
@@ -292,8 +296,11 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 		switch (node->dev_type) {
 		case IRDA:
-			pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct ipc_shm_irda_v2), &pcpu_param_pa, GFP_KERNEL);
-			irda = (struct ipc_shm_irda_v2 *) pcpu_param_va;
+			pcpu_param_va = kzalloc(sizeof(struct ipc_shm_irda_v2), GFP_KERNEL);
+			if (pcpu_param_va == NULL)
+				return;
+			pcpu_param_pa = virt_to_phys(pcpu_param_va);
+			irda = (struct ipc_shm_irda_v2 *)pcpu_param_va;
 			irda->header.version = IRDA_WK_VER;
 			irda->header.type = IR_EVENT;
 			irda->header.len = sizeof(struct ipc_shm_irda_v2);
@@ -306,11 +313,14 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 			arm_smccc_smc(SIP_PWR_SYS_WKS_SET, pcpu_param_pa, sizeof(struct ipc_shm_irda_v2), 0, 0, 0, 0, 0, &res);
 
-			dma_free_coherent(dev, sizeof(struct ipc_shm_irda_v2), pcpu_param_va, pcpu_param_pa);
+			kfree(pcpu_param_va);
 			break;
 		case GPIO:
 			pcpu_param = (struct pm_pcpu_param_v2 *) dev_pm->pcpu_param;
-			pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct gpio_wakeup_param), &pcpu_param_pa, GFP_KERNEL);
+			pcpu_param_va = kzalloc(sizeof(struct gpio_wakeup_param), GFP_KERNEL);
+			if (pcpu_param_va == NULL)
+				return;
+			pcpu_param_pa = virt_to_phys(pcpu_param_va);
 			gpio = (struct gpio_wakeup_param *) pcpu_param_va;
 			gpio->hdr.version = GPIO_WK_VER;
 			gpio->hdr.type = GPIO_EVENT;
@@ -326,10 +336,13 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 			arm_smccc_smc(SIP_PWR_SYS_WKS_SET, pcpu_param_pa, sizeof(struct gpio_wakeup_param), 0, 0, 0, 0, 0, &res);
 
-			dma_free_coherent(dev, sizeof(struct gpio_wakeup_param), pcpu_param_va, pcpu_param_pa);
+			kfree(pcpu_param_va);
 			break;
 		case ALARM_TIMER:
-			pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct rtc_wakeup_param), &pcpu_param_pa, GFP_KERNEL);
+			pcpu_param_va = kzalloc(sizeof(struct rtc_wakeup_param), GFP_KERNEL);
+			if (pcpu_param_va == NULL)
+				return;
+			pcpu_param_pa = virt_to_phys(pcpu_param_va);
 			rtc = (struct rtc_wakeup_param *) pcpu_param_va;
 			rtc->hdr.version = RTC_WK_VER;
 			rtc->hdr.type = ALARM_EVENT;
@@ -337,11 +350,14 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 			arm_smccc_smc(SIP_PWR_SYS_WKS_SET, pcpu_param_pa, sizeof(struct rtc_wakeup_param), 0, 0, 0, 0, 0, &res);
 
-			dma_free_coherent(dev, sizeof(struct rtc_wakeup_param), pcpu_param_va, pcpu_param_pa);
+			kfree(pcpu_param_va);
 			break;
 		case TIMER:
 			pcpu_param = (struct pm_pcpu_param_v2 *) dev_pm->pcpu_param;
-			pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct tc_wakeup_param), &pcpu_param_pa, GFP_KERNEL);
+			pcpu_param_va = kzalloc(sizeof(struct tc_wakeup_param), GFP_KERNEL);
+			if (pcpu_param_va == NULL)
+				return;
+			pcpu_param_pa = virt_to_phys(pcpu_param_va);
 			timer_param = (struct tc_wakeup_param *) pcpu_param_va;
 			timer_param->hdr.version = TC_WK_VER;
 			timer_param->hdr.type = TIMER_EVENT;
@@ -350,10 +366,13 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 			arm_smccc_smc(SIP_PWR_SYS_WKS_SET, pcpu_param_pa, sizeof(struct tc_wakeup_param), 0, 0, 0, 0, 0, &res);
 
-			dma_free_coherent(dev, sizeof(struct tc_wakeup_param), pcpu_param_va, pcpu_param_pa);
+			kfree(pcpu_param_va);
 			break;
 		case CEC:
-			pcpu_param_va = dma_alloc_coherent(dev, sizeof(struct ipc_shm_cec_v2), &pcpu_param_pa, GFP_KERNEL);
+			pcpu_param_va = kzalloc(sizeof(struct ipc_shm_cec_v2), GFP_KERNEL);
+			if (pcpu_param_va == NULL)
+				return;
+			pcpu_param_pa = virt_to_phys(pcpu_param_va);
 			cec = (struct ipc_shm_cec_v2 *) pcpu_param_va;
 
 			memcpy(cec, node->data, sizeof(struct ipc_shm_cec_v2));
@@ -364,7 +383,7 @@ void rtk_pm_set_pcpu_param_v2(struct device *dev)
 
 			arm_smccc_smc(SIP_PWR_SYS_WKS_SET, pcpu_param_pa, sizeof(struct ipc_shm_cec_v2), 0, 0, 0, 0, 0, &res);
 
-			dma_free_coherent(dev, sizeof(struct ipc_shm_cec_v2), pcpu_param_va, pcpu_param_pa);
+			kfree(pcpu_param_va);
 			break;
 		default:
 			break;

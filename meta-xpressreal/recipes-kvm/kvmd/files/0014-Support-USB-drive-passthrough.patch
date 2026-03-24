@@ -1,0 +1,153 @@
+From 63610a0f4a86cc91414dbfb5eb229443584eef51 Mon Sep 17 00:00:00 2001
+From: mingjayli <mingjayli@realtek.com>
+Date: Thu, 4 Dec 2025 15:21:34 +0800
+Subject: [PATCH] kvmd: Support USB drive passthrough
+
+ - Using usbip to attach/detach USB drive to /dev/sdX from client PC.
+ - Using gadgetfs to mount /dev/sdX to target PC.
+---
+ kvmd/plugins/msd/otg/__init__.py | 50 ++++++++++++++++++++++++++++++--
+ web/kvm/index.html               |  6 ++--
+ web/share/js/kvm/stream.js       |  2 +-
+ 3 files changed, 52 insertions(+), 6 deletions(-)
+
+diff --git a/kvmd/plugins/msd/otg/__init__.py b/kvmd/plugins/msd/otg/__init__.py
+index 6d0dd776..7ac6557a 100644
+--- a/kvmd/plugins/msd/otg/__init__.py
++++ b/kvmd/plugins/msd/otg/__init__.py
+@@ -25,6 +25,9 @@ import contextlib
+ import dataclasses
+ import functools
+ import copy
++import re
++import subprocess
++import time
+ 
+ from typing import AsyncGenerator
+ 
+@@ -143,6 +146,8 @@ class Plugin(BaseMsd):  # pylint: disable=too-many-instance-attributes
+         self.__state = _State(self.__notifier)
+         self.__reset = False
+ 
++        self.__ip_address: str = ""
++
+         logger = get_logger(0)
+         logger.info("Using OTG gadget %r as MSD", gadget)
+         aiotools.run_sync(self.__unsafe_reload_state())
+@@ -251,8 +256,15 @@ class Plugin(BaseMsd):  # pylint: disable=too-many-instance-attributes
+             self.__STATE_check_disconnected()
+ 
+             if name is not None:
+-                if name:
++                if "::" in name:
++                    name, self.__ip_address = name.split("::")
++                    print(name + " " + self.__ip_address, flush=True)
++                if re.fullmatch(r"dev/sd[a-z][0-9]*", name):
++                    self.__state.vd.image = await self.__storage.make_image_by_name("/" + name)
++                    print(self.__state.vd.image, flush=True)
++                elif name:
+                     self.__state.vd.image = await self.__STATE_get_storage_image(name)
++                    print(self.__state.vd.image, flush=True)
+                 else:
+                     self.__state.vd.image = None
+ 
+@@ -273,6 +285,16 @@ class Plugin(BaseMsd):  # pylint: disable=too-many-instance-attributes
+             if connected:
+                 self.__STATE_check_disconnected()
+ 
++                if re.fullmatch(r"/dev/sd[a-z][0-9]*", self.__state.vd.image.path):
++                    try:
++                        print(self.__state.vd.image.path + ", " + self.__ip_address, flush=True)
++                        subprocess.run(
++                            ["/usr/local/bin/kvmd-wrapper", "usbip", "attach", self.__ip_address],
++                            check=True
++                        )
++                    except subprocess.CalledProcessError as e:
++                        print(f"kvmd-wrapper failed: {e}")
++
+                 if self.__state.vd.image is None:
+                     raise MsdImageNotSelected()
+ 
+@@ -285,10 +307,34 @@ class Plugin(BaseMsd):  # pylint: disable=too-many-instance-attributes
+                 self.__drive.set_cdrom_flag(self.__state.vd.cdrom)
+                 if self.__state.vd.rw:
+                     await self.__state.vd.image.remount_rw(True)
+-                self.__drive.set_image_path(self.__state.vd.image.path)
++
++                if re.fullmatch(r"/dev/sd[a-z][0-9]*", self.__state.vd.image.path):
++                    self.__drive.set_rw_flag(True)
++                    self.__drive.set_cdrom_flag(False)
++                    try:
++                        subprocess.run(
++                            ["/usr/local/bin/kvmd-wrapper", self.__state.vd.image.path],
++                            check=True
++                        )
++                    except subprocess.CalledProcessError as e:
++                        print(f"kvmd-wrapper failed: {e}")
++                else:
++                    self.__drive.set_image_path(self.__state.vd.image.path)
+ 
+             else:
+                 self.__STATE_check_connected()
++
++                print(self.__state.vd.image.path + ", " + self.__ip_address, flush=True)
++                self.__ip_address: str = ""
++                if re.fullmatch(r"/dev/sd[a-z][0-9]*", self.__state.vd.image.path):
++                    try:
++                        subprocess.run(
++                            ["/usr/local/bin/kvmd-wrapper", "usbip", "detach"],
++                            check=True
++                        )
++                    except subprocess.CalledProcessError as e:
++                        print(f"kvmd-wrapper failed: {e}")
++
+                 self.__drive.set_image_path("")
+                 await self.__storage.remount_rw(False, fatal=False)
+ 
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index cf2d1896..975d4787 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -213,7 +213,7 @@
+                 </div>
+             <hr>
+           </div>
+-          <!--div class="text"><b>Mount USB MSD</b></div><hr-->
++          <div class="text"><b>Mount USB MSD</b></div><hr>
+           <table class="kv" cellspacing="0" cellpadding="5">
+             <tr class="hidden" id="stream-resolution">
+               <td>Resolution:</td>
+@@ -287,7 +287,7 @@
+             <!--div class="buttons buttons-row">
+               <button class="row33" id="stream-audio-button">Control Audio</button>
+             </div-->
+-            <!--tr>
++            <tr>
+               <td>IP Address of Remote PC:</td>
+               <td align="right">
+                 <input 
+@@ -310,7 +310,7 @@
+                   </label>
+                 </div>
+               </td>
+-            </tr-->
++            </tr>
+           </table>
+           <div class="text" style="margin-top: 10px;"><b>Sound</b></div>
+           <hr>
+diff --git a/web/share/js/kvm/stream.js b/web/share/js/kvm/stream.js
+index 26573f41..061dd499 100644
+--- a/web/share/js/kvm/stream.js
++++ b/web/share/js/kvm/stream.js
+@@ -103,7 +103,7 @@ export function Streamer() {
+ 		tools.el.setOnClick($("stream-screenshot-button"), __clickScreenshotButton);
+ 		tools.el.setOnClick($("stream-reset-button"), __clickResetButton);
+ 		tools.el.setOnClick($("stream-audio-button"), __clickAudioButton);
+-		//tools.el.setOnClick($("msd-button"), __clickMsdButton);
++		tools.el.setOnClick($("msd-button"), __clickMsdButton);
+ 
+ 		tools.storage.bindSimpleSwitch($("stream-suspend-switch"), "stream.suspend", false, __visibilityHook);
+ 
+-- 
+2.34.1
+

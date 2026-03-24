@@ -1,0 +1,64 @@
+From c01721b27fae731d0ec7a7534edad016270dae8d Mon Sep 17 00:00:00 2001
+From: Mostafa Saleh <smostafa@google.com>
+Date: Sun, 15 Dec 2024 19:07:02 +0000
+Subject: [PATCH] BACKPORT: FROMLIST: iommu/io-pgtable-arm: Fix cfg
+ reading in arm_lpae_concat_mandatory()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+I messed up the newly introduced function arm_lpae_concat_mandatory()
+where ias/oas are read from the io_pgtable_cfg copy in arm_lpae_io_pgtable.
+
+However, this copy is set later in alloc_io_pgtable_ops() after alloc()
+function was called.
+
+I didn’t catch that with my selftesting as arm_lpae_io_pgtable is
+allocated from kmalloc, which was caching old configs.
+
+While at it, fix a couple of spaces.
+
+Link: https://lore.kernel.org/linux-iommu/20241215200412.561400-1-smostafa@google.com
+[@smostafa: Move to io-pgtable-arm-common.c which have this code now]
+Bug: 374902116
+Bug: 378077087
+Change-Id: I2f298f4b897015c51dcfdb2d320cfad0e110a3b8
+Signed-off-by: Mostafa Saleh <smostafa@google.com>
+---
+ drivers/iommu/io-pgtable-arm-common.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/iommu/io-pgtable-arm-common.c b/drivers/iommu/io-pgtable-arm-common.c
+index e2256eda3b7eb..b4d5f03304a8b 100644
+--- a/drivers/iommu/io-pgtable-arm-common.c
++++ b/drivers/iommu/io-pgtable-arm-common.c
+@@ -71,12 +71,13 @@ static inline int arm_lpae_max_entries(int i, struct arm_lpae_io_pgtable *data)
+  *   c) 42 bits PA size with 4K: use level 1 instead of level 0 (8 tables for ias = oas)
+  *   d) 48 bits PA size with 16K: use level 1 instead of level 0 (2 tables for ias = oas)
+  */
+-static inline bool arm_lpae_concat_mandatory(struct arm_lpae_io_pgtable *data)
++static inline bool arm_lpae_concat_mandatory(struct io_pgtable_cfg *cfg,
++					     struct arm_lpae_io_pgtable *data)
+ {
+-	unsigned int ias = data->iop.cfg.ias;
+-	unsigned int oas = data->iop.cfg.oas;
++	unsigned int ias = cfg->ias;
++	unsigned int oas = cfg->oas;
+ 
+-	/* Covers 1  and 2.d */
++	/* Covers 1 and 2.d */
+ 	if ((ARM_LPAE_GRANULE(data) == SZ_16K) && (data->start_level == 0))
+ 		return (oas == 48) || (ias == 48);
+ 
+@@ -792,7 +793,7 @@ int arm_lpae_init_pgtable_s2(struct io_pgtable_cfg *cfg,
+ 	if (ret)
+ 		return ret;
+ 
+-	if (arm_lpae_concat_mandatory(data))  {
++	if (arm_lpae_concat_mandatory(cfg, data)) {
+ 		if (WARN_ON((ARM_LPAE_PGD_SIZE(data) / sizeof(arm_lpae_iopte)) >
+ 			    ARM_LPAE_S2_MAX_CONCAT_PAGES))
+ 			return -EINVAL;
+-- 
+2.34.1
+

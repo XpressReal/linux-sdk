@@ -1,0 +1,59 @@
+From 8f8e646d790199f023f82b8100b6e160d510206d Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Thu, 17 Oct 2024 16:44:42 +0200
+Subject: [PATCH 07/25] image: android: use ulong for kernel address
+
+When booting with platforms having > 4GiB of memory,
+the kernel physical address can be more than 32bits.
+
+Use ulong like all the other addresses, and fix the
+print to show the > 32bits address numbers.
+
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Tested-by: Guillaume La Roque <glaroque@baylibre.com>
+Link: https://lore.kernel.org/r/20241017-topic-fastboot-fixes-mkbootimg-v2-1-c3927102d931@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c    | 4 ++--
+ include/android_image.h | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index e74dd498a30..bb5f4f84487 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -256,7 +256,7 @@ int android_image_get_kernel(const void *hdr,
+ 			     ulong *os_data, ulong *os_len)
+ {
+ 	struct andr_image_data img_data = {0};
+-	u32 kernel_addr;
++	ulong kernel_addr;
+ 	const struct legacy_img_hdr *ihdr;
+ 
+ 	if (!android_image_get_data(hdr, vendor_boot_img, &img_data))
+@@ -275,7 +275,7 @@ int android_image_get_kernel(const void *hdr,
+ 	if (strlen(andr_tmp_str))
+ 		printf("Android's image name: %s\n", andr_tmp_str);
+ 
+-	printf("Kernel load addr 0x%08x size %u KiB\n",
++	printf("Kernel load addr 0x%08lx size %u KiB\n",
+ 	       kernel_addr, DIV_ROUND_UP(img_data.kernel_size, 1024));
+ 
+ 	int len = 0;
+diff --git a/include/android_image.h b/include/android_image.h
+index d503c980b23..96820709b42 100644
+--- a/include/android_image.h
++++ b/include/android_image.h
+@@ -348,7 +348,7 @@ struct andr_image_data {
+ 	ulong bootconfig_addr;  /* bootconfig image address */
+ 	ulong bootconfig_size;  /* bootconfig image size */
+ 
+-	u32 kernel_addr;  /* physical load addr */
++	ulong kernel_addr;  /* physical load addr */
+ 	ulong ramdisk_addr;  /* physical load addr */
+ 	ulong ramdisk_ptr;  /* ramdisk address */
+ 	ulong dtb_load_addr;  /* physical load address for DTB image */
+-- 
+2.47.0
+

@@ -2818,10 +2818,12 @@ int rtk_rpc_init(struct device *dev, struct rtk_rpc_info *rpc_info, int of_index
 	}
 
 #ifndef CONFIG_CHROME_PLATFORMS
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(dev, "rtk_audio_heap",
 			RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
 			 RTK_FLAG_ACPUACC, __func__);
+#endif
 #endif
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);

@@ -1,0 +1,41 @@
+From 7ce304956dd6bab7edae94f650c7e7af51d8a3e6 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Fri, 2 Jan 2026 12:03:55 +0800
+Subject: [PATCH] drm: make some helpers selectable
+
+- DRM_DISPLAY_HELPER
+- DRM_GEM_SHMEM_HELPER
+---
+ drivers/gpu/drm/Kconfig         | 2 +-
+ drivers/gpu/drm/display/Kconfig | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
+index a0138b882a3a5..cb57c361a372e 100644
+--- a/drivers/gpu/drm/Kconfig
++++ b/drivers/gpu/drm/Kconfig
+@@ -251,7 +251,7 @@ config DRM_GEM_DMA_HELPER
+ 	  Choose this if you need the GEM DMA helper functions
+ 
+ config DRM_GEM_SHMEM_HELPER
+-	tristate
++	tristate ""
+ 	depends on DRM && MMU
+ 	help
+ 	  Choose this if you need the GEM shmem helper functions
+diff --git a/drivers/gpu/drm/display/Kconfig b/drivers/gpu/drm/display/Kconfig
+index c0f56888c3280..f39a858725dd3 100644
+--- a/drivers/gpu/drm/display/Kconfig
++++ b/drivers/gpu/drm/display/Kconfig
+@@ -6,7 +6,7 @@ config DRM_DP_AUX_BUS
+ 	depends on OF || COMPILE_TEST
+ 
+ config DRM_DISPLAY_HELPER
+-	tristate
++	tristate ""
+ 	depends on DRM
+ 	help
+ 	  DRM helpers for display adapters.
+-- 
+2.34.1
+

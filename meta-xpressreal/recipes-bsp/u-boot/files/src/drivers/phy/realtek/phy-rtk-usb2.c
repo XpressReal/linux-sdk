@@ -1220,8 +1220,12 @@ static const struct udevice_id usbphy_rtk_dt_match[] = {
 	{ .compatible = "realtek,rtd1395-usb2phy", .data = &rtd1395_phy_cfg },
 	{ .compatible = "realtek,rtd1619-usb2phy", .data = &rtd1619_phy_cfg },
 #endif
+#if defined(CONFIG_TARGET_RTD1619B)
 	{ .compatible = "realtek,rtd1619b-usb2phy", .data = &rtd1619b_phy_cfg },
+#endif
+#if defined(CONFIG_TARGET_RTD1625)
 	{ .compatible = "realtek,rtd1625-usb2phy", .data = &rtd1625_phy_cfg },
+#endif
 	{},
 };
 

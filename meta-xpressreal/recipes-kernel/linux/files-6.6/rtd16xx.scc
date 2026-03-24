@@ -1,0 +1,6 @@
+define KMACHINE realtekevb-rtd16xx
+define KTYPE standard
+define KARCH arm64
+
+include avengers.scc
+kconf hardware rtd16xx.cfg

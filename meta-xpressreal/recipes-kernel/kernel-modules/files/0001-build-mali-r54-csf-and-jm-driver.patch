@@ -1,0 +1,105 @@
+From 8c670122e267ea53a22ddd6bb823a66a7f96e6e9 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 5 Feb 2026 21:33:00 -0500
+Subject: [PATCH] build mali r54 csf and jm driver
+
+---
+ CSF/Makefile | 10 +++++++++-
+ JM/Makefile  |  9 ++++++++-
+ Makefile     | 13 +++++++++++++
+ 3 files changed, 30 insertions(+), 2 deletions(-)
+ create mode 100644 Makefile
+
+diff --git a/CSF/Makefile b/CSF/Makefile
+index 95933d8..2481af8 100644
+--- a/CSF/Makefile
++++ b/CSF/Makefile
+@@ -17,12 +17,18 @@ endif
+ 
+ KDIR ?= $(PWD)/$(LINUX_KERNEL_PATH)
+ MIDGARD_DIR ?= driver/product/kernel/drivers/gpu/arm/midgard
++DMABUF_EXPORTER_DIR ?= driver/product/kernel/drivers/base/arm
+ 
+ export CONFIG_MALI_PLATFORM_NAME ?= rtk
+ export CONFIG_MALI_GATOR_SUPPORT ?= n
+ export CONFIG_MALI_DEVFREQ ?= y
+ export CONFIG_MALI_MIDGARD_ENABLE_TRACE ?= y
+ export CONFIG_MALI_CSF_SUPPORT = y
++export CONFIG_MALI_BASE_MODULES ?= y
++export CONFIG_DMA_SHARED_BUFFER ?= y
++export CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER ?= y
++export CONFIG_MALI_MEMORY_GROUP_MANAGER ?= n
++export CONFIG_MALI_HAS_VIRTUALIZATION ?= n
+ 
+ .PHONY: all install clean
+ 
+@@ -45,9 +51,11 @@ show_info:
+ build: show_info
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m
+ 	${STRIP} driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase.ko --strip-unneeded
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR)
++	$(STRIP) driver/product/kernel/drivers/base/arm/dma_buf_test_exporter/dma-buf-test-exporter.ko --strip-unneeded
+ 
+ install:
+ 
+ clean:
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m clean
+-
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR) clean
+diff --git a/JM/Makefile b/JM/Makefile
+index 5bdd1fa..3dc5796 100644
+--- a/JM/Makefile
++++ b/JM/Makefile
+@@ -17,12 +17,17 @@ endif
+ 
+ KDIR ?= $(PWD)/$(LINUX_KERNEL_PATH)
+ MIDGARD_DIR ?= driver/product/kernel/drivers/gpu/arm/midgard
++DMABUF_EXPORTER_DIR ?= driver/product/kernel/drivers/base/arm
+ 
+ export CONFIG_MALI_PLATFORM_NAME ?= rtk
+ export CONFIG_MALI_GATOR_SUPPORT ?= n
+ export CONFIG_MALI_DEVFREQ ?= y
+ export CONFIG_MALI_MIDGARD_ENABLE_TRACE ?= y
+ export CONFIG_MALI_CSF_SUPPORT = n
++export CONFIG_MALI_BASE_MODULES ?= y
++export CONFIG_DMA_SHARED_BUFFER ?= y
++export CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER ?= y
++export CONFIG_MALI_MEMORY_GROUP_MANAGER ?= n
+ 
+ .PHONY: all install clean
+ 
+@@ -45,9 +50,11 @@ show_info:
+ build: show_info
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m
+ 	${STRIP} driver/product/kernel/drivers/gpu/arm/midgard/mali_kbase.ko --strip-unneeded
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR)
++	$(STRIP) driver/product/kernel/drivers/base/arm/dma_buf_test_exporter/dma-buf-test-exporter.ko --strip-unneeded
+ 
+ install:
+ 
+ clean:
+ 	$(MAKE) -C $(MIDGARD_DIR) KDIR=$(KDIR) CONFIG_MALI_MIDGARD=m clean
+-
++	$(MAKE) -C $(DMABUF_EXPORTER_DIR) KDIR=$(KDIR) clean
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..1bfb7c1
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,13 @@
++.PHONY: all csf jm clean
++
++all: csf jm
++
++csf:
++	$(MAKE) -C CSF
++
++jm:
++	$(MAKE) -C JM
++
++clean:
++	$(MAKE) -C CSF clean
++	$(MAKE) -C JM clean
+-- 
+2.34.1
+

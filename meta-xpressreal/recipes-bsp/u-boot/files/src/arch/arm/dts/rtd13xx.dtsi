@@ -95,6 +95,11 @@
 				ranges = <0x0 0x1a000 0x1000>;
 			};
 
+			nic: r8169soc@16000 {
+				compatible = "realtek,rtd13xx-r8169soc";
+				status = "disabled";
+			};
+
 			emmc: emmc@12000 {
 				compatible = "rtk13xx-dw-cqe-emmc";
 				reg = <0x00012000 0x00600>,

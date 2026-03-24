@@ -1,0 +1,42 @@
+From c2f72d00ab88402038d3c9625124575715acdf4f Mon Sep 17 00:00:00 2001
+From: Igor Opaniuk <igor.opaniuk@gmail.com>
+Date: Fri, 9 Feb 2024 20:20:39 +0100
+Subject: [PATCH] common: avb_verify: don't call mmc_switch_part for SD
+
+mmc_switch_part() is used for switching between hw partitions
+on eMMC (boot0, boot1, user, rpmb).
+There is no need to do that for SD card.
+
+This fixes the avb command usage on SD cards.
+
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Igor Opaniuk <igor.opaniuk@gmail.com>
+Reviewed-by: Dragan Simic <dsimic@manjaro.org>
+Link: https://lore.kernel.org/r/20240209192045.3961832-2-igor.opaniuk@foundries.io
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ common/avb_verify.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/common/avb_verify.c b/common/avb_verify.c
+index 48ba8db51e5..59f2c25e0de 100644
+--- a/common/avb_verify.c
++++ b/common/avb_verify.c
+@@ -358,9 +358,11 @@ static struct mmc_part *get_partition(AvbOps *ops, const char *partition)
+ 		goto err;
+ 	}
+ 
+-	ret = mmc_switch_part(part->mmc, part_num);
+-	if (ret)
+-		goto err;
++	if (IS_MMC(part->mmc)) {
++		ret = mmc_switch_part(part->mmc, part_num);
++		if (ret)
++			goto err;
++	}
+ 
+ 	mmc_blk = mmc_get_blk_desc(part->mmc);
+ 	if (!mmc_blk) {
+-- 
+2.47.0
+

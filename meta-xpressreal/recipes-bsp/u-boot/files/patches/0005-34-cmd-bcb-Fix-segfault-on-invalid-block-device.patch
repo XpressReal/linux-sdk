@@ -1,0 +1,47 @@
+From 61faa6dd21f661cab95aa00a6660441a5f04f8db Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Wed, 24 Jul 2024 11:51:06 +0200
+Subject: [PATCH] cmd: bcb: Fix segfault on invalid block device
+
+When blk_get_dev() fails, block NULL and gets de-referenced in
+the error path by a printf(), resulting in a crash.
+
+This can be reproduced on sandbox with:
+
+$ ./u-boot --command "bcb load mmc 0 0"
+
+Fix the message by using the functions arguments (iface, devnum)
+instead.
+
+Note: partition (being a global static initialized) can be used safely.
+
+This issue has been reported by coverity [1]
+
+[1] https://lore.kernel.org/all/20240723141844.GF989285@bill-the-cat/
+
+Fixes: dfeb4f0d7935 ("cmd: bcb: extend BCB C API to allow read/write the fields")
+Reviewed-by: Dmitrii Merkurev <dimorinny@google.com>
+Link: https://lore.kernel.org/r/20240724-bcb-crash-v1-1-44caff15bce4@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ cmd/bcb.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cmd/bcb.c b/cmd/bcb.c
+index fe6d6cb2c38..97a96c00964 100644
+--- a/cmd/bcb.c
++++ b/cmd/bcb.c
+@@ -172,8 +172,8 @@ static int __bcb_initialize(const char *iface, int devnum, const char *partp)
+ 	return CMD_RET_SUCCESS;
+ 
+ err_read_fail:
+-	printf("Error: %d %d:%s read failed (%d)\n", block->uclass_id,
+-	       block->devnum, partition->name, ret);
++	printf("Error: %s %d:%s read failed (%d)\n", iface, devnum,
++	       partition->name, ret);
+ 	__bcb_reset();
+ 	return CMD_RET_FAILURE;
+ }
+-- 
+2.47.0
+

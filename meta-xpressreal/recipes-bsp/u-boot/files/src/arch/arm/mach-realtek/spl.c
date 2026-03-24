@@ -14,7 +14,7 @@
 #include <spl.h>
 #include <mmc.h>
 #include <asm/sections.h>
-#include <asm/arch/platform_lib/board/gpio.h>
+#include <asm-generic/gpio.h>
 #include <asm/arch/cpu.h>
 #include <image.h>
 #include <boot_fit.h>
@@ -51,11 +51,14 @@ void board_boot_order(u32 *spl_boot_list)
 {
 	int index = 0;
 #if CONFIG_IS_ENABLED(USB_STORAGE)
-#if CONFIG_USB_BOOT_GPIO_NUM
-	setISOGPIO_pullsel(CONFIG_USB_BOOT_GPIO_NUM, PULL_UP);
-	if (!getISOGPIO(CONFIG_USB_BOOT_GPIO_NUM))
+#if CONFIG_USB_BOOT_GPIO_NUM > 0
+	gpio_request(CONFIG_USB_BOOT_GPIO_NUM, "usb-boot-key");
+	gpio_direction_input(CONFIG_USB_BOOT_GPIO_NUM);
+	if (!gpio_get_value(CONFIG_USB_BOOT_GPIO_NUM))
 #endif
+#if CONFIG_USB_BOOT_GPIO_NUM >= 0
 	spl_boot_list[index++] = BOOT_DEVICE_USB;
+#endif
 #endif /* USB_STORAGE */
 
 #if defined(CONFIG_SPL_MMC)
@@ -151,6 +154,11 @@ void spl_perform_fixups(struct spl_image_info *spl_image) {
 	int node;
 	const void *p;
 	int i;
+#if defined(CONFIG_TARGET_RTD1625)
+	const char *tee_dtbo_name = "rtd1501-tee";
+#else
+	const char *tee_dtbo_name = "tee";
+#endif
 
 	if (!blob || (fdt_magic(blob) != FDT_MAGIC))
 		return;
@@ -164,7 +172,7 @@ void spl_perform_fixups(struct spl_image_info *spl_image) {
 		fdt_overlay_apply_verbose((void *)blob, dtbo);
 
 	if(rtk_is_secure_boot()) {
-		cfg_board_name = "tee";
+		cfg_board_name = tee_dtbo_name;
 		dtbo = locate_dtb_in_fit(gd->multi_dtb_fit);
 		cfg_board_name = NULL;
 		if (dtbo && fdt_magic(dtbo) == FDT_MAGIC)
@@ -190,7 +198,7 @@ void spl_perform_fixups(struct spl_image_info *spl_image) {
 		}
 	}
 
-	node = fdt_subnode_offset(blob, offset, "tee");
+	node = fdt_subnode_offset(blob, offset, tee_dtbo_name);
 	if(node >= 0) {
 		p = fdt_getprop(blob, node, "size", NULL);
 		if (p) FW_INFO[1][1] = fdt32_to_cpu(*(const uint32_t *)p);
@@ -211,7 +219,7 @@ int cmd_bl31_fw(uint idx)
 	type = FW_INFO[idx][0];
 	fw_size = FW_INFO[idx][1];
 	fw_addr = FW_INFO[idx][2];
-	//printf("%s: (%x, %x, %x)\n", __func__, type, fw_size, fw_addr);
+	//printf("%s: (%x, %x, %x, %x)\n", __func__, idx, type, fw_size, fw_addr);
 
 	if (!fw_size || !fw_addr) return -1;
 #if defined(CONFIG_TARGET_RTD1619B)
@@ -228,7 +236,13 @@ int cmd_bl31_fw(uint idx)
 		a3 = fw_addr + 1024;
 		a4 = fw_size - 1024;
 	}
-	//else fid = NSSMC_OPTEED_CALL_LOAD_IMAGE;
+	else if (idx == 1) {
+		fid = 0xBF000002; //NSSMC_OPTEED_CALL_LOAD_IMAGE;
+		a1 = 0x0;
+		a2 = fw_size;
+		a3 = 0x0;
+		a4 = fw_addr;
+	}
 #endif
 	if (fid) {
 		flush_cache(fw_addr, fw_size);
@@ -248,6 +262,7 @@ void spl_board_prepare_for_boot(void)
 	cmd_bl31_fw(1);
 #elif defined(CONFIG_TARGET_RTD1625)
 	cmd_bl31_fw(0);
+	cmd_bl31_fw(1);
 #endif
 }
 
@@ -260,10 +275,9 @@ int fdtdec_board_setup(const void *fdt_blob) {
 		if(fdt_find_and_setprop((void *)fdt_blob, "/"FIT_SIG_NODENAME"/key-uboot", FIT_KEY_REQUIRED, "conf", 5, 0))
 		ret = fdt_find_and_setprop((void *)fdt_blob, "/"FIT_SIG_NODENAME"/key-dev", FIT_KEY_REQUIRED, "conf", 5, 0);
 
-#if defined(CONFIG_TARGET_RTD1619B)
-	int node = fdt_node_offset_by_compatible(fdt_blob, -1, "realtek,rtd1619b-usb3dwc3");
+	int node = -1;
 	/* disable USB3.0 */
-	if (node >= 0) {
+	while ((node  = fdt_node_offset_by_compatible(fdt_blob, node, "realtek,usb3dwc3")) >= 0) {
 		static char data[32] __aligned(4);
 		const void *ptmp;
 		int len;
@@ -282,7 +296,6 @@ int fdtdec_board_setup(const void *fdt_blob) {
 			fdt_setprop(fdt_blob, node, "usb-phy", data, len);
 		}
 	}
-#endif
 #endif
 
 #if CONFIG_IS_ENABLED(MULTI_DTB_FIT) && defined(CONFIG_OF_LIBFDT_OVERLAY)

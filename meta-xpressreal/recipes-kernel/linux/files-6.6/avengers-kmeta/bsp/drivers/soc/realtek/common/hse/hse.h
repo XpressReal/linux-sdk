@@ -14,6 +14,7 @@
 #include <linux/wait.h>
 
 #define HSE_REG_BYPASS                  0x41c
+#define STRETCH_MAX_WIDTH_BYTES           4096
 
 enum {
 	HSE_STATUS_IRQ_OK = 0x1,
@@ -138,7 +139,7 @@ static inline u32 hse_read(struct hse_device *hse_dev, u32 offset)
 	return v;
 }
 
-static inline struct hse_engine *hse_device_get_engine(struct hse_device *hse_dev, int id)
+static inline struct hse_engine *hse_device_get_engine(struct hse_device *hse_dev, u32 id)
 {
 	if (WARN_ON(id >= hse_dev->num_eng))
 		id = 0;
@@ -152,7 +153,7 @@ struct hse_quirks {
 	unsigned int support_rotate_10bit : 1;
 
 	const struct hse_engine_desc *eng_desc;
-	int num_eng;
+	u32 num_eng;
 };
 
 static inline int hse_should_disable_bypass_en(struct hse_device *hse_dev)
@@ -205,11 +206,11 @@ int hse_cq_prep_rgb2yuv_coeff(struct hse_device *hse_dev,
 			      struct hse_command_queue *cq);
 int hse_cq_prep_fmt_convert(struct hse_device *hse_dev,
 			    struct hse_command_queue *cq, u8 dst_fmt,
-			    u16 dst_pitch, u16 dst_rgb_order, u32 dst_luma_addr,
-			    u32 dst_chroma_addr, u16 alpha_out, u8 yuv_down_h,
+			    u16 dst_pitch, u16 dst_rgb_order, dma_addr_t dst_luma_addr,
+			    dma_addr_t dst_chroma_addr, u16 alpha_out, u8 yuv_down_h,
 			    u8 yuv_down_v, u8 src_fmt, u16 src_pitch,
-			    u16 src_rgb_order, u32 src_luma_addr,
-			    u32 src_chroma_addr, u16 width, u16 height);
+			    u16 src_rgb_order, dma_addr_t src_luma_addr,
+			    dma_addr_t src_chroma_addr, u16 width, u16 height);
 int hse_cq_prep_stretch(struct hse_device *hse_dev, struct hse_command_queue *cq,
                 dma_addr_t dst, u32 dst_pitch, dma_addr_t src, u32 src_pitch,
                 u16 dst_width, u16 dst_height, u16 src_width, u16 src_height, u16 colorSel);

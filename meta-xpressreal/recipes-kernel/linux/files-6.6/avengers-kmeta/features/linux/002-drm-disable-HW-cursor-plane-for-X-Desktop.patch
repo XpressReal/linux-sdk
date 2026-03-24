@@ -1,0 +1,56 @@
+From a7a05bf19eb3fa9d45bd06273230e6747af85f37 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Fri, 28 Nov 2025 11:43:51 +0800
+Subject: [PATCH] drm: disable HW cursor plane for X Desktop
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index bf7e8b129b9f..33b224c8dcd7 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -738,9 +738,6 @@ static const struct crtc_plane_data rtd_crtc_plane_all[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = FIRST_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_SUB1,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = FIRST_DISPLAY_CURSOR },
+ 	{ .layer_nr = VO_VIDEO_PLANE_V1,
+ 	  .type = DRM_PLANE_TYPE_OVERLAY,
+ 	  .plane_order = FIRST_DISPLAY_OVERLAY },
+@@ -763,9 +760,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = FIRST_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = FIRST_DISPLAY_CURSOR },
+ 	{ .layer_nr = VO_VIDEO_PLANE_V1,
+ 	  .type = DRM_PLANE_TYPE_OVERLAY,
+ 	  .plane_order = FIRST_DISPLAY_OVERLAY },
+@@ -795,9 +789,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_ext[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_SUB1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = SECOND_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD4,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = SECOND_DISPLAY_CURSOR },
+ 	{ .layer_nr = VO_VIDEO_PLANE_V2,
+ 	  .type = DRM_PLANE_TYPE_OVERLAY,
+ 	  .plane_order = SECOND_DISPLAY_OVERLAY },
+@@ -824,9 +815,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = THIRD_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = THIRD_DISPLAY_CURSOR },
+ };
+ #else
+ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+-- 
+2.34.1
+

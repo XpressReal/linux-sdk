@@ -8,7 +8,10 @@ patch 007-gpu-drm-add-video-plane-for-yocto-env.patch
 patch 008-gpu-drm-fix-black-screen-issue-when-change-tv-system.patch
 patch 009-gpu-drm-remove-1920x720-tv-mode-the-mode-is-only-nee.patch
 patch 010-gpu-drm-realtek-add-vic-4-16-95-to-default-modes-whe.patch
+patch 011-gpu-drm-panel-rpi-touchscreen-support-backlight-brig.patch
 patch 012-kernel-gpu-drm-do-not-use-CLUSTER-flow.patch
 patch 013-drm-sync-mixer-plane-to-chromebook.patch
+patch 014-eDP-driver-for-Kent-AIOT-platform.patch
+patch 015-CHROME-878-use-dma_buf_vmap_unlock-and-dma_buf_vunma.patch
 
 kconf hardware drm.cfg

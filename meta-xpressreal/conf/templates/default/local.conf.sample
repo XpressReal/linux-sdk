@@ -24,9 +24,10 @@
 #MACHINE ??= "pymparticles-rtd1319-mini"
 #MACHINE ??= "realtekevb-rtd1619b"
 #MACHINE ??= "backinblack-rtd1619b"
+#MACHINE ??= "hulkbuster-rtd1619b"
 #MACHINE ??= "bleedingedge-rtd1619b-mini"
-#MACHINE ??= "bleedingedge-rtd1619b"
-MACHINE ??= "xpressreal-rtd1619b"
+MACHINE ??= "bleedingedge-rtd1619b"
+#MACHINE ??= "xpressreal-rtd1619b"
 #MACHINE ??= "badassium-rtd1315c"
 #MACHINE ??= "phantom-rtd1625-mini"
 #MACHINE ??= "phantom-rtd1625"
@@ -243,8 +244,8 @@ CONF_VERSION = "2"
 # Change the prefered GPU provider to panfrost
 MACHINE_FEATURES:append = " panfrost"
 
-# Use HiFi as audio co-processor
-MACHINE_FEATURES:append = " hifi"
+# Use AFW as audio co-processor, only for rtd1619b
+#MACHINE_FEATURES:append = " nohifi"
 
 # Enable stt demo
 #MACHINE_FEATURES:append = " stt-capable"
@@ -278,11 +279,11 @@ MACHINE_FEATURES:append = " hifi"
 # MACHINE_FEATURES:append = " split-home"
 #
 # GamePad Rootfs is based on Debian/Ubuntu Weston image
-# MACHINE_FEATURES:append = " gamepad mipi drm hifi panfrost"
+# MACHINE_FEATURES:append = " gamepad mipi drm panfrost"
 # Remove "mipi" if the board is not equipped with a MIPI panel
 #
 # KVM image is from PiKVM project using Yocto Recipe
-# MACHINE_FEATURES:append = " kvm drm v4l2 hifi"
+# MACHINE_FEATURES:append = " kvm drm v4l2"
 # "v4l2" is only needed for machines with -mini suffix
 # display exact commit version on the platform /etc/buildinfo
 INHERIT += "image-buildinfo"

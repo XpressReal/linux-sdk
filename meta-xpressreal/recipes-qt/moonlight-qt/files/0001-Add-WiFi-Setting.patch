@@ -1,0 +1,826 @@
+From 55b3e7851821107bac9c56ef03130d157d34c84f Mon Sep 17 00:00:00 2001
+From: mingjayli <mingjayli@realtek.com>
+Date: Mon, 5 Jan 2026 11:05:34 +0800
+Subject: [PATCH] Add WiFi Setting
+
+---
+ app/app.pro                  |   4 +-
+ app/backend/WifiManager.cpp  | 258 ++++++++++++++++++++++++++++
+ app/backend/WifiManager.h    |  44 +++++
+ app/gui/WifiSettingsView.qml | 314 +++++++++++++++++++++++++++++++++++
+ app/gui/main.qml             |  22 +++
+ app/main.cpp                 |   7 +
+ app/qml.qrc                  |   1 +
+ app/res/visibility-off.svg   |   2 +
+ app/res/visibility.svg       |  20 +++
+ app/res/wifi.svg             |   1 +
+ app/resources.qrc            |   3 +
+ 11 files changed, 675 insertions(+), 1 deletion(-)
+ create mode 100644 app/backend/WifiManager.cpp
+ create mode 100644 app/backend/WifiManager.h
+ create mode 100644 app/gui/WifiSettingsView.qml
+ create mode 100644 app/res/visibility-off.svg
+ create mode 100644 app/res/visibility.svg
+ create mode 100644 app/res/wifi.svg
+
+diff --git a/app/app.pro b/app/app.pro
+index 084bd52..89ad56c 100644
+--- a/app/app.pro
++++ b/app/app.pro
+@@ -1,4 +1,4 @@
+-QT += core quick network quickcontrols2 svg
++QT += core quick network quickcontrols2 svg virtualkeyboard
+ CONFIG += c++11
+ 
+ unix:!macx {
+@@ -184,6 +184,7 @@ SOURCES += \
+     backend/computermanager.cpp \
+     backend/boxartmanager.cpp \
+     backend/richpresencemanager.cpp \
++    backend/WifiManager.cpp \
+     cli/commandlineparser.cpp \
+     cli/listapps.cpp \
+     cli/quitstream.cpp \
+@@ -228,6 +229,7 @@ HEADERS += \
+     backend/computermanager.h \
+     backend/boxartmanager.h \
+     backend/richpresencemanager.h \
++    backend/WifiManager.h \
+     cli/commandlineparser.h \
+     cli/listapps.h \
+     cli/quitstream.h \
+diff --git a/app/backend/WifiManager.cpp b/app/backend/WifiManager.cpp
+new file mode 100644
+index 0000000..68642ea
+--- /dev/null
++++ b/app/backend/WifiManager.cpp
+@@ -0,0 +1,258 @@
++// WifiManager.cpp
++
++#include "WifiManager.h"
++#include <QDebug>
++#include <QProcess>
++#include <QTimer>
++#include <algorithm>
++
++WifiManager::WifiManager(QObject *parent) : QObject(parent)
++{
++    // Fetch current connected SSID on startup
++    refreshCurrentSSID();
++
++    // Optional: periodically refresh current SSID (e.g., every 10 seconds)
++    // QTimer *timer = new QTimer(this);
++    // connect(timer, &QTimer::timeout, this, &WifiManager::refreshCurrentSSID);
++    // timer->start(10000);
++}
++
++void WifiManager::refreshCurrentSSID()
++{
++    QProcess *process = new QProcess(this);
++    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
++            this, [this, process](int exitCode, QProcess::ExitStatus) {
++        Q_UNUSED(exitCode);
++        QString output = process->readAllStandardOutput();
++        QString newSSID;
++
++        // Parse line like "ssid=MyNetwork"
++        QStringList lines = output.split('\n');
++        for (const QString &line : lines) {
++            if (line.startsWith("ssid=")) {
++                newSSID = line.mid(5).trimmed();  // get value from ssid=
++                break;
++            }
++        }
++
++        if (m_currentSSID != newSSID) {
++            m_currentSSID = newSSID;
++            emit connectionChanged();
++            qDebug() << "Current SSID updated to:" << m_currentSSID;
++        }
++
++        process->deleteLater();
++    });
++
++    process->start("wpa_cli", QStringList() << "-i" << "wlan0" << "status");
++}
++
++void WifiManager::scanNetworks()
++{
++    qDebug() << "Starting Wi-Fi scan using wpa_cli (interface: wlan0)...";
++
++    QProcess *process = new QProcess(this);
++    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
++            this, &WifiManager::scanProcessFinished);
++
++    // Trigger scan first, then get results after a short delay
++    // Using pipeline: scan + sleep + scan_results
++    process->start("sh", QStringList() << "-c"
++                   << "wpa_cli -i wlan0 scan && sleep 3 && wpa_cli -i wlan0 scan_results");
++
++    // If root privileges are required, prepend "sudo " to the commands above
++    if (!process->waitForStarted()) {
++        emit errorOccurred("Failed to start wpa_cli scan");
++    }
++}
++
++void WifiManager::scanProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
++{
++    Q_UNUSED(exitStatus);
++
++    QProcess *process = qobject_cast<QProcess*>(sender());
++    if (!process) return;
++
++    qDebug() << "wpa_cli scan finished, exit code:" << exitCode;
++
++    QString output = process->readAllStandardOutput();
++    QString err = process->readAllStandardError();
++
++    if (!err.isEmpty()) {
++        qWarning() << "wpa_cli error:" << err;
++        emit errorOccurred("Scan error: " + err.simplified());
++        process->deleteLater();
++        return;
++    }
++
++    qDebug() << "wpa_cli raw output:\n" << output;
++
++    // Use temporary list for sorting by signal strength
++    QList<QPair<int, QString>> networksWithSignal;
++
++    QStringList lines = output.split('\n');
++    bool foundHeader = false;
++
++    for (const QString &line : lines) {
++        if (line.simplified().isEmpty()) continue;
++
++        if (line.contains("Selected interface") || line.contains("OK") || line.contains(">")) {
++            continue;
++        }
++
++        if (line.startsWith("bssid") || line.startsWith("BSSID")) {
++            foundHeader = true;
++            continue;
++        }
++
++        if (foundHeader) {
++            QString trimmed = line.trimmed();
++            if (trimmed.isEmpty()) continue;
++
++            QStringList fields = trimmed.split('\t');
++            if (fields.size() >= 5) {
++                QString bssid = fields[0];
++                QString freqStr = fields[1];      // Frequency in MHz
++                QString signalStr = fields[2];
++                QString flags = fields[3];
++                QString ssid = fields.size() > 4 ? fields[4] : "<Hidden SSID>";
++
++                if (ssid.isEmpty()) ssid = "<Hidden SSID>";
++
++                QString security = "Open";
++                if (flags.contains("WPA2") || flags.contains("WPA")) {
++                    security = flags.contains("PSK") ? "WPA2-PSK" : "WPA2-Enterprise";
++                } else if (flags.contains("WEP")) {
++                    security = "WEP";
++                }
++
++                // Convert frequency to human-readable band
++                int freq = freqStr.toInt();
++                QString band = (freq >= 5000) ? "5 GHz" : "2.4 GHz";
++
++                // Format display string with frequency
++                QString display = QString("%1 (Signal: %2 dBm, %3, Freq: %4 MHz (%5))")
++                                      .arg(ssid, signalStr, security, freqStr, band);
++
++                bool ok;
++                int signal = signalStr.toInt(&ok);
++                if (!ok) {
++                    signal = -100;  // Fallback for invalid values
++                    qWarning() << "Failed to parse signal strength:" << signalStr;
++                }
++
++                networksWithSignal.append(qMakePair(signal, display));
++            }
++        }
++    }
++
++    if (networksWithSignal.isEmpty()) {
++        emit errorOccurred("No Wi-Fi networks found (may need to be closer to hotspots)");
++    } else {
++        // Sort by signal strength descending (strongest first)
++        std::sort(networksWithSignal.begin(), networksWithSignal.end(),
++                  [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
++                      return a.first > b.first;
++                  });
++
++        m_networks.clear();
++        for (const auto &pair : networksWithSignal) {
++            m_networks << pair.second;
++        }
++
++        emit networksChanged();
++        qDebug() << "Parsed and sorted" << m_networks.size() << "networks with frequency info";
++    }
++
++    process->deleteLater();
++}
++
++void WifiManager::connectToNetwork(const QString &ssid, const QString &password)
++{
++    qDebug() << "Attempting to connect to SSID:" << ssid;
++
++    QProcess *process = new QProcess(this);
++    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
++            this, &WifiManager::connectProcessFinished);
++
++    QString cmd;
++    if (password.isEmpty()) {
++        // Open network
++        cmd = QString(//"wpa_cli -i wlan0 add_network && "
++                      "wpa_cli -i wlan0 set_network 0 ssid \\\"%1\\\" && "
++                      "wpa_cli -i wlan0 set_network 0 key_mgmt NONE && "
++                      "wpa_cli -i wlan0 disable_network 0 || true && "
++                      "wpa_cli -i wlan0 enable_network 0 && "
++                      "wpa_cli -i wlan0 save_config && "
++                      "wpa_cli -i wlan0 reassociate").arg(ssid);
++    } else {
++        // WPA-PSK
++        cmd = QString(//"wpa_cli -i wlan0 add_network && "
++                      "wpa_cli -i wlan0 set_network 0 ssid \\\"%1\\\" && "
++                      "wpa_cli -i wlan0 set_network 0 psk \\\"%2\\\" && "
++                      "wpa_cli -i wlan0 set_network 0 key_mgmt WPA-PSK && "
++                      "wpa_cli -i wlan0 disable_network 0 || true && "
++                      "wpa_cli -i wlan0 enable_network 0 && "
++                      "wpa_cli -i wlan0 save_config && "
++                      "wpa_cli -i wlan0 reassociate").arg(ssid, password);
++    }
++
++    process->start("sh", QStringList() << "-c" << cmd);
++}
++
++void WifiManager::connectProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
++{
++    Q_UNUSED(exitStatus);
++
++    QProcess *process = qobject_cast<QProcess*>(sender());
++    if (!process) return;
++
++    QString output = process->readAllStandardOutput();
++    QString err = process->readAllStandardError();
++
++    qDebug() << "Connection command output:" << output << "Error:" << err;
++
++    if (output.contains("OK") && exitCode == 0) {
++        // Refresh current SSID after a short delay to allow connection to establish
++        QTimer::singleShot(5000, this, &WifiManager::refreshCurrentSSID);
++
++        emit connectionChanged();
++        // Clear any previous error
++        //emit errorOccurred("");
++    } else {
++        emit errorOccurred("Connection failed, please check password or signal");
++    }
++
++    process->deleteLater();
++}
++
++QString WifiManager::getConnectionDetails()
++{
++    QString details;
++
++    // 1. get wpa_cli status
++    QProcess wpaProcess;
++    wpaProcess.start("wpa_cli", QStringList() << "-i" << "wlan0" << "status");
++    wpaProcess.waitForFinished();
++    QString wpaOutput = wpaProcess.readAllStandardOutput().trimmed();
++
++    details += "=== WPA Status ===\n" + wpaOutput + "\n\n";
++
++    // 2. get IP address
++    QProcess ipProcess;
++    ipProcess.start("ip", QStringList() << "addr" << "show" << "wlan0");
++    ipProcess.waitForFinished();
++    QString ipOutput = ipProcess.readAllStandardOutput().trimmed();
++
++    details += "=== IP & Interface Info ===\n" + ipOutput + "\n\n";
++
++    // 3. get iw dev wlan0 link (more details)
++    QProcess iwProcess;
++    iwProcess.start("iw", QStringList() << "dev" << "wlan0" << "link");
++    iwProcess.waitForFinished();
++    QString iwOutput = iwProcess.readAllStandardOutput().trimmed();
++
++    details += "=== Link Info ===\n" + iwOutput;
++
++    return details;
++}
+\ No newline at end of file
+diff --git a/app/backend/WifiManager.h b/app/backend/WifiManager.h
+new file mode 100644
+index 0000000..7ced6c5
+--- /dev/null
++++ b/app/backend/WifiManager.h
+@@ -0,0 +1,44 @@
++// WifiManager.h
++
++#ifndef WIFIMANAGER_H
++#define WIFIMANAGER_H
++
++#include <QObject>
++#include <QStringList>
++#include <QProcess>
++#include <QTimer>
++#include <QRegularExpression>
++
++class WifiManager : public QObject
++{
++    Q_OBJECT
++    Q_PROPERTY(QStringList networks READ networks NOTIFY networksChanged)
++    Q_PROPERTY(QString currentSSID READ currentSSID NOTIFY connectionChanged)
++
++public:
++    explicit WifiManager(QObject *parent = nullptr);
++
++    QStringList networks() const { return m_networks; }
++    QString currentSSID() const { return m_currentSSID; }
++
++    Q_INVOKABLE void scanNetworks();
++    Q_INVOKABLE void connectToNetwork(const QString &ssid, const QString &password = QString());
++    Q_INVOKABLE QString getConnectionDetails();
++
++signals:
++    void networksChanged();
++    void connectionChanged();
++    void errorOccurred(const QString &msg);
++
++private slots:
++    void scanProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
++    void connectProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
++
++private:
++    void refreshCurrentSSID();
++
++    QStringList m_networks;      // Formatted strings: SSID (Signal: xx dBm, Security, Freq: xxxx MHz (x GHz))
++    QString m_currentSSID;
++};
++
++#endif // WIFIMANAGER_H
+\ No newline at end of file
+diff --git a/app/gui/WifiSettingsView.qml b/app/gui/WifiSettingsView.qml
+new file mode 100644
+index 0000000..dec1de8
+--- /dev/null
++++ b/app/gui/WifiSettingsView.qml
+@@ -0,0 +1,314 @@
++// WifiSettingsView.qml
++
++import QtQuick 2.15
++import QtQuick.Controls 2.15
++import QtQuick.Layouts 1.15
++
++import QtQuick.VirtualKeyboard 2.15
++import QtQuick.VirtualKeyboard.Settings 2.15
++
++Page {
++    id: wifiPage
++    property bool isScanning: false
++    property bool isConnecting: false
++    property string connectionDetails: ""
++
++    ColumnLayout {
++        anchors.fill: parent
++        anchors.margins: 20
++
++        RowLayout {
++            spacing: 20
++
++            Label {
++                text: "Current Network: " + (wifiManager.currentSSID || "None")
++                font.bold: true
++                font.pixelSize: 18
++            }
++
++            Button {
++                text: "Info"
++                visible: wifiManager.currentSSID !== ""
++                onClicked: {
++                    wifiPage.connectionDetails = wifiManager.getConnectionDetails()
++                    connectionInfoDialog.open()
++                }
++            }
++        }
++
++        Button {
++            text: "Scan Networks"
++            enabled: !wifiPage.isScanning
++            onClicked: {
++                wifiPage.isScanning = true
++                wifiManager.scanNetworks()
++            }
++        }
++
++        ListView {
++            id: networkList
++            Layout.fillWidth: true
++            Layout.fillHeight: true
++            clip: true
++            model: wifiManager ? wifiManager.networks : []
++
++            delegate: ItemDelegate {
++                width: networkList.width
++                height: 30
++
++                background: Rectangle {
++                    color: {
++                        if (mouseArea.containsPress) return "#444444";
++                        if (mouseArea.containsMouse) return "#555555";
++                        // background colors switch
++                        if (index % 2 === 0) return "#252525";
++                        else return "#404040";
++                    }
++                    radius: 10
++                }
++
++                property int signalLevel: {
++                    var text = modelData.toString();
++                    var match = text.match(/Signal: ([-\d]+) dBm/);
++                    if (match) {
++                        var s = parseInt(match[1]);
++                        if (s >= -50) return 4;
++                        if (s >= -70) return 3;
++                        if (s >= -80) return 2;
++                        if (s >= -90) return 1;
++                    }
++                    return 0;
++                }
++
++                MouseArea {
++                    id: mouseArea
++                    anchors.fill: parent
++                    hoverEnabled: true
++                    onClicked: {
++                        var ssid = modelData.toString().split(" (Signal:")[0].trim()
++                        passwordDialog.ssid = ssid
++                        passwordDialog.open()
++                    }
++                }
++
++                RowLayout {
++                    anchors.fill: parent
++                    anchors.leftMargin: 20
++                    anchors.rightMargin: 20
++                    spacing: 20
++
++                    // icon for signal strength
++                    Row {
++                        Layout.alignment: Qt.AlignVCenter
++                        spacing: 6
++
++                        Repeater {
++                            model: 4
++
++                            Rectangle {
++                                width: 12
++                                height: 28
++                                radius: 4
++
++                                color: {
++                                    if (index >= signalLevel) {
++                                        return "#444444";
++                                    }
++
++                                    // Some colors for different signal levels
++                                    if (signalLevel === 4) return "#4CAF50";     // high
++                                    if (signalLevel === 3) return "#CDDC39";     // normal
++                                    if (signalLevel === 2) return "#FFC107";     // medium
++                                    return "#F44336";                            // low
++                                }
++
++                                opacity: index < signalLevel ? 1.0 : 0.3
++                                border.color: "#666666"
++                                border.width: index < signalLevel ? 1 : 0
++                            }
++                        }
++                    }
++
++                    Text {
++                        Layout.fillWidth: true
++                        Layout.alignment: Qt.AlignVCenter
++                        text: modelData
++                        font.family: "Courier New, Monospace"
++                        font.pixelSize: 18
++                        font.weight: Font.Medium
++                        color: "#ffffff"
++                        elide: Text.ElideRight
++                        leftPadding: 10
++                        verticalAlignment: Text.AlignVCenter
++                    }
++                }
++
++                onClicked: {
++                    var ssid = modelData.split(" (Signal:")[0].trim()
++                    passwordDialog.ssid = ssid
++                    passwordDialog.open()
++                }
++            }
++
++            ScrollIndicator.vertical: ScrollIndicator { }
++        }
++    }
++
++    Rectangle {
++        id: loadingOverlay
++        anchors.fill: parent
++        color: "#80000000"
++        visible: wifiPage.isScanning || wifiPage.isConnecting
++        z: 10
++
++        Column {
++            anchors.centerIn: parent
++            spacing: 20
++
++            BusyIndicator {
++                width: 80
++                height: 80
++                running: true
++                anchors.horizontalCenter: parent.horizontalCenter
++            }
++
++            Text {
++                text: wifiPage.isScanning ? "Scanning Wi-Fi networks..."
++                                        : "Connecting to Wi-Fi..."
++                color: "white"
++                font.pixelSize: 18
++                anchors.horizontalCenter: parent.horizontalCenter
++            }
++        }
++    }
++
++    // password dialog
++    Dialog {
++        id: passwordDialog
++        property string ssid: ""
++        title: "Connect to " + ssid
++        closePolicy: Popup.NoAutoClose
++        standardButtons: Dialog.Ok | Dialog.Cancel
++        height: parent.height * 0.4
++
++        ColumnLayout {
++            Layout.fillWidth: true
++            spacing: 10
++
++            Label { text: "Enter password for " + passwordDialog.ssid }
++
++            RowLayout {
++                spacing: 10
++
++                TextField {
++                    id: pwdField
++                    placeholderText: "Password (leave blank for open network)"
++                    echoMode: TextInput.Password
++                    inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
++                    focus: true
++                }
++
++                ToolButton {
++                    id: showPasswordButton
++                    icon.source: pwdField.echoMode === TextInput.Password
++                        ? "qrc:/res/visibility.svg"
++                        : "qrc:/res/visibility-off.svg"
++                    icon.name: pwdField.echoMode === TextInput.Password ? "visibility" : "visibility-off"
++                    icon.color: "#ffffff"
++                    icon.width: 24
++                    icon.height: 24
++                    flat: true
++                    hoverEnabled: true
++
++                    onClicked: {
++                        pwdField.echoMode = (pwdField.echoMode === TextInput.Password)
++                                            ? TextInput.Normal
++                                            : TextInput.Password
++                    }
++
++                    ToolTip {
++                        visible: showPasswordButton.hovered
++                        text: pwdField.echoMode === TextInput.Password ? "show" : "hide"
++                        delay: 500
++                    }
++                }
++            }
++        }
++
++        onOpened: {
++            pwdField.forceActiveFocus()
++        }
++
++        onAccepted: {
++            wifiPage.isConnecting = true
++            wifiManager.connectToNetwork(passwordDialog.ssid, pwdField.text)
++        }
++    }
++
++    Dialog {
++        id: connectionInfoDialog
++        title: "Connection Info - " + wifiManager.currentSSID
++        width: parent.width * 0.7
++        height: parent.height * 0.6
++        standardButtons: Dialog.Close
++
++        ScrollView {
++            anchors.fill: parent
++            TextArea {
++                readOnly: true
++                text: wifiPage.connectionDetails
++                font.pixelSize: 18
++                font.family: "Courier New, Monospace"
++                wrapMode: TextArea.Wrap
++                background: Rectangle { color: "#1e1e1e" }
++            }
++        }
++    }
++
++    Timer {
++        id: connectDelayTimer
++        interval: 8000
++        repeat: false
++        running: false
++
++        onTriggered: {
++            wifiPage.isConnecting = false
++            console.log("Loading timer")
++        }
++    }
++
++    Connections {
++        target: wifiManager
++
++        function onNetworksChanged() {
++            console.log("onNetworksChanged")
++            wifiPage.isScanning = false
++        }
++
++        function onConnectionChanged() {
++            console.log("onConnectionChanged")
++            connectDelayTimer.start()
++            //wifiPage.isConnecting = false
++        }
++
++        function onErrorOccurred(msg) {
++            console.log("onErrorOccurred")
++            wifiPage.isScanning = false
++            wifiPage.isConnecting = false
++        }
++    }
++
++    InputPanel {
++        id: inputPanel
++        z: 999999
++        anchors.left: parent.left
++        anchors.right: parent.right
++        anchors.bottom: parent.bottom
++        visible: active
++        height: Math.min(parent.height * 0.35, 300)
++
++        Behavior on y {
++            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/app/gui/main.qml b/app/gui/main.qml
+index dc50c3a..519657d 100644
+--- a/app/gui/main.qml
++++ b/app/gui/main.qml
+@@ -409,6 +409,28 @@ ApplicationWindow {
+                 }
+             }
+ 
++            NavigableToolButton {
++                id: wifiButton
++
++                iconSource: "qrc:/res/wifi.svg"
++
++                onClicked: navigateTo("qrc:/gui/WifiSettingsView.qml", WifiSettingsView)
++
++                Keys.onDownPressed: {
++                    stackView.currentItem.forceActiveFocus(Qt.TabFocusReason)
++                }
++
++                Shortcut {
++                    sequence: "Ctrl+W"
++                    onActivated: wifiButton.clicked()
++                }
++
++                ToolTip.delay: 1000
++                ToolTip.timeout: 3000
++                ToolTip.visible: hovered
++                ToolTip.text: qsTr("Wi-Fi Settings")
++            }
++
+             NavigableToolButton {
+                 id: settingsButton
+ 
+diff --git a/app/main.cpp b/app/main.cpp
+index 5d0b827..bd29586 100644
+--- a/app/main.cpp
++++ b/app/main.cpp
+@@ -49,6 +49,7 @@
+ #include "backend/autoupdatechecker.h"
+ #include "backend/computermanager.h"
+ #include "backend/systemproperties.h"
++#include "backend/WifiManager.h"
+ #include "streaming/session.h"
+ #include "settings/streamingpreferences.h"
+ #include "gui/sdlgamepadkeynavigation.h"
+@@ -396,6 +397,9 @@ void configureSignalHandlers()
+ 
+ int main(int argc, char *argv[])
+ {
++    qputenv("QT_IM_MODULE", QByteArray("qtvirtualkeyboard"));
++    qputenv("QT_QPA_EGLFS_HID_INPUT", QByteArray("1"));
++
+     SDL_SetMainReady();
+ 
+     // Set the app version for the QCommandLineParser's showVersion() command
+@@ -922,6 +926,9 @@ int main(int argc, char *argv[])
+     if (hasGUI) {
+         engine.rootContext()->setContextProperty("initialView", initialView);
+ 
++        WifiManager *wifiManager = new WifiManager(&engine);
++        engine.rootContext()->setContextProperty("wifiManager", wifiManager);
++
+         // Load the main.qml file
+         engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
+         if (engine.rootObjects().isEmpty())
+diff --git a/app/qml.qrc b/app/qml.qrc
+index 5c2c369..f8c858f 100644
+--- a/app/qml.qrc
++++ b/app/qml.qrc
+@@ -4,6 +4,7 @@
+         <file>gui/PcView.qml</file>
+         <file>gui/AppView.qml</file>
+         <file>gui/SettingsView.qml</file>
++        <file>gui/WifiSettingsView.qml</file>
+         <file>gui/StreamSegue.qml</file>
+         <file>gui/GamepadMapper.qml</file>
+         <file>gui/QuitSegue.qml</file>
+diff --git a/app/res/visibility-off.svg b/app/res/visibility-off.svg
+new file mode 100644
+index 0000000..234c4fd
+--- /dev/null
++++ b/app/res/visibility-off.svg
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
++<svg xmlns="http://www.w3.org/2000/svg" fill="#000000" width="800px" height="800px" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+\ No newline at end of file
+diff --git a/app/res/visibility.svg b/app/res/visibility.svg
+new file mode 100644
+index 0000000..8d26be9
+--- /dev/null
++++ b/app/res/visibility.svg
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="iso-8859-1"?>
++<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
++<svg fill="#000000" height="800px" width="800px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
++	 viewBox="0 0 512 512" xml:space="preserve">
++<g>
++	<g>
++		<path d="M256,192c-35.29,0-64,28.71-64,64s28.71,64,64,64s64-28.71,64-64C320,220.71,291.29,192,256,192z M256,282.667
++			c-14.727,0-26.667-11.939-26.667-26.667s11.939-26.667,26.667-26.667s26.667,11.939,26.667,26.667S270.727,282.667,256,282.667z"
++			/>
++	</g>
++</g>
++<g>
++	<g>
++		<path d="M508.806,246.409C471.641,196.787,369.67,96.538,256,96.538c-105.586,0-207.008,88.723-252.806,149.871
++			c-4.258,5.685-4.258,13.498,0,19.183C40.359,315.213,142.33,415.462,256,415.462c105.586,0,207.008-88.723,252.806-149.871
++			C513.065,259.906,513.065,252.094,508.806,246.409z M256,352c-52.934,0-96-43.066-96-96c0-52.934,43.066-96,96-96
++			c52.934,0,96,43.066,96,96C352,308.934,308.934,352,256,352z"/>
++	</g>
++</g>
++</svg>
+\ No newline at end of file
+diff --git a/app/res/wifi.svg b/app/res/wifi.svg
+new file mode 100644
+index 0000000..452881d
+--- /dev/null
++++ b/app/res/wifi.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M480-120q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM254-346l-84-86q59-59 138.5-93.5T480-560q92 0 171.5 35T790-430l-84 84q-44-44-102-69t-124-25q-66 0-124 25t-102 69ZM84-516 0-600q92-94 215-147t265-53q142 0 265 53t215 147l-84 84q-77-77-178.5-120.5T480-680q-116 0-217.5 43.5T84-516Z"/></svg>
+\ No newline at end of file
+diff --git a/app/resources.qrc b/app/resources.qrc
+index 7d8cc9d..011d61f 100644
+--- a/app/resources.qrc
++++ b/app/resources.qrc
+@@ -18,6 +18,9 @@
+         <file>res/baseline-error_outline-24px.svg</file>
+         <file>res/baseline-check_circle_outline-24px.svg</file>
+         <file>res/discord.svg</file>
++        <file>res/wifi.svg</file>
++        <file>res/visibility.svg</file>
++        <file>res/visibility-off.svg</file>
+         <file>languages/qml_de.ts</file>
+         <file>languages/qml_de.qm</file>
+         <file>languages/qml_fr.ts</file>
+-- 
+2.47.0.windows.2
+

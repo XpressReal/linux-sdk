@@ -11,6 +11,10 @@ SRC_URI = "file://${BPN}.tar.xz"
 SRCREV = "${AUTOREV}"
 include ${BPN}.inc
 
+SRC_URI:append:rtd16xx = "\
+	file://0001-v4l2cap-Fix-attribute-warning-on-write-overflow.patch \
+	"
+
 S = "${WORKDIR}/${BPN}-${PV}"
 SDK_DIR = "${THISDIR}/../../rtk-dl"
 FILESEXTRAPATHS:append := ":${SDK_DIR}"
@@ -20,7 +24,10 @@ FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
 EXTRA_OEMAKE:stark += "KDIR=${STAGING_KERNEL_DIR}"
 EXTRA_OEMAKE:kent += "KDIR=${STAGING_KERNEL_DIR}"
+EXTRA_OEMAKE:rtd16xx += "KDIR=${STAGING_KERNEL_DIR}"
 
 MODULES_INSTALL_TARGET += "-C ${STAGING_KERNEL_DIR} M=${S}"
 
 KERNEL_MODULE_AUTOLOAD += "rtkcapture"
+
+INSANE_SKIP:${PN}:rtd16xx += "installed-vs-shipped"

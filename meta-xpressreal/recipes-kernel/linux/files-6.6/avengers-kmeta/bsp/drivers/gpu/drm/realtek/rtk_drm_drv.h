@@ -17,6 +17,11 @@
 #define RTK_NORMAL_TYPE 0
 #define RTK_AUTOMOTIVE_TYPE 1
 
+/* LVDS/DSI serdes HPD */
+#define DUMMY_SERDES_HPD 0x98007648
+#define SERDES_HPD_LVDS_OFFSET 0
+#define SERDES_HPD_DSI_OFFSET 4
+
 /* VO specific ioctl */
 #ifdef CONFIG_CHROME_PLATFORMS
 #define RTK_GEM_CREATE 0x0
@@ -61,6 +66,17 @@
 #define RTK_SET_CVBS_FORMAT 0x50
 #define RTK_GET_CVBS_FORMAT 0x51
 
+#define RTK_VOWB_SETUP 0x40
+#define RTK_VOWB_TEARDOWN 0x41
+#define RTK_VOWB_ADD_SRC_PIC 0x42
+#define RTK_VOWB_START 0x43
+#define RTK_VOWB_STOP 0x44
+#define RTK_VOWB_GET_DST_PIC 0x45
+#define RTK_VOWB_SET_CRTC_VBLANK 0x46
+#define RTK_VOWB_RUN_CMD 0x47
+#define RTK_VOWB_CHECK_CMD 0x48
+#define RTK_VOWB_GET_FEATURES 0x49
+
 #define DRM_IOCTL_RTK_GET_UNLOCK_BUF     DRM_IOWR( DRM_COMMAND_BASE + RTK_GET_UNLOCK_BUF, struct drm_rtk_buf_st)
 #define DRM_IOCTL_RTK_GET_BUF_ST     DRM_IOWR( DRM_COMMAND_BASE + RTK_GET_BUF_ST, struct drm_rtk_buf_st)
 #define DRM_IOCTL_RTK_EXPORT_REFCLOCK_FD     DRM_IOWR( DRM_COMMAND_BASE + RTK_EXPORT_REFCLOCK_FD, struct drm_rtk_refclk)
@@ -98,16 +114,16 @@
 #define DRM_IOCTL_RTK_SET_CVBS_FORMAT    DRM_IOWR( DRM_COMMAND_BASE + RTK_SET_CVBS_FORMAT, uint32_t)
 #define DRM_IOCTL_RTK_GET_CVBS_FORMAT    DRM_IOWR( DRM_COMMAND_BASE + RTK_GET_CVBS_FORMAT, uint32_t)
 
-#define DRM_IOCTL_RTK_VOWB_SETUP       DRM_IOWR(DRM_COMMAND_BASE + 0x40, struct rtk_drm_vowb_setup)
-#define DRM_IOCTL_RTK_VOWB_TEARDOWN    DRM_IOWR(DRM_COMMAND_BASE + 0x41, struct rtk_drm_vowb_teardown)
-#define DRM_IOCTL_RTK_VOWB_ADD_SRC_PIC DRM_IOWR(DRM_COMMAND_BASE + 0x42, struct rtk_drm_vowb_add_src_pic)
-#define DRM_IOCTL_RTK_VOWB_START       DRM_IOWR(DRM_COMMAND_BASE + 0x43, struct rtk_drm_vowb_start)
-#define DRM_IOCTL_RTK_VOWB_STOP        DRM_IOWR(DRM_COMMAND_BASE + 0x44, struct rtk_drm_vowb_stop)
-#define DRM_IOCTL_RTK_VOWB_GET_DST_PIC DRM_IOWR(DRM_COMMAND_BASE + 0x45, struct rtk_drm_vowb_dst_pic)
-#define DRM_IOCTL_RTK_VOWB_SET_CRTC_VBLANK DRM_IOWR(DRM_COMMAND_BASE + 0x46, struct rtk_drm_vowb_set_crtc_vblank)
-#define DRM_IOCTL_RTK_VOWB_RUN_CMD     DRM_IOWR(DRM_COMMAND_BASE + 0x50, struct rtk_drm_vowb_run_cmd)
-#define DRM_IOCTL_RTK_VOWB_CHECK_CMD   DRM_IOWR(DRM_COMMAND_BASE + 0x51, struct rtk_drm_vowb_check_cmd)
-#define DRM_IOCTL_RTK_VOWB_REINIT      DRM_IOWR(DRM_COMMAND_BASE + 0x52, __u32)
+#define DRM_IOCTL_RTK_VOWB_SETUP       DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_SETUP, struct rtk_drm_vowb_setup)
+#define DRM_IOCTL_RTK_VOWB_TEARDOWN    DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_TEARDOWN, struct rtk_drm_vowb_teardown)
+#define DRM_IOCTL_RTK_VOWB_ADD_SRC_PIC DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_ADD_SRC_PIC, struct rtk_drm_vowb_add_src_pic)
+#define DRM_IOCTL_RTK_VOWB_START       DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_START, struct rtk_drm_vowb_start)
+#define DRM_IOCTL_RTK_VOWB_STOP        DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_STOP, struct rtk_drm_vowb_stop)
+#define DRM_IOCTL_RTK_VOWB_GET_DST_PIC DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_GET_DST_PIC, struct rtk_drm_vowb_dst_pic)
+#define DRM_IOCTL_RTK_VOWB_SET_CRTC_VBLANK DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_SET_CRTC_VBLANK, struct rtk_drm_vowb_set_crtc_vblank)
+#define DRM_IOCTL_RTK_VOWB_RUN_CMD     DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_RUN_CMD, struct rtk_drm_vowb_run_cmd)
+#define DRM_IOCTL_RTK_VOWB_CHECK_CMD   DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_CHECK_CMD, struct rtk_drm_vowb_check_cmd)
+#define DRM_IOCTL_RTK_VOWB_GET_FEATURES      DRM_IOWR(DRM_COMMAND_BASE + RTK_VOWB_GET_FEATURES, uint64_t)
 
 struct drm_rtk_buf_st {
 	uint32_t plane_id;

@@ -529,7 +529,9 @@ unsigned int rpc_ion_alloc_handler_legacy(struct rtk_rpc_client *client, bool se
 	if (fw_send_value & FW_ALLOC_VCPU_EXTRA)
 		alloc_flags |= RTK_FLAG_CMA;
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(dev, "rtk_media_heap", alloc_flags, client->name);
+#endif
 	cookie = dma_alloc_attrs(dev, alloc_val, &daddr, GFP_KERNEL, DMA_ATTR_NO_KERNEL_MAPPING);
 
 	if (!cookie)
@@ -607,7 +609,9 @@ unsigned int rpc_ion_alloc_handler(struct rtk_rpc_client *client, const struct f
 	pr_info("%s alloc_size=0x%lx  ion_alloc_flags=0x%x \n", __func__,
 				alloc_val, ion_alloc_flags);
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(dev, "rtk_media_heap", ion_alloc_flags, client->name);
+#endif
 	cookie = dma_alloc_attrs(dev, alloc_val, &daddr, GFP_KERNEL,
 						 DMA_ATTR_NO_KERNEL_MAPPING);
 	if (!cookie)
@@ -780,7 +784,9 @@ static int rtk_rpc_probe(struct rpmsg_device *rpdev)
 
 	client->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	client->dev->dma_mask = (u64 *)&client->dev->coherent_dma_mask;
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(client->dev, &rheap_dma_ops);
+#endif
 	client->big_endian = !rpdev->little_endian;
 
 	client->rpdev = rpdev;

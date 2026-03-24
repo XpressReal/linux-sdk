@@ -3,6 +3,15 @@
 #include "linux/printk.h"
 #include "uapi/hse.h"
 
+enum HSE_DEV_COLOR_FMT {
+	HSE_DEV_FMT_INDEX = 0,
+	HSE_DEV_FMT_RGB565 = 0,
+	HSE_DEV_FMT_RGB888 = 1,
+	HSE_DEV_FMT_ARGB888 = 2,
+	HSE_DEV_FMT_YUV422 = 3,
+	HSE_DEV_FMT_YUV420 = 4,
+};
+
 static inline u32 addr_msb(u64 addr)
 {
 	return (addr >> 32);
@@ -147,10 +156,43 @@ static int __append_yuy2_to_nv16(struct hse_command_queue *cq, u64 luma, u64 chr
 	return hse_cq_add_data(cq, cmds, 6);
 }
 
+static int __append_fmtcvt(struct hse_command_queue *cq,
+			    u8 dst_fmt,
+			    u16 dst_pitch, u16 dst_rgb_order, u64 dst_luma_addr,
+			    u64 dst_chroma_addr, u16 alpha_out, u8 yuv_down_h,
+			    u8 yuv_down_v, u8 src_fmt, u16 src_pitch,
+			    u16 src_rgb_order, u64 src_luma_addr,
+			    u64 src_chroma_addr, u16 width, u16 height)
+{
+	u32 cmds[8] = { 0 };
+
+	cmds[0] = 0x7 | (src_fmt << 8) | (src_rgb_order << 11) |
+		  (dst_fmt << 16) | (dst_rgb_order << 19) | (yuv_down_h << 24) |
+		  (yuv_down_v << 25);
+	cmds[1] = height | (width << 16);
+	cmds[2] = dst_pitch | (alpha_out << 16);
+	cmds[3] = dst_luma_addr;
+	cmds[4] = dst_chroma_addr;
+	cmds[5] = src_pitch;
+	cmds[6] = src_luma_addr;
+	cmds[7] = src_chroma_addr;
+
+	if (addr_msb(dst_luma_addr))
+		cmds[5] |= addr_msb(dst_luma_addr) << 16;
+	if (addr_msb(dst_chroma_addr))
+		cmds[5] |= addr_msb(dst_chroma_addr) << 20;
+	if (addr_msb(src_luma_addr))
+		cmds[5] |= addr_msb(src_luma_addr) << 24;
+	if (addr_msb(src_chroma_addr))
+		cmds[5] |= addr_msb(src_chroma_addr) << 28;
+
+	return hse_cq_add_data(cq, cmds, 8);
+}
+
 static int __append_stretch(struct hse_command_queue *cq,
 			   u32 dst_width, u32 dst_height, u32 dst_pitch,
                u32 src_width, u32 src_height, u32 src_pitch,
-			   u32 dst, u32 src, u32 v_ph, u32 h_ph, u16 colorSel)
+			   u64 dst, u64 src, u32 v_ph, u32 h_ph, u16 colorSel)
 {
 	u32 cmds[8];
 
@@ -172,6 +214,12 @@ static int __append_stretch(struct hse_command_queue *cq,
 	cmds[5] = src;
 	cmds[6] = v_ph;
 	cmds[7] = h_ph;
+
+	if (addr_msb(dst))
+		cmds[0] |= addr_msb(dst) << 8;
+	if (addr_msb(src))
+		cmds[0] |= addr_msb(src) << 12;
+
 	return hse_cq_add_data(cq, cmds, 8);
 }
 
@@ -385,14 +433,72 @@ int hse_cq_prep_rgb2yuv_coeff(struct hse_device *hse_dev,
 	return hse_cq_add_data(cq, cmds, 7);
 }
 
-static int fmt_convert_args_valid(u16 dst_pitch, u16 src_pitch,
-			    u32 dst_luma_addr, u32 dst_chroma_addr,
-			    u32 src_luma_addr, u32 src_chroma_addr)
+static int fmt_convert_args_valid(u16 width, u16 height,
+			    u16 dst_pitch, u16 src_pitch, u8 src_fmt, u8 dst_fmt,
+			    u64 dst_luma_addr, u64 dst_chroma_addr,
+			    u64 src_luma_addr, u64 src_chroma_addr)
 {
+	u16 src_width = 0;
+	u16 dst_width = 0;
 	int ret = 0;
 
-	if (!IS_ALIGNED(dst_pitch, 16) || !IS_ALIGNED(src_pitch, 16)) {
-		pr_err("src/dst pitch should be 16 alignmnet!");
+	if (src_fmt == HSE_DEV_FMT_YUV422 && (!IS_ALIGNED(width, 2))) {
+		pr_err("YUV422 width (%d) should be even", width);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (src_fmt == HSE_DEV_FMT_YUV420 &&
+		((!IS_ALIGNED(width, 2)) || (!IS_ALIGNED(height, 2)))) {
+		pr_err("YUV420 width (%d) and height (%d) should be even", width, height);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (src_fmt >= HSE_DEV_FMT_YUV422 &&
+		dst_fmt >= HSE_DEV_FMT_YUV422) {
+		pr_err("Not support YUV to YUV conversion");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (src_fmt != HSE_DEV_FMT_INDEX &&
+		dst_fmt != HSE_DEV_FMT_INDEX &&
+		src_fmt <= HSE_DEV_FMT_ARGB888 &&
+		dst_fmt <= HSE_DEV_FMT_ARGB888) {
+		pr_err("Not support RGB to RGB conversion");
+		ret = -EINVAL;
+		goto exit;
+	}
+	if (!IS_ALIGNED(dst_pitch, 2) || !IS_ALIGNED(src_pitch, 2)) {
+		pr_err("src/dst pitch should be 2 alignmnet!");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (src_fmt == HSE_DEV_FMT_ARGB888)
+		src_width = width * 4;
+	else if (src_fmt == HSE_DEV_FMT_RGB888)
+		src_width = width * 3;
+	else if (src_fmt == HSE_DEV_FMT_RGB565)
+		src_width = width * 2;
+	else
+		src_width = width;
+
+	if (dst_fmt == HSE_DEV_FMT_ARGB888)
+		dst_width = width * 4;
+	else if (dst_fmt == HSE_DEV_FMT_RGB888)
+		dst_width = width * 3;
+	else if (dst_fmt == HSE_DEV_FMT_RGB565)
+		dst_width = width * 2;
+	else
+		dst_width = width;
+
+	if (src_fmt != HSE_DEV_FMT_INDEX &&
+		dst_fmt != HSE_DEV_FMT_INDEX &&
+		((dst_width > dst_pitch) || (src_width > src_pitch))) {
+		pr_err("src pitch (%d) or dst pitch (%d) can't be small than width",
+			src_pitch, dst_pitch);
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -412,143 +518,155 @@ exit:
 
 int hse_cq_prep_fmt_convert(struct hse_device *hse_dev,
 			    struct hse_command_queue *cq, u8 dst_fmt,
-			    u16 dst_pitch, u16 dst_rgb_order, u32 dst_luma_addr,
-			    u32 dst_chroma_addr, u16 alpha_out, u8 yuv_down_h,
+			    u16 dst_pitch, u16 dst_rgb_order, dma_addr_t dst_luma_addr,
+			    dma_addr_t dst_chroma_addr, u16 alpha_out, u8 yuv_down_h,
 			    u8 yuv_down_v, u8 src_fmt, u16 src_pitch,
-			    u16 src_rgb_order, u32 src_luma_addr,
-			    u32 src_chroma_addr, u16 width, u16 height)
+			    u16 src_rgb_order, dma_addr_t src_luma_addr,
+			    dma_addr_t src_chroma_addr, u16 width, u16 height)
 {
-	u32 cmds[8] = { 0 };
-
-	if (fmt_convert_args_valid(dst_pitch, src_pitch, dst_luma_addr,
-		dst_chroma_addr, src_luma_addr, src_chroma_addr))
+	if (fmt_convert_args_valid(width, height, dst_pitch, src_pitch, src_fmt, dst_fmt,
+		dst_luma_addr, dst_chroma_addr, src_luma_addr, src_chroma_addr))
 		return -EINVAL;
 
-	cmds[0] = 0x7 | (src_fmt << 8) | (src_rgb_order << 11) |
-		  (dst_fmt << 16) | (dst_rgb_order << 19) | (yuv_down_h << 24) |
-		  (yuv_down_v << 25);
-	cmds[1] = height | (width << 16);
-	cmds[2] = dst_pitch | (alpha_out << 16);
-	cmds[3] = dst_luma_addr;
-	cmds[4] = dst_chroma_addr;
-	cmds[5] = src_pitch;
-	cmds[6] = src_luma_addr;
-	cmds[7] = src_chroma_addr;
+	return __append_fmtcvt(cq, dst_fmt, dst_pitch, dst_rgb_order,
+		dst_luma_addr, dst_chroma_addr, alpha_out, yuv_down_h, yuv_down_v,
+		src_fmt, src_pitch, src_rgb_order, src_luma_addr, src_chroma_addr,
+		width, height);
+}
 
-	return hse_cq_add_data(cq, cmds, 8);
+static int stretch_args_valid(u16 src_width, u16 src_height,
+			    u16 dst_width, u16 dst_height, u16 colorSel)
+{
+	int ret = 0;
+
+	if (colorSel == COLOR_SEL_CBCR &&
+		(src_width * 2 ) > STRETCH_MAX_WIDTH_BYTES) {
+		pr_err("stretch src width %d bytes is over spec %d",
+			src_width * 2, STRETCH_MAX_WIDTH_BYTES);
+		ret = -EINVAL;
+		goto exit;
+	} else if (colorSel == COLOR_SEL_Y &&
+		src_width > STRETCH_MAX_WIDTH_BYTES) {
+		pr_err("stretch src width %d bytes is over spec %d",
+			src_width, STRETCH_MAX_WIDTH_BYTES);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (dst_width > STRETCH_MAX_WIDTH_BYTES) {
+		pr_err("stretch dst width %d bytes is over spec %d",
+			dst_width, STRETCH_MAX_WIDTH_BYTES);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+exit:
+	return ret;
 }
 
 int hse_cq_prep_stretch(struct hse_device *hse_dev, struct hse_command_queue *cq,
 		       dma_addr_t dst, u32 dst_pitch, dma_addr_t src, u32 src_pitch,
 		       u16 dst_width, u16 dst_height, u16 src_width, u16 src_height, u16 colorSel)
 {
-    u8 byVerticalTapNumber = SEINFO_VSCALING_4TAP;
-    u8 byHorizontalTapNumber = SEINFO_HSCALING_8TAP;
-    u32 dwHorizontalScalingRatio = (src_width << 14) / dst_width;
-    u32 dwVerticalScalingRatio = (src_height << 14) / dst_height;
+	u8 byVerticalTapNumber = SEINFO_VSCALING_4TAP;
+	u8 byHorizontalTapNumber = SEINFO_HSCALING_8TAP;
+	u32 dwHorizontalScalingRatio = (src_width << 14) / dst_width;
+	u32 dwVerticalScalingRatio = (src_height << 14) / dst_height;
 
-    u32 hDeltaPhase = 0;
-    u32 hMSB = 0;
-    u32 hLSB = 0;
-    u32 hInitialPhase = 0;
+	u32 hDeltaPhase = 0;
+	u32 hMSB = 0;
+	u32 hLSB = 0;
+	u32 hInitialPhase = 0;
 
-    u32 vDeltaPhase = 0;
-    u32 vMSB = 0;
-    u32 vLSB = 0;
-    u32 vInitialPhase = 0;
+	u32 vDeltaPhase = 0;
+	u32 vMSB = 0;
+	u32 vLSB = 0;
+	u32 vInitialPhase = 0;
 
-    u32 v_ph = 0, h_ph = 0;
+	u32 v_ph = 0, h_ph = 0;
 
-    /* calculate Vertical delta phase */
-    {
-        u64 deltaPhase = src_height * (HSE_DELTA_PHASE_BASE) / dst_height;
-        vDeltaPhase = (int32_t) deltaPhase;
-        u32 deltaPhaseMeta = vDeltaPhase;
-        if(deltaPhaseMeta != deltaPhase) {
-            vDeltaPhase = vDeltaPhase + 1;
-        }
+	if (stretch_args_valid(src_width, src_height, dst_width, dst_height, colorSel))
+		return -EINVAL;
 
-        vMSB = vDeltaPhase >> 14;
-        vLSB = vDeltaPhase & 0x3FFF;
-        v_ph = (vLSB & 0x3FFF) | ((vMSB & 0xF) << 14) | (vInitialPhase << 18);
-    }
+	/* calculate Vertical delta phase */
+	{
+		u64 deltaPhase = src_height * (HSE_DELTA_PHASE_BASE) / dst_height;
+		vDeltaPhase = (int32_t) deltaPhase;
+		u32 deltaPhaseMeta = vDeltaPhase;
+		if(deltaPhaseMeta != deltaPhase) {
+			vDeltaPhase = vDeltaPhase + 1;
+		}
 
-    /* calculate Horizontal delta phase */
-    {
-        u64 deltaPhase = src_width * (HSE_DELTA_PHASE_BASE) / dst_width;
-        hDeltaPhase = (int32_t) deltaPhase;
-        u32 deltaPhaseMeta = hDeltaPhase;
-        if(deltaPhaseMeta != deltaPhase) {
-            hDeltaPhase = hDeltaPhase + 1;
-        }
+		vMSB = vDeltaPhase >> 14;
+		vLSB = vDeltaPhase & 0x3FFF;
+		v_ph = (vLSB & 0x3FFF) | ((vMSB & 0xF) << 14) | (vInitialPhase << 18);
+	}
 
-        hMSB = hDeltaPhase >> 14;
-        hLSB = hDeltaPhase & 0x3FFF;
-        h_ph = (hLSB & 0x3FFF) | ((hMSB & 0xF) << 14) | (hInitialPhase << 18);
-    }
+	/* calculate Horizontal delta phase */
+	{
+		u64 deltaPhase = src_width * (HSE_DELTA_PHASE_BASE) / dst_width;
+		hDeltaPhase = (int32_t) deltaPhase;
+		u32 deltaPhaseMeta = hDeltaPhase;
+		if(deltaPhaseMeta != deltaPhase) {
+			hDeltaPhase = hDeltaPhase + 1;
+		}
 
-    /* calculate coeffs */
-    u16 tmp_coef[96] = {};
-    u16 *tmp_coef_4t16p = &(tmp_coef[0]);
-    u16 *tmp_coef_8t16p = &(tmp_coef[32]);
+		hMSB = hDeltaPhase >> 14;
+		hLSB = hDeltaPhase & 0x3FFF;
+		h_ph = (hLSB & 0x3FFF) | ((hMSB & 0xF) << 14) | (hInitialPhase << 18);
+	}
 
-    /* then generate coef, vertical remains the same */
-    SetVideoScalingCoeffs((u16 *)tmp_coef_4t16p,
-            dwVerticalScalingRatio,
-            0,
-            1 << (byVerticalTapNumber+1),
-            0) ;
+	/* calculate coeffs */
+	u16 tmp_coef[96] = {};
+	u16 *tmp_coef_4t16p = &(tmp_coef[0]);
+	u16 *tmp_coef_8t16p = &(tmp_coef[32]);
 
-    if(colorSel != COLOR_SEL_SP_P_CB && colorSel != COLOR_SEL_SP_P_CR) {
-        SetVideoScalingCoeffs((u16 *)tmp_coef_8t16p,
-                dwHorizontalScalingRatio,
-                0,
-                1 << (byHorizontalTapNumber+1),
-                0) ;
-    } else {
-        int32_t cbMode = 0;
-        if(colorSel == COLOR_SEL_SP_P_CB) {
-            cbMode = 1;
-        }
+	/* then generate coef, vertical remains the same */
+	SetVideoScalingCoeffs((u16 *)tmp_coef_4t16p,
+	        dwVerticalScalingRatio,
+	        0,
+	        1 << (byVerticalTapNumber+1),
+	        0) ;
 
-        SetCoeffsCbCrMode(
-                (u16 *)tmp_coef_8t16p,
-                cbMode,
-                1 << (byHorizontalTapNumber+1),
-                0);
-    }
+	if(colorSel != COLOR_SEL_SP_P_CB && colorSel != COLOR_SEL_SP_P_CR) {
+		SetVideoScalingCoeffs((u16 *)tmp_coef_8t16p,
+		        dwHorizontalScalingRatio,
+		        0,
+		        1 << (byHorizontalTapNumber+1),
+		        0) ;
+	} else {
+		int32_t cbMode = 0;
+		if(colorSel == COLOR_SEL_SP_P_CB) {
+			cbMode = 1;
+		}
 
-    u16 *coef_pt = &(tmp_coef[0]);
-    u32 coef_pt_idx = 0;
-    u32 coeffs[32] = {0};
+		SetCoeffsCbCrMode(
+		        (u16 *)tmp_coef_8t16p,
+		        cbMode,
+		        1 << (byHorizontalTapNumber+1),
+		        0);
+	}
 
-    /* convert coeff to cmds and write to command queue */
-    for(u8 i = 0; i < 8; i++) {
-        /* word 0 */
-        coeffs[0] = 0x3 | (i<<19);
-        /* word 1 - 6 */
-        for(u8 j = 1; j < 7; j++) {
-            coeffs[j] = (coef_pt[coef_pt_idx] & 0x3FFF)
-                    | ((coef_pt[coef_pt_idx+1] & 0x3FFF) << 16);
-            coef_pt_idx = coef_pt_idx + 2;
-        }
+	u16 *coef_pt = &(tmp_coef[0]);
+	u32 coef_pt_idx = 0;
+	u32 coeffs[32] = {0};
 
-        /* write command */
-        pr_warn("[%s] coeffs %.8x %.8x %.8x %.8x %.8x %.8x %.8x %.8x",
-                __FUNCTION__,
-                coeffs[0],
-                coeffs[1],
-                coeffs[2],
-                coeffs[3],
-                coeffs[4],
-                coeffs[5],
-                coeffs[6],
-                coeffs[7]);
+	/* convert coeff to cmds and write to command queue */
+	for(u8 i = 0; i < 8; i++) {
+		/* word 0 */
+		coeffs[0] = 0x3 | (i<<19);
+		/* word 1 - 6 */
+		for(u8 j = 1; j < 7; j++) {
+			coeffs[j] = (coef_pt[coef_pt_idx] & 0x3FFF)
+			        | ((coef_pt[coef_pt_idx+1] & 0x3FFF) << 16);
+			coef_pt_idx = coef_pt_idx + 2;
+		}
 
-	    hse_cq_add_data(cq, coeffs, 8);
-    }
+		/* write command */
+		hse_cq_add_data(cq, coeffs, 8);
+	}
 
-    return __append_stretch(cq, dst_width, dst_height, dst_pitch,
-                                src_width, src_height, src_pitch,
-                                dst, src, v_ph, h_ph, colorSel);
+	return __append_stretch(cq, dst_width, dst_height, dst_pitch,
+	                            src_width, src_height, src_pitch,
+	                            dst, src, v_ph, h_ph, colorSel);
 }

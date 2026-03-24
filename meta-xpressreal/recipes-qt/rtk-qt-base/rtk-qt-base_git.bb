@@ -6,8 +6,8 @@ SUMMARY = "RTK QT application"
 DESCRIPTION = "This is Realtek Qt application."
 LICENSE = "CLOSED"
 
-DEPENDS += "qtbase qtwayland gstreamer1.0 gstreamer1.0-plugins-base"
-RDEPENDS:${PN} += "bash"
+DEPENDS += "qtbase qtwayland gstreamer1.0 gstreamer1.0-plugins-base rtk-media-framework"
+RDEPENDS:${PN} += "bash rtk-media-framework"
 
 inherit pkgconfig
 
@@ -48,6 +48,7 @@ do_install() {
     install -d ${D}${bindir}/rtk-test
     install -m 0755 -D ${WORKDIR}/build/rtk-test/rtk-test ${D}${bindir}/rtk-test/
     install -m 0755 -D ${S}/rtk-test/rtk-test.sh ${D}${bindir}/rtk-test/
+    install -m 0755 -D ${S}/rtk-test/rtk-test_one_file.sh ${D}${bindir}/rtk-test/
     install -m 0644 -D ${S}/rtk-test/rtk-test.ini ${D}${bindir}/rtk-test/
 }
 

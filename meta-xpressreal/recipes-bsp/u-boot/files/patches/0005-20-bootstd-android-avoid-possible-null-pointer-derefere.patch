@@ -1,0 +1,44 @@
+From df50c821e75957113b93e45b363cb22c965e7a9b Mon Sep 17 00:00:00 2001
+From: Gary Bisson <bisson.gary@gmail.com>
+Date: Wed, 2 Apr 2025 16:42:19 +0200
+Subject: [PATCH 20/25] bootstd: android: avoid possible null pointer
+ dereference
+
+- avb_slot_verify_data_free() doesn't check its data parameter
+- out_data can be null if avb_slot_verify() fails to allocate memory
+
+Signed-off-by: Gary Bisson <bisson.gary@gmail.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Link: https://lore.kernel.org/r/20250402144219.1875067-1-bisson.gary@gmail.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ boot/bootmeth_android.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index a5a86b29d7f..654ebfdf1fc 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -455,7 +455,8 @@ static int run_avb_verification(struct bootflow *bflow)
+ 		if (result != AVB_SLOT_VERIFY_RESULT_OK) {
+ 			printf("Verification failed, reason: %s\n",
+ 			       str_avb_slot_error(result));
+-			avb_slot_verify_data_free(out_data);
++			if (out_data)
++				avb_slot_verify_data_free(out_data);
+ 			return log_msg_ret("avb verify", -EIO);
+ 		}
+ 		boot_state = AVB_GREEN;
+@@ -465,7 +466,8 @@ static int run_avb_verification(struct bootflow *bflow)
+ 		    result != AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION) {
+ 			printf("Unlocked verification failed, reason: %s\n",
+ 			       str_avb_slot_error(result));
+-			avb_slot_verify_data_free(out_data);
++			if (out_data)
++				avb_slot_verify_data_free(out_data);
+ 			return log_msg_ret("avb verify unlocked", -EIO);
+ 		}
+ 		boot_state = AVB_ORANGE;
+-- 
+2.47.0
+

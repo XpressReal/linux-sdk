@@ -6,6 +6,7 @@
 
 	binman: binman {
 		filename = "bind.bin";
+		size = <0x00100000>;
 		allow-repack;
 		section_1: section@1 {
 			size = <0x00050000>;

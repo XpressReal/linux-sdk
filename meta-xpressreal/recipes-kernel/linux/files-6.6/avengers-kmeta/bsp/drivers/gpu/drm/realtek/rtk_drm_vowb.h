@@ -11,6 +11,11 @@ struct file;
 struct drm_file;
 struct drm_device;
 
+struct vowb_quirks {
+	unsigned int support_deinterlace : 1;
+	unsigned int support_video_osd_mix : 1;
+};
+
 extern struct platform_driver rtk_vowb_driver;
 
 int rtk_drm_vowb_release(struct inode *inode, struct file *filp);
@@ -25,6 +30,6 @@ int rtk_drm_vowb_set_crtc_vblank_ioctl(struct drm_device *dev, void *data, struc
 int rtk_drm_vowb_get_dst_pic_ioctl(struct drm_device *dev, void *data, struct drm_file *file_priv);
 int rtk_drm_vowb_run_cmd(struct drm_device *dev, void *data, struct drm_file *file_priv);
 int rtk_drm_vowb_check_cmd(struct drm_device *dev, void *data, struct drm_file *file_priv);
-int rtk_drm_vowb_reinit(struct drm_device *dev, void *data, struct drm_file *file_priv);
+int rtk_drm_vowb_get_features_ioctl(struct drm_device *dev, void *data, struct drm_file *file_priv);
 
 #endif

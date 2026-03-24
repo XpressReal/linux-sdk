@@ -33,6 +33,13 @@
 		status = "disabled";
 	};
 
+	vpu_ve4: vcpu_ve4 {
+		compatible = "realtek,kent-vpu-ve4";
+		memory-region=<&cma_reserved_0>;
+		status = "disabled";
+	};
+
+
 	ve2: ve2 {
 		compatible = "realtek,kent-ve2-sl";
 		memory-region=<&cma_reserved_0>;
@@ -76,12 +83,12 @@
 
 &kr4_rproc {
 	memory-region = <&riscv_fw>;
-	status = "okay";
+	status = "disabled";
 };
 
 &kr4_rpmsg {
 	rproc = <&kr4_rproc>;
-	status = "okay";
+	status = "disabled";
 };
 
 &hifi_rproc {
@@ -96,6 +103,7 @@
 };
 
 &display_subsystem {
+	ports = <&vo0_out>, <&vowb_io>;
 	status = "okay";
 	krpc-second = <0>;
 };
@@ -104,8 +112,12 @@
 	status = "okay";
 };
 
+&edp {
+	status = "okay";
+};
+
 &vo1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &vo2 {
@@ -117,6 +129,18 @@
 };
 
 &vpu_legacy {
+	status = "okay";
+};
+
+&vpu_ve4  {
+        status = "okay";
+};
+
+&ve4  {
+        status = "okay";
+};
+
+&jpeg {
 	status = "okay";
 };
 

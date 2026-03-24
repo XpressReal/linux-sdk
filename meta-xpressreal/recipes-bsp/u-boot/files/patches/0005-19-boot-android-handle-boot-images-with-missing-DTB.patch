@@ -1,0 +1,38 @@
+From aa817a2f1fb66067fc3c6dc7d9d1a84bbaa99df9 Mon Sep 17 00:00:00 2001
+From: Sam Day <me@samcday.com>
+Date: Thu, 23 Jan 2025 14:35:01 +0000
+Subject: [PATCH 19/25] boot: android: handle boot images with missing DTB
+
+607b07554e2 removed the check on the return status of the
+android_image_get_dtb_img_addr call from android_image_get_dtb_by_index,
+which results in null pointer accesses shortly after when trying to
+check the header of a nonexistent DTB.
+
+Fixes: 607b07554e2 ("android: boot: move to andr_image_data structure")
+Signed-off-by: Sam Day <me@samcday.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Link: https://lore.kernel.org/r/20250123-android-handle-no-dtb-v1-1-1cb7373247da@samcday.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index fa4e14ca469..1746b018900 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -696,7 +696,10 @@ bool android_image_get_dtb_by_index(ulong hdr_addr, ulong vendor_boot_img,
+ 	ulong dtb_addr;		/* address of DTB blob with specified index  */
+ 	u32 i;			/* index iterator */
+ 
+-	android_image_get_dtb_img_addr(hdr_addr, vendor_boot_img, &dtb_img_addr);
++	if (!android_image_get_dtb_img_addr(hdr_addr, vendor_boot_img,
++					    &dtb_img_addr))
++		return false;
++
+ 	/* Check if DTB area of boot image is in DTBO format */
+ 	if (android_dt_check_header(dtb_img_addr)) {
+ 		return android_dt_get_fdt_by_index(dtb_img_addr, index, addr,
+-- 
+2.47.0
+

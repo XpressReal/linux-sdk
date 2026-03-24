@@ -20,6 +20,20 @@
 	bootph-all;
 };
 
+&iso {
+	bootph-all;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
+&gpio {
+	bootph-all;
+	status = "okay";
+};
+
 &usb_manager {
 	bootph-all;
 };

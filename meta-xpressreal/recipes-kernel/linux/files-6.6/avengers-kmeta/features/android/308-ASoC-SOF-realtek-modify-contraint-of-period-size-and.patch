@@ -1,0 +1,47 @@
+From 89cef1ac3c9c3a8f1da6aafc6d26879742e35af0 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Fri, 13 Mar 2026 15:27:15 +0800
+Subject: [PATCH] ASoC: SOF: realtek: modify contraint of period size and
+ period count for XRUN issue
+
+[JIRA]CHROME-812
+---
+ sound/soc/sof/realtek/hifi-dsp.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/sound/soc/sof/realtek/hifi-dsp.c b/sound/soc/sof/realtek/hifi-dsp.c
+index 83b6785a0854a..14fea9ba29983 100644
+--- a/sound/soc/sof/realtek/hifi-dsp.c
++++ b/sound/soc/sof/realtek/hifi-dsp.c
+@@ -836,6 +836,7 @@ static int rtk_hifi_pcm_open(struct snd_sof_dev *sdev,
+ 			     struct snd_pcm_substream *substream)
+ {
+ 	struct sof_rtk_adsp_stream *stream;
++	struct snd_pcm_runtime *runtime = substream->runtime;
+ 
+ 	stream = rtk_hifi_stream_get(sdev, 0);
+ 	if (!stream)
+@@ -844,6 +845,20 @@ static int rtk_hifi_pcm_open(struct snd_sof_dev *sdev,
+ 	pr_err("%s success\n", __func__);
+ 	substream->runtime->private_data = stream;
+ 
++	snd_pcm_hw_constraint_step(runtime, 0, SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 4);
++
++	snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
++
++	snd_pcm_hw_constraint_minmax(runtime,
++			SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
++			1024*4,
++			runtime->hw.period_bytes_max);
++
++	snd_pcm_hw_constraint_minmax(runtime,
++			SNDRV_PCM_HW_PARAM_PERIODS,
++			8,
++			runtime->hw.periods_max);
++
+ 	return 0;
+ }
+ 
+-- 
+2.43.0
+

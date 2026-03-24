@@ -6,6 +6,7 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
@@ -313,17 +314,11 @@ static int hse_dev_submit(struct hse_engine *eng, struct hse_command_queue *cq)
 	else {
 		if (cq->status & ~HSE_STATUS_IRQ_OK)
 			ret = -EFAULT;
-
 		else if (cq->status & HSE_STATUS_IRQ_OK)
 			ret = 0;
 	}
 
 	return ret;
-}
-
-static bool hse_dev_flags_is_prep_cmd(u64 flags)
-{
-	return flags & HSE_FLAGS_PREP_CMD;
 }
 
 static struct hse_dev_buf *hse_dev_find_buf_and_check(struct hse_dev_file_data *fdata, u32 va, u32 f_flags, u32 offset, u32 size)
@@ -376,22 +371,16 @@ static int hse_dev_ioctl_cmd_copy(struct hse_dev_file_data *fdata, unsigned long
 	if (IS_ERR(src))
 		return PTR_ERR(src);
 
-	if (!hse_dev_flags_is_prep_cmd(user_arg.flags))
-		hse_cq_reset(fdata->cq);
-
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_copy(fdata->hse_dev, fdata->cq,
 			       buf_dma_addr(dst) + user_arg.dst_offset,
 			       buf_dma_addr(src) + user_arg.src_offset,
 			       user_arg.size, user_arg.flags);
-
 	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
 		hse_cq_reset(fdata->cq);
 		return ret;
 	}
-
-	if (hse_dev_flags_is_prep_cmd(user_arg.flags))
-		return 0;
 
 	ret = hse_dev_submit(fdata->eng, fdata->cq);
 	hse_cq_reset(fdata->cq);
@@ -420,9 +409,7 @@ static int hse_dev_ioctl_cmd_picture_copy(struct hse_dev_file_data *fdata, unsig
 	if (IS_ERR(src))
 		return PTR_ERR(src);
 
-	if (!hse_dev_flags_is_prep_cmd(user_arg.flags))
-		hse_cq_reset(fdata->cq);
-
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_picture_copy(fdata->hse_dev, fdata->cq,
 				       buf_dma_addr(dst) + user_arg.dst_offset, user_arg.dst_pitch,
 				       buf_dma_addr(src) + user_arg.src_offset, user_arg.src_pitch,
@@ -433,9 +420,6 @@ static int hse_dev_ioctl_cmd_picture_copy(struct hse_dev_file_data *fdata, unsig
 		hse_cq_reset(fdata->cq);
 		return ret;
 	}
-
-	if (hse_dev_flags_is_prep_cmd(user_arg.flags))
-		return 0;
 
 	ret = hse_dev_submit(fdata->eng, fdata->cq);
 	hse_cq_reset(fdata->cq);
@@ -471,13 +455,17 @@ static int hse_dev_ioctl_cmd_xor(struct hse_dev_file_data *fdata, unsigned long 
 		src_addr[i] = buf_dma_addr(src[i]) + user_arg.src_offset[i];
 	}
 
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_xor(fdata->hse_dev, fdata->cq, dst_addr, src_addr, user_arg.src_num,
 			      user_arg.size, user_arg.flags);
 
-	if (ret)
+	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
-	else
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
+		hse_cq_reset(fdata->cq);
+		return ret;
+	}
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
 	hse_cq_reset(fdata->cq);
 	return ret;
 }
@@ -499,13 +487,17 @@ static int hse_dev_ioctl_cmd_constant_fill(struct hse_dev_file_data *fdata, unsi
 	if (IS_ERR(dst))
 		return PTR_ERR(dst);
 
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_constant_fill(fdata->hse_dev, fdata->cq,
 					buf_dma_addr(dst) + user_arg.dst_offset,
 					user_arg.val, user_arg.size, user_arg.flags);
-	if (ret)
+	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
-	else
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
+		hse_cq_reset(fdata->cq);
+		return ret;
+	}
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
 	hse_cq_reset(fdata->cq);
 	return ret;
 }
@@ -537,15 +529,19 @@ static int hse_dev_ioctl_cmd_yuy2_to_nv16(struct hse_dev_file_data *fdata, unsig
 	if (IS_ERR(src))
 		return PTR_ERR(src);
 
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_yuy2_to_nv16(fdata->hse_dev, fdata->cq,
 				       buf_dma_addr(luma) + user_arg.luma_offset,
 				       buf_dma_addr(chroma) + user_arg.chroma_offset,
 				       user_arg.dst_pitch, buf_dma_addr(src) + user_arg.src_offset,
 				       user_arg.src_pitch, user_arg.width, user_arg.height, user_arg.flags);
-	if (ret)
+	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
-	else
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
+		hse_cq_reset(fdata->cq);
+		return ret;
+	}
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
 	hse_cq_reset(fdata->cq);
 	return ret;
 }
@@ -604,6 +600,9 @@ static int hse_dev_ioctl_cmd_fmt_convert(struct hse_dev_file_data *fdata,
 
 	if (user_arg.src_pitch == 0 || user_arg.dst_pitch == 0 ||
 	    user_arg.width == 0)
+		return -EINVAL;
+
+	if (user_arg.src_luma_va == user_arg.dst_luma_va)
 		return -EINVAL;
 
 	dst.fmt = user_arg.dst_fmt;
@@ -667,6 +666,7 @@ static int hse_dev_ioctl_cmd_fmt_convert(struct hse_dev_file_data *fdata,
 		src_chroma_addr = 0;
 	}
 
+	hse_cq_reset(fdata->cq);
 	if (src.type == HSE_FMT_TYPE_YUV && dst.type == HSE_FMT_TYPE_RGB)
 		hse_cq_prep_yuv2rgb_coeff(fdata->hse_dev, fdata->cq);
 	else if (src.type == HSE_FMT_TYPE_RGB && dst.type == HSE_FMT_TYPE_YUV)
@@ -680,10 +680,12 @@ static int hse_dev_ioctl_cmd_fmt_convert(struct hse_dev_file_data *fdata,
 	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n",
 			 fdata->cq, __func__, ret);
-	} else {
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
 		hse_cq_reset(fdata->cq);
+		return ret;
 	}
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
+	hse_cq_reset(fdata->cq);
 
 	return ret;
 }
@@ -716,19 +718,20 @@ static int hse_dev_ioctl_cmd_rotate(struct hse_dev_file_data *fdata, unsigned lo
 	if (dst->sgt->nents != 1 || src->sgt->nents != 1)
 		return -EINVAL;
 
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_rotate(fdata->hse_dev, fdata->cq,
 				 buf_dma_addr(dst) + user_arg.dst_offset, user_arg.dst_pitch,
 				 buf_dma_addr(src) + user_arg.src_offset, user_arg.src_pitch,
 				 user_arg.width, user_arg.height, user_arg.mode,
 				 user_arg.color_format, user_arg.flags & HSE_FLAGS_ROTATE_10BIT);
-	if (ret)
+	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
-	else {
-		if (hse_dev_flags_is_prep_cmd(user_arg.flags))
-			return 0;
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
 		hse_cq_reset(fdata->cq);
+		return ret;
 	}
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
+	hse_cq_reset(fdata->cq);
 	return ret;
 }
 
@@ -746,7 +749,6 @@ static int hse_dev_ioctl_get_features(struct hse_dev_file_data *fdata, unsigned 
 	return 0;
 }
 
-
 static int hse_dev_ioctl_cmd_stretch(struct hse_dev_file_data *fdata, unsigned long arg)
 {
 	struct hse_cmd_stretch user_arg;
@@ -754,11 +756,14 @@ static int hse_dev_ioctl_cmd_stretch(struct hse_dev_file_data *fdata, unsigned l
 	int ret;
 
 	if (copy_from_user(&user_arg, (void *)arg, sizeof(user_arg)))
-	        return -EFAULT;
+		return -EFAULT;
 
 	if (user_arg.src_pitch == 0 || user_arg.dst_pitch == 0 ||
 		user_arg.src_width == 0 || user_arg.src_height == 0 ||
 		user_arg.dst_width == 0 || user_arg.dst_height == 0)
+		return -EINVAL;
+
+	if (user_arg.src_va == user_arg.dst_va)
 		return -EINVAL;
 
 	src = hse_dev_find_buf_and_check(fdata, user_arg.src_va, O_RDONLY, user_arg.src_offset,
@@ -774,19 +779,64 @@ static int hse_dev_ioctl_cmd_stretch(struct hse_dev_file_data *fdata, unsigned l
 	if (dst->sgt->nents != 1 || src->sgt->nents != 1)
 		return -EINVAL;
 
+	hse_cq_reset(fdata->cq);
 	ret = hse_cq_prep_stretch(fdata->hse_dev, fdata->cq,
-		buf_dma_addr(dst) + user_arg.dst_offset, user_arg.dst_pitch,
-		buf_dma_addr(src) + user_arg.src_offset, user_arg.src_pitch,
-		user_arg.dst_width, user_arg.dst_height, user_arg.src_width, user_arg.src_height, user_arg.colorSel);
+                buf_dma_addr(dst) + user_arg.dst_offset, user_arg.dst_pitch,
+                buf_dma_addr(src) + user_arg.src_offset, user_arg.src_pitch,
+                user_arg.dst_width, user_arg.dst_height, user_arg.src_width, user_arg.src_height, user_arg.colorSel);
 
-	if (ret)
+	if (ret) {
 		pr_debug("cq %pK: %s: failed to prepare command: %d\n", fdata->cq, __func__, ret);
-	else {
-		ret = hse_dev_submit(fdata->eng, fdata->cq);
 		hse_cq_reset(fdata->cq);
+		return ret;
 	}
 
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
+	hse_cq_reset(fdata->cq);
+
 	return ret;
+}
+
+static int hse_dev_ioctl_version(struct hse_dev_file_data *fdata, unsigned long arg)
+{
+	u32 v = HSE_VERSION_MAJOR << 16 | HSE_VERSION_MINOR;
+
+	if (copy_to_user((unsigned int __user *)arg, &v, sizeof(v)))
+		return -EFAULT;
+	return 0;
+}
+
+static int hse_dev_ioctl_cmd_prep_raw(struct hse_dev_file_data *fdata, unsigned long arg)
+{
+	struct hse_cmd cmd;
+
+	if (copy_from_user(&cmd, (unsigned int __user *)arg, sizeof(cmd)))
+		return -EFAULT;
+
+	if (cmd.size == 0 || cmd.size > ARRAY_SIZE(cmd.cmds))
+		return -EINVAL;
+
+	return hse_cq_add_data(fdata->cq, cmd.cmds, cmd.size);
+}
+
+static int hse_dev_ioctl_cmd_start(struct hse_dev_file_data *fdata, unsigned long arg)
+{
+	int ret;
+
+	ret = hse_dev_submit(fdata->eng, fdata->cq);
+	hse_cq_reset(fdata->cq);
+	return ret;
+}
+
+static int hse_dev_ioctl_set_engine(struct hse_dev_file_data *fdata, unsigned long arg)
+{
+	__u32 eng_id;
+
+	if (copy_from_user(&eng_id, (unsigned int __user *)arg, sizeof(__u32)))
+		return -EFAULT;
+
+	fdata->eng = hse_device_get_engine(fdata->hse_dev, eng_id);
+	return 0;
 }
 
 static int hse_dev_ioctl_import_dmabuf(struct hse_dev_file_data *fdata, unsigned long arg)
@@ -890,96 +940,84 @@ static long hse_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 {
 	struct hse_dev_file_data *data = filp->private_data;
 	struct hse_command_queue *cq = data->cq;
-	int ret;
+	struct device *dev = data->hse_dev->dev;
+	int ret = 0;
 
-	/* reset cq for the commands */
-	switch (cmd) {
-	case HSE_IOCTL_CMD_CONSTANT_FILL:
-	case HSE_IOCTL_CMD_XOR:
-	case HSE_IOCTL_CMD_YUY2_TO_NV16:
-		hse_cq_reset(data->cq);
-		break;
-	default:
-		break;
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		pr_err("cq %pK: %s: pm_runtime_get_sync() returns %d", cq, __func__, ret);
+		return ret;
 	}
 
 	switch (cmd) {
 	case HSE_IOCTL_VERSION:
-	{
-		u32 v = HSE_VERSION_MAJOR << 16 | HSE_VERSION_MINOR;
-
-		if (copy_to_user((unsigned int __user *)arg, &v, sizeof(v)))
-			return -EFAULT;
-		return 0;
-	}
+		ret = hse_dev_ioctl_version(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_PREP_RAW:
-	{
-		struct hse_cmd cmd;
-
-		if (copy_from_user(&cmd, (unsigned int __user *)arg, sizeof(cmd)))
-			return -EFAULT;
-
-		if (cmd.size == 0 || cmd.size > ARRAY_SIZE(cmd.cmds))
-			return -EINVAL;
-
-		return hse_cq_add_data(cq, cmd.cmds, cmd.size);
-	}
+		ret = hse_dev_ioctl_cmd_prep_raw(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_START:
-		ret = hse_dev_submit(data->eng, cq);
-		hse_cq_reset(data->cq);
-		return ret;
+		ret = hse_dev_ioctl_cmd_start(data, arg);
+		break;
 
 	case HSE_IOCTL_SET_ENGINE:
-	{
-		__u32 eng_id;
-
-		if (copy_from_user(&eng_id, (unsigned int __user *)arg, sizeof(__u32)))
-			return -EFAULT;
-
-		data->eng = hse_device_get_engine(data->hse_dev, eng_id);
-		return 0;
-	}
+		ret = hse_dev_ioctl_set_engine(data, arg);
+		break;
 
 	case HSE_IOCTL_GET_FEATURES:
-		return hse_dev_ioctl_get_features(data, arg);
+		ret = hse_dev_ioctl_get_features(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_COPY:
-		return hse_dev_ioctl_cmd_copy(data, arg);
+		ret = hse_dev_ioctl_cmd_copy(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_CONSTANT_FILL:
-		return hse_dev_ioctl_cmd_constant_fill(data, arg);
+		ret = hse_dev_ioctl_cmd_constant_fill(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_XOR:
-		return hse_dev_ioctl_cmd_xor(data, arg);
+		ret = hse_dev_ioctl_cmd_xor(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_PICTURE_COPY:
-		return hse_dev_ioctl_cmd_picture_copy(data, arg);
+		ret = hse_dev_ioctl_cmd_picture_copy(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_YUY2_TO_NV16:
-		return hse_dev_ioctl_cmd_yuy2_to_nv16(data, arg);
+		ret = hse_dev_ioctl_cmd_yuy2_to_nv16(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_FMT_CONVERT:
-		return hse_dev_ioctl_cmd_fmt_convert(data, arg);
+		ret = hse_dev_ioctl_cmd_fmt_convert(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_ROTATE:
-		return hse_dev_ioctl_cmd_rotate(data, arg);
+		ret = hse_dev_ioctl_cmd_rotate(data, arg);
+		break;
 
 	case HSE_IOCTL_CMD_STRETCH:
-		return hse_dev_ioctl_cmd_stretch(data, arg);
+		ret = hse_dev_ioctl_cmd_stretch(data, arg);
+		break;
 
 	case HSE_IOCTL_IMPORT_DMABUF:
-		return hse_dev_ioctl_import_dmabuf(data, arg);
+		ret = hse_dev_ioctl_import_dmabuf(data, arg);
+		break;
 
 	case HSE_IOCTL_RELEASE_MEM:
-		return hse_dev_ioctl_release_mem(data, arg);
+		ret = hse_dev_ioctl_release_mem(data, arg);
+		break;
 
 	default:
-		return -ENOIOCTLCMD;
+		ret = -ENOIOCTLCMD;
+		break;
 	}
 
-	return 0;
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+	return ret;
 }
 
 static const struct file_operations hse_dev_fops = {

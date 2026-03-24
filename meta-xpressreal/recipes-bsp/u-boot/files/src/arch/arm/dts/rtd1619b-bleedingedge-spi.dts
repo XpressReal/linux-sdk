@@ -24,6 +24,15 @@
 	bootph-all;
 };
 
+&iso {
+	bootph-all;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
 &sb2 {
 	bootph-all;
 };

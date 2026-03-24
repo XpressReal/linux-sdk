@@ -1,1 +1,3 @@
+patch 100-Bluetooth-Support-Realtek-RTL8822ES-UART-BT.patch
+
 kconf hardware bt.cfg

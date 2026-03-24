@@ -1,0 +1,54 @@
+From da536f751450fcce5741bb290f355398afcf258f Mon Sep 17 00:00:00 2001
+From: "brian.shen" <brian.shen@realtek.com>
+Date: Wed, 15 Oct 2025 23:47:51 +0800
+Subject: [PATCH] weston: fix bug that rtk_video is covered by
+ weston background after hotplug HDMI
+Source: Realtek
+License: GPLV2
+Upstream-Status: Pending
+
+Signed-off-by: brian.shen <brian.shen@realtek.com>
+---
+ libweston/compositor.c | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index 95e9793..b33de19 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -3460,17 +3460,28 @@ weston_output_repaint(struct weston_output *output)
+ 		if (ec->ui_hole_punch == false) {
+ 			struct weston_layer *layer, *layer_bg = NULL;
+ 			struct weston_view *view, *view_rtk_video = NULL;
++			bool need_move_rtk_video = false;
+ 			wl_list_for_each(layer, &ec->layer_list, link) {
+ 				if (layer->position == WESTON_LAYER_POSITION_BACKGROUND)
+ 					layer_bg = layer;
++				int idx = 0;
+ 				wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
+-					if(layer->position != WESTON_LAYER_POSITION_BACKGROUND &&
+-						strncmp(view->surface->app_id, "rtk_video", 9) == 0)
++					if(strncmp(view->surface->app_id, "rtk_video", 9) == 0) {
+ 						view_rtk_video = view;
++						if(layer->position != WESTON_LAYER_POSITION_BACKGROUND)
++							/* rtk_video should move to layer in WESTON_LAYER_POSITION_BACKGROUND
++							 in order to control UI */
++							need_move_rtk_video = true;
++						else if(layer->position == WESTON_LAYER_POSITION_BACKGROUND && idx>0)
++							/* rtk_video should be on the top of views with layer in WESTON_LAYER_POSITION_BACKGROUND
++							 in order to show video instead of other background */
++							need_move_rtk_video = true;
++					}
++					idx ++;
+ 				}
+ 			}
+-			if (layer_bg != NULL && view_rtk_video != NULL) {
+-				// move rtk_video to layer WESTON_LAYER_POSITION_BACKGROUND in order to control UI
++			if (need_move_rtk_video == true && layer_bg != NULL && view_rtk_video != NULL) {
++				// move rtk_video to the top of views with layer WESTON_LAYER_POSITION_BACKGROUND
+ 				weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
+ 			}
+ 		}
+-- 
+2.7.4
+

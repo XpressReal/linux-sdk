@@ -1,0 +1,56 @@
+From ae58cd7b39207175c8696d7bf38321b1a4c9957a Mon Sep 17 00:00:00 2001
+From: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Date: Wed, 8 Jan 2025 15:38:41 +0100
+Subject: [PATCH 17/25] bootstd: android: Add missing NULL in the avb partition
+ list
+
+When booting an Android build with AVB enabled, it's still possible to
+deactivate the check for development purposes if the bootloader state is
+UNLOCKED.
+
+This is very useful for development and can be done at flashing time via:
+$ fastboot flash --disable-verity --disable-verification vbmeta vbmeta.img
+
+However, with bootmeth_android, we cannot boot this way:
+
+    Scanning bootdev 'mmc@fa10000.bootdev':
+      0  android      ready   mmc          0  mmc@fa10000.bootdev.whole
+    ** Booting bootflow 'mmc@fa10000.bootdev.whole' with android
+    avb_vbmeta_image.c:188: ERROR: Hash does not match!
+    avb_slot_verify.c:732: ERROR: vbmeta_a: Error verifying vbmeta image: HASH_MISMATCH
+    get_partition: can't find partition '_a'
+    avb_slot_verify.c:496: ERROR: _a: Error determining partition size.
+    Verification failed, reason: I/O error occurred while trying to load data
+    Boot failed (err=-5)
+    No more bootdevs
+
+From the logs we can see that avb tries to read a partition named '_a'.
+It's doing so because the last element of requested_partitions implicitly is
+'\0', but the doc explicitly request it to be NULL instead.
+
+Add NULL as last element to requested_partitions to avoid this problem.
+
+Fixes: 125d9f3306ea ("bootstd: Add a bootmeth for Android")
+Reviewed-by: Julien Masson <jmasson@baylibre.com>
+Link: https://lore.kernel.org/r/20250108-avb-disable-verif-v2-1-ba7d3b0d5b6a@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/bootmeth_android.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/boot/bootmeth_android.c b/boot/bootmeth_android.c
+index d8c92b44a99..4ce89d5bcef 100644
+--- a/boot/bootmeth_android.c
++++ b/boot/bootmeth_android.c
+@@ -422,7 +422,7 @@ static int run_avb_verification(struct bootflow *bflow)
+ {
+ 	struct blk_desc *desc = dev_get_uclass_plat(bflow->blk);
+ 	struct android_priv *priv = bflow->bootmeth_priv;
+-	const char * const requested_partitions[] = {"boot", "vendor_boot"};
++	const char * const requested_partitions[] = {"boot", "vendor_boot", NULL};
+ 	struct AvbOps *avb_ops;
+ 	AvbSlotVerifyResult result;
+ 	AvbSlotVerifyData *out_data;
+-- 
+2.47.0
+

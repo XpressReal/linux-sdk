@@ -1954,6 +1954,11 @@ struct video_transcode_picture_object {
 	unsigned int sub_h;          //  <= subtitle height
 	unsigned int sub_pitch;     //  <= subtitle pitch
 	unsigned int sub_format; //   <= subtitle format
+
+	/*from 'TRA6' for transcode tone mapping*/
+	unsigned int transferCharacteristics;
+	unsigned int video_full_range_flag;
+	unsigned int matrix_coefficients;
 };
 
 struct video_writeback_picture_object {

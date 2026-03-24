@@ -1,0 +1,95 @@
+diff --git a/media/gpu/v4l2/legacy/v4l2_video_decode_accelerator.cc b/media/gpu/v4l2/legacy/v4l2_video_decode_accelerator.cc
+index 3b747aa..1f12939 100644
+--- a/media/gpu/v4l2/legacy/v4l2_video_decode_accelerator.cc
++++ b/media/gpu/v4l2/legacy/v4l2_video_decode_accelerator.cc
+@@ -94,6 +94,10 @@ static const std::vector<uint32_t> kSupportedInputFourCCs = {
+     V4L2_PIX_FMT_H264,
+     V4L2_PIX_FMT_VP8,
+     V4L2_PIX_FMT_VP9,
++#if BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
++    V4L2_PIX_FMT_HEVC,
++#endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
++    V4L2_PIX_FMT_AV1,
+ };
+ 
+ // static
+diff --git a/media/gpu/v4l2/legacy/v4l2_video_decoder_backend_stateful.cc b/media/gpu/v4l2/legacy/v4l2_video_decoder_backend_stateful.cc
+index 9069b97..98db90c 100644
+--- a/media/gpu/v4l2/legacy/v4l2_video_decoder_backend_stateful.cc
++++ b/media/gpu/v4l2/legacy/v4l2_video_decoder_backend_stateful.cc
+@@ -762,6 +762,10 @@ bool V4L2StatefulVideoDecoderBackend::IsSupportedProfile(
+         V4L2_PIX_FMT_H264,
+         V4L2_PIX_FMT_VP8,
+         V4L2_PIX_FMT_VP9,
++#if BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
++        V4L2_PIX_FMT_HEVC,
++#endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
++        V4L2_PIX_FMT_AV1,
+     };
+     auto device = base::MakeRefCounted<V4L2Device>();
+     VideoDecodeAccelerator::SupportedProfiles profiles =
+diff --git a/media/gpu/v4l2/v4l2_utils.cc b/media/gpu/v4l2/v4l2_utils.cc
+index 4ae99de..eacf4d9 100644
+--- a/media/gpu/v4l2/v4l2_utils.cc
++++ b/media/gpu/v4l2/v4l2_utils.cc
+@@ -205,7 +205,6 @@ VideoCodecProfile V4L2ProfileToVideoCodecProfile(uint32_t v4l2_codec,
+       }
+       break;
+ #endif
+-#if BUILDFLAG(IS_CHROMEOS)
+     case V4L2_CID_MPEG_VIDEO_AV1_PROFILE:
+       switch (v4l2_profile) {
+         case V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN:
+@@ -216,7 +215,6 @@ VideoCodecProfile V4L2ProfileToVideoCodecProfile(uint32_t v4l2_codec,
+           return AV1PROFILE_PROFILE_PRO;
+       }
+       break;
+-#endif
+   }
+   return VIDEO_CODEC_PROFILE_UNKNOWN;
+ }
+@@ -337,10 +335,8 @@ static const std::map<v4l2_enum_type, v4l2_enum_type>
+         {V4L2_PIX_FMT_VP8_FRAME, V4L2_CID_MPEG_VIDEO_VP8_PROFILE},
+         {V4L2_PIX_FMT_VP9, V4L2_CID_MPEG_VIDEO_VP9_PROFILE},
+         {V4L2_PIX_FMT_VP9_FRAME, V4L2_CID_MPEG_VIDEO_VP9_PROFILE},
+-#if BUILDFLAG(IS_CHROMEOS)
+         {V4L2_PIX_FMT_AV1, V4L2_CID_MPEG_VIDEO_AV1_PROFILE},
+         {V4L2_PIX_FMT_AV1_FRAME, V4L2_CID_MPEG_VIDEO_AV1_PROFILE},
+-#endif
+ };
+ 
+ // Default VideoCodecProfiles associated to a V4L2 Codec Control ID.
+@@ -358,9 +354,7 @@ static const std::map<v4l2_enum_type, std::vector<VideoCodecProfile>>
+ #endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+         {V4L2_CID_MPEG_VIDEO_VP8_PROFILE, {VP8PROFILE_ANY}},
+         {V4L2_CID_MPEG_VIDEO_VP9_PROFILE, {VP9PROFILE_PROFILE0}},
+-#if BUILDFLAG(IS_CHROMEOS)
+         {V4L2_CID_MPEG_VIDEO_AV1_PROFILE, {AV1PROFILE_PROFILE_MAIN}},
+-#endif
+ };
+ 
+ // Correspondence from a VideoCodecProfiles to V4L2 codec described
+@@ -378,10 +372,8 @@ static const std::map<VideoCodecProfile,
+         {VP8PROFILE_ANY, MAKE_V4L2_CODEC_PAIR(V4L2_PIX_FMT_VP8, FRAME)},
+         {VP9PROFILE_PROFILE0, MAKE_V4L2_CODEC_PAIR(V4L2_PIX_FMT_VP9, FRAME)},
+         {VP9PROFILE_PROFILE2, MAKE_V4L2_CODEC_PAIR(V4L2_PIX_FMT_VP9, FRAME)},
+-#if BUILDFLAG(IS_CHROMEOS)
+         {AV1PROFILE_PROFILE_MAIN,
+          MAKE_V4L2_CODEC_PAIR(V4L2_PIX_FMT_AV1, FRAME)},
+-#endif
+ };
+ 
+ }  // namespace
+diff --git a/media/gpu/v4l2/v4l2_vda_helpers.cc b/media/gpu/v4l2/v4l2_vda_helpers.cc
+index 4a162ee..631af02 100644
+--- a/media/gpu/v4l2/v4l2_vda_helpers.cc
++++ b/media/gpu/v4l2/v4l2_vda_helpers.cc
+@@ -160,6 +160,8 @@ InputBufferFragmentSplitter::CreateFromProfile(
+     case VideoCodec::kVP9:
+       // VP8/VP9 don't need any frame splitting, use the default implementation.
+       return std::make_unique<v4l2_vda_helpers::InputBufferFragmentSplitter>();
++    case VideoCodec::kAV1:
++      return std::make_unique<v4l2_vda_helpers::InputBufferFragmentSplitter>();
+     default:
+       LOG(ERROR) << "Unhandled profile: " << profile;
+       return nullptr;

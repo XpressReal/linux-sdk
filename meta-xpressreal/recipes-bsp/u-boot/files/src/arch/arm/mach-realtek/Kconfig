@@ -8,12 +8,15 @@ choice
 
 config TARGET_RTD1319
 	bool "Realtek RTD1319 SoC"
+	select ARMV8_CRYPTO
 
 config TARGET_RTD1619B
 	bool "Realtek RTD1619B SoC"
+	select ARMV8_CRYPTO
 
 config TARGET_RTD1625
 	bool "Realtek RTD1625 SoC"
+	select ARMV8_CRYPTO
 
 endchoice
 

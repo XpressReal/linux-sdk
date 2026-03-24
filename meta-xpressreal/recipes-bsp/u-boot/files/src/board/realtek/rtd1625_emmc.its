@@ -62,6 +62,19 @@
                 algo = "sha256";
             };
         };
+        rtd1501-tee {
+            description = "OPTEE";
+            data = /incbin/("./source/fw/rtd1625/Secure_OS_Area_flash_layout_0.bin");
+            type = "tee";
+            arch = "arm64";
+            compression = "none";
+            os = "tee";
+            load = <0x01600000>;
+            entry = <0x01600000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
     };
 
     configurations {
@@ -69,6 +82,38 @@
 
         normal {
             description = "Boot to U-Boot proper with FWs";
+            firmware = "uboot";
+            fdt = "fdt", "fdt_cipher";
+            loadables = "pcpu_cert", "pcpu";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "uboot";
+                sign-images = "fdt", "firmware", "loadables";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "firmware", "loadables";
+            };
+        };
+        rtd1501s-phantom-tee {
+            description = "rtd1501s-phantom-tee";
+            firmware = "uboot";
+            fdt = "fdt", "fdt_cipher";
+            loadables = "pcpu_cert", "pcpu", "rtd1501-tee";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "uboot";
+                sign-images = "fdt", "firmware", "loadables";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "firmware", "loadables";
+            };
+        };
+        rtd1501s-phantom {
+            description = "rtd1501s-phantom";
             firmware = "uboot";
             fdt = "fdt", "fdt_cipher";
             loadables = "pcpu_cert", "pcpu";

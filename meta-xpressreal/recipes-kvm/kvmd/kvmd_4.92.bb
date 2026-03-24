@@ -12,8 +12,7 @@ SRC_URI += "\
 	file://0003-fix-missing-qsize-implemention-in-python-3.12.patch \
 	file://0004-modify-index.html-to-switch-between-legacy-and-webrtc.patch \
 	file://0005-modify-javascript-to-select-legacy-or-webrtc.patch \
-	file://kvmd-etc.tgz;unpack=0 \
-	file://rtkweb.tgz;unpack=0 \
+	file://0007-nginx-config-add-an-option-to-enable-disable-https.patch \
 	file://kvmd.service \
 	file://kvmd-otg.service \
 	file://kvmd-nginx.service \
@@ -25,20 +24,47 @@ SRC_URI += "\
 	file://kvmd-otgnet.service  \
 	file://kvmd-webterm.service \
 	file://kvmd-webrtc.service \
+	file://kvmd-extend.service \
 	file://platform \
 	file://kvmd-tmpfiles.conf \
 	file://kvmd-sudoer \
 	file://90-gpio.rules \
 	file://99-kvmd.rules \
-	file://web.css \
 	file://htpasswd \
 	file://99-kvmd.conf \
-	file://nginx.conf.mako \
 	file://nginx.ctx-server.conf \
 	file://streamer.py \
+	file://httpd_kvm_extend.py \
 	file://override.yaml \
 	file://nginx.ctx-server.conf \
+	file://gadget-conf.sh \
+	file://gen-qr-codes.sh \
+	file://background.png \
+	file://otg.yaml \
+	file://main.yaml \
+	file://gen-ssl.sh \
+	file://bg.png \
+	file://desktop-background.png \
+	file://logo0.svg \
+	file://logo.svg \
+	file://tdesign_user-circle-filled.svg \
+	file://blank-stream-rtkBg-01.jpg \
+	file://blank-stream-rtkBg-02.jpg \
+	file://blank-stream-rtkBg-03.jpg \
+	file://blank-stream-rtkBg-04.jpg \
+	file://blank-stream-rtkBg-05.jpg \
+	file://blank-stream-rtkBg-06.jpg \
+	file://gpio-conf.sh \
+	file://gpio.yaml \
 	"
+
+SRC_URI += "${@bb.utils.contains('PACKAGECONFIG', 'demo', ' \
+	        file://0010-web-index.html-modify-for-Realtek-Demo-UI.patch \
+	        file://0011-web-css-patch-for-Realtek-Demo-style.patch \
+                file://0012-web-javascript-modify-for-Realtek-Demo-purpose.patch \
+                file://0013-web-modify-for-Realtek-KVM-UI.patch \
+                file://0014-Support-USB-drive-passthrough.patch \
+                file://0015-kvmd-Add-WoL-feature.patch ', '', d)}"
 
 S = "${WORKDIR}/git"
 
@@ -46,6 +72,11 @@ DEPENDS = "python3 openssl nginx ustreamer"
 inherit setuptools3 systemd useradd
 
 USERADD_PACKAGES = "${PN}"
+
+PACKAGECONFIG ??= "demo"
+PACKAGECONFIG[develop] = ",,,"
+PACKAGECONFIG[demo] = ",,,"
+PACKAGECONFIG[otg_disabled] = ",,,"
 
 # Define the user group
 GROUPADD_PARAM:${PN} = "--system kvmd; --system kvmd-nginx; --system kvmd-pst; --system gpio; --system video; --system kvmd-localhid"
@@ -62,19 +93,54 @@ do_install:append() {
     cp -r ${S}/extras/* ${D}${datadir}/kvmd/extras/
     install -m 0644 ${WORKDIR}/nginx.ctx-server.conf ${D}${datadir}/kvmd/extras/janus/nginx.ctx-server.conf
 
+    #Copy the original web files
     install -d ${D}${datadir}/kvmd/web
-    if [ "${@bb.utils.contains("MACHINE_FEATURES", "demo", "1", "0", d)}" = "1" ]; then
-        tar -xvf ${WORKDIR}/rtkweb.tgz -C ${D}${datadir}/kvmd
-    else
-        cp -r ${S}/web/* ${D}${datadir}/kvmd/web
+    cp -r ${S}/web/* ${D}${datadir}/kvmd/web
+
+    #Copy files for Realtek Demo UI
+    install -D -p -m0644 ${WORKDIR}/desktop-background.png ${D}${datadir}/kvmd/web/kvm/desktop-background.png
+    install -D -p -m0644 ${WORKDIR}/bg.png ${D}${datadir}/kvmd/web/share/png/bg.png
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-01.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-01.jpg
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-02.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-02.jpg
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-03.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-03.jpg
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-04.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-04.jpg
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-05.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-05.jpg
+    install -D -p -m0644 ${WORKDIR}/blank-stream-rtkBg-06.jpg ${D}${datadir}/kvmd/web/share/png/blank-stream-rtkBg-06.jpg
+    install -D -p -m0644 ${WORKDIR}/logo0.svg ${D}${datadir}/kvmd/web/share/svg/logo0.svg
+    install -D -p -m0644 ${WORKDIR}/tdesign_user-circle-filled.svg ${D}${datadir}/kvmd/web/share/svg/tdesign_user-circle-filled.svg
+    if [ "${@bb.utils.contains("PACKAGECONFIG", "demo", "1", "0", d)}" = "1" ]; then
+        install -m 0644 ${WORKDIR}/logo.svg ${D}${datadir}/kvmd/web/share/svg/logo.svg
     fi
+
+    #Remove pikvm icons
+    rm -f ${D}${datadir}/kvmd/web/favicon.ico
+    rm -f ${D}${datadir}/kvmd/web/share/favicon-16x16.png
+    rm -f ${D}${datadir}/kvmd/web/share/favicon-32x32.png
+    rm -f ${D}${datadir}/kvmd/web/share/svg/favicon.svg
+
     chown -R kvmd:kvmd ${D}${datadir}/kvmd/web
 
     # Install configuration
-    install -d ${D}${sysconfdir}/kvmd
-    tar -xvf ${WORKDIR}/kvmd-etc.tgz -C ${D}${sysconfdir}
+    install -d ${D}${sysconfdir}/kvmd/nginx
+    install -d ${D}${sysconfdir}/kvmd/override.d
+    cp -r ${S}/configs/nginx/* ${D}${sysconfdir}/kvmd/nginx
+    # copy the configuration files of kvmd
+    cp ${S}/configs/kvmd/*.* ${D}${sysconfdir}/kvmd/
+    cp ${S}/configs/kvmd/*passwd ${D}${sysconfdir}/kvmd/
+    install -m 0644 ${WORKDIR}/main.yaml ${D}${sysconfdir}/kvmd/main.yaml
     install -m 0644 ${WORKDIR}/override.yaml ${D}${sysconfdir}/kvmd/override.yaml
-    install -m 0644 ${WORKDIR}/nginx.conf.mako ${D}${sysconfdir}/kvmd/nginx/nginx.conf.mako
+    if [ "${@bb.utils.contains('PACKAGECONFIG', 'otg_disabled', "1", "0", d)}" = "1" ]; then
+	install -m 0644 ${WORKDIR}/otg.yaml ${D}${sysconfdir}/kvmd/override.d/otg.yaml
+    fi
+    install -m 0644 ${WORKDIR}/gpio.yaml ${D}${sysconfdir}/kvmd/override.d/gpio.yaml
+
+    install -m 0644 ${WORKDIR}/background.png ${D}${sysconfdir}/kvmd/background.png
+
+    #Install script to handle board specific settings
+    install -D -p -m0755 ${WORKDIR}/gadget-conf.sh ${D}${exec_prefix}/local/bin/gadget-conf.sh
+    install -D -p -m0755 ${WORKDIR}/gen-qr-codes.sh ${D}${exec_prefix}/local/bin/gen-qr-codes.sh
+    install -D -p -m0755 ${WORKDIR}/gen-ssl.sh ${D}${exec_prefix}/local/bin/gen-ssl.sh
+    install -D -p -m0755 ${WORKDIR}/gpio-conf.sh ${D}${exec_prefix}/local/bin/gpio-conf.sh
 
     # Add service file
     install -d ${D}${systemd_system_unitdir}
@@ -89,6 +155,7 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/kvmd-webrtc.service ${D}${systemd_system_unitdir}/kvmd-webrtc.service
     #install -m 0644 ${WORKDIR}/kvmd-otgnet.service ${D}${systemd_system_unitdir}/kvmd-otgnet.service
     #install -m 0644 ${WORKDIR}/kvmd-webterm.service ${D}${systemd_system_unitdir}/kvmd-webterm.service
+    install -m 0644 ${WORKDIR}/kvmd-extend.service ${D}${systemd_system_unitdir}/kvmd-extend.service
 
     #install system related files
     install -d ${D}${exec_prefix}/bin
@@ -99,8 +166,7 @@ do_install:append() {
     install -d ${D}${datadir}/kvmd/keymaps
     install -m 0644 ${S}/contrib/keymaps/* ${D}${datadir}/kvmd/keymaps/
 
-    install -D -p -m0644 ${WORKDIR}/web.css ${D}${sysconfdir}/kvmd
-    touch ${D}${sysconfdir}/kvmd/totp.secret
+    #overwrite the default configuration files
     install -D -p -m0600 ${WORKDIR}/htpasswd ${D}${sysconfdir}/kvmd
 
     chown -R kvmd:kvmd ${D}${sysconfdir}/kvmd
@@ -116,10 +182,11 @@ do_install:append() {
     install -D -p -m0644 ${WORKDIR}/99-kvmd.conf ${D}${sysconfdir}/sysctl.d/99-kvmd.conf
 
     install -D -p -m0644 ${WORKDIR}/streamer.py ${D}${PYTHON_SITEPACKAGES_DIR}/kvmd/apps/kvmd/api
+    install -D -p -m0644 ${WORKDIR}/httpd_kvm_extend.py ${D}${PYTHON_SITEPACKAGES_DIR}/kvmd/apps/kvmd/api
 
 }
 
-SYSTEMD_SERVICE:${PN} = "kvmd.service kvmd-otg.service kvmd-nginx.service kvmd-janus-static.service"
+SYSTEMD_SERVICE:${PN} = "kvmd.service kvmd-otg.service kvmd-nginx.service kvmd-janus-static.service kvmd-extend.service"
 #SYSTEMD_AUTO_ENABLE = "enable"
 
 RDEPENDS:${PN} += "\
@@ -157,4 +224,4 @@ RDEPENDS:${PN} += "\
     python3-zstandard \
     "
 
-FILES:${PN} += "/usr/lib/systemd/system"
+FILES:${PN} += "/usr/lib/systemd/system /usr/local/bin"

@@ -2,9 +2,13 @@ DESCRIPTION = "Generate minimal rescue rootfs for avengers platform"
 
 require recipes-core/busybox/busybox_${PV}.bb
 
-DEPENDS += "cpio-native xz-native rescuefs-parted rescuefs-pixz"
+DEPENDS += "cpio-native xz-native rescuefs-parted rescuefs-pixz rescuefs-pv"
 
-do_deploy[depends] = "rescuefs-parted:do_deploy rescuefs-e2fsprogs:do_deploy rescuefs-pixz:do_deploy"
+DEPENDS += "virtual/kernel linux-firmware"
+
+do_deploy[depends] = "rescuefs-parted:do_deploy rescuefs-e2fsprogs:do_deploy rescuefs-pixz:do_deploy rescuefs-pv:do_deploy"
+
+do_deploy[depends] += "linux-yocto:do_deploy linux-firmware:do_install"
 
 S = "${WORKDIR}/busybox-${PV}"
 
@@ -23,6 +27,8 @@ SRC_URI += " \
 	file://rcS.default \
 	file://inittab \
 	file://rtkotp \
+	file://modules \
+	file://module_load.sh \
 	"
 
 #disable separate SUID and non SUID busybox to reduce binary size
@@ -41,6 +47,9 @@ do_install:append() {
 	install -D -m 0755 ${WORKDIR}/nas-loader_a ${D}${sbindir}/nas-loader_a
 	install -D -m 0644 ${WORKDIR}/fstab ${D}${sysconfdir}/fstab
 	install -D -m 0755 ${WORKDIR}/rtkotp ${D}${sbindir}/rtkotp
+
+	install -D -m 0755 ${WORKDIR}/module_load.sh ${D}${sbindir}/module_load.sh
+	install -D -m 0644 ${WORKDIR}/modules ${D}${sysconfdir}/modules
 
 	sed -i '/rebooting/i ${KERNEL_CONSOLE}::respawn:/bin/sh \n' ${D}${sysconfdir}/inittab
 
@@ -66,6 +75,7 @@ do_install:append() {
 	# create symbolic /init
 	[ ! -f ${D}/init ] && ln -s -r ${D}${bindir}/busybox ${D}/init
 
+	echo "/usr/sbin/module_load.sh" >> ${D}${sysconfdir}/init.d/rcS
 	echo "echo /usr/sbin/mdev > /proc/sys/kernel/hotplug" >> ${D}${sysconfdir}/init.d/rcS
 	echo "/usr/sbin/mdev -s" >> ${D}${sysconfdir}/init.d/rcS
 	echo "/usr/sbin/nas-loader_a &" >> ${D}${sysconfdir}/init.d/rcS
@@ -86,6 +96,17 @@ do_deploy() {
 	install -m 0755 ${DEPLOY_DIR_IMAGE}/staging/e2fsck ${D}${base_sbindir}/e2fsck
 	install -m 0755 ${DEPLOY_DIR_IMAGE}/staging/parted ${D}${base_sbindir}/parted
 	install -m 0755 ${DEPLOY_DIR_IMAGE}/staging/pixz ${D}${base_bindir}/pixz
+	install -m 0755 ${DEPLOY_DIR_IMAGE}/staging/pv ${D}${base_bindir}/pv
+
+	if [ -d "${DEPLOY_DIR_IMAGE}/selected-firmware" ]; then
+		install -d ${D}/lib/firmware
+		cp -a ${DEPLOY_DIR_IMAGE}/selected-firmware/. ${D}/lib/firmware || true
+	fi
+
+	if [ -d "${DEPLOY_DIR_IMAGE}/selected-kmods" ]; then
+		install -d ${D}/lib/modules
+		cp -a ${DEPLOY_DIR_IMAGE}/selected-kmods/. ${D}/lib/modules || true
+	fi
 
 	# generate rescue initrd
 	(cd ${D} && find . | sort | cpio --reproducible -H newc -o > ${DEPLOYDIR}/${BOOTFILES_DIR}/rescue.root.cpio)

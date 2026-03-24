@@ -72,7 +72,7 @@
 						arch = "arm64";
 						compression = "none";
 
-						blob {
+						dram_init: blob {
 							size = <0x40000>;
 							filename = "dram_init/DRAM_Init_Area.bin";
 						};
@@ -95,7 +95,7 @@
 			pad-byte = <0xff>;
 			blob@1 {
 				filename = "u-boot-spl.bin_pad";
-				size = <0x25800>;
+				size = <0x2B000>;
 				align-size = <0x200>;
 			};
 			spl_sig: blob-ext@1 {

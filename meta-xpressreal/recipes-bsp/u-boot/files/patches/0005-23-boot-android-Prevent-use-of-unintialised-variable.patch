@@ -1,0 +1,34 @@
+From 4b489f517366595cd3f003d4175e721bd927a18b Mon Sep 17 00:00:00 2001
+From: Andrew Goodbody <andrew.goodbody@linaro.org>
+Date: Thu, 26 Jun 2025 17:38:55 +0100
+Subject: [PATCH 23/25] boot: android: Prevent use of unintialised variable
+
+Initialise vhdr to prevent its use when uninitialised.
+
+This issue was found with Smatch.
+
+Fixes: e058176be32b (android: boot: add vendor boot image to prepare for v3, v4 support)
+Signed-off-by: Andrew Goodbody <andrew.goodbody@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Link: https://lore.kernel.org/r/20250625-abootimg_fix-v4-2-df7af00e87b0@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ boot/image-android.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 14cf611cee5..1cd2060bb3f 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -680,7 +680,7 @@ bool android_image_get_dtb_by_index(ulong hdr_addr, ulong vendor_boot_img,
+ {
+ 	struct andr_image_data img_data;
+ 	const struct andr_boot_img_hdr_v0 *hdr;
+-	const struct andr_vnd_boot_img_hdr *vhdr;
++	const struct andr_vnd_boot_img_hdr *vhdr = NULL;
+ 
+ 	hdr = map_sysmem(hdr_addr, sizeof(*hdr));
+ 	if (vendor_boot_img != -1)
+-- 
+2.47.0
+

@@ -14,8 +14,7 @@ SRCREV = "${AUTOREV}"
 include ${BPN}.inc
 
 SRC_URI:append = "\
-	file://0001-fix-compile-error-in-kernel-5.15.patch \
-	file://0001-add-dmabuf-exporter.patch \
+	file://0001-build-mali-r54-csf-and-jm-driver.patch \
 	"
 
 S = "${WORKDIR}/${BPN}-${PV}"
@@ -29,16 +28,36 @@ MODULES_DMA_BUF_LOCATION = "driver/product/kernel/drivers/base/arm/dma_buf_test_
 MODULES_MALI_BASE_LOCATION = "driver/product/kernel/drivers/gpu/arm/midgard"
 
 
-EXTRA_OEMAKE:hank += "KDIR=${STAGING_KERNEL_DIR} CONFIG_MALI_PLATFORM_NAME=rtk CONFIG_MALI_DEVFREQ=y CONFIG_MALI_DEVFREQ=y"
-EXTRA_OEMAKE:stark += "KDIR=${STAGING_KERNEL_DIR} CONFIG_MALI_PLATFORM_NAME=rtk CONFIG_MALI_DEVFREQ=y CONFIG_MALI_DEVFREQ=y"
+EXTRA_OEMAKE += "KDIR=${STAGING_KERNEL_DIR}"
 
-EXTRA_OEMAKE:kent += "KDIR=${STAGING_KERNEL_DIR} CONFIG_MALI_PLATFORM_NAME=rtk CONFIG_MALI_DEVFREQ=y CONFIG_MALI_DEVFREQ=y CONFIG_MALI_CSF_SUPPORT=y"
-
-module_do_install(){
+module_do_install:kent(){
 	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
 	install -d $MODULE_DIR
-	install -m 644 ${S}/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase.ko
-	install -m 644 ${S}/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
+	install -m 644 ${S}/CSF/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase.ko
+	install -m 644 ${S}/CSF/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
+}
+
+module_do_install:stark(){
+	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
+	install -d $MODULE_DIR
+	install -m 644 ${S}/JM/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase.ko
+	install -m 644 ${S}/JM/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
+}
+
+module_do_install:hank(){
+	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
+	install -d $MODULE_DIR
+	install -m 644 ${S}/JM/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase.ko
+	install -m 644 ${S}/JM/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
+}
+
+module_do_install:rtd16xx(){
+	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
+	install -d $MODULE_DIR
+	install -m 644 ${S}/JM/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase_jm.ko
+	install -m 644 ${S}/JM/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter_jm.ko
+	install -m 644 ${S}/CSF/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase_csf.ko
+	install -m 644 ${S}/CSF/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter_csf.ko
 }
 
 KERNEL_MODULE_AUTOLOAD += "mali_kbase dmabuf-exporter"

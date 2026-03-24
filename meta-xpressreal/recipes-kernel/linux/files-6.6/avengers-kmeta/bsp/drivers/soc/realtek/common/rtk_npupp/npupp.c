@@ -1099,10 +1099,12 @@ static int rtk_npupp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(dev, "rtk_audio_heap",
 			      RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
 			      RTK_FLAG_ACPUACC, __func__);
+#endif
 
 	/* Allocate RPC buffer */
 	rpc_info = kzalloc(sizeof(*rpc_info), GFP_KERNEL);

@@ -80,7 +80,15 @@
 /************************************************************************/
 /* VPU COMMON MEMORY */
 /************************************************************************/
-#define SIZE_COMMON (2*1024*1024)
+#define WAVE6_MAX_CODE_BUF_SIZE         (1*1024*1024)
+#define WAVE6_TEMPBUF_OFFSET            WAVE6_MAX_CODE_BUF_SIZE
+#define WAVE6_TEMPBUF_SIZE              (3*1024*1024)
+#define WAVE6_TEMPBUF_SIZE_FOR_CQ       ((3*1024*1024)*3)
+#define WAVE6_AR_TABLE_BUF_SIZE 1024 //adative round
+#define W_REMAP_MAX_SIZE               (1024*1024)
+
+#define ONE_TASKBUF_SIZE_FOR_CQ     0
+#define SIZE_COMMON                 (WAVE6_MAX_CODE_BUF_SIZE)
 
 /*=====4. VPU REPORT MEMORY  ======================*/
 #define SIZE_REPORT_BUF (0x10000)

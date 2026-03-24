@@ -1,0 +1,32 @@
+From 47c75ae9d55f20dae7c5658ccfc7c9940c70559b Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 23 Oct 2025 00:57:28 -0400
+Subject: [PATCH] weston: modeset fail when hotplug
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/kms.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index eaf7c48..1e1e5e6 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -1519,6 +1519,14 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 	ret = drmModeAtomicCommit(device->drm.fd, req, flags | tear_flag,
+ 				  device);
+ 	drm_debug(b, "[atomic] drmModeAtomicCommit\n");
++
++	if (ret != 0) {
++		printf("add modeset flag and atomic commit again\n");
++		flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
++		ret = drmModeAtomicCommit(device->drm.fd, req, flags | tear_flag, device);
++		printf("add modeset flag and atomic commit again:%d\n", ret);
++	}
++
+ 	if (ret != 0 && may_tear && mode == DRM_STATE_TEST_ONLY) {
+ 		/* If we failed trying to set up a tearing commit, try again
+ 		 * without tearing. If that succeeds, knock the tearing flag
+-- 
+2.34.1
+

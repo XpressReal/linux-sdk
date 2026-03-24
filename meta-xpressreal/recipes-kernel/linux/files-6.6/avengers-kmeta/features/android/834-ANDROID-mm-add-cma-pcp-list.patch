@@ -1,0 +1,194 @@
+From 0b0d435190b8628fbdeed931aa969c92ee864284 Mon Sep 17 00:00:00 2001
+From: Chris Goldsworthy <cgoldswo@codeaurora.org>
+Date: Mon, 12 Feb 2024 15:06:24 -0800
+Subject: [PATCH 4/5] ANDROID: mm: add cma pcp list
+
+Add a PCP list for __GFP_CMA allocations so as not to deprive
+MIGRATE_MOVABLE allocations quick access to pages on their PCP
+lists.
+
+[ACK6.6 port notes]:
+
+    Include fixes from following ACK 6.1 commits.
+
+    commit 718da042d120 ("ANDROID: retry page allocation from buddy on lock contention")
+    commit 7641ff0a300a ("ANDROID: mm: Avoid merging cma with others")
+    commit fca353bdc066 ("ANDROID: mm: freeing MIGRATE_ISOLATE page instantly")
+
+    Also, use a conditional, cma_has_pcplist() to determine if the CMA PCP
+    list should be used. By default this is false and no PCP list will be
+    created for CMA.
+
+Bug: 330201547
+Change-Id: I9831eed113ec9e851b4f651755205ac9cf23b9be
+Signed-off-by: Liam Mark <lmark@codeaurora.org>
+Signed-off-by: Chris Goldsworthy <cgoldswo@codeaurora.org>
+[isaacm@codeaurora.org: Resolve merge conflicts related to new mm
+features]
+Signed-off-by: Isaac J. Manjarres <isaacm@quicinc.com>
+Signed-off-by: Sukadev Bhattiprolu <quic_sukadev@quicinc.com>
+---
+ include/linux/gfp.h    |  2 --
+ include/linux/mmzone.h | 10 +++++----
+ mm/page_alloc.c        | 47 +++++++++++++++++++++++++++++++++++-------
+ 3 files changed, 46 insertions(+), 13 deletions(-)
+
+diff --git a/include/linux/gfp.h b/include/linux/gfp.h
+index a0803ed4b469..e2e59f9f596c 100644
+--- a/include/linux/gfp.h
++++ b/include/linux/gfp.h
+@@ -19,8 +19,6 @@ static inline int gfp_migratetype(const gfp_t gfp_flags)
+ 	BUILD_BUG_ON((1UL << GFP_MOVABLE_SHIFT) != ___GFP_MOVABLE);
+ 	BUILD_BUG_ON((___GFP_MOVABLE >> GFP_MOVABLE_SHIFT) != MIGRATE_MOVABLE);
+ 	BUILD_BUG_ON((___GFP_RECLAIMABLE >> GFP_MOVABLE_SHIFT) != MIGRATE_RECLAIMABLE);
+-	BUILD_BUG_ON(((___GFP_MOVABLE | ___GFP_RECLAIMABLE) >>
+-		      GFP_MOVABLE_SHIFT) != MIGRATE_HIGHATOMIC);
+ 
+ 	if (unlikely(page_group_by_mobility_disabled))
+ 		return MIGRATE_UNMOVABLE;
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index a8c535517245..2748ca219f0f 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -50,9 +50,6 @@ enum migratetype {
+ 	MIGRATE_RECLAIMABLE,
+ 	/* the number of types that have fallbacks */
+ 	MIGRATE_FALLBACKS,
+-	/* the number of types on the pcp lists */
+-	MIGRATE_PCPTYPES = MIGRATE_FALLBACKS,
+-	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+ #ifdef CONFIG_CMA
+ 	/*
+ 	 * MIGRATE_CMA migration type is designed to mimic the way
+@@ -64,8 +61,13 @@ enum migratetype {
+ 	 * pageblocks to MIGRATE_CMA which can be done by
+ 	 * __free_pageblock_cma() function.
+ 	 */
+-	MIGRATE_CMA,
++	MIGRATE_CMA = MIGRATE_FALLBACKS,
++	MIGRATE_PCPTYPES,
++#else
++	/* the number of types on the pcp lists */
++	MIGRATE_PCPTYPES = MIGRATE_FALLBACKS,
+ #endif
++	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+ #ifdef CONFIG_MEMORY_ISOLATION
+ 	MIGRATE_ISOLATE,	/* can't allocate from here */
+ #endif
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 8c50aee2fe0e..d9749039cab7 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -195,6 +195,16 @@ static inline bool cma_redirect_restricted(void)
+ 	return static_key_enabled(&restrict_cma_redirect);
+ }
+ 
++/*
++ * Return true if CMA has pcplist. We use the PCP list for CMA only if
++ * this returns true. For now, rather than define a new flag, reuse the
++ * restrict_cma_redirect flag itself to select this behavior.
++ */
++static inline bool cma_has_pcplist(void)
++{
++	return static_key_enabled(&restrict_cma_redirect);
++}
++
+ #ifdef CONFIG_HAVE_MEMORYLESS_NODES
+ /*
+  * N.B., Do NOT reference the '_numa_mem_' per cpu variable directly.
+@@ -303,10 +313,10 @@ const char * const migratetype_names[MIGRATE_TYPES] = {
+ 	"Unmovable",
+ 	"Movable",
+ 	"Reclaimable",
+-	"HighAtomic",
+ #ifdef CONFIG_CMA
+ 	"CMA",
+ #endif
++	"HighAtomic",
+ #ifdef CONFIG_MEMORY_ISOLATION
+ 	"Isolate",
+ #endif
+@@ -547,6 +557,13 @@ static void bad_page(struct page *page, const char *reason)
+ 
+ static inline unsigned int order_to_pindex(int migratetype, int order)
+ {
++	/*
++	 * We shouldn't get here for MIGRATE_CMA if those pages don't
++	 * have their own pcp list. For instance, free_unref_page() sets
++	 * pcpmigratetype to MIGRATE_MOVABLE.
++	 */
++	VM_BUG_ON(!cma_has_pcplist() && migratetype == MIGRATE_CMA);
++
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+ 	if (order > PAGE_ALLOC_COSTLY_ORDER) {
+ 		VM_BUG_ON(order != pageblock_order);
+@@ -2450,19 +2467,21 @@ void free_unref_page(struct page *page, unsigned int order)
+ 		return;
+ 
+ 	/*
+-	 * We only track unmovable, reclaimable and movable on pcp lists.
++	 * We only track unmovable, reclaimable, movable and if restrict cma
++	 * fallback flag is set, CMA on pcp lists.
+ 	 * Place ISOLATE pages on the isolated list because they are being
+ 	 * offlined but treat HIGHATOMIC and CMA as movable pages so we can
+ 	 * get those areas back if necessary. Otherwise, we may have to free
+ 	 * excessively into the page allocator
+ 	 */
+ 	migratetype = pcpmigratetype = get_pcppage_migratetype(page);
+-	if (unlikely(migratetype >= MIGRATE_PCPTYPES)) {
++	if (unlikely(migratetype > MIGRATE_RECLAIMABLE)) {
+ 		if (unlikely(is_migrate_isolate(migratetype))) {
+ 			free_one_page(page_zone(page), page, pfn, order, migratetype, FPI_NONE);
+ 			return;
+ 		}
+-		pcpmigratetype = MIGRATE_MOVABLE;
++		if (!cma_has_pcplist() || migratetype != MIGRATE_CMA)
++			pcpmigratetype = MIGRATE_MOVABLE;
+ 	}
+ 
+ 	zone = page_zone(page);
+@@ -2548,8 +2567,10 @@ void free_unref_page_list(struct list_head *list)
+ 		 * Non-isolated types over MIGRATE_PCPTYPES get added
+ 		 * to the MIGRATE_MOVABLE pcp list.
+ 		 */
+-		if (unlikely(migratetype >= MIGRATE_PCPTYPES))
+-			migratetype = MIGRATE_MOVABLE;
++		if (unlikely(migratetype > MIGRATE_RECLAIMABLE)) {
++			if (!cma_has_pcplist() || migratetype != MIGRATE_CMA)
++				migratetype = MIGRATE_MOVABLE;
++		}
+ 
+ 		trace_mm_page_free_batched(page);
+ 		free_unref_page_commit(zone, pcp, page, migratetype, 0);
+@@ -2771,8 +2792,12 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
+ 
+ 	if (cma_redirect_restricted() && alloc_flags & ALLOC_CMA) {
+ 		struct page *page;
++		int cma_migratetype;
+ 
+-		page = ___rmqueue_pcplist(zone, order, get_cma_migrate_type(),
++		/* Use CMA pcp list */
++		cma_migratetype = get_cma_migrate_type();
++		list = &pcp->lists[order_to_pindex(cma_migratetype, order)];
++		page = ___rmqueue_pcplist(zone, order, cma_migratetype,
+ 					  alloc_flags, pcp, list);
+ 		if (page)
+ 			return page;
+@@ -2959,6 +2984,14 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
+ 			continue;
+ 
+ 		for (mt = 0; mt < MIGRATE_PCPTYPES; mt++) {
++#ifdef CONFIG_CMA
++			/*
++			 * Note that this check is needed only
++			 * when MIGRATE_CMA < MIGRATE_PCPTYPES.
++			 */
++			if (mt == MIGRATE_CMA)
++				continue;
++#endif
+ 			if (!free_area_empty(area, mt))
+ 				return true;
+ 		}
+-- 
+2.34.1
+

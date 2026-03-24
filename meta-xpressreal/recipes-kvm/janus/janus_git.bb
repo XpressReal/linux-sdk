@@ -7,6 +7,7 @@ SRC_URI = " \
 	git://github.com/meetecho/janus-gateway;protocol=https;branch=master \
 	file://janus_etc.tgz;unpack=0 \
 	file://adapter.js \
+	file://janus.jcfg \
 	"
 
 SRC_URI[sha256sum] = "ac5d3ee3b1d239a5d9cb0b3dabaee32964bdf8dbf68c014310dbc65a4ab0b77a"
@@ -23,6 +24,7 @@ EXTRA_OECONF = "--disable-docs --disable-websockets --disable-data-channels --en
 do_install:append() {
     install -d ${D}${sysconfdir}/janus
     tar -xvf ${WORKDIR}/janus_etc.tgz -C ${D}${sysconfdir}
+    install -m 0644 ${WORKDIR}/janus.jcfg ${D}${sysconfdir}/janus/
     chown -R root:root ${D}${sysconfdir}/janus
 
     install -d ${D}${datadir}/janus/javascript

@@ -20,7 +20,10 @@ FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
 EXTRA_OEMAKE:stark += "KDIR=${STAGING_KERNEL_DIR}"
 EXTRA_OEMAKE:kent += "KDIR=${STAGING_KERNEL_DIR}"
+EXTRA_OEMAKE:rtd16xx += "KDIR=${STAGING_KERNEL_DIR}"
 
 MODULES_INSTALL_TARGET += "-C ${STAGING_KERNEL_DIR} M=${S}"
 
 KERNEL_MODULE_AUTOLOAD += "${@bb.utils.contains('DISTRO_FEATURES', 'stateless_v4l2', ' coda9 rtkve ', ' rtkvdec rtkve1 rtkve2 rtkve_enc ', d)}"
+
+INSANE_SKIP:${PN}:rtd16xx += "installed-vs-shipped"

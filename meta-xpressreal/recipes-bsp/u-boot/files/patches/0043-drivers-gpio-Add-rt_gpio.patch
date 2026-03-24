@@ -4,17 +4,38 @@ Date: Mon, 21 Mar 2022 10:03:41 +0800
 Subject: [PATCH] drivers: gpio: Add rt_gpio
 
 ---
- drivers/gpio/Makefile | 3 +++
- 1 file changed, 2 insertions(+)
+ drivers/gpio/Kconfig  | 11 +
+ drivers/gpio/Makefile |  5 +
 
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index ba42b0768e1..5f695c8692f 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -674,3 +674,14 @@ config RZG2L_GPIO
+ 	  on the Renesas RZ/G2L SoC family.
+ 
+ endif
++
++config REALTEK_GPIO
++	bool "Realtek RTD GPIO driver"
++	depends on DM_GPIO
++	help
++	  Support GPIO access on Realtek RTD SoCs including RTD1619B.
++	  The GPIO controller supports 82 GPIOs with configurable
++	  direction (input/output) and value setting.
++	  This driver provides the basic GPIO operations needed for
++	  PCIe PERST control and other GPIO functionality.
++
 diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
 index c8b3fd7814..e7ead610cc 100644
 --- a/drivers/gpio/Makefile
 +++ b/drivers/gpio/Makefile
-@@ -75,3 +75,6 @@ obj-$(CONFIG_$(SPL_TPL_)TURRIS_OMNIA_MCU)	+= turris_omnia_mcu.o
+@@ -75,3 +75,8 @@ obj-$(CONFIG_$(SPL_TPL_)TURRIS_OMNIA_MCU)	+= turris_omnia_mcu.o
  obj-$(CONFIG_FTGPIO010)		+= ftgpio010.o
  obj-$(CONFIG_ADP5585_GPIO)	+= adp5585_gpio.o
  obj-$(CONFIG_RZG2L_GPIO)	+= rzg2l-gpio.o
-+obj-$(CONFIG_TARGET_RTD1319)	+= rt_gpio_131x.o
-+obj-$(CONFIG_TARGET_RTD1619B)	+= rt_gpio_161xb.o
-+obj-$(CONFIG_TARGET_RTD1625)	+= rt_gpio_1625.o
++ifdef CONFIG_TARGET_RTD1625
++obj-$(CONFIG_REALTEK_GPIO)	+= gpio-realtek-rtd1625.o
++else
++obj-$(CONFIG_REALTEK_GPIO)	+= gpio-realtek-rtd.o
++endif

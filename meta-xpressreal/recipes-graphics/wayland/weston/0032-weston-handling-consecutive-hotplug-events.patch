@@ -1,0 +1,216 @@
+From 161ece7d8ba0c6a73d34965d3dbb95238ef429a7 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 5 Jan 2026 21:11:42 -0500
+Subject: [PATCH] weston: handling consecutive hotplug event
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-internal.h |   4 +
+ libweston/backend-drm/drm.c          | 135 ++++++++++++++++++++++++++-
+ 2 files changed, 135 insertions(+), 4 deletions(-)
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index adc45e8..6f4f3c0 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -367,6 +367,10 @@ struct drm_device {
+ 	pthread_mutex_t drm_device_ipc_mutex;
+ 	struct drm_device_ipc_info ipc_info;
+ 	struct wl_event_source *drm_device_ipc_timer;
++	drmModeConnection prev_state;
++	struct wl_event_source *process_hotplug_source;
++	struct udev_device *udev_event;
++
+ };
+ 
+ struct drm_backend {
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 5343f35..2d16185 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -102,6 +102,7 @@ struct server_info {
+ };
+ 
+ static const char default_seat[] = "seat0";
++static int drm_device_ipc_connector_active(void *data);
+ 
+ static void
+ drm_backend_create_faked_zpos(struct drm_device *device)
+@@ -3155,6 +3156,119 @@ resources_has_connector(drmModeRes *resources, uint32_t connector_id)
+ 	return false;
+ }
+ 
++static int
++drm_backend_update_connectors2(void *data)
++{
++	struct drm_device *device = (struct drm_device *)data;
++	struct drm_backend *b = device->backend;
++	drmModeRes *resources;
++	drmModeConnector *conn;
++	struct weston_head *base, *base_next;
++	struct drm_head *head;
++	struct drm_writeback *writeback, *writeback_next;
++	uint32_t connector_id;
++	int i, ret;
++
++	resources = drmModeGetResources(device->drm.fd);
++	if (!resources) {
++		weston_log("drmModeGetResources failed\n");
++		return 0;
++	}
++
++	/* collect new connectors that have appeared, e.g. MST */
++	for (i = 0; i < resources->count_connectors; i++) {
++		connector_id = resources->connectors[i];
++
++		conn = drmModeGetConnector(device->drm.fd, connector_id);
++		if (!conn)
++			continue;
++
++		head = drm_head_find_by_connector(b, connector_id);
++		writeback = drm_writeback_find_by_connector(b, connector_id);
++
++		/* Connector can't be owned by both a head and a writeback, so
++		 * one of the searches must fail. */
++		assert(head == NULL || writeback == NULL);
++
++		if (head) {
++			if (conn->connection == DRM_MODE_CONNECTED) {
++				if (device->prev_state == DRM_MODE_CONNECTED) {
++					conn->connection = DRM_MODE_DISCONNECTED;
++					ret = drm_head_update_info(head, conn);
++					if (head->base.device_changed)
++						drm_head_log_info(head, "updated");
++
++					device->prev_state = DRM_MODE_DISCONNECTED;
++
++					if (device->process_hotplug_source)
++						wl_event_source_timer_update(device->process_hotplug_source, 600);
++
++				} else {
++					ret = drm_head_update_info(head, conn);
++					if (head->base.device_changed)
++						drm_head_log_info(head, "updated");
++					device->prev_state = DRM_MODE_CONNECTED;
++				}
++			} else {
++				ret = drm_head_update_info(head, conn);
++				if (head->base.device_changed)
++					drm_head_log_info(head, "updated");
++
++				device->prev_state = DRM_MODE_DISCONNECTED;
++			}
++		} else if (writeback) {
++			ret = drm_writeback_update_info(writeback, conn);
++		} else {
++			if (device->udev_event)
++				ret = drm_backend_add_connector(b->drm, conn, device->udev_event);
++		}
++
++		if (ret < 0)
++			drmModeFreeConnector(conn);
++	}
++
++	/* Destroy head objects of connectors (except writeback connectors) that
++	 * have disappeared. */
++	wl_list_for_each_safe(base, base_next,
++			      &b->compositor->head_list, compositor_link) {
++		head = to_drm_head(base);
++		if (!head)
++			continue;
++		connector_id = head->connector.connector_id;
++
++		if (head->connector.device != device)
++			continue;
++
++		if (resources_has_connector(resources, connector_id))
++			continue;
++
++		weston_log("DRM: head '%s' (connector %d) disappeared.\n",
++			   head->base.name, connector_id);
++		drm_head_destroy(base);
++	}
++
++	/* Destroy writeback objects of writeback connectors that have
++	 * disappeared. */
++	wl_list_for_each_safe(writeback, writeback_next,
++			      &b->drm->writeback_connector_list, link) {
++		connector_id = writeback->connector.connector_id;
++
++		if (resources_has_connector(resources, connector_id))
++			continue;
++
++		weston_log("DRM: writeback connector (connector %d) disappeared.\n",
++			   connector_id);
++		drm_writeback_destroy(writeback);
++	}
++
++	drmModeFreeResources(resources);
++	if (device->udev_event) {
++		udev_device_unref(device->udev_event);
++		device->udev_event = NULL;
++	}
++	return 0;
++}
++
+ static void
+ drm_backend_update_connectors(struct drm_device *device,
+ 			      struct udev_device *drm_device)
+@@ -3335,14 +3449,22 @@ udev_drm_event(int fd, uint32_t mask, void *data)
+ 	struct udev_device *event;
+ 	uint32_t conn_id, prop_id;
+ 	struct drm_device *device;
++	bool need_unref = true;
+ 
+ 	event = udev_monitor_receive_device(b->udev_monitor);
+ 
+ 	if (udev_event_is_hotplug(b->drm, event)) {
+ 		if (udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id))
+ 			drm_backend_update_conn_props(b, conn_id, prop_id);
+-		else
+-			drm_backend_update_connectors(b->drm, event);
++		else {
++			need_unref = false;
++			if (b->drm->udev_event)
++				udev_device_unref(b->drm->udev_event);
++
++			b->drm->udev_event = event;
++			if (b->drm->process_hotplug_source)
++				wl_event_source_timer_update(b->drm->process_hotplug_source, 600);
++		}
+ 	}
+ 
+ 	wl_list_for_each(device, &b->kms_list, link) {
+@@ -3354,7 +3476,8 @@ udev_drm_event(int fd, uint32_t mask, void *data)
+ 		}
+ 	}
+ 
+-	udev_device_unref(event);
++	if (need_unref)
++		udev_device_unref(event);
+ 
+ 	return 1;
+ }
+@@ -3453,6 +3576,9 @@ drm_destroy(struct weston_backend *backend)
+ 
+ 	pthread_mutex_destroy(&device->drm_device_ipc_mutex);
+ 
++	if (device->process_hotplug_source)
++		wl_event_source_remove(device->process_hotplug_source);
++
+ 	free(device->drm.filename);
+ 	free(device);
+ 	free(b);
+@@ -4389,7 +4515,8 @@ drm_backend_create(struct weston_compositor *compositor,
+ 	device->drm_device_ipc_run = true;
+ 	pthread_mutex_init(&device->drm_device_ipc_mutex, NULL);
+ 	pthread_create(&device->drm_device_ipc_thread, NULL, drm_device_ipc_process, device);
+-
++	device->process_hotplug_source = wl_event_loop_add_timer(loop, drm_backend_update_connectors2, device);
++	device->prev_state = DRM_MODE_CONNECTED;
+ 	return b;
+ 
+ err_udev_monitor:
+-- 
+2.34.1
+

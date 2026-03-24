@@ -1,0 +1,80 @@
+From 9e5fad0f792539ae4258bc116bf408bb6faf7e82 Mon Sep 17 00:00:00 2001
+From: Nicolas Belin <nbelin@baylibre.com>
+Date: Tue, 17 Dec 2024 14:29:10 +0100
+Subject: [PATCH 15/25] boot: android: rework bootargs concatenation
+
+Rework the bootargs concatenation allocating more accurately
+the length that is needed.
+Do not forget an extra byte for the null termination byte as,
+in some cases, the allocation was 1 byte short.
+
+Fixes: 86f4695b ("image: Fix Android boot image support")
+Signed-off-by: Nicolas Belin <nbelin@baylibre.com>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Link: https://lore.kernel.org/r/20241217-fix-bootargs-concatenation-v2-3-b2fd7cf4e130@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ boot/image-android.c | 29 ++++++++++++++++-------------
+ 1 file changed, 16 insertions(+), 13 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index 362a5c7435a..61ac312db7a 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -287,37 +287,40 @@ int android_image_get_kernel(const void *hdr,
+ 	       kernel_addr, DIV_ROUND_UP(img_data.kernel_size, 1024));
+ 
+ 	int len = 0;
++	char *bootargs = env_get("bootargs");
++
++	if (bootargs)
++		len += strlen(bootargs);
++
+ 	if (*img_data.kcmdline) {
+ 		printf("Kernel command line: %s\n", img_data.kcmdline);
+-		len += strlen(img_data.kcmdline);
++		len += strlen(img_data.kcmdline) + (len ? 1 : 0); /* +1 for extra space */
+ 	}
+ 
+ 	if (*img_data.kcmdline_extra) {
+ 		printf("Kernel extra command line: %s\n", img_data.kcmdline_extra);
+-		len += strlen(img_data.kcmdline_extra);
++		len += strlen(img_data.kcmdline_extra) + (len ? 1 : 0); /* +1 for extra space */
+ 	}
+ 
+-	char *bootargs = env_get("bootargs");
+-	if (bootargs)
+-		len += strlen(bootargs);
+-
+-	char *newbootargs = malloc(len + 2);
++	char *newbootargs = malloc(len + 1); /* +1 for the '\0' */
+ 	if (!newbootargs) {
+ 		puts("Error: malloc in android_image_get_kernel failed!\n");
+ 		return -ENOMEM;
+ 	}
+-	*newbootargs = '\0';
++	*newbootargs = '\0'; /* set to Null in case no components below are present */
+ 
+-	if (bootargs) {
++	if (bootargs)
+ 		strcpy(newbootargs, bootargs);
+-		strcat(newbootargs, " ");
+-	}
+ 
+-	if (*img_data.kcmdline)
++	if (*img_data.kcmdline) {
++		if (*newbootargs) /* If there is something in newbootargs, a space is needed */
++			strcat(newbootargs, " ");
+ 		strcat(newbootargs, img_data.kcmdline);
++	}
+ 
+ 	if (*img_data.kcmdline_extra) {
+-		strcat(newbootargs, " ");
++		if (*newbootargs) /* If there is something in newbootargs, a space is needed */
++			strcat(newbootargs, " ");
+ 		strcat(newbootargs, img_data.kcmdline_extra);
+ 	}
+ 
+-- 
+2.47.0
+

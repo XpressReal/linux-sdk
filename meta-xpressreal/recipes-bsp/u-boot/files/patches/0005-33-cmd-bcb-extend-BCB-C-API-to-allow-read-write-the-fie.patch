@@ -1,0 +1,418 @@
+From dfeb4f0d79351dc0256b45c7a9f26c752c4e0e09 Mon Sep 17 00:00:00 2001
+From: Dmitrii Merkurev <dimorinny@google.com>
+Date: Fri, 10 Nov 2023 05:59:55 +0000
+Subject: [PATCH] cmd: bcb: extend BCB C API to allow read/write the fields
+
+Currently BCB C API only allows to modify 'command' BCB field.
+Extend it so that we can also read and modify all the available
+BCB fields (command, status, recovery, stage).
+
+Co-developed-by: Cody Schuffelen <schuffelen@google.com>
+Signed-off-by: Cody Schuffelen <schuffelen@google.com>
+Signed-off-by: Dmitrii Merkurev <dimorinny@google.com>
+Cc: Eugeniu Rosca <erosca@de.adit-jv.com>
+Cc: Ying-Chun Liu (PaulLiu) <paul.liu@linaro.org>
+Cc: Simon Glass <sjg@chromium.org>
+Cc: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Cc: Sean Anderson <sean.anderson@seco.com>
+Cc: Cody Schuffelen <schuffelen@google.com>
+Tested-by: Mattijs Korpershoek <mkorpershoek@baylibre.com> # on vim3
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ cmd/bcb.c                    | 161 +++++++++++++++++++++++------------
+ drivers/fastboot/fb_common.c |  14 ++-
+ include/bcb.h                |  60 ++++++++++++-
+ 3 files changed, 177 insertions(+), 58 deletions(-)
+
+diff --git a/cmd/bcb.c b/cmd/bcb.c
+index 6594ac64396..f3b92564d10 100644
+--- a/cmd/bcb.c
++++ b/cmd/bcb.c
+@@ -25,10 +25,18 @@ enum bcb_cmd {
+ 	BCB_CMD_STORE,
+ };
+ 
+-static enum uclass_id bcb_uclass_id = UCLASS_INVALID;
+-static int bcb_dev = -1;
+-static int bcb_part = -1;
++static const char * const fields[] = {
++	"command",
++	"status",
++	"recovery",
++	"stage"
++};
++
+ static struct bootloader_message bcb __aligned(ARCH_DMA_MINALIGN) = { { 0 } };
++static struct disk_partition partition_data;
++
++static struct blk_desc *block;
++static struct disk_partition *partition = &partition_data;
+ 
+ static int bcb_cmd_get(char *cmd)
+ {
+@@ -82,7 +90,7 @@ static int bcb_is_misused(int argc, char *const argv[])
+ 		return -1;
+ 	}
+ 
+-	if (cmd != BCB_CMD_LOAD && (bcb_dev < 0 || bcb_part < 0)) {
++	if (cmd != BCB_CMD_LOAD && !block) {
+ 		printf("Error: Please, load BCB first!\n");
+ 		return -1;
+ 	}
+@@ -94,7 +102,7 @@ err:
+ 	return -1;
+ }
+ 
+-static int bcb_field_get(char *name, char **fieldp, int *sizep)
++static int bcb_field_get(const char *name, char **fieldp, int *sizep)
+ {
+ 	if (!strcmp(name, "command")) {
+ 		*fieldp = bcb.command;
+@@ -119,16 +127,21 @@ static int bcb_field_get(char *name, char **fieldp, int *sizep)
+ 	return 0;
+ }
+ 
+-static int __bcb_load(const char *iface, int devnum, const char *partp)
++static void __bcb_reset(void)
++{
++	block = NULL;
++	partition = &partition_data;
++	memset(&partition_data, 0, sizeof(struct disk_partition));
++	memset(&bcb, 0, sizeof(struct bootloader_message));
++}
++
++static int __bcb_initialize(const char *iface, int devnum, const char *partp)
+ {
+-	struct blk_desc *desc;
+-	struct disk_partition info;
+-	u64 cnt;
+ 	char *endp;
+ 	int part, ret;
+ 
+-	desc = blk_get_dev(iface, devnum);
+-	if (!desc) {
++	block = blk_get_dev(iface, devnum);
++	if (!block) {
+ 		ret = -ENODEV;
+ 		goto err_read_fail;
+ 	}
+@@ -137,7 +150,7 @@ static int __bcb_load(const char *iface, int devnum, const char *partp)
+ 	 * always select the first hwpart in case another
+ 	 * blk operation selected a different hwpart
+ 	 */
+-	ret = blk_dselect_hwpart(desc, 0);
++	ret = blk_dselect_hwpart(block, 0);
+ 	if (IS_ERR_VALUE(ret)) {
+ 		ret = -ENODEV;
+ 		goto err_read_fail;
+@@ -145,49 +158,60 @@ static int __bcb_load(const char *iface, int devnum, const char *partp)
+ 
+ 	part = simple_strtoul(partp, &endp, 0);
+ 	if (*endp == '\0') {
+-		ret = part_get_info(desc, part, &info);
++		ret = part_get_info(block, part, partition);
+ 		if (ret)
+ 			goto err_read_fail;
+ 	} else {
+-		part = part_get_info_by_name(desc, partp, &info);
++		part = part_get_info_by_name(block, partp, partition);
+ 		if (part < 0) {
+ 			ret = part;
+ 			goto err_read_fail;
+ 		}
+ 	}
+ 
+-	cnt = DIV_ROUND_UP(sizeof(struct bootloader_message), info.blksz);
+-	if (cnt > info.size)
++	return CMD_RET_SUCCESS;
++
++err_read_fail:
++	printf("Error: %d %d:%s read failed (%d)\n", block->uclass_id,
++	       block->devnum, partition->name, ret);
++	__bcb_reset();
++	return CMD_RET_FAILURE;
++}
++
++static int __bcb_load(void)
++{
++	u64 cnt;
++	int ret;
++
++	cnt = DIV_ROUND_UP(sizeof(struct bootloader_message), partition->blksz);
++	if (cnt > partition->size)
+ 		goto err_too_small;
+ 
+-	if (blk_dread(desc, info.start, cnt, &bcb) != cnt) {
++	if (blk_dread(block, partition->start, cnt, &bcb) != cnt) {
+ 		ret = -EIO;
+ 		goto err_read_fail;
+ 	}
+ 
+-	bcb_uclass_id = desc->uclass_id;
+-	bcb_dev = desc->devnum;
+-	bcb_part = part;
+-	debug("%s: Loaded from %s %d:%d\n", __func__, iface, bcb_dev, bcb_part);
++	debug("%s: Loaded from %d %d:%s\n", __func__, block->uclass_id,
++	      block->devnum, partition->name);
+ 
+ 	return CMD_RET_SUCCESS;
+ err_read_fail:
+-	printf("Error: %s %d:%s read failed (%d)\n", iface, devnum, partp, ret);
++	printf("Error: %d %d:%s read failed (%d)\n", block->uclass_id,
++	       block->devnum, partition->name, ret);
+ 	goto err;
+ err_too_small:
+-	printf("Error: %s %d:%s too small!", iface, devnum, partp);
+-	goto err;
++	printf("Error: %d %d:%s too small!", block->uclass_id,
++	       block->devnum, partition->name);
+ err:
+-	bcb_uclass_id = UCLASS_INVALID;
+-	bcb_dev = -1;
+-	bcb_part = -1;
+-
++	__bcb_reset();
+ 	return CMD_RET_FAILURE;
+ }
+ 
+ static int do_bcb_load(struct cmd_tbl *cmdtp, int flag, int argc,
+ 		       char * const argv[])
+ {
++	int ret;
+ 	int devnum;
+ 	char *endp;
+ 	char *iface = "mmc";
+@@ -204,10 +228,14 @@ static int do_bcb_load(struct cmd_tbl *cmdtp, int flag, int argc,
+ 		return CMD_RET_FAILURE;
+ 	}
+ 
+-	return __bcb_load(iface, devnum, argv[2]);
++	ret = __bcb_initialize(iface, devnum, argv[2]);
++	if (ret != CMD_RET_SUCCESS)
++		return ret;
++
++	return __bcb_load();
+ }
+ 
+-static int __bcb_set(char *fieldp, const char *valp)
++static int __bcb_set(const char *fieldp, const char *valp)
+ {
+ 	int size, len;
+ 	char *field, *str, *found, *tmp;
+@@ -307,31 +335,20 @@ static int do_bcb_dump(struct cmd_tbl *cmdtp, int flag, int argc,
+ 
+ static int __bcb_store(void)
+ {
+-	struct blk_desc *desc;
+-	struct disk_partition info;
+ 	u64 cnt;
+ 	int ret;
+ 
+-	desc = blk_get_devnum_by_uclass_id(bcb_uclass_id, bcb_dev);
+-	if (!desc) {
+-		ret = -ENODEV;
+-		goto err;
+-	}
++	cnt = DIV_ROUND_UP(sizeof(struct bootloader_message), partition->blksz);
+ 
+-	ret = part_get_info(desc, bcb_part, &info);
+-	if (ret)
+-		goto err;
+-
+-	cnt = DIV_ROUND_UP(sizeof(struct bootloader_message), info.blksz);
+-
+-	if (blk_dwrite(desc, info.start, cnt, &bcb) != cnt) {
++	if (blk_dwrite(block, partition->start, cnt, &bcb) != cnt) {
+ 		ret = -EIO;
+ 		goto err;
+ 	}
+ 
+ 	return CMD_RET_SUCCESS;
+ err:
+-	printf("Error: %d %d:%d write failed (%d)\n", bcb_uclass_id, bcb_dev, bcb_part, ret);
++	printf("Error: %d %d:%s write failed (%d)\n", block->uclass_id,
++	       block->devnum, partition->name, ret);
+ 
+ 	return CMD_RET_FAILURE;
+ }
+@@ -342,23 +359,59 @@ static int do_bcb_store(struct cmd_tbl *cmdtp, int flag, int argc,
+ 	return __bcb_store();
+ }
+ 
+-int bcb_write_reboot_reason(const char *iface, int devnum, char *partp, const char *reasonp)
++int bcb_find_partition_and_load(const char *iface, int devnum, char *partp)
+ {
+ 	int ret;
+ 
+-	ret = __bcb_load(iface, devnum, partp);
+-	if (ret != CMD_RET_SUCCESS)
+-		return ret;
++	__bcb_reset();
+ 
+-	ret = __bcb_set("command", reasonp);
++	ret = __bcb_initialize(iface, devnum, partp);
+ 	if (ret != CMD_RET_SUCCESS)
+ 		return ret;
+ 
+-	ret = __bcb_store();
+-	if (ret != CMD_RET_SUCCESS)
+-		return ret;
++	return __bcb_load();
++}
+ 
+-	return 0;
++int bcb_load(struct blk_desc *block_description, struct disk_partition *disk_partition)
++{
++	__bcb_reset();
++
++	block = block_description;
++	partition = disk_partition;
++
++	return __bcb_load();
++}
++
++int bcb_set(enum bcb_field field, const char *value)
++{
++	if (field > BCB_FIELD_STAGE)
++		return CMD_RET_FAILURE;
++	return __bcb_set(fields[field], value);
++}
++
++int bcb_get(enum bcb_field field, char *value_out, size_t value_size)
++{
++	int size;
++	char *field_value;
++
++	if (field > BCB_FIELD_STAGE)
++		return CMD_RET_FAILURE;
++	if (bcb_field_get(fields[field], &field_value, &size))
++		return CMD_RET_FAILURE;
++
++	strlcpy(value_out, field_value, value_size);
++
++	return CMD_RET_SUCCESS;
++}
++
++int bcb_store(void)
++{
++	return __bcb_store();
++}
++
++void bcb_reset(void)
++{
++	__bcb_reset();
+ }
+ 
+ static struct cmd_tbl cmd_bcb_sub[] = {
+diff --git a/drivers/fastboot/fb_common.c b/drivers/fastboot/fb_common.c
+index 2a6608b28c2..3576b067729 100644
+--- a/drivers/fastboot/fb_common.c
++++ b/drivers/fastboot/fb_common.c
+@@ -91,6 +91,7 @@ void fastboot_okay(const char *reason, char *response)
+  */
+ int __weak fastboot_set_reboot_flag(enum fastboot_reboot_reason reason)
+ {
++	int ret;
+ 	static const char * const boot_cmds[] = {
+ 		[FASTBOOT_REBOOT_REASON_BOOTLOADER] = "bootonce-bootloader",
+ 		[FASTBOOT_REBOOT_REASON_FASTBOOTD] = "boot-fastboot",
+@@ -105,7 +106,18 @@ int __weak fastboot_set_reboot_flag(enum fastboot_reboot_reason reason)
+ 	if (reason >= FASTBOOT_REBOOT_REASONS_COUNT)
+ 		return -EINVAL;
+ 
+-	return bcb_write_reboot_reason("mmc", mmc_dev, "misc", boot_cmds[reason]);
++	ret = bcb_find_partition_and_load("mmc", mmc_dev, "misc");
++	if (ret)
++		goto out;
++
++	ret = bcb_set(BCB_FIELD_COMMAND, boot_cmds[reason]);
++	if (ret)
++		goto out;
++
++	ret = bcb_store();
++out:
++	bcb_reset();
++	return ret;
+ }
+ 
+ /**
+diff --git a/include/bcb.h b/include/bcb.h
+index a6326523c47..1941d8c28b4 100644
+--- a/include/bcb.h
++++ b/include/bcb.h
+@@ -8,15 +8,69 @@
+ #ifndef __BCB_H__
+ #define __BCB_H__
+ 
++#include <part.h>
++
++enum bcb_field {
++	BCB_FIELD_COMMAND,
++	BCB_FIELD_STATUS,
++	BCB_FIELD_RECOVERY,
++	BCB_FIELD_STAGE
++};
++
+ #if IS_ENABLED(CONFIG_CMD_BCB)
+-int bcb_write_reboot_reason(const char *iface, int devnum, char *partp, const char *reasonp);
++
++int bcb_find_partition_and_load(const char *iface,
++				int devnum, char *partp);
++int bcb_load(struct blk_desc *block_description,
++	     struct disk_partition *disk_partition);
++int bcb_set(enum bcb_field field, const char *value);
++
++/**
++ * bcb_get() - get the field value.
++ * @field: field to get
++ * @value_out: buffer to copy bcb field value to
++ * @value_size: buffer size to avoid overflow in case
++ *              value_out is smaller then the field value
++ */
++int bcb_get(enum bcb_field field, char *value_out, size_t value_size);
++
++int bcb_store(void);
++void bcb_reset(void);
++
+ #else
++
+ #include <linux/errno.h>
+-static inline int bcb_write_reboot_reason(const char *iface, int devnum,
+-					  char *partp, const char *reasonp)
++
++static inline int bcb_load(struct blk_desc *block_description,
++			   struct disk_partition *disk_partition)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline int bcb_find_partition_and_load(const char *iface,
++					      int devnum, char *partp)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline int bcb_set(enum bcb_field field, const char *value)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline int bcb_get(enum bcb_field field, char *value_out)
+ {
+ 	return -EOPNOTSUPP;
+ }
++
++static inline int bcb_store(void)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline void bcb_reset(void)
++{
++}
+ #endif
+ 
+ #endif /* __BCB_H__ */
+-- 
+2.47.0
+

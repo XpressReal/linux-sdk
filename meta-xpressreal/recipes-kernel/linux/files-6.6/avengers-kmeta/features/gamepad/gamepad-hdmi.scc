@@ -1,3 +1,4 @@
 patch 004-dts-hdmi-only-mode-for-gamepad-on-backinblack.patch
+patch 005-dts-bleedingedge-disable-vowb-for-ubuntu-debian.patch
 
 kconf hardware gamepad.cfg

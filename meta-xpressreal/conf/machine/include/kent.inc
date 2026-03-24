@@ -6,9 +6,6 @@ require conf/machine/include/arm/armv8-2a/tune-cortexa78.inc
 require conf/machine/include/avengers.inc
 require conf/machine/include/overlayfs.inc
 
-SPL_SUFFIX = "bin_pad"
-SPL_BINARY = "spl/u-boot-spl.bin_pad"
-
 #UBOOT_MACHINE = "rtd1625_emmc_defconfig"
 UBOOT_CONFIG ??= "rtd1625_emmc"
 UBOOT_CONFIG[rtd1625_emmc] = "rtd1625_phantom_defconfig,,u-boot.itb"
@@ -30,3 +27,4 @@ IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'npu-he
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'fr-demo', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'od-demo', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'pose-demo', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'tee', 'linux-tee', '', d)}"

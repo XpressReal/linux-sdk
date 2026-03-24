@@ -1,0 +1,3400 @@
+From dad01f0277ec8a081c4f9d7bb4e8b5f866a375a9 Mon Sep 17 00:00:00 2001
+From: htwang <htwang@realtek.com>
+Date: Wed, 3 Dec 2025 15:54:37 +0800
+Subject: [PATCH] web: modify for Realtek KVM UI
+
+ -- Delete the extra .pug files
+ -- Move the top system bar to the left side
+---
+ web/base.pug                                  |  70 --
+ web/index.pug                                 |  50 --
+ web/ipmi/index.pug                            |  24 -
+ web/kvm/index.html                            | 150 +++-
+ web/kvm/index.pug                             |  42 --
+ web/kvm/navbar-atx.pug                        |  18 -
+ web/kvm/navbar-gpio.pug                       |   5 -
+ web/kvm/navbar-health.pug                     |  34 -
+ web/kvm/navbar-macro.pug                      |  36 -
+ web/kvm/navbar-msd.pug                        | 108 ---
+ web/kvm/navbar-shortcuts.pug                  |  83 ---
+ web/kvm/navbar-switch.pug                     |  32 -
+ web/kvm/navbar-system.pug                     | 139 ----
+ web/kvm/navbar-text.pug                       |  46 --
+ web/kvm/navbar.pug                            |  98 ---
+ web/kvm/window-about.pug                      | 703 ------------------
+ web/kvm/window-keyboard.pug                   | 236 ------
+ web/kvm/window-stream.pug                     |  39 -
+ web/kvm/window-switch.pug                     |  73 --
+ web/kvm/window-webterm.pug                    |  11 -
+ web/kvm/windows.pug                           |   5 -
+ web/login/index.pug                           |  61 --
+ web/share/css/kvm/stream.css                  |   1 +
+ web/share/css/kvm/system.css                  |  19 +-
+ web/share/css/main.css                        |  11 +-
+ web/share/css/navbar.css                      | 367 +++++++--
+ web/share/css/vars.css                        |  12 +-
+ web/share/css/window.css                      |   1 +
+ web/share/js/kvm/hid.js                       |   4 +-
+ web/share/js/kvm/msd.js                       |  47 +-
+ web/share/js/kvm/sidebar.js                   |  38 +
+ web/share/js/kvm/stream.js                    |  62 ++
+ web/share/js/wm.js                            |   2 +-
+ ...32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg |  12 +
+ web/share/svg/grommet-icons_system.svg        |  10 +
+ ...32dp_000000_FILL0_wght400_GRAD0_opsz40.svg |   1 +
+ web/start.pug                                 |  14 -
+ web/vnc/index.pug                             |  24 -
+ 38 files changed, 634 insertions(+), 2054 deletions(-)
+ delete mode 100644 web/base.pug
+ delete mode 100644 web/index.pug
+ delete mode 100644 web/ipmi/index.pug
+ delete mode 100644 web/kvm/index.pug
+ delete mode 100644 web/kvm/navbar-atx.pug
+ delete mode 100644 web/kvm/navbar-gpio.pug
+ delete mode 100644 web/kvm/navbar-health.pug
+ delete mode 100644 web/kvm/navbar-macro.pug
+ delete mode 100644 web/kvm/navbar-msd.pug
+ delete mode 100644 web/kvm/navbar-shortcuts.pug
+ delete mode 100644 web/kvm/navbar-switch.pug
+ delete mode 100644 web/kvm/navbar-system.pug
+ delete mode 100644 web/kvm/navbar-text.pug
+ delete mode 100644 web/kvm/navbar.pug
+ delete mode 100644 web/kvm/window-about.pug
+ delete mode 100644 web/kvm/window-keyboard.pug
+ delete mode 100644 web/kvm/window-stream.pug
+ delete mode 100644 web/kvm/window-switch.pug
+ delete mode 100644 web/kvm/window-webterm.pug
+ delete mode 100644 web/kvm/windows.pug
+ delete mode 100644 web/login/index.pug
+ create mode 100644 web/share/js/kvm/sidebar.js
+ create mode 100644 web/share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg
+ create mode 100644 web/share/svg/grommet-icons_system.svg
+ create mode 100644 web/share/svg/logout_32dp_000000_FILL0_wght400_GRAD0_opsz40.svg
+ delete mode 100644 web/start.pug
+ delete mode 100644 web/vnc/index.pug
+
+diff --git a/web/base.pug b/web/base.pug
+deleted file mode 100644
+index a1423aa6..00000000
+--- a/web/base.pug
++++ /dev/null
+@@ -1,70 +0,0 @@
+-doctype html
+-
+-//
+-	==============================================================================
+-	#                                                                            #
+-	#    KVMD - The main PiKVM daemon.                                           #
+-	#                                                                            #
+-	#    Copyright (C) 2018-2024  Maxim Devaev <mdevaev@gmail.com>               #
+-	#                                                                            #
+-	#    This program is free software: you can redistribute it and/or modify    #
+-	#    it under the terms of the GNU General Public License as published by    #
+-	#    the Free Software Foundation, either version 3 of the License, or       #
+-	#    (at your option) any later version.                                     #
+-	#                                                                            #
+-	#    This program is distributed in the hope that it will be useful,         #
+-	#    but WITHOUT ANY WARRANTY; without even the implied warranty of          #
+-	#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           #
+-	#    GNU General Public License for more details.                            #
+-	#                                                                            #
+-	#    You should have received a copy of the GNU General Public License       #
+-	#    along with this program.  If not, see <https://www.gnu.org/licenses/>.  #
+-	#                                                                            #
+-	==============================================================================
+-
+--
+-	var root_prefix = "./"
+-
+-	title = ""
+-	main_js = ""
+-	body_class = ""
+-	css_list = []
+-
+-
+-block vars
+-
+-
+-block _vars_dynamic
+-	-
+-		share_dir = `${root_prefix}share`
+-		css_dir = `${share_dir}/css`
+-		js_dir = `${share_dir}/js`
+-		svg_dir = `${share_dir}/svg`
+-		png_dir = `${share_dir}/png`
+-
+-
+-html(lang="en")
+-	head
+-		meta(charset="utf-8")
+-		title #{title}
+-
+-		link(rel="apple-touch-icon" sizes="180x180" href=`${share_dir}/apple-touch-icon.png`)
+-		link(rel="icon" type="image/png" sizes="32x32" href=`${share_dir}/favicon-32x32.png`)
+-		link(rel="icon" type="image/png" sizes="16x16" href=`${share_dir}/favicon-16x16.png`)
+-		link(rel="manifest" href=`${share_dir}/site.webmanifest`)
+-		link(rel="mask-icon" href=`${share_dir}/safari-pinned-tab.svg` color="#5bbad5")
+-		meta(name="msapplication-TileColor" content="#2b5797")
+-		meta(name="theme-color" content="#ffffff")
+-
+-		each name in ["vars", "main"].concat(css_list).concat(["user"])
+-			link(rel="stylesheet" href=`${css_dir}/${name}.css`)
+-
+-		if main_js
+-			script(type="module")
+-				| import {setRootPrefix} from "#{js_dir}/vars.js";
+-				| setRootPrefix("#{root_prefix}");
+-				| import {main} from "#{js_dir}/#{main_js}.js";
+-				| main();
+-
+-	body(class=body_class)
+-		block body
+diff --git a/web/index.pug b/web/index.pug
+deleted file mode 100644
+index dcbed14e..00000000
+--- a/web/index.pug
++++ /dev/null
+@@ -1,50 +0,0 @@
+-extends start.pug
+-
+-
+-append vars
+-	-
+-		title = "PiKVM Index"
+-		main_js = "index/main"
+-		css_list.push("window", "modal", "index/index")
+-
+-
+-block start
+-	table
+-		tr
+-			td.logo
+-				a(href="https://pikvm.org" target="_blank")
+-					img.svg-gray(src=`${svg_dir}/logo.svg` alt="PiKVM" height="40")
+-			td
+-				table
+-					tr #[td.title(colspan="2") The Open Source KVM over IP]
+-					tr
+-						td.copyright(colspan="2")
+-							| Copyright &copy; 2018-2025 #[a(target="_blank" href="mailto:mdevaev@gmail.com") Maxim Devaev]
+-
+-	hr
+-	table
+-		td(class="server")
+-			td Name:
+-			td #[a#kvmd-meta-server-host(target="_blank" href=`${root_prefix}api/info`)]
+-
+-	hr
+-	#apps-box
+-		h4 Loading ...
+-
+-	#app-keyboard-warning
+-		hr
+-		p.text
+-			| Please note that when you are working with a KVM session or another application that captures the keyboard,
+-			| you can't use some keyboard shortcuts such as Ctrl+Alt+Del (which will be caught by your OS) or Ctrl+W (caught by your browser).
+-		p.text
+-			| To override this limitation you can use #[a(target="_blank" href="https://google.com/chrome") Google Chrome]
+-			| or #[a(target="_blank" href="https://chromium.org/Home") Chromium] in application mode.
+-		.code#app-text
+-
+-	hr
+-	p.text.credits
+-		a(target="_blank" href="https://pikvm.org") PiKVM Project
+-		| &nbsp; | &nbsp;
+-		a(target="_blank" href="https://docs.pikvm.org") Documentation
+-		| &nbsp; | &nbsp;
+-		a(target="_blank" href="https://pikvm.org/support") Support
+diff --git a/web/ipmi/index.pug b/web/ipmi/index.pug
+deleted file mode 100644
+index 381ae63e..00000000
+--- a/web/ipmi/index.pug
++++ /dev/null
+@@ -1,24 +0,0 @@
+-extends ../start.pug
+-
+-
+-append vars
+-	-
+-		root_prefix = "../"
+-		title = "PiKVM IPMI Info"
+-		main_js = "ipmi/main"
+-		index_link = true
+-
+-
+-block start
+-	p.text
+-		| This PiKVM device has running #[b kvmd-ipmi] daemon and provides IPMI 2.0 interface for some basic
+-		| BMC operations like on/off/reset the server.
+-	p.text
+-		| #[b WARNING!] We strongly don't recommend you to use IPMI in untrusted networks because
+-		| this protocol is completely unsafe by design. In short, the authentication process for IPMI mandates
+-		| that the server send a salted SHA1 or MD5 hash of the requested user's password to the client,
+-		| prior to the client authenticating.
+-	p.text
+-		| #[b NEVER] use the same passwords for KVMD and IPMI users. And even better not to use IPMI.
+-		| Instead, you can directly use KVMD API via curl. Here some examples:
+-	.code#ipmi-text(style="max-height:200px")
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index 302dd4c7..cf2d1896 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -50,7 +50,7 @@
+     <link rel="stylesheet" href="../share/css/kvm/system.css">
+     <link rel="stylesheet" href="../share/css/kvm/keyboard.css">
+     <link rel="stylesheet" href="../share/css/kvm/about.css">
+-    <link rel="stylesheet" href="../share/css/user.css">
++    <!-- <link rel="stylesheet" href="../share/css/user.css"> -->
+     <script type="module">import {setRootPrefix} from "../share/js/vars.js";
+       setRootPrefix("../");
+       import {main} from "../share/js/kvm/main.js";
+@@ -58,13 +58,23 @@
+     </script>
+   </head>
+   <body class="body-no-select">
+-    <ul id="navbar">
+-      <li class="left"><a id="logo" href="//${window.location.hostname}/login/">&larr;&nbsp;&nbsp;<img class="svg-gray" src="../share/svg/logo.svg" alt="&amp;pi;-kvm"></a></li>
+-      <script>
+-        document.getElementById('logo').href = `//${window.location.hostname}/login/`;
+-      </script>
++    <aside class="sidebar">
++    <!-- Sidebar header -->
++    <header class="sidebar-header">
++      <a class="logo header-logo"><img class="svg-gray" src="../share/svg/logo.svg" alt="&amp;pi;-kvm"></a>
++      <button class="toggler sidebar-toggler">
++        <img src="../share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg">
++      </button>
++      <button class="toggler menu-toggler">
++        <img src="../share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg">
++      </button>
++    </header>
++    <nav class="sidebar-nav">
++    <!-- Primary top nav -->
++    <ul id="navbar" class="nav-list primary-nav">
++      <li></li>
+       <div class="hidden" id="hw-health-dropdown">
+-        <li class="left"><a class="menu-button" href="#"><img class="hidden" id="hw-health-undervoltage-led" src="../share/svg/led-undervoltage.svg"><img class="hidden" id="hw-health-overheating-led" src="../share/svg/led-overheating.svg"></a>
++        <li><a class="menu-button" href="#"><img class="hidden" id="hw-health-undervoltage-led" src="../share/svg/led-undervoltage.svg"><img class="hidden" id="hw-health-overheating-led" src="../share/svg/led-overheating.svg"></a>
+           <div class="menu">
+                 <div class="text">
+                   <table>
+@@ -83,7 +93,7 @@
+                   <div class="text">
+                     <table>
+                       <tr>
+-                        <td rowspan="2"><img class="sign led-gray" src="../share/svg/led-undervoltage.svg"></td>
++                        <td rowspan="2"><img class="sign" src="../share/svg/led-undervoltage.svg"></td>
+                         <td style="line-height:1.5"><b>Undervoltage detected</b></td>
+                       </tr>
+                       <tr>
+@@ -98,7 +108,7 @@
+                   <div class="text">
+                     <table>
+                       <tr>
+-                        <td rowspan="2"><img class="sign led-gray" src="../share/svg/led-overheating.svg"></td>
++                        <td rowspan="2"><img class="sign" src="../share/svg/led-overheating.svg"></td>
+                         <td style="line-height:1.5"><b>Overheating detected</b></td>
+                       </tr>
+                       <tr>
+@@ -112,7 +122,7 @@
+         </li>
+       </div>
+       <div class="hidden" id="fan-health-dropdown">
+-        <li class="left"><a class="menu-button" href="#"><img class="hidden" id="fan-health-led" src="../share/svg/led-fan.svg"></a>
++        <li><a class="menu-button" href="#"><img class="hidden" id="fan-health-led" src="../share/svg/led-fan.svg"></a>
+           <div class="menu">
+                 <div class="text">
+                   <table>
+@@ -131,7 +141,7 @@
+                   <div class="text">
+                     <table>
+                       <tr>
+-                        <td rowspan="2"><img class="sign led-gray" src="../share/svg/led-fan.svg"></td>
++                        <td rowspan="2"><img class="sign" src="../share/svg/led-fan.svg"></td>
+                         <td style="line-height:1.5"><b>Fan failed</b></td>
+                       </tr>
+                       <tr>
+@@ -143,8 +153,14 @@
+           </div>
+         </li>
+       </div>
+-      <!--li class="right" id="system-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="link-led" src="../share/svg/led-link.svg"><img class="led-gray" id="stream-led" src="../share/svg/led-video.svg"><img class="led-gray" id="hid-keyboard-led" src="../share/svg/led-hid-keyboard.svg"><img class="led-gray" id="hid-mouse-led" src="../share/svg/led-hid-mouse.svg"><span>System</span></a-->
+-      <li class="right" id="system-dropdown"><a class="menu-button" href="#"><img id="link-led"><img id="stream-led"><img id="hid-keyboard-led"><img id="hid-mouse-led"><span>System</span></a>
++      
++      <li class="right nav-item" id="system-dropdown">
++        <a class="menu-button" href="#">
++          <span><img id="link-led"><img id="stream-led"><img id="hid-keyboard-led"><img id="hid-mouse-led"></span>
++          <img src="../share/svg/grommet-icons_system.svg">
++          <span class="nav-label">System</span>
++        </a>
++        <span class="nav-tooltip">System</span>
+         <div class="menu" id="system-menu">
+           <table class="kv" style="display: none;">
+             <tr>
+@@ -197,14 +213,15 @@
+                 </div>
+             <hr>
+           </div>
+-          <table class="kv">
++          <!--div class="text"><b>Mount USB MSD</b></div><hr-->
++          <table class="kv" cellspacing="0" cellpadding="5">
+             <tr class="hidden" id="stream-resolution">
+               <td>Resolution:</td>
+               <td>
+                 <select id="stream-resolution-selector" disabled></select>
+               </td>
+             </tr>
+-            <tr class="feature-disabled" id="stream-quality">
++            <tr class="hidden" id="stream-quality">
+                   <td>JPEG quality:
+                   </td>
+                   <td class="value-slider">
+@@ -270,6 +287,34 @@
+             <!--div class="buttons buttons-row">
+               <button class="row33" id="stream-audio-button">Control Audio</button>
+             </div-->
++            <!--tr>
++              <td>IP Address of Remote PC:</td>
++              <td align="right">
++                <input 
++                  type="text" 
++                  id="remote-ip-input" 
++                  placeholder="ex: 192.168.1.100" 
++                  style="width: 180px; padding: 4px 8px; font-family: monospace;"
++                  value=""
++                />
++              </td>
++            </tr>
++            <tr>
++              <td>Mount MSD:</td>
++              <td align="right">
++                <div class="switch-box">
++                  <input type="checkbox" id="msd-switch">
++                  <label id="msd-button" for="msd-switch">
++                    <span class="switch-inner"></span>
++                    <span class="switch"></span>
++                  </label>
++                </div>
++              </td>
++            </tr-->
++          </table>
++          <div class="text" style="margin-top: 10px;"><b>Sound</b></div>
++          <hr>
++          <table class="kv" cellspacing="0" cellpadding="5">
+             <tr>
+               <td>Enable Audio:</td>
+               <td align="right">
+@@ -283,12 +328,11 @@
+               </td>
+             </tr>
+             <tr>
+-                  <td>Audio volume:
+-                  </td>
+-                  <td class="value-slider">
+-                    <input type="range" id="stream-audio-volume-slider">
+-                  </td>
+-                  <td class="value-number" id="stream-audio-volume-value"></td>
++                <td>Audio volume:</td>
++                <td class="value-slider">
++                  <input type="range" id="stream-audio-volume-slider">
++                </td>
++                <td class="value-number" id="stream-audio-volume-value"></td>
+             </tr>
+             <tr class="feature-disabled" id="stream-mic">
+                   <td>Microphone:
+@@ -522,13 +566,16 @@
+             </tr>
+           </table>
+           <hr>
+-          <div class="hidden">
+-            <button class="row50" data-force-hide-menu data-show-window="keyboard-window">&bull; Show keyboard</button>
+-            <button class="row50" id="hid-reset-button" disabled>Reset HID</button>
++          <div class="btn-container">
++            <button class="row100" data-force-hide-menu data-show-window="keyboard-window">
++              <img id="hid-keyboard-led" src="../share/svg/led-hid-keyboard.svg">
++              Show keyboard
++            </button>
++            <!-- <button class="row50" id="hid-reset-button" disabled>Reset HID</button> -->
+           </div>
+         </div>
+       </li>
+-      <li class="right feature-disabled" id="atx-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="atx-power-led" src="../share/svg/led-atx-power.svg"><img class="led-gray" id="atx-hdd-led" src="../share/svg/led-atx-hdd.svg"><span>ATX</span></a>
++      <li class="right feature-disabled" id="atx-dropdown"><a class="menu-button" href="#"><img id="atx-power-led" src="../share/svg/led-atx-power.svg"><img id="atx-hdd-led" src="../share/svg/led-atx-hdd.svg"><span>ATX</span></a>
+         <div class="menu">
+           <div class="text"><b>Control the server's power<br></b><sub>Use the short click for ACPI shutdown</sub></div>
+           <hr>
+@@ -553,7 +600,12 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right feature-disabled" id="msd-dropdown"><a class="menu-button" href="#"><img class="led-gray" id="msd-led" src="../share/svg/led-msd.svg"><span>Drive</span></a>
++      <li class="right feature-disabled nav-item" id="msd-dropdown">
++        <a class="menu-button" href="#">
++          <img id="msd-led" src="../share/svg/led-msd.svg">
++          <span class="nav-label">Drive</span>
++        </a>
++        <span class="nav-tooltip">Drive</span>
+         <div class="menu" id="msd-menu">
+           <div class="text"><b>Mass Storage Drive: </b><span id="msd-status"></span><br></div>
+           <hr>
+@@ -756,7 +808,7 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="macro-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="led-gray" id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
++      <li id="macro-dropdown"><a class="menu-button" href="#" style="display: none;"><img id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
+         <div class="menu">
+           <div class="text"><b>Record and play HID/ATX/GPIO actions<br></b><sub>For security reasons, the record will not be saved on the PiKVM</sub></div>
+           <hr>
+@@ -799,7 +851,7 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="text-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
++      <li id="text-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
+         <div class="menu" id="text-menu" style="width: 360px">
+           <div class="text"><b>Paste text as keypress sequence<br></b><sub>Please note that PiKVM cannot switch the keyboard layout</sub></div>
+           <hr>
+@@ -880,13 +932,13 @@
+           </div>
+         </div>
+       </li>
+-      <li class="right" id="shortcuts-dropdown"><a class="menu-button" href="#" style="display: none;">Shortcuts</a>
++      <li id="shortcuts-dropdown"><a class="menu-button" href="#" style="display: none;">Shortcuts</a>
+         <div class="menu" id="shortcuts-menu">
+           <div class="text"><b>Quick keyboard shortcuts<br></b><sub>Also see <i>System &rarr; Show keyboard</i></sub></div>
+           <hr>
+           <div class="buttons">
+             <div class="buttons-row">
+-              <button class="row50" data-force-hide-menu data-shortcut="CapsLock">&bull; Caps Lock &nbsp;<img class="inline-lamp-small hid-keyboard-caps-led led-gray" src="../share/svg/led-square.svg"></button>
++              <button class="row50" data-force-hide-menu data-shortcut="CapsLock">&bull; Caps Lock &nbsp;<img class="inline-lamp-small hid-keyboard-caps-led" src="../share/svg/led-square.svg"></button>
+               <button class="row50" data-force-hide-menu data-shortcut="MetaLeft">&bull; Left Win</button>
+             </div>
+             <hr>
+@@ -962,7 +1014,7 @@
+       <li class="right feature-disabled" id="gpio-dropdown"><a class="menu-button" id="gpio-menu-button" href="#"><span>GPIO</span></a>
+         <div class="menu" id="gpio-menu"></div>
+       </li>
+-      <li class="right feature-disabled" id="switch-dropdown"><a class="menu-button" id="switch-menu-button" href="#"><img class="led-gray" id="switch-atx-power-led" src="../share/svg/led-atx-power.svg"><img class="led-gray" id="switch-atx-hdd-led" src="../share/svg/led-atx-hdd.svg"><span>Switch <i><sub id="switch-active-port"></sub></i></span></a>
++      <li class="right feature-disabled" id="switch-dropdown"><a class="menu-button" id="switch-menu-button" href="#"><img id="switch-atx-power-led" src="../share/svg/led-atx-power.svg"><img id="switch-atx-hdd-led" src="../share/svg/led-atx-hdd.svg"><span>Switch <i><sub id="switch-active-port"></sub></i></span></a>
+         <div class="menu" id="switch-menu">
+           <table style="border-spacing: 0px">
+             <tr>
+@@ -1019,6 +1071,18 @@
+         </div>
+       </li>
+     </ul>
++    <!-- Secondary bottom nav -->
++    <ul class="nav-list secondary-nav">
++      <li class="nav-item">
++        <a id="logout" href="/login/" class="menu-button">
++          <img src="../share/svg/logout_32dp_000000_FILL0_wght400_GRAD0_opsz40.svg">
++          <span class="nav-label">Logout</span>
++        </a>
++        <span class="nav-tooltip">Logout</span>
++        <div class="menu"></div>
++      </li>
++    </ul>
++  </nav>
+     <div class="window" id="stream-ocr-window">
+       <div class="hidden" id="stream-ocr-selection"></div>
+     </div>
+@@ -1036,7 +1100,7 @@
+       <div id="stream-info"></div>
+       <audio id="stream-audio"></audio>
+       <button class="window-button-exit-full-tab">&#9660;</button>
+-      <div id="stream-box"><img id="stream-image" src="../share/png/blank-stream.png">
++      <div id="stream-box"><img id="stream-image" src="../share/png/blank-stream-rtkBg-04.jpg">
+         <video class="hidden" id="stream-video" disablePictureInPicture="true" autoplay playsinline></video>
+         <canvas class="hidden" id="stream-canvas"></canvas>
+         <div id="stream-fullscreen-active"></div>
+@@ -1297,7 +1361,7 @@
+           </div>
+           <div class="keypad-row">
+                 <div class="key wide-2 left small" data-code="CapsLock">
+-                  <div class="label"><img class="inline-lamp-small hid-keyboard-caps-led led-gray" src="../share/svg/led-square.svg"><br> Caps Lock
++                  <div class="label"><img class="inline-lamp-small hid-keyboard-caps-led" src="../share/svg/led-square.svg"><br> Caps Lock
+                   </div>
+                 </div>
+                     <div class="spacer"></div>
+@@ -1472,7 +1536,7 @@
+                 </div>
+                     <div class="spacer-fixed"></div>
+                 <div class="key small" data-code="ScrollLock">
+-                  <div class="label"><img class="inline-lamp-small hid-keyboard-scroll-led led-gray" src="../share/svg/led-square.svg"><br> ScrLk
++                  <div class="label"><img class="inline-lamp-small hid-keyboard-scroll-led" src="../share/svg/led-square.svg"><br> ScrLk
+                   </div>
+                 </div>
+                     <div class="spacer-fixed"></div>
+@@ -1568,7 +1632,7 @@
+           <hr>
+           <div class="keypad-row">
+                 <div class="key small" data-code="NumLock">
+-                  <div class="label"><img class="inline-lamp-small hid-keyboard-num-led led-gray" src="../share/svg/led-square.svg"><br> NmLk
++                  <div class="label"><img class="inline-lamp-small hid-keyboard-num-led" src="../share/svg/led-square.svg"><br> NmLk
+                   </div>
+                 </div>
+                     <div class="spacer-fixed"></div>
+@@ -1774,7 +1838,7 @@
+                 </div>
+                     <div class="spacer"></div>
+                 <div class="key small" data-code="ScrollLock">
+-                  <div class="label"><img class="inline-lamp-small hid-keyboard-scroll-led led-gray" src="../share/svg/led-square.svg"><br> ScrLk
++                  <div class="label"><img class="inline-lamp-small hid-keyboard-scroll-led" src="../share/svg/led-square.svg"><br> ScrLk
+                   </div>
+                 </div>
+                     <div class="spacer"></div>
+@@ -1947,7 +2011,7 @@
+           </div>
+           <div class="keypad-row">
+                 <div class="key wide-2 left small" data-code="CapsLock">
+-                  <div class="label"><img class="inline-lamp-small hid-keyboard-caps-led led-gray" src="../share/svg/led-square.svg"><br> Caps Lock
++                  <div class="label"><img class="inline-lamp-small hid-keyboard-caps-led" src="../share/svg/led-square.svg"><br> Caps Lock
+                   </div>
+                 </div>
+                     <div class="spacer"></div>
+@@ -3019,7 +3083,7 @@
+       <li class="left">
+         <pre id="kvmd-meta-tips-left"></pre>
+       </li>
+-      <li class="right">
++      <li>
+         <pre id="kvmd-meta-tips-right"></pre>
+       </li>
+     </ul>
+@@ -3030,5 +3094,15 @@
+     <ul class="footer">
+       <li class="left"><span id="kvmd-meta-server-host" title="KVM/Server name (see System/About)"></span></li>
+     </ul>
++  </aside>
++  <script src="../share/js/kvm/sidebar.js"></script>
++  <script>
++    document.addEventListener('DOMContentLoaded', function() {
++        var logoutLink = document.getElementById('logout');
++        if (logoutLink) {
++            logoutLink.href = '//' + window.location.hostname + '/login/';
++        }
++    });
++    </script>
+   </body>
+ </html>
+diff --git a/web/kvm/index.pug b/web/kvm/index.pug
+deleted file mode 100644
+index 9d8e94f4..00000000
+--- a/web/kvm/index.pug
++++ /dev/null
+@@ -1,42 +0,0 @@
+-extends ../base.pug
+-
+-
+-append vars
+-	-
+-		root_prefix = "../"
+-		title = "PiKVM Session"
+-		main_js = "kvm/main"
+-		body_class = "body-no-select"
+-		css_list.push(
+-			"navbar", "window", "modal", "led", "slider",
+-			"switch", "radio", "progress", "keypad", "tabs",
+-			"kvm/stream", "kvm/msd",
+-			"kvm/system", "kvm/keyboard", "kvm/about"
+-		)
+-
+-
+-block body
+-	include navbar.pug
+-	include windows.pug
+-
+-	ul.navbar-bg-tips
+-		li.left
+-			pre#kvmd-meta-tips-left
+-		li.right
+-			pre#kvmd-meta-tips-right
+-
+-	ul.footer
+-		li.left
+-			span#kvmd-meta-server-host(title="KVM/Server name (see System/About)")
+-			| &nbsp; | &nbsp;
+-			span#kvmd-info-platform(title="PiKVM Platform")
+-			| &nbsp; | &nbsp;
+-			span#kvmd-version-kvmd(title="KVMD version")
+-			| &nbsp; | &nbsp;
+-			span#kvmd-version-streamer(title="Streamer version")
+-		li.right
+-			a(target="_blank" href="https://pikvm.org") PiKVM Project
+-			| &nbsp; | &nbsp;
+-			a(target="_blank" href="https://docs.pikvm.org") Documentation
+-			| &nbsp; | &nbsp;
+-			a(target="_blank" href="https://pikvm.org/support") Support
+diff --git a/web/kvm/navbar-atx.pug b/web/kvm/navbar-atx.pug
+deleted file mode 100644
+index a44708b3..00000000
+--- a/web/kvm/navbar-atx.pug
++++ /dev/null
+@@ -1,18 +0,0 @@
+-li.right.feature-disabled#atx-dropdown
+-	a.menu-button(href="#")
+-		+navbar_led("atx-power-led", "led-atx-power")
+-		+navbar_led("atx-hdd-led", "led-atx-hdd")
+-		span ATX
+-
+-	.menu
+-		.text
+-			b Control the server's power#[br]
+-			sub Use the short click for ACPI shutdown
+-		hr
+-		+menu_switch_table("atx-ask-switch", true, true) Ask click confirmation:
+-		hr
+-		.buttons
+-			button#atx-power-button(disabled data-force-hide-menu) &bull; Click Power #[sup #[i short]]
+-			button#atx-power-button-long(disabled data-force-hide-menu) &bull; Click Power #[sup #[i long]]
+-			hr
+-			button#atx-reset-button(disabled data-force-hide-menu) &bull; Click Reset
+diff --git a/web/kvm/navbar-gpio.pug b/web/kvm/navbar-gpio.pug
+deleted file mode 100644
+index 59884d22..00000000
+--- a/web/kvm/navbar-gpio.pug
++++ /dev/null
+@@ -1,5 +0,0 @@
+-li.right.feature-disabled#gpio-dropdown
+-	a.menu-button#gpio-menu-button(href="#")
+-		span GPIO
+-
+-	.menu#gpio-menu
+diff --git a/web/kvm/navbar-health.pug b/web/kvm/navbar-health.pug
+deleted file mode 100644
+index 91696915..00000000
+--- a/web/kvm/navbar-health.pug
++++ /dev/null
+@@ -1,34 +0,0 @@
+-.hidden#hw-health-dropdown
+-	li.left
+-		a.menu-button(href="#")
+-			+navbar_led("hw-health-undervoltage-led", "led-undervoltage", "hidden")
+-			+navbar_led("hw-health-overheating-led", "led-overheating", "hidden")
+-
+-		.menu
+-			+menu_message("warning", "Raspberry Pi's health is at risk")
+-				| This is not a drill! A red icon indicates a current issue,#[br]
+-				| a yellow one that was observed since the device booted up
+-			.hidden#hw-health-message-undervoltage
+-				hr
+-				+menu_message("led-undervoltage", "Undervoltage detected", "led-gray")
+-					| Make sure your power supply and cabling are providing#[br]
+-					| enough power to the Raspberry Pi (3A minimum)
+-			.hidden#hw-health-message-overheating
+-				hr
+-				+menu_message("led-overheating", "Overheating detected", "led-gray")
+-					| Frequency capping due to overheating,#[br]
+-					| please improve cooling of the Raspberry Pi
+-
+-.hidden#fan-health-dropdown
+-	li.left
+-		a.menu-button(href="#")
+-			+navbar_led("fan-health-led", "led-fan", "hidden")
+-
+-		.menu
+-			+menu_message("warning", "Raspberry Pi's health is at risk")
+-				| This is not a drill! A red icon indicates a current issue,#[br]
+-				| a yellow one that was observed in the past
+-			#fan-health-message-fail
+-				hr
+-				+menu_message("led-fan", "Fan failed", "led-gray")
+-					| A fan error occured, please #[a(href=`${root_prefix}api/log?seek=3600&follow=1` target="_blank") check the log]
+diff --git a/web/kvm/navbar-macro.pug b/web/kvm/navbar-macro.pug
+deleted file mode 100644
+index 1ee0ed31..00000000
+--- a/web/kvm/navbar-macro.pug
++++ /dev/null
+@@ -1,36 +0,0 @@
+-li.right#macro-dropdown
+-	a.menu-button(href="#")
+-		+navbar_led("hid-recorder-led", "led-gear")
+-		span Macro
+-
+-	.menu
+-		.text
+-			b Record and play HID/ATX/GPIO actions#[br]
+-			sub For security reasons, the record will not be saved on the PiKVM
+-		hr
+-
+-		.buttons.buttons-row
+-			button.row25#hid-recorder-record(disabled data-force-hide-menu) &bull; Rec
+-			button.row25#hid-recorder-stop(disabled) Stop
+-			button.row25#hid-recorder-play(disabled) Play
+-			button.row25#hid-recorder-clear(disabled) Clear
+-		hr
+-
+-		table.kv
+-			tr
+-				td Script time:
+-				td.value#hid-recorder-time(colspan="2") 00:00:00.0
+-			tr
+-				td Scripted events:
+-				td.value#hid-recorder-events-count 0
+-				td #[sup #[i include delays]]
+-		hr
+-
+-		+menu_switch_table("hid-recorder-loop-switch", false, false) Infinite loop playback:
+-		hr
+-
+-		input#hid-recorder-new-script-file(type="file" style="display: none")
+-
+-		.buttons.buttons-row
+-			button.row50#hid-recorder-upload(disabled) Upload script
+-			button.row50#hid-recorder-download(disabled) Download script
+diff --git a/web/kvm/navbar-msd.pug b/web/kvm/navbar-msd.pug
+deleted file mode 100644
+index 6d7ba08d..00000000
+--- a/web/kvm/navbar-msd.pug
++++ /dev/null
+@@ -1,108 +0,0 @@
+-li.right.feature-disabled#msd-dropdown
+-	a.menu-button(href="#")
+-		+navbar_led("msd-led", "led-msd")
+-		span Drive
+-
+-	.menu#msd-menu
+-		.text
+-			b Mass Storage Drive: 
+-			span#msd-status
+-			br
+-		hr
+-
+-		.hidden#msd-message-offline
+-			+menu_message("warning", "Mass Storage Drive is offline")
+-			hr
+-		.hidden#msd-message-image-broken
+-			+menu_message("warning", "Current image is broken!")
+-				| Perhaps uploading was interrupted
+-			hr
+-		.hidden#msd-message-too-big-for-dvd
+-			+menu_message("warning", "Current image is too big for DVD!")
+-				| The maximum is 31.6GiB. Please switch to the Flash mode.
+-			hr
+-		.hidden#msd-message-out-of-storage
+-			+menu_message("warning", "Current image is out of storage")
+-				| This image was connected manually using #[b kvmd-otgmsd]
+-			hr
+-		.hidden#msd-message-rw-enabled
+-			+menu_message("warning", "Read-write mode is enabled")
+-				| Do not turn off PiKVM while this is active to prevent#[br]
+-				| filesystem corruption. Use read-only mode where possible,#[br]
+-				| as writing to SD card often can reduce its lifespan.
+-			hr
+-		.hidden#msd-message-downloads
+-			+menu_message("info", "The image is being downloaded from PiKVM")
+-				| Please wait
+-			hr
+-
+-		table.kv
+-			tr
+-				td Image:
+-				td(width="100%") #[select#msd-image-selector(disabled)]
+-				td #[button#msd-download-button(disabled title="Download image") #[b &nbsp;&nbsp;&#x21E9;&nbsp;&nbsp;]]
+-				td #[button#msd-remove-button(disabled title="Remove image") #[b &nbsp;&nbsp;&times;&nbsp;&nbsp;]]
+-
+-		table.kv
+-			tr
+-				+menu_radio_td2("msd-mode-radio", [
+-					{title: "CD/DVD", value: "1", checked: true},
+-					{title: "Flash", value: "0"},
+-				]) Drive #[a(target="_blank" href="https://docs.pikvm.org/msd") mode]:
+-				td &nbsp;
+-				+menu_switch_td2("msd-rw-switch", false, false) Writable:
+-		hr
+-
+-		#msd-storages
+-		hr
+-
+-		.buttons.buttons-row
+-			button.row50#msd-select-new-button(disabled) Select image to upload
+-			button.row25#msd-upload-new-button(disabled) Upload
+-			button.row25#msd-abort-new-button(disabled) Abort
+-		hr
+-
+-		.hidden#msd-message-another-user-uploads
+-			+menu_message("info", "Another user uploads an image")
+-			hr
+-
+-		.hidden#msd-new-sub
+-			table.kv
+-				tr
+-					td Specify a local file:
+-					td #[input#msd-new-file(type="file")]
+-				tr
+-					td #[b Or] paste a URL:
+-					td #[input#msd-new-url(type="text" style="width: 100%")]
+-				tr.hidden#msd-new-part
+-					td Upload partition:
+-					td(width="100%") #[select#msd-new-part-selector]
+-			hr
+-
+-		.hidden#msd-uploading-sub
+-			table.kv
+-				tr
+-					td New image:
+-					td.value#msd-uploading-name
+-				tr
+-					td Upload size:
+-					td.value#msd-uploading-size
+-			.text
+-				.progress#msd-uploading-progress
+-					span.progress-value#msd-uploading-progress-value
+-			hr
+-
+-		.hidden#msd-new-tips
+-			table.kv
+-				tr
+-					td.value Note:
+-					td &bull; Don't close the browser page until the upload is complete.
+-				tr
+-					td
+-					td &bull; To speed up the upload, close the stream window.
+-			hr
+-
+-		.buttons.buttons-row
+-			button.row50#msd-connect-button Connect drive to Server
+-			button.row25#msd-disconnect-button Disconnect
+-			button.row25#msd-reset-button Reset
+diff --git a/web/kvm/navbar-shortcuts.pug b/web/kvm/navbar-shortcuts.pug
+deleted file mode 100644
+index 2f1b41c7..00000000
+--- a/web/kvm/navbar-shortcuts.pug
++++ /dev/null
+@@ -1,83 +0,0 @@
+-li.right#shortcuts-dropdown
+-	a.menu-button(href="#") Shortcuts
+-
+-	.menu#shortcuts-menu
+-		.text
+-			b Quick keyboard shortcuts#[br]
+-			sub Also see #[i System &rarr; Show keyboard]
+-		hr
+-
+-		.buttons
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="CapsLock")
+-					| &bull; Caps Lock &nbsp;
+-					img.inline-lamp-small.hid-keyboard-caps-led.led-gray(src=`${svg_dir}/led-square.svg`)
+-				button.row50(data-force-hide-menu data-shortcut="MetaLeft") &bull; Left Win
+-			hr
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="AltLeft ShiftLeft") &bull; Alt+Shift
+-				button.row50(data-force-hide-menu data-shortcut="ControlLeft KeyW") &bull; Ctrl+W
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="ControlLeft ShiftLeft") &bull; Ctrl+Shift
+-				button.row50(data-force-hide-menu data-shortcut="AltLeft Tab") &bull; Alt+Tab
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="ShiftLeft ShiftRight") &bull; Shift+Shift
+-				button.row50(data-force-hide-menu data-shortcut="AltLeft Enter") &bull; Alt+Enter
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="MetaLeft Space") &bull; Win+Space
+-				button.row50(data-force-hide-menu data-shortcut="AltLeft F4") &bull; Alt+F4
+-			hr
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="ControlLeft AltLeft F1") &bull; Ctrl+Alt+F1
+-				button.row50(data-force-hide-menu data-shortcut="MetaLeft KeyL") &bull; Win+L
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="ControlLeft AltLeft F2") &bull; Ctrl+Alt+F2
+-				button.row50(data-force-hide-menu data-shortcut="PrintScreen") &bull; Print Screen
+-			hr
+-			.buttons-row
+-				button.row50(data-force-hide-menu data-shortcut="ControlLeft AltLeft Delete") &bull; Ctrl+Alt+Del
+-				button.row50(data-force-hide-menu data-shortcut="Power") &bull; Power
+-		hr
+-
+-		.text
+-			| &darr; &bull; Alt+SysRq+... <sup><i>linux magic
+-			| #[a(target="_blank" href="https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html") help]</i></sup>
+-		hr
+-
+-		.buttons
+-			.buttons-row
+-				-
+-					let sysrq = {
+-						"F": "Call the OOM killer to kill a memory hog process",
+-						"M": "Dump current memory info to the console",
+-						"D": "Show all locks that are held",
+-						"T": "Dump a list of current tasks and their information to the console",
+-					}
+-				each title, key in sysrq
+-					button.row25(
+-						data-shortcut=`AltLeft PrintScreen Key${key}`
+-						data-shortcut-confirm="hid-sysrq-ask-switch"
+-						style="text-align: center"
+-						title=`${title}`
+-					) #{key}
+-			hr
+-			.buttons-row
+-				-
+-					sysrq = { 
+-						"R": "Turn off keyboard raw mode, set it to XLATE",
+-						"E": "Send a SIGTERM to all processes, except for init",
+-						"I": "Send a SIGKILL to all processes, except for init",
+-						"S": "Attempt to sync all mounted filesystems",
+-						"U": "Attempt to remount all mounted filesystems read-only",
+-						"B": "Immediately reboot the system without syncing or unmounting disks",
+-					}
+-				each title, key in sysrq
+-					button.row16(
+-						data-shortcut=`AltLeft PrintScreen Key${key}`
+-						data-shortcut-confirm="hid-sysrq-ask-switch"
+-						style="text-align: center"
+-						title=`${title}`
+-					) #{key}
+-		hr
+-
+-		+menu_switch_table("hid-sysrq-ask-switch", true, true) Ask the magic confirmation:
+diff --git a/web/kvm/navbar-switch.pug b/web/kvm/navbar-switch.pug
+deleted file mode 100644
+index ab16f375..00000000
+--- a/web/kvm/navbar-switch.pug
++++ /dev/null
+@@ -1,32 +0,0 @@
+-li.right.feature-disabled#switch-dropdown
+-	a.menu-button#switch-menu-button(href="#")
+-		+navbar_led("switch-atx-power-led", "led-atx-power")
+-		+navbar_led("switch-atx-hdd-led", "led-atx-hdd")
+-		span Switch #[i #[sub#switch-active-port]]
+-
+-	.menu#switch-menu
+-		table(style="border-spacing: 0px")
+-			tr
+-				td
+-					.text
+-						b #[a(target="_blank" href="https://docs.pikvm.org/switch") PiKVM Switch] is attached#[br]
+-						sub Select a port or perform any available action like ATX click
+-				td
+-					.text
+-						button.small(data-force-hide-menu data-show-window="switch-window") &bull; Settings
+-		hr
+-
+-		.hidden#switch-message-update
+-			+menu_message("info", "Good news! Your switch is ready to get the firmware update")
+-				| Please #[a(target="_blank" href="https://docs.pikvm.org/switch/#firmware-updating") follow the instructions]
+-				| when you decide to install it.
+-			hr
+-
+-		table.kv
+-			tr
+-				+menu_switch_td2("switch-atx-ask-switch", true, true) Ask ATX click confirmation:
+-			tr
+-				+menu_switch_td2("switch-msd-ask-switch", true, true) Confirm switching when the Drive is connected:
+-		hr
+-
+-		table.kv#switch-chain
+diff --git a/web/kvm/navbar-system.pug b/web/kvm/navbar-system.pug
+deleted file mode 100644
+index eb4db041..00000000
+--- a/web/kvm/navbar-system.pug
++++ /dev/null
+@@ -1,139 +0,0 @@
+-li.right#system-dropdown
+-	a.menu-button(href="#")
+-		+navbar_led("link-led", "led-link")
+-		+navbar_led("stream-led", "led-video")
+-		+navbar_led("hid-keyboard-led", "led-hid-keyboard")
+-		+navbar_led("hid-mouse-led", "led-hid-mouse")
+-		span System
+-
+-	.menu#system-menu
+-		table.kv
+-			tr
+-				td.value
+-					| Runtime settings &amp; tools
+-				td.feature-disabled#system-tool-webterm
+-					button.small(data-force-hide-menu data-show-window="webterm-window") &bull; Term
+-				td#system-tool-about
+-					button.small(data-force-hide-menu data-show-window="about-window") &bull; About
+-				td#system-tool-log
+-					button.small#open-log-button(data-force-hide-menu) &bull; Log
+-				td.feature-disabled#system-tool-wol
+-					button(
+-						data-force-hide-menu
+-						class="__gpio-button-__wol__ __gpio-button small"
+-						data-channel="__wol__"
+-						data-confirm="Are you sure to send Wake-on-LAN packet to the server?"
+-					) &bull; WoL
+-		hr
+-
+-		.hidden#stream-message-no-webrtc
+-			+menu_message("warning", "WebRTC is not supported by this browser")
+-			hr
+-		.hidden#stream-message-no-vd
+-			+menu_message("warning", "Direct H.264 streaming is not supported")
+-			hr
+-		.hidden#stream-message-no-h264
+-			+menu_message("warning", "H.264 is not supported by this browser")
+-			hr
+-
+-		table.kv
+-			tr.feature-disabled#stream-resolution
+-				td Resolution:
+-				td #[select#stream-resolution-selector(disabled)]
+-			tr.feature-disabled#stream-quality
+-				+menu_slider_td3("stream-quality-slider", "stream-quality-value", false) JPEG quality:
+-			tr
+-				+menu_slider_td3("stream-desired-fps-slider", "stream-desired-fps-value", false) JPEG max fps:
+-			tr.feature-disabled#stream-h264-bitrate
+-				+menu_slider_td3("stream-h264-bitrate-slider", "stream-h264-bitrate-value", false) H.264 kbps:
+-			tr.feature-disabled#stream-h264-gop
+-				+menu_slider_td3("stream-h264-gop-slider", "stream-h264-gop-value", false) H.264 gop:
+-			tr.feature-disabled#stream-mode
+-				+menu_radio_td2("stream-mode-radio", [
+-					{title: "WebRTC<br>H.264", value: "janus"},
+-					{title: "Direct<br>H.264", value: "media"},
+-					{title: "Legacy<br>MJPEG", value: "mjpeg", checked: true},
+-				]) #[a(target="_blank" href="https://docs.pikvm.org/webrtc") Video mode]:
+-			tr.feature-disabled#stream-orient
+-				+menu_radio_td2("stream-orient-radio", [
+-					{title: "Default", value: "0", checked: true},
+-					{title: "90&deg;", value: "90"},
+-					{title: "180&deg;", value: "180"},
+-					{title: "270&deg;", value: "270"},
+-				]) Orientation:
+-			tr.feature-disabled#stream-audio
+-				+menu_slider_td3("stream-audio-volume-slider", "stream-audio-volume-value") Audio volume:
+-			tr.feature-disabled#stream-mic
+-				+menu_switch_td2("stream-mic-switch", false, false) Microphone:
+-		hr
+-
+-		.buttons.buttons-row
+-			button.row33(data-force-hide-menu data-show-window="stream-window") &bull; Show stream
+-			button.row33#stream-screenshot-button(data-force-hide-menu) &bull; Screenshot
+-			button.row33#stream-reset-button Reset stream
+-		hr
+-
+-		table.kv
+-			tr.feature-disabled#hid-outputs-keyboard
+-				td Keyboard mode:
+-				td #[div.radio-box#hid-outputs-keyboard-box]
+-			tr.feature-disabled#hid-outputs-mouse
+-				td #[a(target="_blank" href="https://docs.pikvm.org/mouse") Mouse mode]:
+-				td #[div.radio-box#hid-outputs-mouse-box]
+-
+-		+menu_spoiler("Keyboard &amp; mouse (HID) settings")
+-			+menu_switch_table("hid-keyboard-swap-cc-switch", true, false) Swap Left Ctrl and Caps keys:
+-			hr
+-			table(class="kv")
+-				tr
+-					+menu_slider_td3("hid-mouse-rate-slider", "hid-mouse-rate-value") Mouse polling:
+-				tr.feature-disabled#hid-mouse-sens
+-					+menu_slider_td3("hid-mouse-sens-slider", "hid-mouse-sens-value", false) Relative sensitivity:
+-				tr(id="hid-mouse-squash" class="feature-disabled")
+-					+menu_switch_td2("hid-mouse-squash-switch", true, true) Squash relative moves:
+-				tr
+-					td Reverse scrolling:
+-					td
+-						table
+-							tr
+-								+menu_switch_td2("hid-mouse-reverse-scrolling-switch", true, false) Y:
+-								td &nbsp;&nbsp;
+-								+menu_switch_td2("hid-mouse-reverse-panning-switch", true, false) X:
+-				tr
+-					+menu_switch_td2("hid-mouse-cumulative-scrolling-switch", true, false) Cumulative scrolling:
+-				tr
+-					+menu_slider_td3("hid-mouse-scroll-slider", "hid-mouse-scroll-value") Scroll rate:
+-				tr
+-					+menu_switch_td2("hid-mouse-dot-switch", true, true) Show the blue dot:
+-
+-		+menu_spoiler("Web UI settings")
+-			table.kv
+-				tr
+-					+menu_switch_td2("page-close-ask-switch", true, true) Ask page close confirmation:
+-				tr
+-					+menu_switch_td2("page-full-tab-stream-switch", true, false) Expand for the entire tab by default:
+-				tr
+-					+menu_switch_td2("stream-suspend-switch", true, false) Suspend stream when tab is not active:
+-
+-		table.kv
+-			tr
+-				+menu_switch_td2("hid-keyboard-bad-link-switch", true, false) Bad link mode (release keys immediately):
+-			tr.feature-disabled#hid-connect
+-				+menu_switch_td2("hid-connect-switch", true, true) Connect HID to Server:
+-			tr.feature-disabled#hid-jiggler
+-				+menu_switch_td2("hid-jiggler-switch", false, false)
+-					| #[a(target="_blank" href="https://docs.pikvm.org/mouse_jiggler") Mouse jiggler]:
+-			tr
+-				+menu_switch_td2("hid-mute-switch", true, false) Mute all input HID events:
+-			tr.feature-disabled#v3-usb-breaker
+-				+menu_switch_td2_gpio(
+-					"__v3_usb_breaker__",
+-					"Turning off this switch will disconnect the main USB from the server.  Are you sure you want to continue?"
+-				) Connect main USB to Server:
+-			tr.feature-disabled#v4-locator
+-				+menu_switch_td2_gpio("__v4_locator__") Enable locator LED:
+-		hr
+-
+-		.buttons.buttons-row
+-			button.row50(data-force-hide-menu data-show-window="keyboard-window") &bull; Show keyboard
+-			button.row50#hid-reset-button(disabled) Reset HID
+diff --git a/web/kvm/navbar-text.pug b/web/kvm/navbar-text.pug
+deleted file mode 100644
+index c7b63690..00000000
+--- a/web/kvm/navbar-text.pug
++++ /dev/null
+@@ -1,46 +0,0 @@
+-li.right#text-dropdown
+-	a.menu-button(href="#")
+-		+navbar_led("stream-ocr-led", "led-gear", "feature-disabled")
+-		span Text
+-
+-	.menu#text-menu(style="width: 360px")
+-		.text
+-			b Paste text as keypress sequence#[br]
+-			sub Please note that PiKVM cannot switch the keyboard layout
+-		hr
+-		.text(style="margin-right: 20px")
+-			textarea#hid-pak-text(data-focus placeholder="Enter your text here")
+-		table.kv
+-			tr
+-				td #[button#hid-pak-button(disabled data-force-hide-menu title="Ctrl+Enter when the text is focused") &bull; Paste]
+-				td using a host keymap
+-				td #[select#hid-pak-keymap-selector]
+-		table.kv
+-			tr
+-				+menu_slider_td3("hid-pak-delay-slider", "hid-pak-delay-value", true) Delay between keys:
+-			tr
+-				+menu_switch_td2("hid-pak-secure-switch", true, false) Hide input text:
+-			tr
+-				+menu_switch_td2("hid-pak-ask-switch", true, true) Ask paste confirmation:
+-
+-		.feature-disabled#stream-ocr
+-			hr
+-			br
+-			hr
+-			.text
+-				b Text recognition <sup><i>&beta;</i></sup>#[br]
+-				sub #[a(target="_blank" href="https://docs.pikvm.org/ocr") OCR] works locally on PiKVM
+-			hr
+-			table.kv
+-				tr
+-					td #[button#stream-ocr-button(data-force-hide-menu) &bull; Select area]
+-					td for
+-					td #[select#stream-ocr-lang-selector]
+-					td text recognition
+-			table.kv
+-				tr
+-					td(colspan="4") &bull; Next hit the #[b Enter] to recognize and copy text to clipboard...
+-				tr
+-					td(colspan="4") &bull; Or hit the #[b Escape] to cancel a selection
+-				tr
+-					td
+diff --git a/web/kvm/navbar.pug b/web/kvm/navbar.pug
+deleted file mode 100644
+index 9ef1464e..00000000
+--- a/web/kvm/navbar.pug
++++ /dev/null
+@@ -1,98 +0,0 @@
+-mixin navbar_led(id, icon, cls="led-gray")
+-	img(id=id, class=cls src=`${svg_dir}/${icon}.svg`)
+-
+-
+-mixin menu_message(icon, short, classes="")
+-	.text
+-		table
+-			tr
+-				td(rowspan="2") #[img(class=`sign ${classes}` src=`${svg_dir}/${icon}.svg`)]
+-				td(style="line-height:1.5") #[b #{short}]
+-			if block
+-				tr
+-					td
+-						sup(style="line-height:1")
+-							block
+-
+-
+-mixin menu_switch_td2_gpio(channel, confirm_off="")
+-	td
+-		block
+-	td(align="right")
+-		.switch-box
+-			input(
+-				disabled
+-				type="checkbox"
+-				id=`__gpio-switch-${channel}`
+-				class=`__gpio-switch-${channel} gpio-switch`
+-				data-channel=channel
+-				data-confirm-off=confirm_off
+-			)
+-			label(for=`__gpio-switch-${channel}`)
+-				span.switch-inner
+-				span.switch
+-
+-
+-mixin menu_switch_td2(id, enabled, checked)
+-	td
+-		block
+-	td(align="right")
+-		.switch-box
+-			input(checked=checked disabled=!enabled type="checkbox" id=id)
+-			label(for=id)
+-				span.switch-inner
+-				span.switch
+-
+-
+-mixin menu_switch_table(id, enabled, checked)
+-	table.kv
+-		tr
+-			+menu_switch_td2(id, enabled, checked)
+-				block
+-
+-
+-mixin menu_radio_td2(name, items)
+-	td
+-		block
+-	td
+-		.radio-box
+-			each item in items
+-				-
+-					let id = `${name}-${item["value"]}`
+-					let checked = (item["checked"] || false)
+-				input(type="radio" id=id name=name value=item["value"] checked=checked)
+-				label(for=id) !{item["title"]}
+-
+-
+-mixin menu_slider_td3(slider_id, value_id, enabled)
+-	-
+-		enabled = (enabled || true)
+-	td
+-		block
+-	td.value-slider
+-		input(type="range" id=slider_id disabled=!enabled)
+-	td.value-number(id=value_id)
+-
+-
+-mixin menu_spoiler(title)
+-	details
+-		summary !{title}
+-		div(class="spoiler")
+-			block
+-
+-
+-ul#navbar
+-	li.left
+-		a(id="logo" href=root_prefix) &larr;&nbsp;&nbsp;
+-			img.svg-gray(src=`${svg_dir}/logo.svg` alt="&pi;-kvm")
+-
+-	include navbar-health.pug
+-
+-	include navbar-system.pug
+-	include navbar-atx.pug
+-	include navbar-msd.pug
+-	include navbar-macro.pug
+-	include navbar-text.pug
+-	include navbar-shortcuts.pug
+-	include navbar-gpio.pug
+-	include navbar-switch.pug
+diff --git a/web/kvm/window-about.pug b/web/kvm/window-about.pug
+deleted file mode 100644
+index 5143405f..00000000
+--- a/web/kvm/window-about.pug
++++ /dev/null
+@@ -1,703 +0,0 @@
+-mixin about_tab(name, title, checked=false)
+-	- let button_id = `about-tab-${name}-button`
+-	input(checked=checked type="radio" name="about-tab-button", id=button_id)
+-	label(for=button_id) #{title}
+-	.tab
+-		.code(id=`about-${name}`)
+-			if block
+-				block
+-			else
+-				span.code-comment No data
+-
+-
+-.window#about-window(data-show-centered)
+-	.window-header
+-		.window-grab About
+-		.window-buttons
+-			button.window-button-original &bull;
+-			button.window-button-close #[b &times;]
+-
+-	#about
+-		table
+-			tr
+-				td.logo
+-					a(href="https://pikvm.org" target="_blank")
+-						img.svg-gray(src=`${svg_dir}/logo.svg` alt="PiKVM" height="40")
+-				td
+-					table
+-						tr
+-							td.title(colspan="2")
+-								| The Open Source KVM over IP
+-						tr
+-							td.copyright(colspan="2")
+-								| Copyright &copy; 2018-2024 #[a(target="_blank" href="mailto:mdevaev@gmail.com") Maxim Devaev]
+-		br
+-		.tabs-box
+-			+about_tab("version", "Version", true)
+-			+about_tab("hardware", "Hardware")
+-
+-			+about_tab("meta", "Meta")
+-				div
+-					span.code-comment
+-						| // You can get this JSON using handle
+-						| #[a(target="_blank" href=`${root_prefix}api/info?fields=meta`) /api/info?fields=meta]#[br]
+-						| // In the standard configuration this data#[br]
+-						| // is specified in the file /etc/kvmd/meta.yaml
+-					br
+-					pre#kvmd-meta-json No data
+-
+-			+about_tab("thanks", "Thanks")
+-				span.code-comment
+-					| // These kind people donated money to the PiKVM project#[br]
+-					| // and supported the work on it. We are very grateful#[br]
+-					| // for their help, and memorializing their names#[br]
+-					| // is the least we can do in gratitude.#[br]
+-					| // If you also want to support this project,#[br]
+-					| // you can donate on #[a(target="_blank" href="https://www.patreon.com/pikvm") Patreon]
+-					| or #[a(target="_blank" href="https://paypal.me/pikvm") Paypal].
+-				ul
+-					li A. Isenring
+-					li Aaron Graubert
+-					li Aaron Heise
+-					li Aaron Stein
+-					li Accalia
+-					li Adam Goodbar
+-					li Adam S
+-					li Adam Stuart
+-					li AdamBomb
+-					li adipisicing
+-					li Adrian Basham
+-					li Adrian Popescu
+-					li Ahmed Syed
+-					li Alberto Bassi
+-					li alejandro
+-					li Aleksei Brusianskii
+-					li Alessio Curri
+-					li Alex T
+-					li Alex Z
+-					li Alexander Karmanov
+-					li Alexander Lahuerta
+-					li Alexander Martin
+-					li Alexander Pankov
+-					li Alexandre Jablonski
+-					li Alexey Kamenskiy
+-					li alm0241
+-					li Alok Anand
+-					li Alucard
+-					li Ananthaneshan Elampoornan
+-					li Andreas Grundler
+-					li Andreas Marufke
+-					li Andreas Schmid
+-					li Andrew Brant
+-					li Andrew Melton
+-					li Andrew Reusch
+-					li Andrew Ruan
+-					li Andrzej V
+-					li Andy
+-					li Andy Keys
+-					li Anish Patel
+-					li Anix
+-					li Anonymous
+-					li Anthony Junk
+-					li Anton Kovalenko
+-					li Armen
+-					li Aron Green
+-					li Aron Perelman
+-					li Artem Simonov
+-					li Arthur Mayer
+-					li Arthur Woimbée
+-					li Ashlesh Chaudhari
+-					li Asim Shakour
+-					li Augusto Becciu
+-					li AVS Computer
+-					li awkspace
+-					li Badal Patel
+-					li baddog
+-					li Bao Tin Hoang
+-					li Bean Co.
+-					li Bela Bargel
+-					li Belf Igor
+-					li Ben Gordon
+-					li Ben Scott
+-					li Benedikt Heine
+-					li Benedikt Meier
+-					li Benjamin Frewert
+-					li Benjamin Melancon
+-					li Benjamin Schwartz
+-					li Benjamin Stegmann
+-					li Benni Stauder
+-					li Bernhard Fitzke
+-					li Beu
+-					li bikmaek
+-					li bitjoe
+-					li Bits and Bytes Computers LLC
+-					li Bjoern Petsch
+-					li Blair Hasler
+-					li Blindside
+-					li Blue Frog LLC
+-					li Bootstrapper - Programmierung erklärt
+-					li Bosco
+-					li Bradford King
+-					li Brainspore Networks
+-					li Branden Shaulis
+-					li Brandon Daniels
+-					li Brian
+-					li Brian Moses
+-					li Brian T Mulcahy
+-					li Brian Vecchiarelli
+-					li Brian White
+-					li brodonalds
+-					li Bruno Gomes
+-					li Bryan Adams
+-					li Bryan Montgomery
+-					li Buzzer
+-					li C P ELSE
+-					li Calanish
+-					li Cameron Hatcher
+-					li Cameron Tacklind
+-					li Carl Mercier
+-					li Carl-Fredrik Johansson
+-					li Carlos Eduardo Porter Herrera
+-					li Carlos Garcia
+-					li Carlos Manuel Torres
+-					li cbad536
+-					li César Nascimento
+-					li CHINATERA LIMITED
+-					li Chris Blackmon
+-					li Chris Burton
+-					li Chris Campbell
+-					li Chris Jackson
+-					li Chris Lewis
+-					li Chris Rizio
+-					li Christi King
+-					li Christian Schlögl
+-					li Christian Svensson
+-					li Christof Maluck
+-					li Christoph Dette
+-					li Christoffer Lund
+-					li Christopher Bulla
+-					li Christopher Gelatt
+-					li Christopher Hearn
+-					li Christopher Mandlbaur
+-					li Christopher Mendoza
+-					li Christopher Simms
+-					li Chucktastic
+-					li Cihan VURAL
+-					li clauskj3r
+-					li Clifford Coleman
+-					li Clinton Lee Taylor
+-					li Cole Imhoff
+-					li Colin Goodman
+-					li Corey Layton
+-					li Corey Lista
+-					li Craig Keenan
+-					li Crossfactor
+-					li Cruzzer
+-					li ctag
+-					li Curt Sammer
+-					li CyB0rgg
+-					li DeMentor
+-					li Desmond Whitt
+-					li Daegara
+-					li DailyAneurism
+-					li Damon Meledones
+-					li Dan Berkowitz
+-					li Dan Brakeley
+-					li Daniel Bowder
+-					li Daniel Cabrera
+-					li Daniel Davila
+-					li Danilo Saft
+-					li Danne
+-					li Dariusz Techmański
+-					li David
+-					li David Brausewetter
+-					li David Davis
+-					li David Godibadze
+-					li David Howell
+-					li David Irvine
+-					li David Klinkman
+-					li David Niemann
+-					li David Shay
+-					li David Ye
+-					li David York
+-					li Denis
+-					li Denis Andreev
+-					li Denis Yatsenko
+-					li Dennis Becker
+-					li Dennis Joslin
+-					li Dennis Lomet
+-					li Derek Jarvis
+-					li Derek Yap
+-					li Didrik
+-					li digitalbaconbits
+-					li Dimitrij Jedich
+-					li dixon wong
+-					li dizztrukshin
+-					li Dmitry Shilov
+-					li DogeLabs
+-					li Dominic Phoon
+-					li Dominik Klonowski
+-					li Donald Hays
+-					li Edmon Abdul Nur
+-					li Edward Wang
+-					li Egan Ford
+-					li Elani Ferri
+-					li Elliot Woo
+-					li Entt
+-					li Eric Phenix
+-					li Ethan Shold
+-					li Eugene Sukhodolin
+-					li ewook
+-					li eye-catcher.com
+-					li Fabian Druschke
+-					li Fabiano Sidler
+-					li Far Pin Solutions, LLC
+-					li Felyx Gabryel
+-					li Fergus McKay
+-					li Finn Ebenritter
+-					li floppy
+-					li fo0bar
+-					li Foad Yousef
+-					li Foamy
+-					li Foli Ayivoh
+-					li Folkert Weistra
+-					li Francisco Pavon
+-					li Frank
+-					li Frank Sander
+-					li Frederick Czajka
+-					li Fredrik Idréus
+-					li Garrett Dangerfield
+-					li Ge Men
+-					li Geekworm
+-					li Genkinger Andreas
+-					li Geijer
+-					li Geoffrey Wright
+-					li George Becker
+-					li Georgy Brodsky
+-					li Gerald
+-					li Gerardus Vernimmen
+-					li Gernot Neuschröer
+-					li Giovanni Fulco
+-					li GK
+-					li Glen Dragon
+-					li Greg Winterstein
+-					li Gregory Smith
+-					li Gregory Treantos
+-					li grewil
+-					li Grey Cynic
+-					li Guenter Honisch
+-					li Guido Bernacchi
+-					li Gustin Johnson
+-					li György Tamás Vizi
+-					li Haiberg GmbH
+-					li Haven Zheng
+-					li Heibunny
+-					li Heikki Tiittanen
+-					li Helio Leonardo Pinheiro e Mota
+-					li Henrik Ählström
+-					li Henry Hood
+-					li HimKo
+-					li HouseFPV
+-					li Howard Simons
+-					li HyunohRyu
+-					li Icculus
+-					li iks
+-					li INFO TRX INC
+-					li Invader Monks
+-					li Ioannis Karageorgos
+-					li Isaac
+-					li IT Lifesaver
+-					li Ivan Ganev
+-					li Ivan Josiah Lapis
+-					li Ivan Shapovalov
+-					li iwbjhbweriuhf
+-					li J
+-					li J L
+-					li Jaanus
+-					li Jackson Wyatt
+-					li Jacob Karaffa
+-					li Jacob Morgan
+-					li James Cadd
+-					li James Cobb
+-					li James Edwards
+-					li James Kocher
+-					li James Mayhugh
+-					li James Noonan
+-					li James Ye
+-					li Jamie Murphy
+-					li Jamie Scott
+-					li Jan Niehusmann
+-					li Jannick Oursin
+-					li Jari Hiltunen
+-					li Jason Crossley
+-					li Jason Downey
+-					li Jason Toland
+-					li Jasper Backer
+-					li Jay Davis
+-					li Jay Isaacs
+-					li Jazereel Goh
+-					li Jean-Daniel Croteau
+-					li Jean-Philippe Guilbault
+-					li Jeff
+-					li Jeff Bowman
+-					li Jeff Urlwin
+-					li Jennifer Herting
+-					li Jennifer Rowlett
+-					li Jeremy Abel
+-					li Jeremy Combs
+-					li Jeremy Hines
+-					li Jerremy Holland
+-					li Jerry Nall
+-					li Jerry Y. Chen
+-					li Jim Bailey
+-					li Jim Harbin
+-					li Jimmy Burgett
+-					li Jimmy Stanley
+-					li Joachim Bruening
+-					li Joe Hanson
+-					li Joe Hinteregger
+-					li Joe Ventura
+-					li Joel Jacobs
+-					li Johannes Heigermose
+-					li John Andersen
+-					li John Copeland
+-					li John F Glenn
+-					li John Holmes
+-					li John Kelley
+-					li John McGovern
+-					li Johnny Henson
+-					li Jon Ferguy
+-					li Jon-Eric
+-					li Joni Ruuskanen
+-					li Jonas Fischer
+-					li Jonathan Slenders
+-					li Jonathan Vaughn
+-					li Joost Backer
+-					li Jordan Blake
+-					li Jordi Pakey-Rodriguez
+-					li Joris van Embden
+-					li Joseph Swift
+-					li Josh Nethery
+-					li Josh Ricker
+-					li Josh VanDeraa
+-					li Joshua Futterer
+-					li Jozef Riha
+-					li Jörgen Fredriksson
+-					li Julian Forero
+-					li Julian Schneider
+-					li Julien Angelier
+-					li Justin
+-					li Justin Waters
+-					li Kai Hadler
+-					li Kamil Chyba
+-					li Kari Matti Korpi
+-					li Karl Dunne
+-					li Karl Moos
+-					li Keith Muggleton
+-					li Ken Lee
+-					li Kenneth Younger III
+-					li Kenny Hui
+-					li KeonWoo PARK
+-					li Kevin Bajohr
+-					li Kevin Schwartz
+-					li Kevin Sherwood
+-					li Kiera Kujisawa
+-					li Kiran Schuler
+-					li Koloman
+-					li Konrad Neitzel
+-					li Krzysztof Żelaśkiewicz
+-					li Lance Ward
+-					li Larry Meaney
+-					li Lars
+-					li Lars Reinhardt
+-					li Lee Wilkinson
+-					li LeeNX
+-					li Leon Siegl
+-					li Leonard Feineis
+-					li Lewis Wild
+-					li Liran
+-					li Liviu Dimitriu
+-					li Lizardo Hernandez
+-					li LoCascio
+-					li Lordbob75
+-					li Lothar Schweikle-Droll
+-					li Louis Müller
+-					li LSDTripp
+-					li Ľubor Slušný
+-					li Luca Di Diomede
+-					li Lucio De Carli
+-					li Luiz Bizzio
+-					li Lukas Bischof
+-					li Lukas Kammerer
+-					li Lukas Söder
+-					li Maksim Terehin
+-					li Malcolm Cameron
+-					li Manfred Radeschnig
+-					li Marc Khouri
+-					li Marcin Wilk
+-					li Marcio Zimbres
+-					li Marco Rossi
+-					li Marcos Wolf
+-					li Marek Marczykowski-Górecki
+-					li Marius
+-					li Mar. Balske
+-					li Mark Farrell
+-					li Mark Gilbert
+-					li Mark Knam
+-					li Mark Robinson
+-					li Markrosoft
+-					li Markus Halm
+-					li Markus Schicker
+-					li Markus Sobczack
+-					li Marshall Bjerke
+-					li Marten Hermans
+-					li Martin Gasser
+-					li Martin Hofbauer
+-					li Martin Raine
+-					li Martin Suelmann
+-					li Martin Wilhelmi
+-					li Marvin Honderboom
+-					li Mateusz Grabowski
+-					li Mathias Uhl
+-					li Matt Kane
+-					li Matthew Cameron
+-					li Mauricio Allende
+-					li Max Evans
+-					li Mecky
+-					li Mehmet Aydoğdu
+-					li Michael Bartholomew
+-					li Michael Bell
+-					li Michael Bombe
+-					li Michael Collins
+-					li Michael Copeland
+-					li Michael Ho
+-					li Michael Kovacs
+-					li Michael Lynch
+-					li Michael Pennington
+-					li Michael Sage
+-					li Michael Stella
+-					li Michael Thalmann
+-					li Michael Wu
+-					li MichaelZ
+-					li Michel Bissonnette
+-					li Mikael Wikström
+-					li Mike Mason
+-					li Mikhael Mariano
+-					li Milan Burda
+-					li Milan Múčka
+-					li Miles Davis
+-					li Minh Tang
+-					li Moez Tharani
+-					li Morgan Helton
+-					li Myron Weber
+-					li Murad Khasawneh
+-					li N Patel
+-					li Nathaniel Griswold
+-					li Nelson Lee
+-					li nezu
+-					li Nicholas Jeppson
+-					li Nicholas Kopas
+-					li Nicholas Walczak
+-					li Nick Leffler
+-					li Nick Roethemeier
+-					li Nico Baumgartner
+-					li Nicolai Kragh-Hansen
+-					li Nicolas Christener
+-					li Nigel Smith
+-					li Nihal Fernando
+-					li Nils Orbat
+-					li Nis Wechselberg
+-					li Nithin Philips
+-					li Nod Swal
+-					li Nolan Haynes
+-					li Noxigen LLC
+-					li nubbn
+-					li nybble
+-					li Oh Be
+-					li Oliver Schwarz
+-					li Oliver Zimmer
+-					li Omar El-Domeiri
+-					li Omar Siam
+-					li Oscar
+-					li Patrick
+-					li Patrick Fortin-Ducharme
+-					li Patrick McDowell
+-					li Patrick Wagstrom
+-					li Paul Bishop
+-					li Paul De La Rosa
+-					li Paul Pietkiewicz
+-					li Paul Tan
+-					li Pawel Trofimiuk
+-					li Peder Madsen
+-					li Peter
+-					li Peter Drayton
+-					li Peter Farrelly
+-					li Peter Okelmann
+-					li Petra Lohmann
+-					li Petri Heiskanen
+-					li Phil Wu
+-					li Philip Edwards
+-					li Philip Merricks
+-					li Pierre Brassart
+-					li Pierre Peine
+-					li posicat
+-					li pozitron03
+-					li Przemysław Szypowicz
+-					li P_Dmitrij
+-					li Qteal
+-					li Quattro Uno
+-					li Quentin Peten
+-					li Ralph Borchers
+-					li Ranc1d
+-					li Randall D Bilbrey
+-					li RandomJerk
+-					li Raphael Schitz
+-					li Ref Chowdhury
+-					li René Rathenau
+-					li ReysDad
+-					li Ricardo Marques
+-					li Richard
+-					li Richard Bernarts
+-					li Richard Fancher
+-					li Richard Freemantle
+-					li Richard Michael
+-					li Rico Cantrell
+-					li Rob
+-					li Rob Holden
+-					li Rob Tongue
+-					li Robert Klauco
+-					li Robert Weemhoff
+-					li Robin Gfatter
+-					li Rodion DENISYUK
+-					li Rohit Priyadarshi
+-					li Rolfs 3D UG
+-					li Ronald LeBaron
+-					li Ronald Wells
+-					li Ronny Haldorsen
+-					li rotx
+-					li Rufo Sanchez
+-					li Russell Scott
+-					li Ryan
+-					li Ryan Peacock
+-					li Samed Ozoglu
+-					li Sameul Davies
+-					li Samuel Cote
+-					li Samuel Vetsch
+-					li Samuel Walker
+-					li Sarah Foster
+-					li Sarten X
+-					li Satish Alwani
+-					li Scott
+-					li Scott Gagon
+-					li Scott Spicola
+-					li Scott Tusing
+-					li Scott Worthington
+-					li Scuba
+-					li Sean
+-					li Sean Akers
+-					li Sean c Rickard
+-					li SEAT
+-					li Sebastian
+-					li Seonwoo Lee
+-					li Sergey Lukjanov
+-					li Seth Jennings
+-					li Shane Selling
+-					li Shawn Butts
+-					li Sheran Gunasekera
+-					li Shichun Chen
+-					li Shin Guey Wong
+-					li Simon Evans
+-					li Simon Sundgaard
+-					li Simplistic Realities
+-					li Sirmo
+-					li Snowy Maslov
+-					li Solve Technology
+-					li srepac
+-					li Stefan Bautz
+-					li Stefan Müller
+-					li Stefan Stemmer
+-					li Stefan Vaillant
+-					li Stephan Schmidt
+-					li Stephen
+-					li Stephen Hocking
+-					li Steve Jones
+-					li Steve Kerr
+-					li Steve Ovens
+-					li Steve Stringham
+-					li Steven Richter
+-					li Stratagem Solutions Ltd
+-					li Sven Breckler
+-					li sudo34
+-					li SuperHiTech
+-					li Tango_Echo_Alpha
+-					li Tarlak Desaydrone
+-					li TechBear
+-					li techlobo
+-					li Ted
+-					li Tejun Heo
+-					li TheSnowedOne
+-					li TheTechGiant
+-					li Thomas Charisoulis
+-					li Thomas Gitlin
+-					li Thomas Hagenmaier
+-					li Thomas Hedberg Jensen
+-					li Thomas Price
+-					li Thomas Søfteland
+-					li Tim Lenz
+-					li Tim Wilkinson
+-					li Timo Brinkmann
+-					li Timothee Besset
+-					li TitomusPrime
+-					li Tobias Schafferhans
+-					li Tom Lawson
+-					li Tom York
+-					li Tomas Kuchta
+-					li Tomáš hrubý
+-					li Torsten Droste
+-					li Torsten Knoll
+-					li Tracy Fitch
+-					li Tristan Schoening
+-					li Truman Kilen
+-					li turbochris
+-					li tutanak
+-					li Tyler
+-					li Udo Schroeter
+-					li Uli Fahrer
+-					li Vasily Lazarev
+-					li Venmo
+-					li Vidru Eduard
+-					li Vicente Salvador Cubedo
+-					li Viktor Aschenbrenner
+-					li Viktor Ekmark
+-					li Vincent Chov
+-					li Vlad Sterescu
+-					li Volker Gropp
+-					li Walli
+-					li Walter_Ego
+-					li William Wenzel
+-					li Will Froning
+-					li William Hooper
+-					li William Perrin
+-					li William Stearns
+-					li Woojin Son
+-					li xMdb
+-					li Yanko Kaneti
+-					li Yaroslav Kulikovskikh
+-					li Yethal
+-					li Yevgeniy Kuksenko
+-					li Yew Kay Yan
+-					li Yigal Dar
+-					li Yogi
+-					li YURI LEE
+-					li Yurii Ostapchuk
+-					li Zeljko
+-					li zgen
+-					li Zoltan Magyari
+-					li Zsombor Vari
+-		br
+-		p.text.credits
+-			a(target="_blank" href="https://pikvm.org") PiKVM Project
+-			| &nbsp; | &nbsp;
+-			a(target="_blank" href="https://docs.pikvm.org") Documentation
+-			| &nbsp; | &nbsp;
+-			a(target="_blank" href="https://pikvm.org/support") Support
+diff --git a/web/kvm/window-keyboard.pug b/web/kvm/window-keyboard.pug
+deleted file mode 100644
+index 5c7fcc3e..00000000
+--- a/web/kvm/window-keyboard.pug
++++ /dev/null
+@@ -1,236 +0,0 @@
+-mixin spacer(sp)
+-	if sp == 1
+-		.spacer
+-	else if sp == 2
+-		.spacer-fixed
+-
+-
+-mixin key(sp, code, classes="", width=0)
+-	div(data-code=code, class=`key ${classes}`, style=(width ? `width: ${width}px` : ""))
+-		.label
+-			block
+-	+spacer(sp)
+-
+-
+-mixin modifier(sp, code, classes="", width=0)
+-	div(data-code=code, data-allow-autohold, class=`key ${classes}`, style=(width ? `width: ${width}px` : ""))
+-		.label
+-			| #[b &bull;]#[br]
+-			block
+-	+spacer(sp)
+-
+-
+-mixin empty(sp, classes="", width=0)
+-	div(class=`empty ${classes}`, style=(width ? `width:${width}px` : ""))
+-		.label &nbsp;
+-	+spacer(sp)
+-
+-
+-mixin lamp(cls)
+-	img(class=`inline-lamp-small ${cls} led-gray` src=`${svg_dir}/led-square.svg`)
+-
+-
+-.window#keyboard-window(data-show-centered)
+-	.window-header#keyboard-window-header
+-		.window-grab Virtual Keyboard
+-		.window-buttons
+-			button.window-button-original &bull;
+-			button.window-button-close #[b &times;]
+-
+-	.keypad#keyboard-desktop(align="center")
+-		.keypad-block
+-			.keypad-row
+-				+key(2, "Escape", "small") Esc
+-				+empty(1, "", 24)
+-				each key in ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"]
+-					+key((key != "F12" ? 1 : 0), key, "small") #{key}
+-					if key == "F4" || key == "F8"
+-						+empty(1, "", 10)
+-			hr
+-			.keypad-row
+-				+key(1, "Backquote") ~#[br]`
+-				each key, index in ["!", "@", "#", "$", "%", "^", "&", "*", "("]
+-					+key(1, `Digit${index + 1}`) #{key}#[br]#{index + 1}
+-				+key(1, "Digit0") )#[br]0
+-				+key(1, "Minus") _#[br]-
+-				+key(1, "Equal") +#[br]=
+-				+key(0, "Backspace", "wide-1 right") &#8612;
+-			.keypad-row
+-				+key(1, "Tab", "wide-1 left") &#8676;#[br]&#8677;
+-				each key in ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "BracketLeft") {#[br][
+-				+key(1, "BracketRight") }#[br]]
+-				+key(0, "Backslash") |#[br]&bsol;
+-			.keypad-row
+-				+key(1, "CapsLock", "wide-2 left small")
+-					+lamp("hid-keyboard-caps-led")
+-					| #[br] Caps Lock
+-				each key in ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "Semicolon") :#[br];
+-				+key(1, "Quote") "#[br]'
+-				+key(0, "Enter", "wide-2 right small") Enter#[br]&crarr;
+-			.keypad-row
+-				+modifier(1, "ShiftLeft", "wide-3 left small") Shift
+-				each key in ["Z", "X", "C", "V", "B", "N", "M"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "Comma") &lt;#[br],
+-				+key(1, "Period") &gt;#[br].
+-				+key(1, "Slash") ?#[br]/
+-				+modifier(0, "ShiftRight", "wide-3 right small") Shift
+-			.keypad-row
+-				+modifier(2, "ControlLeft", "wide-1 left small") Ctrl
+-				+modifier(2, "MetaLeft", "wide-1 left small") Win
+-				+modifier(2, "AltLeft", "wide-1 left small") Alt
+-				+key(2, "Space", "wide-4")
+-				+modifier(2, "AltRight", "wide-1 right small") Alt
+-				+modifier(2, "MetaRight", "wide-1 right small") Win
+-				+key(2, "ContextMenu", "small") #[br]Menu
+-				+modifier(0, "ControlRight", "wide-1 right small") Ctrl
+-		.keypad-block
+-			.keypad-row
+-				+modifier(2, "PrintScreen", "small") Pt/Sq
+-				+key(2, "ScrollLock", "small")
+-					+lamp("hid-keyboard-scroll-led")
+-					| #[br] ScrLk
+-				+key(0, "Pause", "small") P/Brk
+-			hr
+-			.keypad-row
+-				+key(2, "Insert", "small") Ins
+-				+key(2, "Home", "small") Home
+-				+key(0, "PageUp", "small") PgUp
+-			.keypad-row
+-				+key(2, "Delete", "small") Del
+-				+key(2, "End", "small") End
+-				+key(0, "PageDown", "small") PgDn
+-			.keypad-row
+-			.keypad-row
+-				+empty(1, "")
+-				+key(2, "ArrowUp") &uarr;
+-				+empty(0, "")
+-			.keypad-row
+-				+key(2, "ArrowLeft") &larr;
+-				+key(2, "ArrowDown") &darr;
+-				+key(0, "ArrowRight") &rarr;
+-		.keypad-block
+-			.keypad-row
+-				+empty(2, "small")
+-				+empty(2, "small")
+-				+empty(2, "small")
+-				+key(0, "Power", "small") PWR
+-			hr
+-			.keypad-row
+-				+key(2, "NumLock", "small")
+-					+lamp("hid-keyboard-num-led")
+-					| #[br] NmLk
+-				+key(2, "NumpadDivide") /
+-				+key(2, "NumpadMultiply") *
+-				+key(0, "NumpadSubtract") -
+-			.keypad-row
+-				+key(2, "Numpad7", "small") 7#[br]Home
+-				+key(2, "Numpad8", "small") 8#[br]&uarr;
+-				+key(2, "Numpad9", "small") 9#[br]PgUp
+-				+empty(0, "")
+-			.keypad-row
+-				+key(2, "Numpad4", "small") 4#[br]&larr;
+-				+key(2, "Numpad5", "small") 5#[br]#[br]
+-				+key(2, "Numpad6", "small") 6#[br]&rarr;
+-				+key(0, "NumpadAdd") +
+-			.keypad-row
+-				+key(2, "Numpad1", "small") 1#[br]End
+-				+key(2, "Numpad2", "small") 2#[br]&darr;
+-				+key(2, "Numpad3", "small") 3#[br]PgDn
+-				+empty(0, "")
+-			.keypad-row
+-				+key(2, "Numpad0", "small") 0#[br]Ins
+-				+empty(2, "")
+-				+key(2, "NumpadDecimal", "small") .#[br]Del
+-				+key(0, "NumpadEnter", "small") Ent
+-		.keypad-block
+-			.keypad-row
+-				+key(0, "IntlBackslash", "small") &bsol;#[br]|
+-			hr
+-			.keypad-row
+-				+key(0, "IntlYen", "small") ¥#[br]_
+-			.keypad-row
+-				+key(0, "IntlRo", "small") &bsol;#[br]ろ
+-			.keypad-row
+-				+modifier(0, "KanaMode", "small") Kana
+-			.keypad-row
+-				+modifier(0, "NonConvert", "small") N/Cnv
+-			.keypad-row
+-				+modifier(0, "Convert", "small") Cnv
+-
+-	.keypad#keyboard-mobile(align="center")
+-		.keypad-block
+-			.keypad-row
+-				+key(1, "Escape", "small") Esc
+-				+key(0, "F1", "wide-0 small rounded-left") F1
+-				+key(0, "F2", "wide-0 small rounded-none") F2
+-				+key(0, "F3", "wide-0 small rounded-none") F3
+-				+key(2, "F4", "wide-0 small rounded-right") F4
+-				+key(0, "F5", "wide-0 small rounded-left") F5
+-				+key(0, "F6", "wide-0 small rounded-none") F6
+-				+key(0, "F7", "wide-0 small rounded-none") F7
+-				+key(2, "F8", "wide-0 small rounded-right") F8
+-				+key(0, "F9", "wide-0 small rounded-left") F9
+-				+key(0, "F10", "wide-0 small rounded-none") F10
+-				+key(0, "F11", "wide-0 small rounded-none") F11
+-				+key(2, "F12", "wide-0 small rounded-right") F12
+-				+modifier(1, "PrintScreen", "small") Pt/Sq
+-				+key(1, "ScrollLock", "small")
+-					+lamp("hid-keyboard-scroll-led")
+-					| #[br] ScrLk
+-				+key(1, "Pause", "small") P/Brk
+-				+key(1, "Insert", "small") Ins
+-				+key(1, "Home", "small") Home
+-				+key(1, "End", "small") End
+-				+key(0, "Delete", "small") Del
+-			.keypad-row
+-				+key(1, "Backquote") ~#[br]`
+-				each key, index in ["!", "@", "#", "$", "%", "^", "&", "*", "("]
+-					+key(1, `Digit${index + 1}`) #{key}#[br]#{index + 1}
+-				+key(1, "Digit0") )#[br]0
+-				+key(1, "Minus") _#[br]-
+-				+key(1, "Equal") +#[br]=
+-				+key(0, "Backspace", "wide-2 right", 101) &#8612;
+-			.keypad-row
+-				+key(1, "Tab", "wide-1 left") &#8676;<br>&#8677;
+-				each key in ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "BracketLeft") {#[br][
+-				+key(1, "BracketRight") }#[br]]
+-				+key(0, "Backslash", "wide-1 left", 78) |#[br]&bsol;
+-			.keypad-row
+-				+key(1, "CapsLock", "wide-2 left small")
+-					+lamp("hid-keyboard-caps-led")
+-					| #[br] Caps Lock
+-				each key in ["A", "S", "D", "F", "G", "H", "J", "K", "L"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "Semicolon") :#[br];
+-				+key(1, "Quote") `#[br]'
+-				+key(0, "Enter", "wide-3 right small", 116) Enter#[br]&crarr;
+-			.keypad-row
+-				+modifier(1, "ShiftLeft", "wide-3 left small") Shift
+-				each key in ["Z", "X", "C", "V", "B", "N", "M"]
+-					+key(1, `Key${key}`, "single") #{key}
+-				+key(1, "Comma") &lt;#[br],
+-				+key(1, "Period") &gt;#[br].
+-				+key(1, "Slash") ?#[br]/
+-				+key(2, "PageUp", "small") PgUp
+-				+key(2, "ArrowUp") &uarr;
+-				+key(0, "PageDown", "small") PgDn
+-			.keypad-row
+-				+modifier(1, "ControlLeft", "wide-1 left small") Ctrl
+-				+modifier(1, "MetaLeft", "wide-1 left small") Win
+-				+modifier(1, "AltLeft", "wide-1 left small") Alt
+-				+key(1, "Space", "", 190)
+-				+modifier(1, "AltRight", "right small") Alt
+-				+modifier(1, "MetaRight", "right small") Win
+-				+key(1, "ContextMenu", "small") #[br]Menu
+-				+modifier(1, "ShiftRight", "right small") Shift
+-				+modifier(1, "ControlRight", "right small") Ctrl
+-				+key(2, "ArrowLeft") &larr;
+-				+key(2, "ArrowDown") &darr;
+-				+key(0, "ArrowRight") &rarr;
+diff --git a/web/kvm/window-stream.pug b/web/kvm/window-stream.pug
+deleted file mode 100644
+index 8fc7d199..00000000
+--- a/web/kvm/window-stream.pug
++++ /dev/null
+@@ -1,39 +0,0 @@
+-.window#stream-ocr-window
+-	.hidden#stream-ocr-selection
+-
+-.window.window-resizable#stream-window(data-show-maximized data-organize-hook)
+-	.window-header#stream-window-header
+-		.window-grab MJPEG
+-		.window-buttons
+-			button.window-button-full-screen &#10530;
+-			button.window-button-enter-full-tab &#9650;
+-			button.window-button-original &bull;
+-			button.window-button-maximize &#9744;
+-			button.window-button-close #[b &times;]
+-
+-	#stream-info
+-
+-	button.window-button-exit-full-tab &#9660;
+-
+-	.stream-box-offline#stream-box
+-		img#stream-image(src=`${png_dir}/blank-stream.png`)
+-		video.hidden#stream-video(disablePictureInPicture="true" autoplay playsinline muted)
+-		canvas.hidden#stream-canvas
+-		#stream-fullscreen-active
+-
+-	.keypad#stream-mouse-buttons(align="center")
+-		.keypad-block
+-			.keypad-row
+-				.key.wide-3.left.rounded-left(data-code="left" data-allow-autohold)
+-					.label #[b &bull;]#[br]Left
+-				.key.wide-1.rounded-none(data-code="middle" data-allow-autohold)
+-					.label #[b &bull;]#[br]Mid
+-				.key.wide-3.right.rounded-right(data-code="right" data-allow-autohold)
+-					.label #[b &bull;]#[br]Right
+-
+-				.empty(style="width: 30px")
+-
+-				.key.small.rounded-left(data-code="up" data-allow-autohold)
+-					.label #[b &bull;]#[br]Up
+-				.key.small.rounded-right(data-code="down" data-allow-autohold)
+-					.label #[b &bull;]#[br]Down
+diff --git a/web/kvm/window-switch.pug b/web/kvm/window-switch.pug
+deleted file mode 100644
+index 8a04ffa2..00000000
+--- a/web/kvm/window-switch.pug
++++ /dev/null
+@@ -1,73 +0,0 @@
+-mixin switch_tab(name, title, checked=false)
+-	- let button_id = `switch-tab-${name}-button`
+-	input(checked=checked type="radio" name="switch-tab-button" id=button_id)
+-	label(for=button_id) #{title}
+-	.tab
+-		block
+-
+-
+-mixin color_slider_tr(name, title)
+-	tr
+-		td(style="white-space: nowrap") #{title}:
+-		td #[input(type="color" id=`switch-color-${name}-input`)]
+-		td #[input(type="range" id=`switch-color-${name}-brightness-slider` style="min-width: 150px")]
+-		td &nbsp;&nbsp;&nbsp;
+-		td #[button(id=`switch-color-${name}-default-button` class="small" title="Reset default") &#8635;]
+-
+-
+-.window#switch-window(data-show-centered style="width: min-content")
+-	.window-header
+-		.window-grab Switch settings
+-		.window-buttons
+-			button.window-button-original &bull;
+-			button.window-button-close #[b &times;]
+-
+-	.tabs-box
+-		+switch_tab("edid", "EDIDs collection", true)
+-			table
+-				tr
+-					td(colspan="2")
+-						select#switch-edid-selector(
+-							size="8"
+-							style="width: -webkit-fill-available; width: -moz-available;"
+-						)
+-					td(rowspan="2" style="vertical-align: top")
+-						table.kv
+-							tr
+-								td Manufacturer:
+-								td.value#switch-edid-info-mfc-id
+-							tr
+-								td Product ID:
+-								td.value#switch-edid-info-product-id
+-							tr
+-								td Serial:
+-								td.value#switch-edid-info-serial
+-							tr
+-								td Monitor name:
+-								td.value#switch-edid-info-monitor-name
+-							tr
+-								td Extra serial:
+-								td.value#switch-edid-info-monitor-serial
+-							tr
+-								td Audio enabled:
+-								td.value#switch-edid-info-audio
+-							tr
+-								td Data:
+-								td #[button.small#switch-edid-copy-data-button(disabled) Copy]
+-				tr
+-					td #[button#switch-edid-add-button Add new]
+-					td(style="float: right") #[button#switch-edid-remove-button(disabled) Remove]
+-
+-		+switch_tab("colors", "Color scheme")
+-			table
+-				+color_slider_tr("active", "Selected port")
+-				+color_slider_tr("inactive", "Inactive port")
+-				+color_slider_tr("beacon", "Blinking beacon")
+-				tr
+-					td #[hr]
+-					td #[hr]
+-					td #[hr]
+-					td
+-					td #[hr]
+-				+color_slider_tr("flashing", "Flashing downlink")
+-				+color_slider_tr("bootloader", "Bootloader mode")
+diff --git a/web/kvm/window-webterm.pug b/web/kvm/window-webterm.pug
+deleted file mode 100644
+index 274c5e78..00000000
+--- a/web/kvm/window-webterm.pug
++++ /dev/null
+@@ -1,11 +0,0 @@
+-.window.window-resizable#webterm-window(data-show-centered style="display: flex; min-width: 720px; min-height: 480px")
+-	.window-header
+-		.window-grab Terminal
+-		.window-buttons
+-			button.window-button-original &bull;
+-			button.window-button-maximize &#9744;
+-			button.window-button-close #[b &times;]
+-			// Терминал глючит из-за зажимаемой клавиши ESC для выхода
+-			// button(class="window-button-full-screen") &#10530;
+-
+-	iframe#webterm-iframe(src="" style="width: 100%; flex: 1")
+diff --git a/web/kvm/windows.pug b/web/kvm/windows.pug
+deleted file mode 100644
+index 7b20bc22..00000000
+--- a/web/kvm/windows.pug
++++ /dev/null
+@@ -1,5 +0,0 @@
+-include window-stream.pug
+-include window-keyboard.pug
+-include window-switch.pug
+-include window-about.pug
+-include window-webterm.pug
+diff --git a/web/login/index.pug b/web/login/index.pug
+deleted file mode 100644
+index a0ce05c1..00000000
+--- a/web/login/index.pug
++++ /dev/null
+@@ -1,61 +0,0 @@
+-extends ../base.pug
+-
+-
+-mixin radio(name, items)
+-	.radio-box
+-		each item in items
+-			-
+-				let id = `${name}-${item["value"]}`
+-				let checked = (item["checked"] || false)
+-			input(type="radio" id=id name=name value=item["value"] checked=checked)
+-			label(for=id) !{item["title"]}
+-
+-
+-append vars
+-	-
+-		root_prefix = "../"
+-		title = "PiKVM Login"
+-		main_js = "login/main"
+-		css_list.push("window", "modal", "radio", "login/login")
+-
+-
+-block body
+-	form(action="javascript:void(0)")
+-		#login-box
+-			#login
+-				table
+-					tr
+-						td #[img.svg-gray#login-logo(src=`${svg_dir}/logo.svg` alt="&pi;-kvm")]
+-						td
+-					tr
+-						td(colspan=2) #[hr]
+-					tr
+-						td Username:&nbsp;
+-						td #[input#user-input(type="text" autocapitalize="off")]
+-					tr
+-						td Password:&nbsp;
+-						td #[input#passwd-input(type="password" autocapitalize="off")]
+-					tr
+-						td 2FA code:&nbsp;
+-						td #[input#code-input(type="text" placeholder="if enabled" autocomplete="off")]
+-					tr
+-						td(colspan=2) #[hr]
+-					tr
+-						td #[a(target="_blank" href="https://docs.pikvm.org/auth/#session-expiration") Remember me]:&nbsp;
+-						td
+-							+radio("expire-radio", [
+-								{"title": "1h", "value": "3600"},
+-								{"title": "12h", "value": "43200"},
+-								{"title": "Forever", "value": "0", "checked": true},
+-							])
+-					tr
+-						td(colspan=2) #[hr]
+-					tr
+-						td
+-						td #[button.key#login-button Login]
+-
+-	ul.footer
+-		li.left
+-			| This site is actively using JavaScript.#[br]
+-			| It doesn't contain ads, but is blocked by some ad filters.#[br]
+-			| Please turn it off to continue and reload the page.
+diff --git a/web/share/css/kvm/stream.css b/web/share/css/kvm/stream.css
+index 8ef1e57d..ff4420d1 100644
+--- a/web/share/css/kvm/stream.css
++++ b/web/share/css/kvm/stream.css
+@@ -27,6 +27,7 @@ div#stream-window {
+ 	padding-bottom: 2px;
+ 	padding-left: 2px;
+ 	padding-right: 2px;*/
++	z-index: 1 !important;
+ }
+ 
+ div#stream-info {
+diff --git a/web/share/css/kvm/system.css b/web/share/css/kvm/system.css
+index 06a19202..767dda88 100644
+--- a/web/share/css/kvm/system.css
++++ b/web/share/css/kvm/system.css
+@@ -20,7 +20,22 @@
+ *****************************************************************************/
+ 
+ 
++header, nav, .navbar {
++    position: relative !important;
++    z-index: 20000 !important;
++}
++
+ div#system-menu {
+-	min-width: 400px;
+-	max-width: 400px;
++    position: absolute; /* Ensure absolute positioning, detached from document flow */
++    z-index: 99999 !important; /* Set a very high z-index, !important prevents overrides */
++    background-color: white; /* Ensure opaque background to avoid transparency issues */
++
++    min-width: 400px;
++    max-width: 400px;
++}
++
++/* Settings for the parent button (ensure the menu is positioned relative to the button) */
++div#system-dropdown {
++    position: relative; /* Positioning reference point */
++    z-index: 20001 !important;
+ }
+diff --git a/web/share/css/main.css b/web/share/css/main.css
+index 127043e1..da7a9474 100644
+--- a/web/share/css/main.css
++++ b/web/share/css/main.css
+@@ -85,10 +85,11 @@ div.code span.code-comment {
+ 	color: var(--cs-code-comment-fg);
+ }
+ 
+-img.svg-gray {
+-	-webkit-filter: invert(0.7);
+-	filter: invert(0.6);
++img {
++	/* -webkit-filter: invert(0.7); 
++	filter: invert(0.6);*/
+ 	vertical-align: middle;
++    align-items: center;
+ }
+ 
+ img.inline-lamp {
+@@ -285,6 +286,10 @@ table.kv td.value-number {
+ 	min-width: 40px;
+ 	max-width: 40px;
+ }
++table.kv td img{
++	width: 30px;
++	padding: 5px;
++}
+ .ic-btn-container{
+ 	display: flex;
+ 	justify-content: center;
+diff --git a/web/share/css/navbar.css b/web/share/css/navbar.css
+index c8f368b1..3ab31f07 100644
+--- a/web/share/css/navbar.css
++++ b/web/share/css/navbar.css
+@@ -18,54 +18,197 @@
+ #    along with this program.  If not, see <https://www.gnu.org/licenses/>.  #
+ #                                                                            #
+ *****************************************************************************/
++.sidebar {
++	position: fixed;
++	width: 160px;
++	margin: 12px;
++	/*border-radius: 12px;
++	 background: var(--cs-navbar-default-bg); */
++	height: calc(100vh - 24px);
++	transition: all 0.4s ease;
++  }
++  
++  .sidebar.collapsed {
++	width: 82px;
++  }
++  
++  .sidebar .sidebar-header {
++	display: flex;
++	position: relative;
++	padding: 18px 8px;
++	align-items: center;
++	justify-content: space-between;
++	padding-bottom: 58px;
++  }
+ 
+-
++  .sidebar-header, .sidebar-nav{
++	background: var(--cs-navbar-default-bg);
++  }
++  .sidebar-header{
++	border-radius: 12px 12px 0px 0px;
++  }
++  .sidebar-nav{
++	border-radius: 0px 0px 12px 12px;
++  }
++  
++  .sidebar-header .logo img {
++	width: 46px;
++	height: 46px;
++	display: block;
++	object-fit: contain;
++  }
++  
++  .sidebar-header .toggler {
++	height: 48px;
++	width: 48px;
++	border: none;
++	border-radius: 50%;
++	cursor: pointer;
++	display: flex;
++	align-items: center;
++	justify-content: center;
++	transition: 0.4s ease;
++	background: none;
++  }
++  
++  .sidebar-header .sidebar-toggler {
++	position: absolute;
++	right: 12px;
++  }
++  
++  .sidebar-header .menu-toggler {
++	display: none;
++  }
++  
++  .sidebar.collapsed .sidebar-header .toggler {
++	transform: translate(-4px, 65px);
++  }
++  
++  .sidebar-header .toggler:hover{
++	background: #00000033;
++  }
++  ul#navbar li a.logo:hover:not(.active),
++  ul#navbar li a.menu-button:hover:not(.active),
++  .sidebar-nav .menu-button:hover {
++	background: #ffffff;
++  }
++  
++  .sidebar-header .toggler span {
++	font-size: 1.75rem;
++	transition: 0.4s ease;
++  }
++  
++  .sidebar.collapsed .sidebar-header .toggler img {
++	transform: rotate(180deg);
++  }
++  
++  .sidebar-nav .nav-list{
++	list-style: none;
++	display: flex;
++	gap: 4px;
++	padding: 0;
++	flex-direction: column;
++	transform: translateY(15px);
++	transition: 0.4s ease;
++  }
++  
++  .sidebar.collapsed .sidebar-nav .primary-nav {
++	transform: translateY(65px);
++  }
++  ul.nav-list li a.menu-button {
++	display: flex;
++	gap: 12px;
++	white-space: nowrap;
++	border-radius: 8px;
++	padding: 15px;
++	align-items: center;
++	text-decoration: none;
++	transition: 0.4s ease;
++	position: relative;
++	outline: none;
++	cursor: pointer;
++	color: var(--cs-navbar-default-fg);
++	padding-left: 28px;
++	text-decoration: none;
++  }
++  
++  .sidebar .sidebar-nav .menu-button .nav-label {
++	transition: opacity 0.3s ease;
++  }
++  
++  .sidebar.collapsed .sidebar-nav .menu-button .nav-label {
++	opacity: 0;
++	pointer-events: none;
++  }
++  
++  ul#navbar li a.menu-button:hover{
++	color: #151A2D;
++	background: #fff;
++  }
++  
++  .sidebar-nav{
++	height: calc(100vh - 116px - 52px);
++  }
++  .sidebar-nav .nav-item {
++	position: relative;
++  }
++  
++  .sidebar-nav span.nav-tooltip {
++	position: absolute;
++	top: -3px;
++	opacity: 0;
++	color: #151A2D;
++	display: none;
++	pointer-events: none;
++	padding: 6px 12px;
++	border-radius: 8px;
++	white-space: nowrap;
++	background: #fff;
++	left: calc(100% + 8px);
++	box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
++	transition: 0s;
++  }
++  
++  .sidebar.collapsed .sidebar-nav span.nav-tooltip {
++	display: block;
++  }
++  
++  .sidebar-nav .nav-item:hover span.nav-tooltip {
++	opacity: 1;
++	pointer-events: auto;
++	transform: translateY(50%);
++	transition: all 0.4s ease;
++  }
++  
++  ul.secondary-nav {
++	position: absolute;
++	bottom: 12px;
++	width: 100%;
++  }
++  
+ ul#navbar {
+ 	/* box-shadow: var(--shadow-small); */
+ 	list-style-type: none;
+ 	margin: 0;
+ 	padding: 0;
+ 	/* background-color: var(--cs-navbar-default-bg); */
+-	position: fixed;
+-	top: 0;
++	position: relative;
++    top: -50px;
+ 	width: 100%;
+ 	height: 50px;
+-	z-index: 2147483646;
+-}
+-
+-ul#navbar li.right {
+-	/* border-left: var(--border-navbar-item-thin); */
+-	float: right;
+-}
+-
+-ul#navbar li.left {
+-	/* border-right: var(--border-navbar-item-thin); */
+-	float: left;
++	z-index: 9999999;
+ }
+ 
+-ul#navbar li a#logo {
+-	height: 50px; /* Чтобы вертикальные разделители не вылезали за пределы навбара */
++.sidebar a.logo {
+ 	line-height: 50px;
+ 	outline: none;
+-	cursor: pointer;
++	cursor: auto;
+ 	display: inline-block;
+ 	color: var(--cs-navbar-default-fg);
+-	padding-left: 16px;
+-	padding-right: 16px;
+ 	text-decoration: none;
+-}
+-
+-ul#navbar li a.menu-button {
+-	height: 50px; /* То же самое */
+-	line-height: 50px;
+-	outline: none;
+-	cursor: pointer;
+-	display: inline-block;
+-	color: var(--cs-navbar-default-fg);
+-	padding-left: 16px;
+-	padding-right: 16px;
+-	text-decoration: none;
+-	position: relative;
++	background: linear-gradient(45deg, #0045ab, #0068b7);;
++    border-radius: 12%;
++    padding: 10px;
+ }
+ 
+ /*ul#navbar li a.menu-button:before {
+@@ -78,23 +221,25 @@ ul#navbar li a.menu-button {
+ 	border-left: 10px solid transparent;
+ }*/
+ 
+-ul#navbar li a#logo:hover:not(.active),
++/* ul#navbar li a.logo:hover:not(.active),
+ ul#navbar li a.menu-button:hover:not(.active) {
+ 	background: linear-gradient(to bottom, #000000, #00000000);
+ 	opacity: 0.5;
+ 	mix-blend-mode: overlay;
+-}
++} */
+ 
+-ul#navbar li a#logo img {
++ul#navbar li a.logo img {
+ 	margin-top: -2px;
+-	height: 24px;
+-}
++	height: 24px;}
+ 
+ ul#navbar li a.menu-button span,
+-ul#navbar li a.menu-button img {
++ul#navbar li a.menu-button img,
++ul li a.menu-button img {
+ 	vertical-align: middle;
+-	height: 20px;
+-}
++	height: 26px;
++	display: flex;
++    align-items: center;
++ }
+ ul#navbar li a.menu-button span:not(:last-child),
+ ul#navbar li a.menu-button img:not(:last-child) {
+ 	margin-right: 10px;
+@@ -104,7 +249,9 @@ ul#navbar li a.menu-button-pressed {
+ 	box-shadow: var(--shadow-navbar-item-pressed);
+ 	background-color: var(--cs-navbar-item-pressed-bg) !important;
+ }
+-
++.sidebar.collapsed #navbar li div.menu {
++	left: 86px;
++}
+ ul#navbar li div.menu {
+ 	visibility: hidden;
+ 	outline: none;
+@@ -116,9 +263,12 @@ ul#navbar li div.menu {
+ 	border-top: var(--border-navbar-menu-top-thin);
+ 	border-radius: 0 0 8px 8px;
+ 	position: absolute;
+-	background-color: var(--cs-navbar-default-bg);
++	top: 0;
++	left: 164px;
++	background-color: var(--cs-window-default-bg);
+ 	box-shadow: var(--shadow-big);
+ 	z-index: 2147483645;
++	transition: all 0.4s ease;
+ }
+ ul#navbar li div.menu-active {
+ 	border: var(--border-navbar-menu-active-2px) !important;
+@@ -165,7 +315,7 @@ ul#navbar li div.menu div.buttons {
+ }
+ 
+ ul#navbar li div.menu div.text {
+-	margin: 10px 15px 10px 15px;
++	margin: 20px 15px 10px 15px;
+ 	font-size: 14px;
+ }
+ 
+@@ -187,6 +337,11 @@ ul#navbar li div.menu input[type=text]::-webkit-input-placeholder {
+ 	text-align: center;
+ }
+ 
++ul#navbar li table.kv tr td hr {
++	position: absolute;
++	width: 100%;
++	margin-left: -16px;
++}
+ ul#navbar li div.menu hr {
+ 	margin: 0;
+ 	display: block;
+@@ -222,12 +377,126 @@ ul.navbar-bg-tips li pre {
+ 	white-space: break-spaces;
+ 	text-align: justify;
+ }
+-ul.navbar-bg-tips li.left {
+-	float: left;
+-}
+-ul.navbar-bg-tips li.right {
+-	float: right;
+-}
++
+ ul.navbar-bg-tips li a {
+ 	color: var(--cs-page-obscure-fg);
+ }
++ul li {
++	list-style: none;
++}
++
++/* Responsive media query code for small screens */
++@media (max-width: 800px) {
++	.sidebar {
++	  height: 56px;
++	  margin: 13px;
++	  overflow-y: hidden;
++	  scrollbar-width: none;
++	  width: calc(100% - 26px);
++	  max-height: calc(100vh - 26px);
++	}
++  
++	.sidebar.menu-active {
++	  overflow-y: auto;
++	}
++
++	.sidebar .sidebar-header {
++	  position: sticky;
++	  top: 0;
++	  z-index: 20;
++	  border-radius: 12px;
++	  padding: 5px 10px;
++	}
++
++	.sidebar a.logo{
++		padding: 0 5px;
++		background: none;
++	}
++  
++	.sidebar-header img {
++		width: 36px;
++	  }
++	.sidebar-header .header-logo img {
++	  filter: invert(66%) sepia(87%) saturate(1418%) hue-rotate(185deg) brightness(70%) contrast(102%);
++	}
++
++	.sidebar-header .menu-toggler:hover{
++		background: none;
++	  }
++	
++	.sidebar-header .sidebar-toggler,
++	.sidebar-nav .nav-item:hover span.nav-tooltip {
++	  display: none;
++	}
++	
++	.sidebar-header .menu-toggler {
++	  display: flex;
++	  justify-content: flex-end;
++	  align-items: normal;
++
++	}
++	.sidebar.menu-active .menu-toggler {
++		transform: rotate(-90deg);
++	}
++	.sidebar-header .menu-toggler span {
++	  /* font-size: 1.3rem; */
++	  margin: 3px;
++	}
++  
++	.sidebar .sidebar-nav .nav-list {
++	  padding: 0;
++	}
++  
++	.sidebar-nav .menu-button {
++	  gap: 10px;
++	  padding: 10px;
++	  font-size: 0.94rem;
++	}
++  
++	.sidebar-nav .menu-button .nav-icon {
++	  font-size: 1.37rem;
++	}
++  
++	.sidebar-nav .secondary-nav {
++	  position: relative;
++	  bottom: 0;
++	  visibility: hidden;
++	  opacity: 0;
++	}
++	.sidebar.menu-active ul.secondary-nav {
++		position: absolute;
++		bottom: 0;
++		transition: all 0.4s ease;
++		margin: 40px 0 30px;
++		visibility: visible;
++		opacity: 1;
++	}
++	ul#navbar li div.menu{
++		top: calc(50vh - 200px);
++		left: 0;
++		min-width: 100%;
++	}
++	#system-menu{
++		position: fixed;
++    	left: calc(100vW - 200px);
++	}
++  }
++
++  ul#navbar #system-dropdown a span:first-child{
++	position: fixed;
++  }
++
++  .btn-container{
++	overflow: hidden;
++  }
++  .btn-container button{
++	display: flex;
++	align-items: center;
++	justify-content: center;
++	border-radius: 0;
++  }
++  button #hid-keyboard-led{
++	height: 100%;
++	filter: invert(50%) brightness(70%);
++	padding: 5px;
++}
+\ No newline at end of file
+diff --git a/web/share/css/vars.css b/web/share/css/vars.css
+index 5899452a..921838da 100644
+--- a/web/share/css/vars.css
++++ b/web/share/css/vars.css
+@@ -28,7 +28,7 @@
+ 	--cs-login-default-bg: #8a8e97;
+ 
+ 	--cs-control-default-bg: #36393f;
+-	--cs-control-default-fg: #c3c3c3;
++	--cs-control-default-fg: #60646b;
+ 	--cs-control-intensive-fg: white;
+ 	--cs-control-hovered-bg: #2a2d31;
+ 	--cs-control-hovered-fg: white;
+@@ -36,15 +36,15 @@
+ 	--cs-control-pressed-fg: #6c7481;
+ 	--cs-control-disabled-fg: #6c7481;
+ 
+-	--cs-navbar-default-bg: #202225;
+-	--cs-navbar-default-fg: #c3c3c3;
++	--cs-navbar-default-bg: #e4e5e5cc;
++	--cs-navbar-default-fg: #333333;
+ 	--cs-navbar-item-hovered-bg: #1a1c1f;
+-	--cs-navbar-item-pressed-bg: #171717;
++	--cs-navbar-item-pressed-bg: #ffffff;
+ 
+ 	--cs-window-default-bg: #ffffffdd;
+ 	--cs-window-default-fg: #c3c3c3;
+ 	--cs-window-header-default-fg: #aaaaaa;
+-	--cs-window-header-grabbed-bg: #436a8a;
++	--cs-window-header-grabbed-bg: #36393f;
+ 	--cs-window-header-grabbed-fg: white;
+ 	--cs-window-closer-default-fg: #6c7481;
+ 	--cs-window-button-special-fg: #009b48;
+@@ -78,7 +78,7 @@
+ 	--shadow-micro: 1px 2px 4px 0 rgba(0, 0, 0, 0.4);
+ 	--shadow-small: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+ 	--shadow-big: 0 8px 16px 0 rgba(0, 0, 0, 0.4);
+-	--shadow-navbar-item-pressed: 0 5px 0 #5b90bb inset;
++	--shadow-navbar-item-pressed: 0 5px 0 #eaeaea inset;
+ 	/*--shadow-window-fullscreen-active: 0 0 0 2px #5b90bb inset;*/
+ 
+ 	--border-default-thin: thin solid #36393f33;
+diff --git a/web/share/css/window.css b/web/share/css/window.css
+index 2ac3ae36..8b9f4253 100644
+--- a/web/share/css/window.css
++++ b/web/share/css/window.css
+@@ -116,6 +116,7 @@ div.window div.window-header {
+ 	font-size: 0.8em;
+ 	color: var(--cs-window-header-default-fg);
+ 	border-bottom: var(--border-default-thin);
++	background: var(--cs-window-header-grabbed-bg);
+ }
+ div.window:fullscreen div.window-header {
+ 	display: none !important;
+diff --git a/web/share/js/kvm/hid.js b/web/share/js/kvm/hid.js
+index b7df6cda..8729f1b3 100644
+--- a/web/share/js/kvm/hid.js
++++ b/web/share/js/kvm/hid.js
+@@ -53,7 +53,7 @@ export function Hid(__getGeometry, __recorder) {
+ 		window.addEventListener("blur", __releaseAll);
+ 
+ 		tools.el.setOnClick($("hid-connect-switch"), __clickConnectSwitch);
+-		tools.el.setOnClick($("hid-reset-button"), __clickResetButton);
++		//tools.el.setOnClick($("hid-reset-button"), __clickResetButton);
+ 
+ 		for (let el_shortcut of $$$("[data-shortcut]")) {
+ 			tools.el.setOnClick(el_shortcut, function() {
+@@ -152,7 +152,7 @@ export function Hid(__getGeometry, __recorder) {
+ 			tools.el.setEnabled($("hid-mouse-squash-switch"), false);
+ 			tools.el.setEnabled($("hid-mouse-sens-slider"), false);
+ 		}
+-		tools.el.setEnabled($("hid-reset-button"), __state);
++		//tools.el.setEnabled($("hid-reset-button"), __state);
+ 		tools.el.setEnabled($("hid-jiggler-switch"), __state);
+ 	};
+ 
+diff --git a/web/share/js/kvm/msd.js b/web/share/js/kvm/msd.js
+index b513c08d..5af59681 100644
+--- a/web/share/js/kvm/msd.js
++++ b/web/share/js/kvm/msd.js
+@@ -35,6 +35,7 @@ export function Msd() {
+ 
+ 	var __state = null;
+ 	var __http = null;
++	var __currentImage = "";
+ 
+ 	var __init__ = function() {
+ 		$("msd-led").title = "Unknown state";
+@@ -139,6 +140,7 @@ export function Msd() {
+ 
+ 		tools.el.setEnabled($("msd-connect-button"), (o && d.image && !d.connected && !busy));
+ 		tools.el.setEnabled($("msd-disconnect-button"), (o && d.connected && !busy));
++		$("msd-switch").checked = (o && d.connected && !busy);
+ 
+ 		tools.el.setEnabled($("msd-select-new-button"), (o && !d.connected && !__http && !busy));
+ 		tools.el.setEnabled($("msd-upload-new-button"),
+@@ -162,7 +164,8 @@ export function Msd() {
+ 		let led_cls = "led-gray";
+ 		let msg = "Unavailable";
+ 		if (o && d.connected) {
+-			led_cls = "led-green";
++			//led_cls = "led-green";
++			led_cls = "nav-green";
+ 			msg = "Connected to Server";
+ 		} else if (o && s.uploading) {
+ 			led_cls = "led-yellow-rotating-fast";
+@@ -171,6 +174,7 @@ export function Msd() {
+ 			led_cls = "led-yellow-rotating-fast";
+ 			msg = "Serving the image to download";
+ 		} else if (o) { // Sic!
++			led_cls = "nav-green";
+ 			msg = "Disconnected";
+ 		}
+ 		$("msd-led").className = led_cls;
+@@ -232,6 +236,7 @@ export function Msd() {
+ 		let sel = "";
+ 		let el = $("msd-image-selector");
+ 		el.options.length = 1;
++		tools.selector.addOption(el, "/dev/sda", "/dev/sda");
+ 		for (let name of Object.keys(images).sort()) {
+ 			tools.selector.addSeparator(el);
+ 			tools.selector.addOption(el, name, name);
+@@ -245,6 +250,12 @@ export function Msd() {
+ 			tools.selector.addOption(el, drive.image.name, sel);
+ 			tools.selector.addComment(el, __makeImageSelectorInfo(drive.image));
+ 		}
++		if (drive.image && drive.image.name === "/dev/sda") {
++			sel = "/dev/sda";
++		}
++		if (!sel && __currentImage === "/dev/sda" && !drive.image) {
++			sel = "/dev/sda";
++		}
+ 		el.value = sel;
+ 	};
+ 
+@@ -266,7 +277,33 @@ export function Msd() {
+ 		tools.el.setEnabled($("msd-image-selector"), false);
+ 		tools.el.setEnabled($("msd-download-button"), false);
+ 		tools.el.setEnabled($("msd-remove-button"), false);
+-		__sendParam("image", $("msd-image-selector").value);
++		let value = $("msd-image-selector").value;
++		__currentImage = value;
++		if (value === "/dev/sda") {
++			const ipAddress = $("remote-ip-input").value.trim();
++			if (ipAddress === '') {
++				alert('Please input remote IP !');
++				__refreshControls();
++				return;
++			}
++			let url = `${ROOT_PREFIX}api/msd/set_params?image=/dev/sda::${ipAddress}`;
++			let xhr = new XMLHttpRequest();
++			xhr.open("POST", url, true);
++			xhr.onreadystatechange = function() {
++				if (xhr.readyState === 4) {
++					if (xhr.status !== 200) {
++						wm.error("Can't configure Mass Storage", xhr.responseText);
++					}
++					__refreshControls();
++				}
++			};
++			xhr.send();
++		} else if (value === "") {
++			// Not selected, do nothing or handle as before
++			__refreshControls();
++		} else {
++			__sendParam("image", value);
++		}
+ 	};
+ 
+ 	var __clickDownloadButton = function() {
+@@ -369,6 +406,12 @@ export function Msd() {
+ 		});
+ 		__refreshControls();
+ 		tools.el.setEnabled($(`msd-${connected ? "connect" : "disconnect"}-button`), false);
++		if(!connected){
++			const selector = $("msd-image-selector");
++			selector.value = "";
++			// If you want to trigger the onchange event at the same time so that __selectImage executes immediately.
++			selector.dispatchEvent(new Event("change"));
++		}
+ 	};
+ 
+ 	var __clickResetButton = function() {
+diff --git a/web/share/js/kvm/sidebar.js b/web/share/js/kvm/sidebar.js
+new file mode 100644
+index 00000000..e293be71
+--- /dev/null
++++ b/web/share/js/kvm/sidebar.js
+@@ -0,0 +1,38 @@
++const sidebar = document.querySelector(".sidebar");
++    const sidebarToggler = document.querySelector(".sidebar-toggler");
++    const menuToggler = document.querySelector(".menu-toggler");
++    const systemMenu = document.querySelector("#system-menu");
++
++    // Ensure these heights match the CSS sidebar height values
++    let collapsedSidebarHeight = "56px"; // Height in mobile view (collapsed)
++    let fullSidebarHeight = "calc(100vh - 32px)"; // Height in larger screen
++
++    // Toggle sidebar's collapsed state
++    sidebarToggler.addEventListener("click", () => {
++      sidebar.classList.toggle("collapsed");
++    });
++
++    // Update sidebar height
++    const toggleMenu = (isMenuActive) => {
++      sidebar.style.height = isMenuActive ? `${sidebar.scrollHeight}px` : collapsedSidebarHeight;
++      // menuToggler.querySelector("span").innerText = isMenuActive ? "close" : "menu";
++    }
++
++    // Toggle menu-active class and adjust height
++    menuToggler.addEventListener("click", () => {
++      toggleMenu(sidebar.classList.toggle("menu-active"));
++    });
++
++    // (Optional code): Adjust sidebar height on window resize
++    window.addEventListener("resize", () => {
++      if (window.innerWidth >= 800) {
++        sidebar.style.height = fullSidebarHeight;
++      } else {
++        sidebar.classList.remove("collapsed");
++        sidebar.style.height = "auto";
++        toggleMenu(sidebar.classList.contains("menu-active"));
++        // systemMenu.style.position = 'absolute';
++        // systemMenu.style.left = 'calc(50vW - 210px)';
++        // systemMenu.style.top = 'calc(50vh - 100px)';
++      }
++    });
+\ No newline at end of file
+diff --git a/web/share/js/kvm/stream.js b/web/share/js/kvm/stream.js
+index 45214985..061dd499 100644
+--- a/web/share/js/kvm/stream.js
++++ b/web/share/js/kvm/stream.js
+@@ -23,6 +23,7 @@
+ "use strict";
+ 
+ 
++import {ROOT_PREFIX} from "../vars.js";
+ import {tools, $} from "../tools.js";
+ import {wm} from "../wm.js";
+ 
+@@ -102,6 +103,7 @@ export function Streamer() {
+ 		tools.el.setOnClick($("stream-screenshot-button"), __clickScreenshotButton);
+ 		tools.el.setOnClick($("stream-reset-button"), __clickResetButton);
+ 		tools.el.setOnClick($("stream-audio-button"), __clickAudioButton);
++		//tools.el.setOnClick($("msd-button"), __clickMsdButton);
+ 
+ 		tools.storage.bindSimpleSwitch($("stream-suspend-switch"), "stream.suspend", false, __visibilityHook);
+ 
+@@ -383,6 +385,66 @@ export function Streamer() {
+ 			}
+ 		});
+ 	};
++	var __setMassStorageParams = function(ipAddress) {
++		return new Promise((resolve, reject) => {
++			const url = `${ROOT_PREFIX}api/msd/set_params?image=/dev/sda::${ipAddress}`;
++			const xhr = new XMLHttpRequest();
++			
++			xhr.open("POST", url, true);
++			
++			xhr.onreadystatechange = function() {
++				if (xhr.readyState === 4) {  // request success
++					if (xhr.status === 200) {
++						resolve(xhr.responseText);   // success → resolve
++					} else {
++						reject(new Error(`Can't configure Mass Storage (status: ${xhr.status})`));
++					}
++				}
++			};
++			
++			xhr.onerror = () => reject(new Error("Network error"));
++			xhr.send();
++		});
++	}
++
++	var __clickMsdButton = function() {
++		if (!$("msd-switch").checked) {
++			//start mount MSD
++			const ipAddress = $("remote-ip-input").value.trim();
++			if (!ipAddress) {
++			    alert('Please input remote PC IP');
++				return;
++			}
++
++			const imageParam = "/dev/sda::" + ipAddress;
++			tools.httpPost("api/msd/set_params", { image: imageParam }, function(http) {
++				if (http.status !== 200) {
++					wm.error("Can't switch Mass Storage", http.responseText);
++				}
++				else {
++					tools.httpPost("api/msd/set_connected", {"connected": true}, function(http) {
++						if (http.status !== 200) {
++							wm.error("Can't switch Mass Storage", http.responseText);
++						}
++						else {
++							$("msd-switch").checked = true;
++						}
++					});
++				}
++			});
++		} else {
++			//unmount MSD
++			tools.httpPost("api/msd/set_connected", {"connected": false}, function(http) {
++				if (http.status !== 200) {
++					wm.error("Can't switch Mass Storage", http.responseText);
++				} else {
++					$("msd-switch").checked = false;
++				}
++			});
++		}
++	
++	}
++
+ 
+ 	var __clickAudioButton = function() {
+ 		const audio = document.getElementById("stream-audio");
+diff --git a/web/share/js/wm.js b/web/share/js/wm.js
+index b3d53a4b..dc173f96 100644
+--- a/web/share/js/wm.js
++++ b/web/share/js/wm.js
+@@ -463,7 +463,7 @@ function __WindowManager() {
+ 				let rect = el_menu.getBoundingClientRect();
+ 				let offset = self.getViewGeometry().right - (rect.left + el_menu.clientWidth + 2); // + 2 is ugly hack
+ 				if (offset < 0) {
+-					el_menu.style.right = "0px";
++					// el_menu.style.right = "0px";
+ 				} else {
+ 					el_menu.style.removeProperty("right");
+ 				}
+diff --git a/web/share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg b/web/share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg
+new file mode 100644
+index 00000000..5d28a697
+--- /dev/null
++++ b/web/share/svg/chevron_right_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.svg
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<svg id="_圖層_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 40 40">
++  <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
++  <defs>
++    <style>
++      .st0 {
++        fill: #fff;
++      }
++    </style>
++  </defs>
++  <path class="st0" d="M25.01,28.03l-1.97,1.97-10.03-10.03,10.03-10.03,1.97,1.97-8.06,8.06s8.06,8.06,8.06,8.06Z"/>
++</svg>
+\ No newline at end of file
+diff --git a/web/share/svg/grommet-icons_system.svg b/web/share/svg/grommet-icons_system.svg
+new file mode 100644
+index 00000000..601bee65
+--- /dev/null
++++ b/web/share/svg/grommet-icons_system.svg
+@@ -0,0 +1,10 @@
++<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
++<g clip-path="url(#clip0_31_2)">
++<path d="M5 23H19M7.757 5.757L9.879 7.879M9.879 7.879C10.4416 7.31639 11.2044 7 12 7M9.879 7.879C9.31639 8.44161 9 9.20435 9 10M9 10H6M9 10C9 10.7956 9.31639 11.5584 9.879 12.121M9.879 12.121L7.757 14.243M9.879 12.121C10.4416 12.6836 11.2044 13 12 13M12 13V16M12 13C12.7956 13 13.5584 12.6836 14.121 12.121M14.121 12.121L16.243 14.243M14.121 12.121C14.6836 11.5584 15 10.7956 15 10M18 10H15M15 10C15 9.20435 14.6836 8.44161 14.121 7.879M16.243 5.757L14.121 7.879M14.121 7.879C13.5584 7.31639 12.7956 7 12 7M12 7V4M1 19H23V1H1V19ZM8 23H16V19H8V23Z" stroke="black" stroke-width="2"/>
++</g>
++<defs>
++<clipPath id="clip0_31_2">
++<rect width="24" height="24" fill="white"/>
++</clipPath>
++</defs>
++</svg>
+diff --git a/web/share/svg/logout_32dp_000000_FILL0_wght400_GRAD0_opsz40.svg b/web/share/svg/logout_32dp_000000_FILL0_wght400_GRAD0_opsz40.svg
+new file mode 100644
+index 00000000..c7913639
+--- /dev/null
++++ b/web/share/svg/logout_32dp_000000_FILL0_wght400_GRAD0_opsz40.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#000000"><path d="M186.67-120q-27 0-46.84-19.83Q120-159.67 120-186.67v-586.66q0-27 19.83-46.84Q159.67-840 186.67-840h292.66v66.67H186.67v586.66h292.66V-120H186.67Zm470.66-176.67-47-48 102-102H360v-66.66h351l-102-102 47-48 184 184-182.67 182.66Z"/></svg>
+\ No newline at end of file
+diff --git a/web/start.pug b/web/start.pug
+deleted file mode 100644
+index f02651ef..00000000
+--- a/web/start.pug
++++ /dev/null
+@@ -1,14 +0,0 @@
+-extends base.pug
+-
+-append vars
+-	- css_list.push("start")
+-	- var index_link = false
+-
+-block body
+-	div(class="start-box")
+-		div(class="start")
+-			if index_link
+-				a(style="display:inline-block; margin-top:4px; color:#5c90bc; text-decoration:none" href=root_prefix)
+-					| &nbsp;&nbsp;&larr;&nbsp;&nbsp; [ PiKVM Index ]
+-				hr
+-			block start
+diff --git a/web/vnc/index.pug b/web/vnc/index.pug
+deleted file mode 100644
+index de1a9c01..00000000
+--- a/web/vnc/index.pug
++++ /dev/null
+@@ -1,24 +0,0 @@
+-extends ../start.pug
+-
+-
+-append vars
+-	-
+-		root_prefix = "../"
+-		title = "PiKVM VNC Info"
+-		main_js = "vnc/main"
+-		index_link = true
+-
+-
+-block start
+-	p.text
+-		| This PiKVM device has running #[b kvmd-vnc] daemon and provides VNC access to the server.
+-	p.text
+-		| #[b WARNING!] We strongly don't recommend you to use VNC in untrusted networks without
+-		| enabled X.509 or TLS encryption. Otherwise your passwords are transmitted in a plain text
+-		| over the network.
+-	p.text
+-		| Your VNC client must support Tight JPEG compression and password authentication.
+-		| #[a(href="https://tigervnc.org") TigerVNC] is a good choice.
+-		| On Linux, this client will most likely be available for installation from the repository.
+-		| It can also be called vncviewer.
+-	.code#vnc-text(style="max-height:200px")
+-- 
+2.34.1
+

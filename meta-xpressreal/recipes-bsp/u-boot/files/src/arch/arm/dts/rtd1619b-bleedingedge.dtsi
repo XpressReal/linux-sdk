@@ -21,6 +21,10 @@
 	};
 };
 
+&nic {
+	status = "okay";
+};
+
 &emmc {
 	status = "okay";
 };

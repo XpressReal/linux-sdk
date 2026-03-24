@@ -9,6 +9,7 @@ SRCREV = "${AUTOREV}"
 include ${BPN}.inc
 
 S = "${WORKDIR}/${BPN}-${PV}"
+B = "${S}"
 SDK_DIR = "${THISDIR}/../../rtk-dl"
 FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
@@ -19,8 +20,8 @@ TARGET_CC_ARCH += "${LDFLAGS}"
 do_install() {
         install -d ${D}${bindir}
         mkdir -p ${D}/${libdir}/gstreamer-1.0/
-        install -m 0755 ${B}/*.so ${D}${libdir}/gstreamer-1.0/
-        install -m 0755  ${B}/stt_unitest ${D}${bindir}
+        install -m 0755 ${S}/*.so ${D}${libdir}/gstreamer-1.0/
+        install -m 0755  ${S}/stt_unitest ${D}${bindir}
 }
 
 FILES:${PN} += "${libdir}/gstreamer-*/*.so"

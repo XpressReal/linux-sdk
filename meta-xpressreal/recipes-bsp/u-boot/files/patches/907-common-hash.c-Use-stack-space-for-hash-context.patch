@@ -1,0 +1,42 @@
+From b91d28ead7713dc89197919b12715d65975283fc Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 29 Dec 2025 23:02:54 +0800
+Subject: [PATCH] common/hash.c: Use stack space for hash context
+
+- To workaround u-boot spl hang with secure boot
+---
+ common/hash.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/common/hash.c b/common/hash.c
+index e837c56d44..4658a8cc35 100644
+--- a/common/hash.c
++++ b/common/hash.c
+@@ -63,11 +63,12 @@ static int __maybe_unused hash_finish_sha1(struct hash_algo *algo, void *ctx,
+ 	return 0;
+ }
+ 
++static sha256_context sha256_ctx;
+ static int __maybe_unused hash_init_sha256(struct hash_algo *algo, void **ctxp)
+ {
+-	sha256_context *ctx = malloc(sizeof(sha256_context));
+-	sha256_starts(ctx);
+-	*ctxp = ctx;
++	//sha256_context *ctx = malloc(sizeof(sha256_context));
++	sha256_starts(&sha256_ctx);
++	*ctxp = &sha256_ctx;
+ 	return 0;
+ }
+ 
+@@ -86,7 +87,7 @@ static int __maybe_unused hash_finish_sha256(struct hash_algo *algo, void *ctx,
+ 		return -1;
+ 
+ 	sha256_finish((sha256_context *)ctx, dest_buf);
+-	free(ctx);
++	//free(ctx);
+ 	return 0;
+ }
+ 
+-- 
+2.47.0
+

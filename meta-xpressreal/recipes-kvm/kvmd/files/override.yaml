@@ -76,6 +76,9 @@ kvmd:
         hw:
             ignore_past: false
 
+    wol:
+        mac: ff:ff:ff:ff:ff:ff
+
 media:
     memsink:
         jpeg:
@@ -89,3 +92,9 @@ vnc:
             sink: "kvmd::ustreamer::jpeg"
         h264:
             sink: ""
+
+otg:
+    devices:
+        msd:
+            default:
+                cdrom: false

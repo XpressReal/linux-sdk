@@ -757,8 +757,10 @@ static struct npp_buf_object *_npp_buffer_create(struct videc_dev *v_dev, char *
 	memset(buf_obj, 0x0, sizeof(*buf_obj));
 
 #ifndef ENABLE_NPP_FPGA_TEST
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(v_dev->dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(v_dev->dev, name, flags, __func__);
+#endif
 
 	v_dev->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 	v_dev->dev->dma_mask = (u64 *)&v_dev->dev->coherent_dma_mask;

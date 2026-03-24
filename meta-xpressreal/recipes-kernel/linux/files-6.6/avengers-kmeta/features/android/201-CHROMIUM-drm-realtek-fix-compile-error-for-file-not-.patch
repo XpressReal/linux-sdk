@@ -1,0 +1,88 @@
+From e6324f139b927c3e08653dc20dc6f89c4234d214 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Thu, 4 Sep 2025 07:36:16 +0800
+Subject: [PATCH] CHROMIUM: drm/realtek: fix compile error for file not found
+
+/mnt/host/source/src/third_party/kernel/v6.6/drivers/gpu/drm/realtek/rtk_drm_gem.c:24:10: fatal error: 'drm/realtek_drm.h' file not found
+   24 | #include <drm/realtek_drm.h>
+      |          ^~~~~~~~~~~~~~~~~~~
+/mnt/host/source/src/third_party/kernel/v6.6/drivers/gpu/drm/realtek/rtk_drm_drv.c:34:10: fatal error: 'drm/realtek_drm.h' file not found
+   34 | #include <drm/realtek_drm.h>
+      |          ^~~~~~~~~~~~~~~~~~~
+1 error generated.
+
+Change-Id: I012748ed71c5c40a3f1c0cc8dd927ee4f510e39c
+---
+ include/uapi/drm/realtek_drm.h | 60 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+ create mode 100644 include/uapi/drm/realtek_drm.h
+
+diff --git a/include/uapi/drm/realtek_drm.h b/include/uapi/drm/realtek_drm.h
+new file mode 100644
+index 0000000000000..e7a357454b880
+--- /dev/null
++++ b/include/uapi/drm/realtek_drm.h
+@@ -0,0 +1,60 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2019 Realtek Inc.
++ * Author: Simon Hsu <simon_hsu@realtek.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _UAPI_REALTEK_DRM_H
++#define _UAPI_REALTEK_DRM_H
++
++#include <drm/drm.h>
++
++/**
++ * User-desired buffer creation information structure.
++ *
++ * @size: user-desired memory allocation size.
++ *	- this size value would be page-aligned internally.
++ * @flags: user request for setting memory type or cache attributes.
++ * @handle: returned a handle to created gem object.
++ *	- this handle will be set by gem module of kernel side.
++ */
++struct drm_rtk_gem_create {
++	uint64_t size;
++	uint32_t flags;
++	uint32_t handle;
++};
++
++/**
++ * A structure for getting buffer offset.
++ *
++ * @handle: a pointer to gem object created.
++ * @pad: just padding to be 64-bit aligned.
++ * @offset: relatived offset value of the memory region allocated.
++ *     - this value should be set by user.
++ */
++struct drm_rtk_gem_map_off {
++	uint32_t handle;
++	uint32_t pad;
++	uint64_t offset;
++};
++
++#define DRM_RTK_GEM_CREATE		0x00
++#define DRM_RTK_GEM_MAP_OFFSET		0x01
++
++#define DRM_IOCTL_RTK_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
++		DRM_RTK_GEM_CREATE, struct drm_rtk_gem_create)
++
++#define DRM_IOCTL_RTK_GEM_MAP_OFFSET	DRM_IOWR(DRM_COMMAND_BASE + \
++		DRM_RTK_GEM_MAP_OFFSET, struct drm_rtk_gem_map_off)
++
++
++#endif /* _UAPI_REALTEK_DRM_H */
+-- 
+2.47.0
+

@@ -1,0 +1,99 @@
+From c60dd33ec53070f382a601fff4569ca6929bd536 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 27 Jan 2026 12:02:11 +0800
+Subject: [PATCH] rtk_npp: no npp_capture if SOF HIFI is used
+
+---
+ drivers/media/platform/rtk_npp/drv_npp.c     | 10 ++++++++++
+ drivers/media/platform/rtk_npp/npp_capture.c |  4 ++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/media/platform/rtk_npp/drv_npp.c b/drivers/media/platform/rtk_npp/drv_npp.c
+index bf58d2af5a8e0..797ac5e42e575 100644
+--- a/drivers/media/platform/rtk_npp/drv_npp.c
++++ b/drivers/media/platform/rtk_npp/drv_npp.c
+@@ -1460,6 +1460,7 @@ static const struct v4l2_file_operations drv_npp_fops_capture = {
+ 	.mmap		= vb2_fop_mmap,
+ };
+ 
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ static struct video_device drv_npp_videodev_capture = {
+ 	.name		= VIDEO_DEVICE_CAPTURE,
+ 	.vfl_dir	= VFL_DIR_RX,
+@@ -1469,13 +1470,16 @@ static struct video_device drv_npp_videodev_capture = {
+ 	.minor		= -1,
+ 	.release	= video_device_release_empty,
+ };
++#endif
+ 
+ static int drv_npp_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 	struct videc_dev *v_dev;
+ 	struct video_device *video_dev_m2m;
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ 	struct video_device *video_dev_capture;
++#endif
+ 	int ret;
+ 	bool unreg_m2m = false;
+ 	bool unreg_capture = false;
+@@ -1569,6 +1573,7 @@ static int drv_npp_probe(struct platform_device *pdev)
+ 	dev_info(dev, "m2m device registered as /dev/video%d\n", video_dev_m2m->num);
+ 
+ capture_reg:
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ 	if (npp_rpc_buffer_allocate(v_dev) != 0) {
+ 		dev_err(v_dev->dev, "npp_rpc_buffer_allocate failed\n");
+ 		unreg_capture = true;
+@@ -1606,6 +1611,7 @@ static int drv_npp_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	dev_info(dev, "capture device registered as /dev/video%d\n", video_dev_capture->num);
++#endif
+ 
+ 	return ret;
+ 
+@@ -1625,7 +1631,9 @@ static int drv_npp_remove(struct platform_device *pdev)
+ 	if (v_dev->m2m_dev)
+ 		v4l2_m2m_release(v_dev->m2m_dev);
+ 	video_unregister_device(&v_dev->video_dev_m2m);
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ 	video_unregister_device(&v_dev->video_dev_capture);
++#endif
+ 	v4l2_device_unregister(&v_dev->v4l2_dev);
+ 
+ 	return 0;
+@@ -1712,12 +1720,14 @@ static int drv_npp_resume(struct device *dev)
+ 		}
+ 
+ 		up(&v_dev->hw_sem);
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ 	} else if (v_dev->state == CAPTURESTATE) {
+ 		spin_unlock_irqrestore(&v_dev->device_spin_lock, flags);
+ 		if (npp_initialize(v_dev) < 0) {
+ 			dev_err(v_dev->dev, "[drv_npp] %s npp_initialize failed\n", __func__);
+ 			ret = -EIO;
+ 		}
++#endif
+ 	} else {
+ 		spin_unlock_irqrestore(&v_dev->device_spin_lock, flags);
+ 	}
+diff --git a/drivers/media/platform/rtk_npp/npp_capture.c b/drivers/media/platform/rtk_npp/npp_capture.c
+index bfbeb51be8e69..bcddc9f9165dc 100644
+--- a/drivers/media/platform/rtk_npp/npp_capture.c
++++ b/drivers/media/platform/rtk_npp/npp_capture.c
+@@ -743,7 +743,11 @@ static const struct npp_fmt_ops_capture ops_capture = {
+ 
+ const struct npp_fmt_ops_capture *get_npp_fmt_ops_capture(void)
+ {
++#if !IS_ENABLED(CONFIG_SND_SOC_SOF_OF_HIFI)
+ 	return &ops_capture;
++#else
++	return NULL;
++#endif
+ }
+ 
+ static struct npp_buf_object *_npp_buffer_create(struct videc_dev *v_dev, char *name, unsigned int flags)
+-- 
+2.34.1
+

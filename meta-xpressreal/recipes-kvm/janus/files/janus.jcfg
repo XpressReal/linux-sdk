@@ -1,0 +1,26 @@
+general: {
+    configs_folder = "/etc/janus"
+    plugins_folder = "/usr/lib/janus/plugins"
+    transports_folder = "/usr/lib/janus/transports"
+    log_level = 7
+    log_timestamps = true
+    log_colors = true
+    ignore_mdns = true
+}
+
+nat: {
+    stun_server = "74.125.250.129"
+    #stun_server = "stun.l.google.com"
+    stun_port = 19302
+    full_trickle = true
+    ipv6 = false
+}
+
+media: {
+    rtp_port_range = "20000-40000"
+}
+
+plugins: {
+    disable = [ "janus.plugin.recordplay", "janus.plugin.nosip", "janus.plugin.textroom", "janus.plugin.videocall" ]
+}
+

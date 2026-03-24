@@ -1,0 +1,94 @@
+From fc7ef0f9e780ed45305002609cf920647787bc79 Mon Sep 17 00:00:00 2001
+From: Igor Opaniuk <igor.opaniuk@gmail.com>
+Date: Fri, 9 Feb 2024 20:20:43 +0100
+Subject: [PATCH] common: avb_verify: add str_avb_io_error/str_avb_slot_error
+
+Introduce str_avb_io_error() and str_avb_slot_error() functions,
+that provide a pointer to AVB runtime error message.
+
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+Signed-off-by: Igor Opaniuk <igor.opaniuk@gmail.com>
+Link: https://lore.kernel.org/r/20240209192045.3961832-6-igor.opaniuk@foundries.io
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@baylibre.com>
+---
+ common/avb_verify.c  | 49 ++++++++++++++++++++++++++++++++++++++++++++
+ include/avb_verify.h |  3 ++-
+ 2 files changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/common/avb_verify.c b/common/avb_verify.c
+index ed58239cf8a..cff9117d92f 100644
+--- a/common/avb_verify.c
++++ b/common/avb_verify.c
+@@ -119,6 +119,55 @@ static const unsigned char avb_root_pub[1032] = {
+ 	0xd8, 0x7e,
+ };
+ 
++const char *str_avb_io_error(AvbIOResult res)
++{
++	switch (res) {
++	case AVB_IO_RESULT_OK:
++		return "Requested operation was successful";
++	case AVB_IO_RESULT_ERROR_IO:
++		return "Underlying hardware encountered an I/O error";
++	case AVB_IO_RESULT_ERROR_OOM:
++		return "Unable to allocate memory";
++	case AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION:
++		return "Requested partition does not exist";
++	case AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION:
++		return "Bytes requested is outside the range of partition";
++	case AVB_IO_RESULT_ERROR_NO_SUCH_VALUE:
++		return "Named persistent value does not exist";
++	case AVB_IO_RESULT_ERROR_INVALID_VALUE_SIZE:
++		return "Named persistent value size is not supported";
++	case AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE:
++		return "Buffer is too small for the requested operation";
++	default:
++		return "Unknown AVB error";
++	}
++}
++
++const char *str_avb_slot_error(AvbSlotVerifyResult res)
++{
++	switch (res) {
++	case AVB_SLOT_VERIFY_RESULT_OK:
++		return "Verification passed successfully";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_OOM:
++		return "Allocation of memory failed";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_IO:
++		return "I/O error occurred while trying to load data";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION:
++		return "Digest didn't match or signature checks failed";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX:
++		return "Rollback index is less than its stored value";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED:
++		return "Public keys are not accepted";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA:
++		return "Metadata is invalid or inconsistent";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION:
++		return "Metadata requires a newer version of libavb";
++	case AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT:
++		return "Invalid arguments are used";
++	default:
++		return "Unknown AVB slot verification error";
++	}
++}
+ /**
+  * ============================================================================
+  * Boot states support (GREEN, YELLOW, ORANGE, RED) and dm_verity
+diff --git a/include/avb_verify.h b/include/avb_verify.h
+index 2fb850044d9..5d998b5a302 100644
+--- a/include/avb_verify.h
++++ b/include/avb_verify.h
+@@ -52,7 +52,8 @@ char *avb_set_enforce_verity(const char *cmdline);
+ char *avb_set_ignore_corruption(const char *cmdline);
+ 
+ char *append_cmd_line(char *cmdline_orig, char *cmdline_new);
+-
++const char *str_avb_io_error(AvbIOResult res);
++const char *str_avb_slot_error(AvbSlotVerifyResult res);
+ /**
+  * ============================================================================
+  * I/O helper inline functions
+-- 
+2.47.0
+

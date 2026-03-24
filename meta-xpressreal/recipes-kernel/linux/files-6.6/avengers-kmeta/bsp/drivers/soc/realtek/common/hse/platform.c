@@ -10,6 +10,8 @@
 #include <linux/dma-mapping.h>
 #include "hse.h"
 
+#define HSE_AUTOSUSPEND_DELAY 100
+
 static int hse_hw_init(struct hse_device *hse_dev)
 {
 	unsigned int val;
@@ -45,8 +47,8 @@ static int hse_runtime_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops hse_pm_ops = {
-	.runtime_suspend = hse_runtime_suspend,
-	.runtime_resume  = hse_runtime_resume,
+	SET_RUNTIME_PM_OPS(hse_runtime_suspend, hse_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 
 static irqreturn_t hse_interrupt(int irq, void *dev_id)
@@ -144,9 +146,9 @@ static int hse_probe(struct platform_device *pdev)
 		hse_dev->dmaengine_ready = 1;
 
 	pm_runtime_set_suspended(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, HSE_AUTOSUSPEND_DELAY);
 	pm_runtime_enable(dev);
-
-	pm_runtime_get_sync(dev);
 
 	for (i = 0; i < hse_dev->num_eng; i++)
 		hse_engine_init(hse_dev, &hse_dev->eng[i], &hse_dev->quirks->eng_desc[i]);
@@ -212,11 +214,21 @@ static const struct hse_quirks rtd1625_quirks = {
 	.num_eng = ARRAY_SIZE(rtd1319d_eng_desc),
 };
 
+static const struct hse_quirks rtd1635_quirks = {
+        .bypass_en_disable = 1,
+        .xor_copy_v2 = 1,
+        .support_32gb_ram = 1,
+        .support_rotate_10bit = 1,
+        .eng_desc = rtd1319d_eng_desc,
+        .num_eng = ARRAY_SIZE(rtd1319d_eng_desc),
+};
+
 static const struct of_device_id hse_ids[] = {
 	{ .compatible = "realtek,rtd1319-hse", .data = &rtd1319_quirks, },
 	{ .compatible = "realtek,rtd1619b-hse", .data = &rtd1619b_quirks, },
 	{ .compatible = "realtek,rtd1319d-hse", .data = &rtd1319d_quirks, },
 	{ .compatible = "realtek,rtd1625-hse", .data = &rtd1625_quirks, },
+	{ .compatible = "realtek,rtd1635-hse", .data = &rtd1635_quirks, },
 	{}
 };
 

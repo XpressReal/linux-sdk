@@ -8,7 +8,7 @@ IMAGE_FEATURES += "${@bb.utils.contains('MACHINE_FEATURES', 'overlayfs-root', ' 
 PACKAGE_INSTALL = "kernel-modules linux-firmware-rtl8822 rtk-mod-wifi"
 PACKAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'v4l2', 'rtk-mod-v4l2dec rtk-mod-v4l2cap', '', d)}"
 PACKAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa-avengers', '', d)}"
-PACKAGE_INSTALL:append = " ${@([t for t in d.getVar('IMAGE_INSTALL', True).split() if t.startswith('linux-firmware')] or [''])[0]}"
+PACKAGE_INSTALL:append = " ${@' '.join([t for t in d.getVar('IMAGE_INSTALL', True).split() if t.startswith('linux-firmware')] or [''])}"
 
 #use the layout with separate home partition
 WKS_FILE := "${@bb.utils.contains('MACHINE_FEATURES', 'split-home', 'avengers-home.wks', '${WKS_FILE}', d)}"
@@ -39,6 +39,23 @@ fakeroot do_prebuilt() {
 
 		sed -i "/^${u}:/s|:[^:]*:|:${escaped_hash}:|" ${IMAGE_ROOTFS}/etc/shadow
 	done
+
+	EXTRA_FILES="${IMAGE_ROOTFS}/etc/postfiles"
+
+	while IFS= read -r source_file; do
+
+		if [ -z "${IMAGE_ROOTFS}/opt/realtek$source_file" ]; then
+			continue
+		fi
+
+		if [ ! -f "${IMAGE_ROOTFS}/opt/realtek$source_file" ]; then
+			bberror "File not found: ${IMAGE_ROOTFS}/opt/realtek$source_file"
+			continue
+		fi
+
+		mv "${IMAGE_ROOTFS}/opt/realtek$source_file" "${IMAGE_ROOTFS}$source_file"
+
+	done < "$EXTRA_FILES"
 }
 
 do_prebuilt[depends] += "virtual/fakeroot-native:do_populate_sysroot"

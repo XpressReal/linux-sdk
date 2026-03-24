@@ -8,7 +8,7 @@ config NO_RELOCATION
 
 config HEAP_ADDR
 	hex "CONFIG_HEAP_ADDR"
-	default 0x07880000
+	default 0x14000000
 
 config REALTEK_I2C
 	bool "CONFIG_REALTEK_I2C"
@@ -21,4 +21,11 @@ config RTL8168
 config USB_BOOT_GPIO_NUM
 	int "CONFIG_USB_BOOT_GPIO_NUM"
 	depends on USB_STORAGE
-	default 26
+	default 26 if TARGET_RTD1619B
+	default -1 if TARGET_RTD1625
+	help
+	  Set GPIO number to trigger USB boot in both U-Boot SPL/proper w/o pinmux change.
+	  Values:
+	  > 0: detect for GPIO input
+	  0: always try in U-Boot SPL
+	  < 0: disable USB boot

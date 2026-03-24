@@ -1,0 +1,584 @@
+From 87dacc315d85ca9d375655cc8580087b6232322f Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <oe.patch@oe>
+Date: Wed, 4 Feb 2026 11:26:32 +0800
+Subject: [PATCH] modify for stark SOF driver with codec rt5650
+
+- use soc_device_match() to check stark/kent
+- bl31: support SOF_FW(0xff0b) in RTK_VERIFY_FIT_IMAGES(0x8400ff39)
+- modify poweron/poweroff flow according to HIFI spec
+- dts: modify bleedingedge/backinblack with hdmi audio
+- dts: disable hifi_rproc, which is for non-SOF HIFI FW
+- dts: disable hifi-rpmsg and rtk_urpc_service
+- drm: rtk_hdmi: register hdmi codec for sof on CHROME_PLATFORMS
+---
+ .../dts/realtek/rtd1619b-backinblack-2gb.dts  |   9 -
+ .../dts/realtek/rtd1619b-backinblack.dtsi     |  15 +-
+ .../dts/realtek/rtd1619b-bleedingedge-2gb.dts |   9 -
+ .../dts/realtek/rtd1619b-bleedingedge.dtsi    |   9 +-
+ .../dts/realtek/rtd1619b-hulkbuster-4gb.dts   |   9 -
+ .../boot/dts/realtek/rtd1619b-hulkbuster.dtsi |  26 ++-
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi     |   2 +
+ arch/arm64/boot/dts/realtek/stark-audio.dtsi  |   7 +
+ drivers/gpu/drm/realtek/rtk_hdmi.c            |   6 +-
+ sound/soc/realtek/Kconfig                     |   6 +
+ sound/soc/sof/realtek/hifi-dsp.c              | 178 +++++++++++++++++-
+ 11 files changed, 235 insertions(+), 41 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+index 0af6b9ce9d094..b83bdfef5c4cb 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+@@ -121,10 +121,6 @@ &avcert_rproc {
+ 	status = "okay";
+ };
+ 
+-&hifi_rproc {
+-	status = "okay";
+-};
+-
+ &acpu_rproc {
+ 	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+@@ -153,11 +149,6 @@ vcpu-rpmsg {
+ 		status = "okay";
+ 	};
+ 
+-	hifi-rpmsg {
+-		rproc = <&hifi_rproc>;
+-		status = "okay";
+-	};
+-
+ 	ve3-rpmsg {
+ 		rproc = <&ve3_rproc>;
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+index 13545ca65602a..fc91a7aef3283 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack.dtsi
+@@ -86,7 +86,7 @@ cpu_supp: pwm-regulator {
+ 
+ &audio_out {
+ 	pinctrl-names = "default";
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &cec {
+@@ -437,7 +437,7 @@ &sdio {
+ };
+ 
+ &sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &tp {
+@@ -525,3 +525,14 @@ &pm_hifi {
+ 	hifi-supply = <&cpu_supp>;
+ 	status = "okay";
+ };
++
++&rtk_sof {
++	status = "okay";
++};
++
++&rtk_asoc_machine {
++	realtek,audio-platform = <&rtk_sof>;
++	realtek,hdmi-audio = <&hdmi>;
++	realtek,dai-link = "RDAI_HDMI";
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+index 21eff11fad8fb..26afefd9baf4c 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+@@ -72,10 +72,6 @@ &avcert_rproc {
+ 	status = "okay";
+ };
+ 
+-&hifi_rproc {
+-    status = "okay";
+-};
+-
+ &acpu_rproc {
+ 	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+@@ -104,11 +100,6 @@ vcpu-rpmsg {
+ 		status = "okay";
+ 	};
+ 
+-	hifi-rpmsg {
+-		rproc = <&hifi_rproc>;
+-		status = "okay";
+-	};
+-
+ 	ve3-rpmsg {
+ 		rproc = <&ve3_rproc>;
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+index b6d769963548f..319ee873497b0 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+@@ -514,15 +514,14 @@ &tp {
+ 	status = "okay";
+ };
+ 
+-&rtk_soc {
++&rtk_sof {
+ 	status = "okay";
+ };
+ 
+ &rtk_asoc_machine {
+-	pinctrl-names = "default";
+-	pinctrl-0 = <&spdif_pins>, <&ao_pins>, <&ai_loc0_6pins>;
+-	realtek,audio-platform = <&rtk_soc>;
+-	realtek,dai-link = "RDAI_DL1_FE", "RDAI_UL1_FE", "RDAI_SOC_AO0", "RDAI_SOC_I2S";
++	realtek,audio-platform = <&rtk_sof>;
++	realtek,hdmi-audio = <&hdmi>;
++	realtek,dai-link = "RDAI_HDMI";
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
+index bafbdd6dbe820..2ee6959ef3849 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
+@@ -109,10 +109,6 @@ &avcert_rproc {
+ 	status = "okay";
+ };
+ 
+-&hifi_rproc {
+-	status = "okay";
+-};
+-
+ &acpu_rproc {
+ 	firmware-name = "bluecore.audio.enc.A00-stark-noaudio-nonsecure-0112";
+ 	status = "okay";
+@@ -141,11 +137,6 @@ vcpu-rpmsg {
+ 		status = "okay";
+ 	};
+ 
+-	hifi-rpmsg {
+-		rproc = <&hifi_rproc>;
+-		status = "disabled";
+-	};
+-
+ 	ve3-rpmsg {
+ 		rproc = <&ve3_rproc>;
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster.dtsi
+index 38758f850f57f..48776c9c7bb56 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster.dtsi
+@@ -47,7 +47,7 @@ &audio_out {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&spdif_pins>;
+ 	audio-gpios = <&gpio 47 GPIO_ACTIVE_HIGH>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &cec {
+@@ -395,6 +395,14 @@ &i2c_4 {
+ 
+ &i2c_5 {
+ 	status = "okay";
++	 rt5650: rt5650@1a {
++		compatible = "realtek,rt5650";
++		reg = <0x1a>;
++		interrupt-parent = <&gpio>;
++		interrupts = <71 IRQ_TYPE_EDGE_BOTH>;
++		realtek,jd-mode = <2>;
++	};
++
+ };
+ 
+ &irda {
+@@ -503,7 +511,7 @@ &sdio {
+ };
+ 
+ &sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &tp {
+@@ -653,3 +661,17 @@ &spi_1 {
+ &spi_0 {
+ 	status = "disabled";
+ };
++
++&rtk_sof {
++	status = "okay";
++};
++
++&rtk_asoc_machine {
++	pinctrl-names = "default";
++	pinctrl-0 = <&ao_pins_1>, <&ai_loc0_6pins>;
++	realtek,audio-platform = <&rtk_sof>;
++	realtek,audio-codec = <&rt5650>;
++	realtek,hdmi-audio = <&hdmi>;
++	realtek,dai-link = "RDAI_I2S0","RDAI_DMIC","RDAI_HDMI";
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 3f5cb0c683ba1..214aca24db80f 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -1087,6 +1087,7 @@ rtk_urpc_service: rtk_urpc_service {
+ 		realtek,krpc-agent = <&acpu_kernel_agent>,
+ 				     <&vcpu_kernel_agent>,
+ 				     <&hifi_kernel_agent>;
++		status = "disabled";
+ 	};
+ 
+ 	ve3_enc: ve3_enc {
+@@ -1558,6 +1559,7 @@ hifi-rpmsg {
+ 		compatible = "realtek,hifi-rpmsg";
+ 		syscon = <&sb2>;
+ 		interrupts = <0 104 4>;
++		skip-handshake;
+ 
+ 		hifi-kernel-channel {
+ 			compatible = "realtek,rpc-kernel-hifi";
+diff --git a/arch/arm64/boot/dts/realtek/stark-audio.dtsi b/arch/arm64/boot/dts/realtek/stark-audio.dtsi
+index b311136360e80..7345a4db9cf73 100644
+--- a/arch/arm64/boot/dts/realtek/stark-audio.dtsi
++++ b/arch/arm64/boot/dts/realtek/stark-audio.dtsi
+@@ -12,6 +12,13 @@ rtk_soc: rtk_soc {
+                 status = "disabled";
+         };
+ 
++	rtk_sof: rtk_sof {
++		compatible = "realtek,rtd1619b-hifi";
++		realtek,krpc-agent = <&hifi_kernel_agent>;
++		remote-cpu = <1>; /* 0: AFW 1: HIFI */
++		status = "disabled";
++	};
++
+         rtk_asoc_machine: rtk_asoc_machine {
+                 compatible = "realtek,rtd1619b-hifi-mc";
+                 model = "rtk_hifi";
+diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.c b/drivers/gpu/drm/realtek/rtk_hdmi.c
+index a821f9791ca50..49dfb8f712747 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdmi.c
++++ b/drivers/gpu/drm/realtek/rtk_hdmi.c
+@@ -2525,8 +2525,7 @@ static bool rtk_hdmi_update_hpd_state(struct rtk_hdmi *hdmi)
+ 		dev_info(hdmi->dev, "is_connected=%d\n", is_connected);
+ 	}
+ 
+-	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS) &&
+-		soc_device_match(rtk_soc_kent)) {
++	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS)) {
+ 		bool is_hdmi_audio;
+ 
+ 		is_hdmi_audio = is_connected && hdmi->edid_info.sink_has_audio;
+@@ -3710,8 +3709,7 @@ static int rtk_hdmi_bind(struct device *dev, struct device *master,
+ 		goto err_unreg_cec;
+ 	}
+ 
+-	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS) &&
+-		soc_device_match(rtk_soc_kent)) {
++	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS)) {
+ 		ret = rtk_hdmi_audio_codec_register(dev);
+ 		if (ret) {
+ 			dev_err(dev, "Failed to register audio driver");
+diff --git a/sound/soc/realtek/Kconfig b/sound/soc/realtek/Kconfig
+index 8f203bb19b013..47cb36657d9b8 100644
+--- a/sound/soc/realtek/Kconfig
++++ b/sound/soc/realtek/Kconfig
+@@ -48,3 +48,9 @@ config SND_SOC_RTK_PLATFORM
+ 	tristate "Realtek asoc platform Driver"
+ 	select SND_HWDEP
+ 	default n
++
++config SND_SOC_RTK_HIFI_RT5650_MACHINE
++	tristate "Realtek hifi with rt5650 codec asoc machine Driver"
++	select SND_SOC_RT5645
++	select SND_SOC_HDMI_CODEC
++	default n
+diff --git a/sound/soc/sof/realtek/hifi-dsp.c b/sound/soc/sof/realtek/hifi-dsp.c
+index f52bb8ef40913..83b6785a0854a 100644
+--- a/sound/soc/sof/realtek/hifi-dsp.c
++++ b/sound/soc/sof/realtek/hifi-dsp.c
+@@ -13,6 +13,7 @@
+ #include <linux/of_reserved_mem.h>
+ #include <linux/regmap.h>
+ #include <linux/firmware.h>
++#include <linux/sys_soc.h>
+ 
+ #include <sound/sof.h>
+ #include <soc/realtek/rtk-krpc-agent.h>
+@@ -59,6 +60,13 @@ MODULE_PARM_DESC(tplg_path, "alternate path for SOF topology.");
+ #define PCPU_POWER_ON_HIFI 0x825b5008
+ #define PCPU_POWER_DOWN_HIFI 0x825b5000
+ 
++/* Stark */
++#define HIFI_CLK_ENABLE 0x9800008C
++#define SYS_SOFT_RESET10_SECURE 0x98000094
++#define SYS_SOFT_RESET9 0x98000090
++#define RESET_VECTOR 0x9801AD00
++#define ISO_CTRL1 0x980072f4
++
+ struct sof_rtk_adsp_stream {
+ 	struct snd_sof_dev *sdev;
+ 	size_t posn_offset;
+@@ -75,6 +83,99 @@ struct rtk_hifi_priv {
+ 	struct regmap *ipc_regmap;
+ };
+ 
++static const struct soc_device_attribute rtk_soc_stark[] = {
++	{ .family = "Realtek Stark", },
++	{ /* sentinel */ }
++};
++
++static void rtd1619b_hifi_poweroff(void)
++{
++	void __iomem *map_bit;
++	int timeout = 500;
++	unsigned int val;
++
++	// Disable
++	/* Disable Clock  [15:14] = Disable 0x2 Enable 0x3 */
++	map_bit = ioremap(HIFI_CLK_ENABLE, 0x120);
++	val = readl(map_bit) & 0xFFFF3FFF;
++	val |= (0x2<<14);
++	writel(val, map_bit);
++
++	/* clemp cell on ISO_CTRL1 [21:20] = 0x3 */
++	map_bit = ioremap(ISO_CTRL1, 0x120);
++	writel(readl(map_bit)|(0x3<<20), map_bit);
++
++	/* Set iso_hifi0 bits of ISO_power_ctrl(0x9800_7fD0[13]) register to 1 */
++	map_bit = ioremap(ISO_POWER_CTRL, 0x120);
++	writel(readl(map_bit) | 0x00002000, map_bit);
++
++	/* HIFI HIFI_SRAM reset SYS_SOFT_RESET10_SECURE [15:14]0x3 [9:8]0x3*/
++	map_bit = ioremap(SYS_SOFT_RESET10_SECURE, 0x120);
++	writel(readl(map_bit)|(0x3<<8)|(0x3<<15), map_bit);
++
++	/*HIFI reg reset SYS_SOFT_RESET9[23:22] 0x3 */
++	map_bit = ioremap(SYS_SOFT_RESET9, 0x120);
++	writel(readl(map_bit)|(0x3<<22), map_bit);
++
++	/*HIFI CLK TOGGLE*/
++	map_bit = ioremap(HIFI_CLK_ENABLE, 0x120);
++	writel(readl(map_bit)|(0x3<<14)|(0x3<<22), map_bit);
++	val= readl(map_bit) & 0xFF3F3FFF;
++	val |= (0x202 << 14);
++	writel(val, map_bit);
++
++	/* Set bit 0 and bit1 of ISO_hifi0_sram_pwr4(0x9800_7248[1:0]) register to 1;
++	 * To turn off aucpu power
++	 */
++	map_bit = ioremap(ISO_HIFI0_SRAM_PWR4, 0x120);
++	writel(readl(map_bit) | 0x00000003, map_bit);
++	map_bit = ioremap(ISO_HIFI0_SRAM_PWR5, 0x120);
++	while ((readl(map_bit) & 0x4) != 0x4) {
++		udelay(1000);
++		if (timeout-- < 0) {
++			pr_err("[HIFI] ERROR: failed to power on HiFi: polling sram_pwr5 timeout!\n");
++			break;
++		}
++	}
++	pr_info("HIFI power off");
++	iounmap(map_bit);
++}
++
++static void rtd1619b_hifi_poweron(void)
++{
++	void __iomem *map_bit;
++	int timeout = 500;
++	unsigned int val;
++
++	/* Set bit 0 and bit1 of ISO_hifi0_sram_pwr4(0x9800_7248[1:0]) register to 0;
++	 * To turn on aucpu power
++	 */
++	map_bit = ioremap(ISO_HIFI0_SRAM_PWR4, 0x120);
++	writel(readl(map_bit) & 0xfffffffc, map_bit);
++
++	map_bit = ioremap(ISO_HIFI0_SRAM_PWR5, 0x120);
++	while ((readl(map_bit) & 0x4) != 0x4) {
++		udelay(1000);
++		if (timeout-- < 0) {
++			pr_err("[HIFI] ERROR: failed to power on HiFi: polling sram_pwr5 timeout!\n");
++			break;
++		}
++	}
++
++	/* Set iso_hifi0 bits of ISO_power_ctrl(0x9800_7FD0[13]) register to 0. */
++	map_bit = ioremap(ISO_POWER_CTRL, 0x120);
++	writel(readl(map_bit) & 0xffffdfff, map_bit);
++
++	map_bit = ioremap(ISO_CTRL1, 0x120);
++	val = readl(map_bit)& 0xffcfffff;
++	val |= (0x2 << 20);
++	writel(val, map_bit);
++
++	iounmap(map_bit);
++
++	pr_info("HIFI power on");
++}
++
+ static int rtk_hifi_load_firmware(struct snd_sof_dev *sdev)
+ {
+ 	dma_addr_t dma;
+@@ -95,7 +196,11 @@ static int rtk_hifi_load_firmware(struct snd_sof_dev *sdev)
+ 	snd_sof_load_firmware_memcpy(sdev);
+ 	fw = sdev->basefw.fw;
+ 
+-	arm_smccc_smc(0x8200000d, dma, fw->size, 0, 0, 0, 0, 0, &res);
++	if (soc_device_match(rtk_soc_stark)) {
++		arm_smccc_smc(0x8400ff39, dma, fw->size, 0xff0b, 0, 0, 0, 0, &res);
++	} else {
++		arm_smccc_smc(0x8200000d, dma, fw->size, 0, 0, 0, 0, 0, &res);
++	}
+ 	ret = (unsigned int)res.a0;
+ 
+ 	if(ret) {
+@@ -119,6 +224,11 @@ static int hifi_poweron(struct snd_sof_dev *sdev)
+ 	int ret = 0;
+ 	struct rtk_hifi_priv *priv = sdev->pdata->hw_pdata;
+ 
++	if (soc_device_match(rtk_soc_stark)) {
++		rtd1619b_hifi_poweron();
++		return ret;
++	}
++
+ 	regmap_write(priv->ipc_regmap, PCPU_IPC_ARG_ADDR_OFFSET, 0);
+ 
+ 	regmap_write(priv->ipc_regmap, PCPU_IPC_CMD_ADDR_OFFSET, PCPU_POWER_ON_HIFI);
+@@ -150,6 +260,11 @@ static int hifi_powerdown(struct snd_sof_dev *sdev)
+         int ret = 0;
+         struct rtk_hifi_priv *priv = sdev->pdata->hw_pdata;
+ 
++	if (soc_device_match(rtk_soc_stark)) {
++		rtd1619b_hifi_poweroff();
++		return ret;
++	}
++
+ 	regmap_write(priv->ipc_regmap, PCPU_IPC_ARG_ADDR_OFFSET, 0);
+ 
+         regmap_write(priv->ipc_regmap, PCPU_IPC_CMD_ADDR_OFFSET, PCPU_POWER_DOWN_HIFI);
+@@ -377,6 +492,7 @@ static int rtk_hifi_probe(struct snd_sof_dev *sdev)
+ 		return dev_err_probe(&pdev->dev, ret,
+ 				     "failed to init HIFI krpc ept info");
+ 
++	if (!soc_device_match(rtk_soc_stark)) {
+         priv->intr_regmap = syscon_regmap_lookup_by_phandle(sdev->dev->of_node, "intr-syscon");
+         if(IS_ERR_OR_NULL(priv->intr_regmap)) {
+                 pr_err("get intr regmap FAIL!");
+@@ -387,6 +503,7 @@ static int rtk_hifi_probe(struct snd_sof_dev *sdev)
+                 pr_err("get ipc regmap FAIL!");
+                 return -EINVAL;
+         }
++        }
+ 
+ 	priv->sof_ept = sof_ept;
+ 	priv->sof_ept->priv = priv;
+@@ -420,6 +537,7 @@ static int rtk_hifi_shutdown(struct snd_sof_dev *sdev)
+ void set_hifi_pll_and_ssc_control(uint32_t freq_setting)
+ {
+ 	void __iomem *map_bit;
++	unsigned int val;
+ 
+ 	map_bit = ioremap(SYS_PLL_HIFI2, 0x120);
+ 	if (readl(map_bit) == 0x3)
+@@ -457,6 +575,26 @@ void set_hifi_pll_and_ssc_control(uint32_t freq_setting)
+ 	map_bit = ioremap(SYS_PLL_HIFI2, 0x120);
+ 	writel(0x00000003, map_bit);
+ 
++	/* reset vector 9801AD00 ???*/
++
++	/* tpggle HIFI clock */
++	map_bit = ioremap(HIFI_CLK_ENABLE, 0x120);
++	writel(readl(map_bit)|(0x3<<14)|(0x3<<22), map_bit);
++	val= readl(map_bit) & 0xFF3F3FFF;
++	val |= (0x202 << 14);
++	writel(val, map_bit);
++
++	/* reg rest SYS_SOFT_RESET9[23:22]0x3 */
++	map_bit = ioremap(SYS_SOFT_RESET9, 0x120);
++	writel(readl(map_bit)|(0x3<<22), map_bit);
++
++	/* reset SYS_SOFT_RESET10_SECURE[9:8] 0x3 */
++	map_bit = ioremap(SYS_SOFT_RESET10_SECURE, 0x120);
++	writel(readl(map_bit)|(0x3<<8), map_bit);
++
++	/* Enable HIFI clock */
++	map_bit = ioremap(HIFI_CLK_ENABLE, 0x120);
++	writel(readl(map_bit)|(0x3<<14), map_bit);
+ 	iounmap(map_bit);
+ }
+ 
+@@ -546,10 +684,24 @@ static int rtk_hifi_pre_fw_run(struct snd_sof_dev *sdev)
+ 	ret = 0;
+ 	sof_mailbox_write(sdev, sdev->dsp_box.offset, (void *)&ret, 4);
+ 
++	if (soc_device_match(rtk_soc_stark)) {
++	struct arm_smccc_res res;
++	rtd1619b_hifi_poweron();
++	set_hifi_pll_and_ssc_control(HIFI_PLL_796MHZ);
++
++	arm_smccc_smc(0x8400ff36, 0, 0, 0, 0, 0, 0, 0, &res);
++	ret = (unsigned int)res.a0;
++	dev_info(sdev->dev, "[%s] smc ret: 0x%x\n", __func__, ret);
++	/* (workaround) send interrupt */
++	mdelay(500);
++	map_bit = ioremap(0x9801aa80, 0x120);
++	writel(0x11, map_bit);
++	} else {
+ 	map_bit=ioremap(0x9801ad00,0x120);
+ 	writel(0x0f800000,map_bit);
+ 	iounmap(map_bit);
+ 	hifi_poweron(sdev);
++	}
+ 
+ 
+ 	return 0;
+@@ -872,6 +1024,11 @@ static struct snd_soc_acpi_mach sof_rtk_machs[] = {
+ 		.drv_name = "rtk-hifi",
+ 		.sof_tplg_filename = "sof-adsp-rtd1501s.tplg",
+ 	},
++	{
++		.board = "realtek,rtd1619b",
++		.drv_name = "rtk-hifi",
++		.sof_tplg_filename = "sof-adsp-rtd1619b.tplg",
++	},
+ 	{},
+ };
+ 
+@@ -909,11 +1066,30 @@ static struct sof_dev_desc snd_sof_rtd1501s_desc = {
+         .ops = &sof_hifi_ops,
+ };
+ 
++static struct sof_dev_desc snd_sof_rtd1619b_desc = {
++	.machines = sof_rtk_machs,
++	.ipc_supported_mask     = BIT(SOF_IPC_TYPE_3),
++	.ipc_default            = SOF_IPC_TYPE_3,
++	.default_fw_path = {
++		[SOF_IPC_TYPE_3] = "sof",
++	},
++	.default_tplg_path = {
++		[SOF_IPC_TYPE_3] = "sof",
++	},
++	.default_fw_filename = {
++		[SOF_IPC_TYPE_3] = "sof-adsp-rtd1619b.ri",
++	},
++	.nocodec_tplg_filename = "",
++	.ops = &sof_hifi_ops,
++};
++
+ static const struct of_device_id sof_of_rtk_ids[] = {
+ 	{ .compatible = "realtek,rtd1920s-hifi",
+ 	  .data = &snd_sof_rtd1920s_desc },
+ 	{ .compatible = "realtek,rtd1501s-hifi",
+ 	  .data = &snd_sof_rtd1501s_desc },
++	{ .compatible = "realtek,rtd1619b-hifi",
++	  .data = &snd_sof_rtd1619b_desc },
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, sof_of_rtk_ids);
+-- 
+2.34.1
+

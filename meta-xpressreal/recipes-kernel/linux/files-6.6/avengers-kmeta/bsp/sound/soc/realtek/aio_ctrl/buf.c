@@ -9,8 +9,10 @@ int rtk_aio_ctrl_alloc_buf(struct device *dev, struct rtk_aio_ctrl_buf *buf)
 	void *vaddr;
 	size_t size = PAGE_SIZE;
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	rheap_setup_dma_pools(dev, "rtk_audio_heap",
 			      RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC | RTK_FLAG_ACPUACC, __func__);
+#endif
 
 	vaddr = dma_alloc_coherent(dev, size, &dma_addr, GFP_KERNEL);
 	if (!vaddr)

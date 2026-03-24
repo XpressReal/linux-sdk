@@ -1,0 +1,26 @@
+From 7643bee95ebbf5993c25c5f7206c456396d55588 Wed Feb 4 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed Feb 4 14:02:49 2026 +0800
+Subject: [PATCH] move ve1 buffer to vo5 pool
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+
+diff --git a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
+index a71f883413be..72092f066a1c 100755
+--- a/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
++++ b/drivers/soc/realtek/rtd16xxb/rtk_ve/ve1/ve1.c
+@@ -204,8 +204,8 @@ static unsigned int to_heapflag(unsigned int mem_type)
+ 		flags = (RTK_FLAG_HWIPACC | RTK_FLAG_PROTECTED_V2_VIDEO_POOL);
+ 		break;
+ 	default:
+-		flags = (RTK_FLAG_SCPUACC | RTK_FLAG_HWIPACC |
+-			 RTK_FLAG_NONCACHED);
++		flags = (RTK_FLAG_SCPUACC | RTK_FLAG_NONCACHED |
++			 RTK_FLAG_VO_POOL);
+ 	}
+ 	return flags;
+ }

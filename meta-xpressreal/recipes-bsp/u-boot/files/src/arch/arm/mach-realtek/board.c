@@ -23,7 +23,7 @@
 #include <env_internal.h>
 #include <asm/arch/io.h>
 #include <asm/arch/rbus/crt_sys_reg.h>
-#include <asm/arch/platform_lib/board/gpio.h>
+#include <asm-generic/gpio.h>
 #include <asm/arch/cpu.h>
 #include <net.h>
 #include <fdt_support.h>
@@ -228,13 +228,6 @@ int board_init(void)
 	return 0;
 }
 
-extern int rtl8168_initialize(struct bd_info *bis);
-int board_eth_init(struct bd_info *bis)
-{
-	rtl8168_initialize(gd->bd);
-	return 0;
-}
-
 #ifdef CONFIG_MISC_INIT_R
 #if defined(CONFIG_TARGET_RTD1619B)
 #define RESET_MAGIC		0xaabbcc00
@@ -282,20 +275,25 @@ int misc_init_r(void)
 #else
 	const u32 select = get_rtd1xxx_gpio_select();
 
-	if (!strlen(CONFIG_BOARD_FIT_CONFIG_NAME))
+	if (!strlen(CONFIG_BOARD_FIT_CONFIG_NAME)) {
 		board_name = (select & 0x1) ? "#rtd1619b-bleedingedge-emmc" : "#rtd1619b-backinblack";
-	else
+		if (select & 0x1)
+			env_set("adtb_idx", "2");
+		else
+			env_set("adtb_idx", "1");
+	}
+	else {
 		board_name = "#" CONFIG_BOARD_FIT_CONFIG_NAME;
+	}
 #endif
 	env_set("bootcfg", board_name);
 #if CONFIG_IS_ENABLED(USB_STORAGE)
-#if !defined(CONFIG_TARGET_RTD1625)
-#if CONFIG_USB_BOOT_GPIO_NUM
-	setISOGPIO_pullsel(CONFIG_USB_BOOT_GPIO_NUM, PULL_UP);
-	if (!getISOGPIO(CONFIG_USB_BOOT_GPIO_NUM))
-#endif
+#if CONFIG_USB_BOOT_GPIO_NUM > 0
+	gpio_request(CONFIG_USB_BOOT_GPIO_NUM, "usb-boot-key");
+	gpio_direction_input(CONFIG_USB_BOOT_GPIO_NUM);
+	if (!gpio_get_value(CONFIG_USB_BOOT_GPIO_NUM))
 	env_set("boot_usb", "1");
-#endif // !CONFIG_TARGET_RTD1625
+#endif
 #endif /* USB_STORAGE */
 
 	if(gd->fdt_blob) {
@@ -381,7 +379,8 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 		set_hdmi_off();
 #endif
 
-	if (eth_get_dev_index() >= 0)
+	//if (eth_get_dev_index() >= 0)
+	if (eth_get_dev_by_name("r8169soc@16000"))
 		fdt_status_okay_by_alias(blob, "ethernet");
 #if defined(CONFIG_TARGET_RTD1619B)
 	/* set core power to 812500 */
@@ -406,14 +405,18 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 
 #if defined(CONFIG_TARGET_RTD1619B)
 #define BOOT_AV_INFO_MAGICNO    0x2452544D
-#define BOOT_LOGO_ADDR          0x2F700000
+#define BOOT_LOGO_ADDR          0x27700000
 #define BOOT_LOGO_SIZE          0x00900000
+#define BOOT_AUDIO_ADDR         0x26F00000
+#define BOOT_AUDIO_SIZE         0x00400000
+#define BOOT_DECAUDIO_ADDR      (BOOT_AUDIO_ADDR + BOOT_AUDIO_SIZE)
+#define BOOT_DECAUDIO_SIZE      0x00400000
 #define VO_SECURE_ADDR          BOOT_LOGO_ADDR + BOOT_LOGO_SIZE - 0x100000
 #define VO_SECURE_SIZE          0x00005a00
 static void bootlogo_image_process(ulong bootlogo_image, size_t bootlogo_size)
 {
+	boot_av_info_t *boot_av = (boot_av_info_t *)MIPS_BOOT_AV_INFO_ADDR;
 	if (((u32)bootlogo_image == BOOT_LOGO_ADDR) && (env_get_yesno("bootlogo") == 1)) {
-		boot_av_info_t *boot_av = (boot_av_info_t *)MIPS_BOOT_AV_INFO_ADDR;
 		boot_av->dwMagicNumber = __swap_32(BOOT_AV_INFO_MAGICNO);
 		memset((void *)(uintptr_t)VO_SECURE_ADDR, 0x0, VO_SECURE_SIZE);
 		boot_av->vo_secure_addr = __swap_32(VO_SECURE_ADDR);

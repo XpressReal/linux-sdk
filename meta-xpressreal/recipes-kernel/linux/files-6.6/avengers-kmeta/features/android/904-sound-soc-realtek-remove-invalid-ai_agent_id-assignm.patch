@@ -1,0 +1,28 @@
+From 749fcd0b1a893cf49b5dc48dd1082d61a158e1b3 Mon Sep 17 00:00:00 2001
+From: simon_hsu <simon_hsu@realtek.com>
+Date: Thu, 6 Nov 2025 17:36:45 +0800
+Subject: [PATCH] sound: soc: realtek: remove invalid ai_agent_id
+ assignment in HIFI driver to resolve compilation error.
+
+Change-Id: I302b0ce940cc5574c366c31dfe3ac84319071549
+Signed-off-by: James Tai <james.tai@realtek.com>
+---
+ sound/soc/realtek/common/snd-hifi-realtek.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sound/soc/realtek/common/snd-hifi-realtek.c b/sound/soc/realtek/common/snd-hifi-realtek.c
+index cfd5c1e4791f9..4397d68b1e9bb 100644
+--- a/sound/soc/realtek/common/snd-hifi-realtek.c
++++ b/sound/soc/realtek/common/snd-hifi-realtek.c
+@@ -1671,8 +1671,6 @@ static int snd_realtek_hw_create_ai(struct snd_pcm_substream *substream)
+ 		}
+ 	}
+ 
+-	dpcm->mixer->ai_agent_id = dpcm->ai_agent_id;
+-
+ 	snd_open_ai_count++;
+ 
+ 	return 0;
+-- 
+2.47.0
+

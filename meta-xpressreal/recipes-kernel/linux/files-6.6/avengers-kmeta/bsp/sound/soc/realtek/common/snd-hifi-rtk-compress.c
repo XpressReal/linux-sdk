@@ -2017,8 +2017,10 @@ static int rtk_compress_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	/* set up dma buffer operation */
 	set_dma_ops(card->dev, &rheap_dma_ops);
+#endif
 
 	compr_dev->card = card;
 	mixer = (struct rtk_snd_mixer *)card->private_data;

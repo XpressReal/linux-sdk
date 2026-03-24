@@ -1,0 +1,35 @@
+From 5eb4a592c673c8637666f5f6e00f0024bea2f39d Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 11 Mar 2026 01:32:51 -0400
+Subject: [PATCH] CHROME-878: use dma_buf_vmap_unlock and dma_buf_vunmap_unlock
+ to avoid race condition
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_gem.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_gem.c b/drivers/gpu/drm/realtek/rtk_drm_gem.c
+index 4200e696a5382..29d86b2014432 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_gem.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_gem.c
+@@ -222,7 +222,7 @@ void rtk_gem_free_object(struct drm_gem_object *gem_obj)
+ 			struct iosys_map map = IOSYS_MAP_INIT_VADDR(rtk_obj->vaddr);
+ 			struct dma_buf_attachment *attach = gem_obj->import_attach;
+ 
+-			dma_buf_vunmap(attach->dmabuf, &map);
++			dma_buf_vunmap_unlocked(attach->dmabuf, &map);
+ 			dma_buf_end_cpu_access(attach->dmabuf, DMA_BIDIRECTIONAL);
+ 		}
+ 
+@@ -298,7 +298,7 @@ struct drm_gem_object *rtk_gem_prime_import_sg_table(struct drm_device *dev,
+ 
+ #ifdef CONFIG_RTK_METADATA_AUTOJUDGE
+ 	dma_buf_begin_cpu_access(attach->dmabuf, DMA_BIDIRECTIONAL);
+-	ret = dma_buf_vmap(attach->dmabuf, &map);
++	ret = dma_buf_vmap_unlocked(attach->dmabuf, &map);
+ 	if (ret)
+ 		DRM_ERROR("dma_buf_vmap fail\n");
+ 
+-- 
+2.34.1
+

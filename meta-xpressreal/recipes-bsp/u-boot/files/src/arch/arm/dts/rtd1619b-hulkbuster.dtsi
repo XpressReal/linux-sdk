@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd16xxb.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:460800n8";
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	sw_rtc: sw-rtc {
+		compatible = "realtek,emulated-rtc";
+	};
+};
+
+&emmc {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0_usb2phy {
+	status = "okay";
+};
+
+&usb_port0 {
+	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port1_usb2phy {
+	status = "okay";
+};
+
+&usb_port1 {
+	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+/delete-node/ &type_c;

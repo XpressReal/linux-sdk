@@ -1,0 +1,31 @@
+From 1d22797890d60c852ec4752ee2ac0746f03c2566 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 25 Feb 2026 01:55:01 -0500
+Subject: [PATCH] chromium browser over mali patch
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_drv.c | 8 ++++----
+ sound/soc/realtek/Kconfig             | 2 +-
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_drv.c b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+index 18f445cffae7..8e186879ef22 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_drv.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+@@ -315,12 +315,12 @@ DEFINE_DRM_GEM_FOPS(rtk_drm_driver_fops);
+ 
+ static struct drm_driver rtk_drm_driver = {
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++//#ifdef CONFIG_CHROME_PLATFORMS
+ 	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_ATOMIC |
+ 				  DRIVER_RENDER,
+-#else
+-	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_ATOMIC,
+-#endif
++//#else
++//	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_ATOMIC,
++//#endif
+ 	.dumb_create		= rtk_gem_dumb_create,
+ 	.dumb_map_offset	= rtk_gem_dumb_map_offset,
+ 	.prime_handle_to_fd     = drm_gem_prime_handle_to_fd,

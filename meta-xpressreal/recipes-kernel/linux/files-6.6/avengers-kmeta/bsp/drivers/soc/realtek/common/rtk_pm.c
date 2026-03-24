@@ -28,10 +28,7 @@ static int rtk_pm_create_pcpu_param(struct pm_private *dev_pm)
 {
 	if (dev_pm->version == RTK_PCPU_VERSION_V2) {
 		dev_info(dev_pm->dev, "Power CPU version is v2\n");
-		dev_pm->pcpu_param = dma_alloc_coherent(dev_pm->dev,
-							sizeof(struct pm_pcpu_param_v2),
-							&dev_pm->pcpu_param_pa,
-							GFP_KERNEL);
+		dev_pm->pcpu_param = kzalloc(sizeof(struct pm_pcpu_param_v2), GFP_KERNEL);
 	} else {
 		dev_info(dev_pm->dev, "Power CPU version is v1\n");
 		dev_pm->pcpu_param = dma_alloc_coherent(dev_pm->dev,

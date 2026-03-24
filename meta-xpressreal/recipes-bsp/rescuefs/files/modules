@@ -1,0 +1,7 @@
+rtk_fw_remoteproc
+rpmsg_rtk
+rtk_krpc_agent
+rtk_rpc_mem
+drm_dma_helper
+drm_display_helper
+rtk_drm

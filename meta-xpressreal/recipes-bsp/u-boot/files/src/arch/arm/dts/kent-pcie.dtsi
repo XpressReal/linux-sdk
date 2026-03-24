@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Realtek RTD1625 SoC family
+ *
+ * Copyright (c) 2019-2020 Realtek Semiconductor Corp.
+ */
+
+&rbus {
+	pcie0: pcie@60000 {
+		compatible = "realtek,rtd1625-pcie-slot0",  "syscon";
+		reg = <0x60000 0x00001000>,
+		      <0x61000 0x00001000>;
+		syscon-scpu-wrapper = <&scpu_wrapper>;
+		syscon-iso = <&iso>;
+		#size-cells = <2>;
+		#address-cells = <3>;
+		perst-gpios = <&gpio 19 GPIO_ACTIVE_HIGH>;
+		device-power-gpios = <&gpio 136 GPIO_ACTIVE_HIGH>;
+		speed-mode = <0>; // 0:default 1:GEN1, 2:GEN2 3:GEN3
+		debug-mode = <0>;
+		phys = <&pcie0_phy>;
+		ranges = <0x02000000 0x0 0xa0000000 0xa0000000 0x0 0x00300000>;
+		status = "okay";
+	};
+
+	pcie1: pcie@a0000 {
+		compatible = "realtek,rtd1625-pcie-slot1", "syscon";
+		reg = <0xa0000 0x00001000>,
+		      <0xa1000 0x00001000>;
+		syscon-scpu-wrapper = <&scpu_wrapper>;
+		syscon-iso = <&iso>;
+		#size-cells = <2>;
+		#address-cells = <3>;
+		perst-gpios = <&gpio 31 GPIO_ACTIVE_HIGH>;
+		device-power-gpios = <&gpio 135 GPIO_ACTIVE_HIGH>;
+		device-power-supply = <&pmic>;
+		speed-mode = <0>; // 0:default 1:GEN1, 2:GEN2
+		debug-mode = <0>;
+		phys = <&pcie1_phy>;
+		ranges = <0x02000000 0x0 0xa0300000 0xa0300000 0x0 0x00300000>;
+		status = "okay";
+	};
+
+	pcie0_syscon: syscon@60000 {
+		compatible = "syscon";
+		reg = <0x60000 0x00001000>;
+		status = "okay";
+	};
+
+	pcie1_syscon: syscon@a0000 {
+		compatible = "syscon";
+		reg = <0xa0000 0x00001000>;
+		status = "okay";
+	};
+
+};
+
+/ {
+	pcie0_phy: pcie0_phy {
+		compatible = "realtek,rtd1625-pcie-slot0-phy";
+		syscon = <&pcie0_syscon>;
+		#phy-cells = <0>;
+		status = "okay";
+	};
+
+	pcie1_phy: pcie1_phy {
+		compatible = "realtek,rtd1625-pcie-slot1-phy";
+		syscon =  <&pcie1_syscon>;
+		#phy-cells = <0>;
+		status = "okay";
+	};
+};
+

@@ -1,0 +1,100 @@
+From 147e4bab8390102241b5043d7039180f80c9f3a7 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 26 Nov 2025 18:22:09 +0800
+Subject: [PATCH 1/1] Avoid advertising empty/invalid AVC codec_data in caps
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ gst/flv/gstflvdemux.c | 38 +++++++++++++++++++++++++++-----------
+ gst/flv/gstflvdemux.h |  2 ++
+ 2 files changed, 29 insertions(+), 11 deletions(-)
+
+diff --git a/gst/flv/gstflvdemux.c b/gst/flv/gstflvdemux.c
+index 7381ff5..cc09df3 100644
+--- a/gst/flv/gstflvdemux.c
++++ b/gst/flv/gstflvdemux.c
+@@ -1459,14 +1459,20 @@ gst_flv_demux_video_negotiate (GstFlvDemux * demux, guint32 codec_tag)
+       caps = gst_caps_new_empty_simple ("video/x-vp6-alpha");
+       break;
+     case 7:
+-      if (!demux->video_codec_data) {
+-        GST_DEBUG_OBJECT (demux, "don't have h264 codec data yet");
++      if (demux->no_avcc) {
++        caps = gst_caps_new_simple ("video/x-h264",
++                        "stream-format", G_TYPE_STRING, "byte-stream",
++                        "alignment", G_TYPE_STRING, "au", NULL);
++        GST_DEBUG_OBJECT (demux, "using byte-stream caps (no codec_data)");
++      } else if (!demux->video_codec_data) {
++        GST_DEBUG_OBJECT (demux,
++            "waiting for AVCDecoderConfigurationRecord (avc_packet_type=0)");
+         ret = TRUE;
+         goto done;
++      } else {
++        caps = gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
++            "avc", NULL);
+       }
+-      caps =
+-          gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
+-          "avc", NULL);
+       break;
+       /* The following two are non-standard but apparently used, see in ffmpeg
+        * https://git.videolan.org/?p=ffmpeg.git;a=blob;f=libavformat/flvdec.c;h=2bf1e059e1cbeeb79e4af9542da23f4560e1cf59;hb=b18d6c58000beed872d6bb1fe7d0fbe75ae26aef#l254
+@@ -1694,9 +1700,13 @@ gst_flv_demux_parse_tag_video (GstFlvDemux * demux, GstBuffer * buffer)
+         if (demux->video_codec_data) {
+           gst_buffer_unref (demux->video_codec_data);
+         }
+-        demux->video_codec_data = gst_buffer_copy_region (buffer,
+-            GST_BUFFER_COPY_MEMORY, 7 + codec_data,
+-            demux->tag_data_size - codec_data);;
++
++         if (demux->tag_data_size > codec_data + 5) {
++             demux->video_codec_data = gst_buffer_copy_region (buffer,
++                 GST_BUFFER_COPY_MEMORY, 7 + codec_data,
++                 demux->tag_data_size - codec_data);;
++         }
++
+         /* Use that buffer data in the caps */
+         if (demux->video_pad)
+           gst_flv_demux_video_negotiate (demux, codec_tag);
+@@ -1705,9 +1715,13 @@ gst_flv_demux_parse_tag_video (GstFlvDemux * demux, GstBuffer * buffer)
+       case 1:
+         /* H.264 NALU packet */
+         if (!demux->video_codec_data) {
+-          GST_ERROR_OBJECT (demux, "got H.264 video packet before codec data");
+-          ret = GST_FLOW_OK;
+-          goto beach;
++          GST_WARNING_OBJECT (demux,
++              "got H.264 NALU before codec configuration record, "
++              "continuing with byte-stream format");
++          demux->no_avcc = TRUE;
++          if (demux->video_pad) {
++            gst_flv_demux_video_negotiate (demux, codec_tag);
++          }
+         }
+         GST_LOG_OBJECT (demux, "got a H.264 NALU video packet");
+         break;
+@@ -2149,6 +2163,8 @@ gst_flv_demux_cleanup (GstFlvDemux * demux)
+ 
+   demux->no_more_pads = FALSE;
+ 
++  demux->no_avcc = FALSE;
++
+ #ifndef GST_DISABLE_DEBUG
+   demux->no_audio_warned = FALSE;
+   demux->no_video_warned = FALSE;
+diff --git a/gst/flv/gstflvdemux.h b/gst/flv/gstflvdemux.h
+index 7158457..e3778d5 100644
+--- a/gst/flv/gstflvdemux.h
++++ b/gst/flv/gstflvdemux.h
+@@ -162,6 +162,8 @@ struct _GstFlvDemux
+   gboolean audio_done;
+   gint64 from_offset;
+   gint64 to_offset;
++
++  gboolean no_avcc;
+ };
+ 
+ struct _GstFlvDemuxClass
+-- 
+2.34.1
+

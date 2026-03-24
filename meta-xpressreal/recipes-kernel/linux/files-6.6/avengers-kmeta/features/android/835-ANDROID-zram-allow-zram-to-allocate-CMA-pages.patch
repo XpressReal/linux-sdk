@@ -1,0 +1,72 @@
+From f4c99bd26c3bc819cda040648a81f6147ca2ba42 Mon Sep 17 00:00:00 2001
+From: Vinayak Menon <vinmenon@codeaurora.org>
+Date: Mon, 12 Feb 2024 16:02:43 -0800
+Subject: [PATCH 5/5] ANDROID: zram: allow zram to allocate CMA pages
+
+Though zram pages are movable, they aren't allowed to enter
+MIGRATE_CMA pageblocks. zram is not seen to pin pages for
+long which can cause an issue. Moreover allowing zram to
+pick CMA pages can be helpful in cases seen where zram order
+0 alloc fails when there are lots of free cma pages, resulting
+in kswapd or direct reclaim not making enough progress.
+
+Bug: 330201547
+Change-Id: I31f4a21781cdb31982a768daa59e9546d7667b08
+Link: https://lore.kernel.org/linux-mm/4c77bb100706b714213ff840d827a48e40ac9177.1604282969.git.cgoldswo@codeaurora.org/
+Signed-off-by: Vinayak Menon <vinmenon@codeaurora.org>
+Signed-off-by: Chris Goldsworthy <cgoldswo@codeaurora.org>
+Signed-off-by: Suren Baghdasaryan <surenb@google.com>
+[isaacm@codeaurora.org: Resolve trivial merge conflicts]
+Signed-off-by: Isaac J. Manjarres <isaacm@codeaurora.org>
+Signed-off-by: Sukadev Bhattiprolu <quic_sukadev@quicinc.com>
+---
+ drivers/block/zram/zram_drv.c | 5 +++--
+ mm/zsmalloc.c                 | 4 ++--
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/block/zram/zram_drv.c b/drivers/block/zram/zram_drv.c
+index 06673c6ca255..4250b1de45f5 100644
+--- a/drivers/block/zram/zram_drv.c
++++ b/drivers/block/zram/zram_drv.c
+@@ -1463,13 +1463,14 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
+ 				__GFP_KSWAPD_RECLAIM |
+ 				__GFP_NOWARN |
+ 				__GFP_HIGHMEM |
+-				__GFP_MOVABLE);
++				__GFP_MOVABLE |
++				__GFP_CMA);
+ 	if (IS_ERR_VALUE(handle)) {
+ 		zcomp_stream_put(zram->comps[ZRAM_PRIMARY_COMP]);
+ 		atomic64_inc(&zram->stats.writestall);
+ 		handle = zs_malloc(zram->mem_pool, comp_len,
+ 				GFP_NOIO | __GFP_HIGHMEM |
+-				__GFP_MOVABLE);
++				__GFP_MOVABLE | __GFP_CMA);
+ 		if (IS_ERR_VALUE(handle))
+ 			return PTR_ERR((void *)handle);
+ 
+diff --git a/mm/zsmalloc.c b/mm/zsmalloc.c
+index b58f957429f0..3ac4013f0147 100644
+--- a/mm/zsmalloc.c
++++ b/mm/zsmalloc.c
+@@ -322,7 +322,7 @@ static void destroy_cache(struct zs_pool *pool)
+ static unsigned long cache_alloc_handle(struct zs_pool *pool, gfp_t gfp)
+ {
+ 	return (unsigned long)kmem_cache_alloc(pool->handle_cachep,
+-			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
++			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+ }
+ 
+ static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
+@@ -333,7 +333,7 @@ static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
+ static struct zspage *cache_alloc_zspage(struct zs_pool *pool, gfp_t flags)
+ {
+ 	return kmem_cache_zalloc(pool->zspage_cachep,
+-			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
++			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+ }
+ 
+ static void cache_free_zspage(struct zs_pool *pool, struct zspage *zspage)
+-- 
+2.34.1
+

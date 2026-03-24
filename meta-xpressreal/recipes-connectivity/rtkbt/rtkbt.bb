@@ -38,10 +38,12 @@ do_install() {
 	install -m 0644 ${SRC_DIR}/dhc-rtkbt-firmware/lib/firmware/rtlbt/* ${D}/${nonarch_base_libdir}/firmware/rtlbt/
 	install -m 0644 ${SRC_DIR}/dhc-rtkbt-firmware/lib/firmware/rtl_bt/* ${D}/${nonarch_base_libdir}/firmware/rtl_bt
 	install -m 0644 ${WORKDIR}/rtk-hciattach.service ${D}${systemd_unitdir}/system/rtk-hciattach.service
+	(cd ${D}/${nonarch_base_libdir}/firmware/rtlbt/; for fw in *; do ln -s $fw $fw.bin; done)
 }
 
 SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE_${PN} = "rtk-hciattach.service"
+SYSTEMD_SERVICE_${PN}:rtd16xx = ""
 
 FILES:${PN} = "${bindir}/rtk_hciattach \
 	       ${systemd_unitdir}/system/rtk-hciattach.service \
@@ -49,3 +51,6 @@ FILES:${PN} = "${bindir}/rtk_hciattach \
                ${nonarch_base_libdir}/firmware/rtlbt/* \
                ${nonarch_base_libdir}/firmware/rtl_bt/* \
               "
+FILES:${PN}:rtd16xx = "${nonarch_base_libdir}/firmware/rtlbt/* "
+
+INSANE_SKIP:${PN}:rtd16xx += "installed-vs-shipped"

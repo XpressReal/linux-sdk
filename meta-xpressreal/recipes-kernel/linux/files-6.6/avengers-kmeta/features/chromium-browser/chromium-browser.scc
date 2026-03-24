@@ -1,0 +1,3 @@
+patch 0001-chromium-browser-over-mali-patch.patch
+
+kconf hardware chromium-browser.cfg

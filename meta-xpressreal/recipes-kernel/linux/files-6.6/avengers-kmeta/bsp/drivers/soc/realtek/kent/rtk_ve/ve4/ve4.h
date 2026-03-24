@@ -30,6 +30,8 @@
 
 #include "ve4config.h"
 
+#define SUPPORT_MULTI_INST_INTR
+#define SUPPORT_MULTI_INST_INTR_ERROR_CHECK
 #define USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 
 #define VDI_IOCTL_MAGIC 'V'
@@ -57,8 +59,8 @@
 
 typedef struct vpudrv_buffer_t {
 	unsigned int size;
-	unsigned long long phys_addr;
-	unsigned long long base;
+	unsigned long phys_addr;
+	unsigned long base;
 	unsigned long virt_addr; /* virtual user space address */
 	unsigned int mem_type; /* RTK, for protect memory */
 } vpudrv_buffer_t;
@@ -83,9 +85,12 @@ typedef struct vpudrv_inst_info_t {
 } vpudrv_inst_info_t;
 
 typedef struct vpudrv_intr_info_t {
+	unsigned int core_idx;
 	unsigned int timeout;
 	int intr_reason;
+#ifdef SUPPORT_MULTI_INST_INTR
 	int intr_inst_index;
+#endif
 } vpudrv_intr_info_t;
 
 typedef struct vpu_drv_context_t {
@@ -145,4 +150,19 @@ extern int kent_ve4_alloc_from_vm(void);
 extern int kent_ve4_alloc_from_dmabuffer2(void);
 extern int kent_ve4_alloc_dma_buffer(vpudrv_buffer_t *vb);
 extern void kent_ve4_free_dma_buffer(vpudrv_buffer_t *vb);
+
+extern int kent_ve4_vdi_ioctl_get_instance_pool(vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_get_register_info(vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_get_wrap_register_info(vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_set_rtk_clk_gating(vpu_clock_info_t* clockInfo);
+extern int kent_ve4_vdi_ioctl_get_common_memory(vpudrv_buffer_t *vdb);
+extern ssize_t kent_ve4_vdi_write_bit_firmware(vpu_bit_firmware_info_t *buf, size_t len);
+extern int kent_ve4_vdi_ioctl_allocate_physical_memory(void *filp, vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_free_physical_memory(vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_allocate_physical_memory_no_mmap(void *filp, vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_free_physical_memory_no_mmap(vpudrv_buffer_t *vdb);
+extern int kent_ve4_vdi_ioctl_open_instance(void *filp, vpudrv_inst_info_t *inst_info);
+extern int kent_ve4_vdi_ioctl_close_instance(vpudrv_inst_info_t *inst_info);
+extern int kent_ve4_vdi_ioctl_wait_interrupt(vpudrv_intr_info_t *intr_info);
+
 #endif

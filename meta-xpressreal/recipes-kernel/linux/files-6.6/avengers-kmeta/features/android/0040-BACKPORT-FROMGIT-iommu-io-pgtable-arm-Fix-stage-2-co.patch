@@ -1,0 +1,96 @@
+From acf075b4bf7f6aa048cb28086e363e33b816d9fc Mon Sep 17 00:00:00 2001
+From: Mostafa Saleh <smostafa@google.com>
+Date: Mon, 2 Dec 2024 14:06:03 +0000
+Subject: [PATCH] BACKPORT: FROMGIT: iommu/io-pgtable-arm: Fix stage-2
+ concatenation with 16K
+
+At the moment, io-pgtable-arm uses concatenation only if it is
+possible at level 0, which misses a case where concatenation is
+mandatory at level 1 according to R_SRKBC in Arm spec DDI0487 K.a.
+
+Also, that means concatenation can be used when not mandated,
+contradicting the comment on the code. However, these cases can only
+happen if the SMMUv3 driver is changed to use ias != oas for stage-2.
+
+This patch re-writes the code to use concatenation only if mandatory,
+fixing the missing case for level-1 and granule 16K with PA = 40 bits.
+
+Bug: 374902116
+Bug: 378077087
+(cherry picked from commit 4dcac8407fe1be21990f356e2e8d8309ba63e346
+ https://git.kernel.org/pub/scm/linux/kernel/git/will/linux.git for-joerg/arm-smmu/updates)
+[@smostafa: Move to io-pgtable-arm-common.c which have this code now]
+Change-Id: I786f66b336df9b6cb701d546527a11e57a856775
+Signed-off-by: Mostafa Saleh <smostafa@google.com>
+Link: https://lore.kernel.org/r/20241202140604.422235-2-smostafa@google.com
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ drivers/iommu/io-pgtable-arm-common.c | 45 ++++++++++++++++++++-------
+ 1 file changed, 33 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/iommu/io-pgtable-arm-common.c b/drivers/iommu/io-pgtable-arm-common.c
+index bc37c3b42c45b..e2256eda3b7eb 100644
+--- a/drivers/iommu/io-pgtable-arm-common.c
++++ b/drivers/iommu/io-pgtable-arm-common.c
+@@ -62,6 +62,33 @@ static inline int arm_lpae_max_entries(int i, struct arm_lpae_io_pgtable *data)
+ 	return ptes_per_table - (i & (ptes_per_table - 1));
+ }
+ 
++/*
++ * Check if concatenated PGDs are mandatory according to Arm DDI0487 (K.a)
++ * 1) R_DXBSH: For 16KB, and 48-bit input size, use level 1 instead of 0.
++ * 2) R_SRKBC: After de-ciphering the table for PA size and valid initial lookup
++ *   a) 40 bits PA size with 4K: use level 1 instead of level 0 (2 tables for ias = oas)
++ *   b) 40 bits PA size with 16K: use level 2 instead of level 1 (16 tables for ias = oas)
++ *   c) 42 bits PA size with 4K: use level 1 instead of level 0 (8 tables for ias = oas)
++ *   d) 48 bits PA size with 16K: use level 1 instead of level 0 (2 tables for ias = oas)
++ */
++static inline bool arm_lpae_concat_mandatory(struct arm_lpae_io_pgtable *data)
++{
++	unsigned int ias = data->iop.cfg.ias;
++	unsigned int oas = data->iop.cfg.oas;
++
++	/* Covers 1  and 2.d */
++	if ((ARM_LPAE_GRANULE(data) == SZ_16K) && (data->start_level == 0))
++		return (oas == 48) || (ias == 48);
++
++	/* Covers 2.a and 2.c */
++	if ((ARM_LPAE_GRANULE(data) == SZ_4K) && (data->start_level == 0))
++		return (oas == 40) || (oas == 42);
++
++	/* Case 2.b */
++	return (ARM_LPAE_GRANULE(data) == SZ_16K) &&
++	       (data->start_level == 1) && (oas == 40);
++}
++
+ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
+ 			       struct iommu_iotlb_gather *gather,
+ 			       unsigned long iova, size_t size, size_t pgcount,
+@@ -765,18 +792,12 @@ int arm_lpae_init_pgtable_s2(struct io_pgtable_cfg *cfg,
+ 	if (ret)
+ 		return ret;
+ 
+-	/*
+-	 * Concatenate PGDs at level 1 if possible in order to reduce
+-	 * the depth of the stage-2 walk.
+-	 */
+-	if (data->start_level == 0) {
+-		unsigned long pgd_pages;
+-
+-		pgd_pages = ARM_LPAE_PGD_SIZE(data) / sizeof(arm_lpae_iopte);
+-		if (pgd_pages <= ARM_LPAE_S2_MAX_CONCAT_PAGES) {
+-			data->pgd_bits += data->bits_per_level;
+-			data->start_level++;
+-		}
++	if (arm_lpae_concat_mandatory(data))  {
++		if (WARN_ON((ARM_LPAE_PGD_SIZE(data) / sizeof(arm_lpae_iopte)) >
++			    ARM_LPAE_S2_MAX_CONCAT_PAGES))
++			return -EINVAL;
++		data->pgd_bits += data->bits_per_level;
++		data->start_level++;
+ 	}
+ 
+ 	/* VTCR */
+-- 
+2.34.1
+

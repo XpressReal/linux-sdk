@@ -1,0 +1,269 @@
+From ad90827c69a58df21c49ee11da899b0a48be92d3 Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <yao.tsai@realtek.com>
+Date: Mon, 27 Oct 2025 15:58:33 +0800
+Subject: [PATCH] CHROMIUM: sound: soc: sof: Add RTK flow in SOF framework
+
+[JIRA] CHROME-758
+
+Change-Id: Ibc55b613c64a715bb8793c112954c4e521218304
+---
+ include/sound/sof/dai-realtek.h | 31 ++++++++++++++++++++
+ include/sound/sof/dai.h         |  4 +++
+ include/uapi/sound/sof/tokens.h |  6 ++++
+ sound/soc/sof/ipc3-pcm.c        | 12 ++++++++
+ sound/soc/sof/ipc3-topology.c   | 51 +++++++++++++++++++++++++++++++++
+ sound/soc/sof/sof-audio.h       |  2 ++
+ sound/soc/sof/topology.c        | 15 +++++++++-
+ 7 files changed, 120 insertions(+), 1 deletion(-)
+ create mode 100644 include/sound/sof/dai-realtek.h
+
+diff --git a/include/sound/sof/dai-realtek.h b/include/sound/sof/dai-realtek.h
+new file mode 100644
+index 0000000000000..ea45e461374f5
+--- /dev/null
++++ b/include/sound/sof/dai-realtek.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-3-Clause) */
++/*
++ * This file is provided under a dual BSD/GPLv2 license. When using or
++ * redistributing this file, you may do so under either license.
++ */
++
++#ifndef __INCLUDE_SOUND_SOF_DAI_REALTEK_H__
++#define __INCLUDE_SOUND_SOF_DAI_REALTEK_H__
++
++#include <sound/sof/header.h>
++
++#define RTK_TPLG_VERSION_INFO_LENGTH 40
++
++struct sof_ipc_dai_rtk_afe_params {
++        struct sof_ipc_hdr hdr;
++        u32 channels;
++        u32 rate;
++        u32 format;
++        u32 stream_id;
++        u32 i2s_in_pin;
++        u8 version[RTK_TPLG_VERSION_INFO_LENGTH];
++} __packed;
++
++typedef enum
++{
++        ENUM_AI_I2S_MASTER = 0,
++        ENUM_AI_I2S_SLAVE,
++        ENUM_AI_I2S_SHARE,
++}ENUM_AI_I2S_TYPE;
++
++#endif
+diff --git a/include/sound/sof/dai.h b/include/sound/sof/dai.h
+index 4773a5f616a41..4999231b5e823 100644
+--- a/include/sound/sof/dai.h
++++ b/include/sound/sof/dai.h
+@@ -14,6 +14,7 @@
+ #include <sound/sof/dai-imx.h>
+ #include <sound/sof/dai-amd.h>
+ #include <sound/sof/dai-mediatek.h>
++#include <sound/sof/dai-realtek.h>
+ 
+ /*
+  * DAI Configuration.
+@@ -89,6 +90,8 @@ enum sof_ipc_dai_type {
+ 	SOF_DAI_AMD_SP_VIRTUAL,		/**< AMD ACP SP VIRTUAL */
+ 	SOF_DAI_AMD_HS_VIRTUAL,		/**< AMD ACP HS VIRTUAL */
+ 	SOF_DAI_IMX_MICFIL,		/** < i.MX MICFIL PDM */
++	SOF_DAI_AMD_SW_AUDIO,           /**<Amd SW AUDIO */
++	SOF_DAI_REALTEK_AFE,
+ };
+ 
+ /* general purpose DAI configuration */
+@@ -119,6 +122,7 @@ struct sof_ipc_dai_config {
+ 		struct sof_ipc_dai_acp_params acphs;
+ 		struct sof_ipc_dai_mtk_afe_params afe;
+ 		struct sof_ipc_dai_micfil_params micfil;
++		struct sof_ipc_dai_rtk_afe_params rafe;
+ 	};
+ } __packed;
+ 
+diff --git a/include/uapi/sound/sof/tokens.h b/include/uapi/sound/sof/tokens.h
+index ee5708934614d..3f8210216af5c 100644
+--- a/include/uapi/sound/sof/tokens.h
++++ b/include/uapi/sound/sof/tokens.h
+@@ -218,4 +218,10 @@
+ #define SOF_TKN_IMX_MICFIL_RATE			2000
+ #define SOF_TKN_IMX_MICFIL_CH			2001
+ 
++/* RDAI */
++#define SOF_TKN_REALTEK_AFE_RATE                2200
++#define SOF_TKN_REALTEK_AFE_CH                  2201
++#define SOF_TKN_REALTEK_AFE_FORMAT              2202
++#define SOF_TKN_REALTEK_SOURCE_VERSION          2203
++
+ #endif
+diff --git a/sound/soc/sof/ipc3-pcm.c b/sound/soc/sof/ipc3-pcm.c
+index a7cf52fd76455..7f0509109c5eb 100644
+--- a/sound/soc/sof/ipc3-pcm.c
++++ b/sound/soc/sof/ipc3-pcm.c
+@@ -395,6 +395,18 @@ static int sof_ipc3_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
+ 		dev_dbg(component->dev, "MICFIL PDM channels_min: %d channels_max: %d\n",
+ 			channels->min, channels->max);
+ 		break;
++	case SOF_DAI_REALTEK_AFE:
++		rate->min = private->dai_config->rafe.rate;
++		rate->max = private->dai_config->rafe.rate;
++		channels->min = private->dai_config->rafe.channels;
++		channels->max = private->dai_config->rafe.channels;
++
++		dev_dbg(component->dev,
++			"rate_min: %d rate_max: %d\n", rate->min, rate->max);
++		dev_dbg(component->dev,
++			"channels_min: %d channels_max: %d\n",
++			channels->min, channels->max);
++		break;
+ 	default:
+ 		dev_err(component->dev, "Invalid DAI type %d\n", private->dai_config->type);
+ 		break;
+diff --git a/sound/soc/sof/ipc3-topology.c b/sound/soc/sof/ipc3-topology.c
+index 1f5f0838cbe74..0c25c77773f8f 100644
+--- a/sound/soc/sof/ipc3-topology.c
++++ b/sound/soc/sof/ipc3-topology.c
+@@ -291,6 +291,22 @@ static const struct sof_topology_token acpi2s_tokens[] = {
+ 		offsetof(struct sof_ipc_dai_acp_params, tdm_mode)},
+ };
+ 
++/* RDAI */
++static const struct sof_topology_token rdai_tokens[] = {
++        {SOF_TKN_REALTEK_AFE_RATE,
++                SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
++                offsetof(struct sof_ipc_dai_rtk_afe_params, rate)},
++        {SOF_TKN_REALTEK_AFE_CH,
++                SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
++                offsetof(struct sof_ipc_dai_rtk_afe_params, channels)},
++        {SOF_TKN_REALTEK_AFE_FORMAT,
++                SND_SOC_TPLG_TUPLE_TYPE_STRING, get_token_comp_format,
++                offsetof(struct sof_ipc_dai_rtk_afe_params, format)},
++        {SOF_TKN_REALTEK_SOURCE_VERSION,
++                SND_SOC_TPLG_TUPLE_TYPE_STRING, get_token_version,
++                offsetof(struct sof_ipc_dai_rtk_afe_params, version)},
++};
++
+ /* MICFIL PDM */
+ static const struct sof_topology_token micfil_pdm_tokens[] = {
+ 	{SOF_TKN_IMX_MICFIL_RATE,
+@@ -339,6 +355,7 @@ static const struct sof_token_info ipc3_token_list[SOF_TOKEN_COUNT] = {
+ 	[SOF_ACPI2S_TOKENS]   = {"ACPI2S tokens", acpi2s_tokens, ARRAY_SIZE(acpi2s_tokens)},
+ 	[SOF_MICFIL_TOKENS] = {"MICFIL PDM tokens",
+ 		micfil_pdm_tokens, ARRAY_SIZE(micfil_pdm_tokens)},
++	[SOF_RDAI_TOKENS] = {"RDAI tokens", rdai_tokens, ARRAY_SIZE(rdai_tokens)},
+ };
+ 
+ /**
+@@ -1518,6 +1535,37 @@ static int sof_link_alh_load(struct snd_soc_component *scomp, struct snd_sof_dai
+ 	return 0;
+ }
+ 
++static int sof_link_rdai_load(struct snd_soc_component *scomp, struct snd_sof_dai_link *slink,
++                        struct sof_ipc_dai_config *config, struct snd_sof_dai *dai)
++{
++        struct sof_dai_private_data *private = dai->private;
++        u32 size = sizeof(*config);
++        int ret;
++
++	config->hdr.size = size;
++
++        /* parse the required set of AFE tokens based on num_hw_cfgs */
++        ret = sof_update_ipc_object(scomp, &config->rafe, SOF_RDAI_TOKENS, slink->tuples,
++                                                                slink->num_tuples, size, slink->num_hw_configs);
++        if (ret < 0)
++                return ret;
++
++        dev_info(scomp->dev, "AFE config rate %d channels %d format:%d\n",
++                        config->rafe.rate, config->rafe.channels, config->rafe.format);
++        dev_info(scomp->dev, "AFE tplg version:%s\n", config->rafe.version);
++
++        config->rafe.stream_id = DMA_CHAN_INVALID;
++        config->rafe.i2s_in_pin = ENUM_AI_I2S_SHARE;
++
++        dai->number_configs = 1;
++        dai->current_config = 0;
++        private->dai_config = kmemdup(config, size, GFP_KERNEL);
++        if (!private->dai_config)
++                return -ENOMEM;
++
++        return 0;
++}
++
+ static int sof_ipc3_widget_setup_comp_dai(struct snd_sof_widget *swidget)
+ {
+ 	struct snd_soc_component *scomp = swidget->scomp;
+@@ -1644,6 +1692,9 @@ static int sof_ipc3_widget_setup_comp_dai(struct snd_sof_widget *swidget)
+ 		case SOF_DAI_MEDIATEK_AFE:
+ 			ret = sof_link_afe_load(scomp, slink, config, dai);
+ 			break;
++                case SOF_DAI_REALTEK_AFE:
++                        ret = sof_link_rdai_load(scomp, slink, config, dai);
++                        break;
+ 		default:
+ 			break;
+ 		}
+diff --git a/sound/soc/sof/sof-audio.h b/sound/soc/sof/sof-audio.h
+index c93c60f3aea6d..35d79040ba2d8 100644
+--- a/sound/soc/sof/sof-audio.h
++++ b/sound/soc/sof/sof-audio.h
+@@ -285,6 +285,7 @@ enum sof_tokens {
+ 	SOF_ACPDMIC_TOKENS,
+ 	SOF_ACPI2S_TOKENS,
+ 	SOF_MICFIL_TOKENS,
++	SOF_RDAI_TOKENS,
+ 
+ 	/* this should be the last */
+ 	SOF_TOKEN_COUNT,
+@@ -650,6 +651,7 @@ int get_token_u16(void *elem, void *object, u32 offset);
+ int get_token_comp_format(void *elem, void *object, u32 offset);
+ int get_token_dai_type(void *elem, void *object, u32 offset);
+ int get_token_uuid(void *elem, void *object, u32 offset);
++int get_token_version(void *elem, void *object, u32 offset);
+ int get_token_string(void *elem, void *object, u32 offset);
+ int sof_update_ipc_object(struct snd_soc_component *scomp, void *object, enum sof_tokens token_id,
+ 			  struct snd_sof_tuple *tuples, int num_tuples,
+diff --git a/sound/soc/sof/topology.c b/sound/soc/sof/topology.c
+index 0f510e560cf27..e6ecefaa88c5e 100644
+--- a/sound/soc/sof/topology.c
++++ b/sound/soc/sof/topology.c
+@@ -297,7 +297,7 @@ static const struct sof_dai_types sof_dais[] = {
+ 	{"ACPSP_VIRTUAL", SOF_DAI_AMD_SP_VIRTUAL},
+ 	{"ACPHS_VIRTUAL", SOF_DAI_AMD_HS_VIRTUAL},
+ 	{"MICFIL", SOF_DAI_IMX_MICFIL},
+-
++	{"RDAI", SOF_DAI_REALTEK_AFE},
+ };
+ 
+ static enum sof_ipc_dai_type find_dai(const char *name)
+@@ -369,6 +369,15 @@ int get_token_uuid(void *elem, void *object, u32 offset)
+ 	return 0;
+ }
+ 
++int get_token_version(void *elem, void *object, u32 offset)
++{
++        u8 *dst = (u8 *)object + offset;
++
++        memcpy(dst, (const char *)elem, RTK_TPLG_VERSION_INFO_LENGTH-1);
++
++        return 0;
++}
++
+ /*
+  * The string gets from topology will be stored in heap, the owner only
+  * holds a char* member point to the heap.
+@@ -1968,6 +1977,10 @@ static int sof_link_load(struct snd_soc_component *scomp, int index, struct snd_
+ 		token_id = SOF_MICFIL_TOKENS;
+ 		num_tuples += token_list[SOF_MICFIL_TOKENS].count;
+ 		break;
++        case SOF_DAI_REALTEK_AFE:
++                token_id = SOF_RDAI_TOKENS;
++                num_tuples += token_list[SOF_RDAI_TOKENS].count;
++                break;
+ 	default:
+ 		break;
+ 	}
+-- 
+2.47.0
+

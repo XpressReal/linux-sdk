@@ -1,6 +1,9 @@
-# meta-avengers default settings
+# meta-xpressreal default settings
 
 require rootfs.inc
+
+SPL_SUFFIX = "bin_pad"
+SPL_BINARY = "spl/u-boot-spl.bin_pad"
 
 PREFERRED_PROVIDER_virtual/kernel ?= "linux-yocto"
 PREFERRED_VERSION_linux-yocto ?= "6.6%"
@@ -56,6 +59,9 @@ FONT_CHINESE = "ttf-droid-sans ttf-droid-sans-fallback ttf-droid-sans-mono ttf-d
 IMAGE_LINGUAS:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui', 'en-us zh-cn zh-tw', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui', "rtk-qt-base ${FONT_CHINESE}", '', d)}"
 
+# chromium-browser
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'chromium-browser', 'chromium-ozone-wayland fontconfig freetype ttf-droid-sans ttf-droid-sans-fallback ttf-droid-sans-mono ttf-droid-serif', '', d)}"
+
 DISTRO_FEATURES:remove = " ${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', '', 'x11', d)}"
 DISTRO_FEATURES:append = " ${@oe.utils.conditional('VIRTUAL-RUNTIME_init_manager', 'systemd', 'pam', '', d)}"
 
@@ -68,6 +74,7 @@ PREFERRED_PROVIDER_virtual/libgles2 ?= "${@bb.utils.contains('MACHINE_FEATURES',
 PREFERRED_PROVIDER_virtual/libgles3 ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
 PREFERRED_PROVIDER_virtual/egl ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
 PREFERRED_PROVIDER_virtual/libgbm ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
+PREFERRED_PROVIDER_virtual/libgl ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
 
 PREFERRED_VERSION_vulkan-headers ?= "1.3.231.1"
 PREFERRED_VERSION_vulkan-loader ?= "1.3.231.1"

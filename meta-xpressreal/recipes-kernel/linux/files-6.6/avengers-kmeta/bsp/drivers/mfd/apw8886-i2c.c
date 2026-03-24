@@ -76,7 +76,7 @@ static inline unsigned long apw8886_i2c_get_driver_data(struct i2c_client *clien
 {
 	if (IS_ENABLED(CONFIG_OF) && client->dev.of_node)
 		return (unsigned long)of_device_get_match_data(&client->dev);
-	return i2c_get_match_data(client);
+	return (uintptr_t)i2c_get_match_data(client);
 }
 
 static int apw8886_chip_id_valid(u32 chip_id)

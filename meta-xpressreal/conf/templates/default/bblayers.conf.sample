@@ -16,4 +16,7 @@ BBLAYERS ?= " \
   ##OEROOT##/meta-openembedded/meta-networking \
   ##OEROOT##/meta-openembedded/meta-webserver \
   ##OEROOT##/meta-qt5 \
+  ##OEROOT##/meta-browser/meta-chromium \
+  ##OEROOT##/meta-clang \
+  ##OEROOT##/meta-lts-mixins \
   "

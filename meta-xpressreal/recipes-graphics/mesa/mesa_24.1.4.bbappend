@@ -5,16 +5,10 @@ SRC_URI:append = " \
 		file://drirc \
 		"
 
-SRC_URI:append:kent = "file://mali_csffw.bin"
+SRC_URI:append = "file://mali_csffw.bin"
 PACKAGECONFIG:append = " kmsro panfrost"
 
-do_install:append:stark() {
-	install -d ${D}${sysconfdir}
-	install -D -p -m 0644 ${WORKDIR}/drirc ${D}${sysconfdir}/drirc
-
-}
-
-do_install:append:kent() {
+do_install:append() {
 	install -d ${D}${sysconfdir}
 	install -d ${D}${libdir}/firmware/arm/mali/arch10.12/
 	install -D -p -m 0644 ${WORKDIR}/drirc ${D}${sysconfdir}/drirc

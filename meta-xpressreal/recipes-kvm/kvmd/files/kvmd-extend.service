@@ -1,0 +1,12 @@
+[Unit]
+Description=PiKVM - HTTP server for KVM Extend
+After=network.target network-online.target kvmd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/lib/python3.12/site-packages/kvmd/apps/kvmd/api/httpd_kvm_extend.py
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target

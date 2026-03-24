@@ -70,6 +70,9 @@
 							  <RR320010_MODE_FORCE_PWM>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
 			};
 
 			p0p1_wlan: buck2 {
@@ -78,6 +81,9 @@
 				regulator-max-microvolt = <3800000>;
 				regulator-allowed-modes = <RR320010_MODE_AUTO>,
 							  <RR320010_MODE_FORCE_PWM>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
 			};
 
 			rr320010_buck3: buck3 {
@@ -87,6 +93,9 @@
 							  <RR320010_MODE_FORCE_PWM>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
 			};
 
 			rr320010_buck4: buck4 {
@@ -96,6 +105,9 @@
 							  <RR320010_MODE_FORCE_PWM>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
 			};
 
 			p0p1_cpusram: buck5 {
@@ -109,6 +121,9 @@
 				regulator-coupled-with = <&p0p1_cpudvs>;
 				regulator-coupled-max-spread = <20000>;
 				regulator-ramp-delay = <12500>;
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
 			};
 
 			rr320010_buck6: buck6 {
@@ -118,6 +133,9 @@
 							  <RR320010_MODE_FORCE_PWM>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
 			};
 
 			rr320010_buck7: buck7 {
@@ -128,6 +146,9 @@
 							  <RR320010_MODE_FORCE_PWM>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
 			};
 
 			p0p1_cpudvs: buck8 {
@@ -141,12 +162,18 @@
 				regulator-coupled-with = <&p0p1_cpusram>;
 				regulator-coupled-max-spread = <20000>;
 				regulator-ramp-delay = <25000>;
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
 			};
 
 			p0p1_hdmi: hdmi {
 				regulator-name = "hdmi5v";
 				regulator-min-microvolt = <5000000>;
 				regulator-max-microvolt = <5000000>;
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
 			};
 		};
 	};
@@ -163,7 +190,7 @@
 };
 
 &d0p1_i2c {
-	d01p_cpudvs: tps62872@43 {
+	d0p1_cpudvs: tps62872@43 {
 		compatible = "ti,tps62872";
 		reg = <0x43>;
 		regulator-name = "cpudvs";
@@ -185,7 +212,7 @@
 		regulator-allowed-modes = <TPS62860_MODE_NORMAL>, <TPS62860_MODE_FPWM>;
 		regulator-boot-on;
 		regulator-always-on;
-		regulator-coupled-with = <&d01p_cpudvs>;
+		regulator-coupled-with = <&d0p1_cpudvs>;
 		regulator-coupled-max-spread = <20000>;
 		regulator-ramp-delay = <10000>;
 	};
@@ -212,7 +239,7 @@
 };
 
 &d0p2_i2c {
-	d02p_cpudvs: tps62872@43 {
+	d0p2_cpudvs: tps62872@43 {
 		compatible = "ti,tps62872";
 		reg = <0x43>;
 		regulator-name = "cpudvs";
@@ -234,7 +261,7 @@
 		regulator-allowed-modes = <TPS62860_MODE_NORMAL>, <TPS62860_MODE_FPWM>;
 		regulator-boot-on;
 		regulator-always-on;
-		regulator-coupled-with = <&d02p_cpudvs>;
+		regulator-coupled-with = <&d0p2_cpudvs>;
 		regulator-coupled-max-spread = <20000>;
 		regulator-ramp-delay = <10000>;
 		tps62860,vsel-high;
@@ -265,118 +292,33 @@
 &{/} {
 	cpu_supp: cpudvs-supply-alias {
 		compatible = "regulator-supply-alias";
-
-		supply-0 {
-			compatible = "device-supply-alias-setter";
-			cpu-supply = <&p0p1_cpudvs>;
-			supply-name = "cpu";
-			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
-		};
-
-		supply-1 {
-			compatible = "device-supply-alias-setter";
-			cpu-supply = <&d01p_cpudvs>;
-			supply-name = "cpu";
-			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
-		};
-
-		supply-2 {
-			compatible = "device-supply-alias-setter";
-			cpu-supply = <&d02p_cpudvs>;
-			supply-name = "cpu";
-			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
-		};
+		consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
+		cpu-p0p1-supply = <&p0p1_cpudvs>;
+		cpu-d0p1-supply = <&d0p1_cpudvs>;
+		cpu-d0p2-supply = <&d0p2_cpudvs>;
 	};
 
 	hdmi_supp: hdmi-supply-alias {
 		compatible = "regulator-supply-alias";
-
-		supply-0 {
-			compatible = "device-supply-alias-setter";
-			supply-name = "hdmi";
-			consumer-dev = <&hdmi>;
-			hdmi-supply = <&p0p1_hdmi>;
-		};
-
-		supply-1 {
-			compatible = "device-supply-alias-setter";
-			supply-name = "hdmi";
-			consumer-dev = <&hdmi>;
-			hdmi-supply = <&d0p1_hdmi>;
-		};
-
-		supply-2 {
-			compatible = "device-supply-alias-setter";
-			supply-name = "hdmi";
-			consumer-dev = <&hdmi>;
-			hdmi-supply = <&d0p2_hdmi>;
-		};
+		consumer-devices = <&hdmi>;
+		hdmi-p0p1-supply = <&p0p1_hdmi>;
+		hdmi-d0p1-supply = <&d0p1_hdmi>;
+		hdmi-d0p2-supply = <&d0p2_hdmi>;
 	};
 
 	wlan_supp: wlan-supply-alias {
 		compatible = "regulator-supply-alias";
+		consumer-devices = <&pcie1>, <&sdio>;
+		wlan-p0p1-supply = <&p0p1_wlan>;
+		wlan-d0p1-supply = <&d0p1_wlan>;
+		wlan-d0p2-supply = <&d0p2_wlan>;
+	};
 
-		supply-pcie1-0 {
-			supply-name = "device-power";
-			consumer-dev = <&pcie1>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&p0p1_wlan>;
-		};
-
-		supply-pcie1-1 {
-			supply-name = "device-power";
-			consumer-dev = <&pcie1>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p1_wlan>;
-		};
-
-		supply-pcie1-2 {
-			supply-name = "device-power";
-			consumer-dev = <&pcie1>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p2_wlan>;
-		};
-
-		supply-sdio-0 {
-			supply-name = "device-power";
-			consumer-dev = <&sdio>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&p0p1_wlan>;
-		};
-
-		supply-sdio-1 {
-			supply-name = "device-power";
-			consumer-dev = <&sdio>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p1_wlan>;
-		};
-
-		supply-sdio-2 {
-			supply-name = "device-power";
-			consumer-dev = <&sdio>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p2_wlan>;
-		};
-
-		supply-usb1_u3phy-0 {
-			supply-name = "device-power";
-			consumer-dev = <&usb_manager>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&p0p1_usb>;
-		};
-
-		supply-usb1_u3phy-1 {
-			supply-name = "device-power";
-			consumer-dev = <&usb_manager>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p1_wlan>;
-		};
-
-		supply-usb1_u3phy-2 {
-			supply-name = "device-power";
-			consumer-dev = <&usb_manager>;
-			compatible = "device-supply-alias-setter";
-			device-power-supply = <&d0p2_wlan>;
-		};
+	usb_supp: usb-supply-alias {
+		compatible = "regulator-supply-alias";
+		consumer-devices = <&usb_manager>;
+		usb-p0p1-supply = <&p0p1_usb>;
+		usb-d0p1-supply = <&d0p1_wlan>;
+		usb-d0p2-supply = <&d0p2_wlan>;
 	};
 };

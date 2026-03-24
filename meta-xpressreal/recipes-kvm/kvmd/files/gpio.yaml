@@ -1,0 +1,76 @@
+#Overwrite GPIO settings to avoid kvmd error
+
+kvmd:
+    gpio:
+        drivers:
+            __gpio__:
+                device: /dev/gpiochip0
+                type: gpio
+
+            __v4_locator__:
+                device: /dev/gpiochip0
+                type: locator
+
+
+        scheme:
+            __v3_usb_breaker__:
+                busy_delay: 0.2
+                driver: __gpio__
+                # initial: false
+                initial: true
+                inverted: false
+                # mode: ''
+                mode: output
+                # pin: null
+                pin: 22
+                pulse:
+                    # delay: 0.1
+                    delay: 0.0
+                    max_delay: 0.1
+                    min_delay: 0.1
+
+                switch: true
+
+            __v4_const1__:
+                busy_delay: 0.2
+                driver: __gpio__
+                initial: false
+                inverted: false
+                # mode: ''
+                mode: output
+                # pin: null
+                pin: 80
+                pulse:
+                    # delay: 0.1
+                    delay: 0.0
+                    max_delay: 0.1
+                    min_delay: 0.1
+
+                # switch: true
+                switch: false
+
+            __v4_locator__:
+                busy_delay: 0.2
+                # driver: __gpio__
+                driver: __v4_locator__
+                initial: false
+                inverted: false
+                # mode: ''
+                mode: output
+                # pin: null
+                pin: 12
+                pulse:
+                    # delay: 0.1
+                    delay: 0.0
+                    max_delay: 0.1
+                    min_delay: 0.1
+
+                switch: true
+
+
+        state_poll: 0.1
+        view:
+            header:
+                title: GPIO
+
+            table: []

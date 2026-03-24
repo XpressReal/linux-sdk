@@ -1,0 +1,281 @@
+From 49137b14074293ac84dfd3f22c1727d6bc93ebb6 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Fri, 31 Oct 2025 17:56:50 +0800
+Subject: [PATCH] SW-9476: eDP driver for Kent AIOT platform
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 14 ++++++--
+ drivers/gpu/drm/realtek/rtk_drm_rpc.h   | 45 +++++++++++++++++++++++++
+ drivers/gpu/drm/realtek/rtk_edp.c       | 36 +++++++++++++-------
+ drivers/gpu/drm/realtek/rtk_edp.h       |  2 +-
+ 4 files changed, 81 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 1933faaebe2c..4ecf4ae22862 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -656,7 +656,7 @@ static int rtk_plane_update_graphic_obj(struct drm_plane *plane)
+ 	unsigned int cu_size = 0;
+ 	unsigned int coding_unit = 0;
+ 
+-	struct graphic_object *obj = (struct graphic_object *)kzalloc(sizeof(struct graphic_object), GFP_KERNEL);
++	struct graphic_object_version *obj = (struct graphic_object_version *)kzalloc(sizeof(struct graphic_object_version), GFP_KERNEL);
+ 	ktime_t start;
+ 	s64 update_time_ms;
+ 
+@@ -675,9 +675,11 @@ static int rtk_plane_update_graphic_obj(struct drm_plane *plane)
+ 		rtk_gem[i] = to_rtk_gem_obj(gem[i]);
+ 	}
+ 
+-	memset(obj, 0, sizeof(struct graphic_object));
++	memset(obj, 0, sizeof(struct graphic_object_version));
++
++	obj->version = 0x72746B3F;
+ 	obj->header.type = VIDEO_GRAPHIC_INBAND_CMD_TYPE_PICTURE_OBJECT;
+-	obj->header.size = sizeof(struct graphic_object);
++	obj->header.size = sizeof(struct graphic_object_version);
+ 	obj->colorkey = -1;
+ 
+ 	switch (fb->format->format) {
+@@ -737,6 +739,12 @@ static int rtk_plane_update_graphic_obj(struct drm_plane *plane)
+ 
+ 	obj->width = fb->width;
+ 	obj->height = fb->height;
++
++	obj->crop_x      = plane->state->src_x >> 16;
++	obj->crop_y      = plane->state->src_y >> 16;
++	obj->crop_width  = plane->state->src_w >> 16;
++	obj->crop_height = plane->state->src_h >> 16;
++
+ 	obj->pitch = fb->pitches[0];
+ 	obj->address = rtk_gem[0]->paddr;
+ 	obj->picLayout = INBAND_CMD_GRAPHIC_2D_MODE;
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.h b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+index 5d5cba739421..6ceebff2f1f4 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+@@ -831,6 +831,51 @@ struct graphic_object {
+ 	unsigned int ext2;
+ };
+ 
++struct graphic_object_version {
++	struct inband_cmd_pkg_header header;
++	unsigned int version;
++	enum INBAND_CMD_GRAPHIC_FORMAT format;
++	unsigned int PTSH;
++	unsigned int PTSL;
++	unsigned int context;
++	int colorkey;
++	int alpha;
++	unsigned int x;
++	unsigned int y;
++	unsigned int width;
++	unsigned int height;
++	unsigned int address;
++	unsigned int pitch;
++	unsigned int address_right;
++	unsigned int pitch_right;
++	enum INBAND_CMD_GRAPHIC_3D_MODE picLayout;
++	unsigned int mode; // 0: linear 1:afbc 2: afrc
++	/*
++		if mode is afbc;
++		ext1 = afbc_block_split
++		ext2 = afbc_yuv_transform
++
++		if mode is afrc
++		ext1 = cu_size
++		ext2 = stride_en
++	*/
++	unsigned int ext1;
++	unsigned int ext2;
++
++	unsigned int partialSrcWin_x;
++	unsigned int partialSrcWin_y;
++	unsigned int partialSrcWin_w;
++	unsigned int partialSrcWin_h;
++
++	unsigned int pFrameBufferDbg;
++	unsigned int pFrameBufferDbg_Right;
++
++	unsigned int crop_x;  //rtk2
++	unsigned int crop_y;
++	unsigned int crop_width;  //rtk2
++	unsigned int crop_height;
++};
++
+ struct rpc_result {
+ 	unsigned int result;
+ 	unsigned int data;
+diff --git a/drivers/gpu/drm/realtek/rtk_edp.c b/drivers/gpu/drm/realtek/rtk_edp.c
+index a9d6687eba01..6ad980c7a831 100644
+--- a/drivers/gpu/drm/realtek/rtk_edp.c
++++ b/drivers/gpu/drm/realtek/rtk_edp.c
+@@ -32,6 +32,7 @@
+ #include "rtk_edp_reg.h"
+ #include "rtk_crt_reg.h"
+ #include "rtk_dp_utils.h"
++#include "rtk_drm_crtc.h"
+ 
+ #define to_rtk_edp(x) container_of(x, struct rtk_edp, x)
+ 
+@@ -256,7 +257,7 @@ static int rtk_edp_get_bpc(struct rtk_edp *edp)
+ 	return 8;
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static bool rtk_edp_has_sink_count(struct rtk_edp *edp)
+ {
+ 	struct drm_connector *connector = &edp->connector;
+@@ -366,7 +367,7 @@ static int rtk_edp_read_dpcd(struct rtk_edp *edp)
+ {
+ 	int ret;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	struct drm_dp_aux *aux = &edp->aux;
+ 	uint8_t downstream_ports[DP_MAX_DOWNSTREAM_PORTS];
+ 	uint8_t tmp;
+@@ -416,12 +417,12 @@ static void rtk_edp_get_edid(struct rtk_edp *edp)
+ 	if (drm_edid_is_valid(edid)) {
+ 		kfree(edp->edid);
+ 		edp->edid = edid;
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 		/* DP Compliance Test 4.2.2.3 */
+ 		drm_dp_send_real_edid_checksum(&edp->aux, edid->checksum);
+ #endif
+ 	} else {
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 		/* DP Compliance Test 4.2.2.6 */
+ 		if (connector->edid_corrupt)
+ 			drm_dp_send_real_edid_checksum(&edp->aux, connector->real_edid_checksum);
+@@ -451,7 +452,7 @@ static int rtk_edp_get_sink_capability(struct rtk_edp *edp)
+ 	return ret;
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static int rtk_edp_get_link_status(struct rtk_edp *edp)
+ {
+ 	if (!edp->connected)
+@@ -485,7 +486,7 @@ static void rtk_edp_set_bad_connector_link_status(struct rtk_edp *edp)
+ 	drm_modeset_unlock(&dev->mode_config.connection_mutex);
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static void rtk_edp_retrain_link_worker(struct work_struct *retrain_link_work)
+ {
+ 	struct rtk_edp *edp = to_rtk_edp(retrain_link_work);
+@@ -619,6 +620,9 @@ static void rtk_edp_shutdown(struct rtk_edp *edp)
+ 	struct rtk_rpc_info *rpc_info_vo = (edp->rpc_info_vo == NULL) ?
+ 									 edp->rpc_info : edp->rpc_info_vo;
+ 	struct rpc_set_display_out_interface interface;
++	struct drm_connector *connector = &edp->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 	int ret;
+ 
+ 	dev_info(edp->dev, "edp: shutdown\n");
+@@ -632,6 +636,9 @@ static void rtk_edp_shutdown(struct rtk_edp *edp)
+ 		DRM_ERROR("rpc_set_out_interface rpc fail\n");
+ 
+ 	rtk_edp_phy_disable_timing_gen(edp);
++
++	rtk_crtc->change_tv_system(crtc);
++
+ 	edp->finished_training = false;
+ 
+ 	if (edp->connected) {
+@@ -721,7 +728,7 @@ static int rtk_edp_handle_short_pulse(struct rtk_edp *edp)
+ 
+ 	dev_info(edp->dev, "edp: short pulse\n");
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (rtk_edp_short_pulse_need_retrain(edp)) {
+ 		dev_info(edp->dev, "eDP start retraining\n");
+ 		rtk_edp_set_bad_connector_link_status(edp);
+@@ -1131,6 +1138,9 @@ static int rtk_edp_config_vo(struct rtk_edp *edp, struct drm_display_mode *mode)
+ 	struct rpc_set_display_out_interface interface;
+ 	struct rtk_rpc_info *rpc_info_vo = (edp->rpc_info_vo == NULL) ?
+ 								 edp->rpc_info : edp->rpc_info_vo;
++	struct drm_connector *connector = &edp->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 
+ 	interface.display_interface       = DISPLAY_INTERFACE_eDP;
+ 	interface.width                   = mode->hdisplay;
+@@ -1146,6 +1156,8 @@ static int rtk_edp_config_vo(struct rtk_edp *edp, struct drm_display_mode *mode)
+ 	if (ret)
+ 		DRM_ERROR("rpc_set_out_interface rpc fail\n");
+ 
++	rtk_crtc->change_tv_system(crtc);
++
+ 	return ret;
+ }
+ 
+@@ -1255,7 +1267,7 @@ static void rtk_edp_enc_enable(struct drm_encoder *encoder)
+ 
+ 	edp->color_format = RTK_COLOR_FORMAT_RGB;
+ 	edp->bpc = rtk_edp_get_bpc(edp);
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (!edp->is_autotest && !edp->is_fallback_mode)
+ 		edp->link_rate = rtk_edp_change_link_rate_with_display_mode(edp, mode);
+ #endif
+@@ -1269,7 +1281,7 @@ static void rtk_edp_enc_enable(struct drm_encoder *encoder)
+ 			DRM_ERROR("edp hw setting fail\n");
+ 
+ 	}
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	ret = rtk_edp_get_link_status(edp);
+ 	if (ret)
+ 		goto unlock;
+@@ -1451,7 +1463,7 @@ static enum drm_connector_status rtk_edp_conn_detect
+ 	enum drm_connector_status status = connector_status_disconnected;
+ 	struct rtk_drm_private *priv = edp->drm_dev->dev_private;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	/* DP Compliance Test 4.2.2.7 */
+ 	if (rtk_edp_get_sink_count(edp) == 0) {
+ 		dev_info(edp->dev, "edp sink count is 0\n");
+@@ -1560,7 +1572,7 @@ static enum drm_mode_status rtk_edp_conn_mode_valid
+ 	int max_rate;
+ 	int bpc;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (edp->is_fallback_mode || edp->is_autotest) {
+ 		max_rate = edp->link_rate * (int) edp->lane_count;
+ 	} else {
+@@ -1963,7 +1975,7 @@ static int rtk_1920_edp_bind(struct rtk_edp *edp)
+ 	dev_info(dev, "max-clock-k=%u\n", edp->max_clock_k);
+ 
+ 	init_completion(&edp->comp);
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	INIT_WORK(&edp->retrain_link_work, rtk_edp_retrain_link_worker);
+ #endif
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_edp.h b/drivers/gpu/drm/realtek/rtk_edp.h
+index 8b981aa4b922..af26f4a3bd19 100644
+--- a/drivers/gpu/drm/realtek/rtk_edp.h
++++ b/drivers/gpu/drm/realtek/rtk_edp.h
+@@ -57,7 +57,7 @@ struct rtk_edp {
+ 	int color_format;
+ 	bool check_connector_limit;
+ 	uint32_t max_clock_k;
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined  (CONFIG_CHROME_PLATFORMS) || defined (CONFIG_YOCTO_PLATFORMS)
+ 	struct work_struct retrain_link_work;
+ #endif
+ };
+-- 
+2.48.0
+

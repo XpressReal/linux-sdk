@@ -1,4 +1,4 @@
-From b330bef689be5c0062f7f415afbdfbdd52887d4d Mon Sep 17 00:00:00 2001
+From 8aabbaefb0c9a2333000c062ed43b4b2299e5e23 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
 Date: Tue, 26 Aug 2025 03:48:17 -0400
 Subject: [PATCH] dts: hdmi only mode for gamepad on backinblack
@@ -8,17 +8,19 @@ Subject: [PATCH] dts: hdmi only mode for gamepad on backinblack
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
-index 0fcc5e3fa825..284b81f606eb 100644
+index a9ff6cf5a646..507b366648f1 100644
 --- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
 +++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
-@@ -34,17 +34,17 @@ ve2: ve2 {
+@@ -39,7 +39,7 @@ bootlogo {
  };
  
  &display_subsystem {
 -	ports = <&voext_out>, <&vo_out>;
-+	ports = <&vo_out>;
++	ports =  <&vo_out>;
  	status = "okay";
  };
+ 
+@@ -49,11 +49,11 @@ &vowb {
  
  &vo {
  	status = "okay";
@@ -32,7 +34,7 @@ index 0fcc5e3fa825..284b81f606eb 100644
  	compatible = "realtek,rtd-crtc-ext";
  	voext_out: port {
  		voext_out_dsi: endpoint {
-@@ -54,7 +54,7 @@ voext_out_dsi: endpoint {
+@@ -63,7 +63,7 @@ voext_out_dsi: endpoint {
  };
  
  &dsi {

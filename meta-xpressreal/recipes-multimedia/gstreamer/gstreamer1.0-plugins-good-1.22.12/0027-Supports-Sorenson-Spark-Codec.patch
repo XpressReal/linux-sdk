@@ -1,0 +1,75 @@
+From 431a30457968b0341af1cf5017a811a48bb59d2e Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 13 Oct 2025 10:36:18 +0800
+Subject: [PATCH 1/1] Supports Sorenson Spark Codec
+Upstream-Status: Inappropriate [rtk specific]
+
+Supports Sorenson Spark Codec (flv1) by v4l2flvdec
+
+Signed-off-by: joshua.yang <joshua.yang@realtek.com>
+Change-Id: Iaf51cef7464fd21811a471b8ed2683ebc5c29705
+---
+ sys/v4l2/ext/videodev2.h   | 1 +
+ sys/v4l2/gstv4l2object.c   | 6 ++++++
+ sys/v4l2/gstv4l2videodec.c | 2 ++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/sys/v4l2/ext/videodev2.h b/sys/v4l2/ext/videodev2.h
+index ca7fa9e..125c5c0 100644
+--- a/sys/v4l2/ext/videodev2.h
++++ b/sys/v4l2/ext/videodev2.h
+@@ -706,6 +706,7 @@ struct v4l2_pix_format {
+ #define V4L2_PIX_FMT_FWHT     v4l2_fourcc('F', 'W', 'H', 'T') /* Fast Walsh Hadamard Transform (vicodec) */
+ #define V4L2_PIX_FMT_FWHT_STATELESS     v4l2_fourcc('S', 'F', 'W', 'H') /* Stateless FWHT (vicodec) */
+ #define V4L2_PIX_FMT_H264_SLICE v4l2_fourcc('S', '2', '6', '4') /* H264 parsed slices */
++#define V4L2_PIX_FMT_SPK      v4l2_fourcc('S', 'P', 'K', '0') /* Sorenson Spark */
+ 
+ /*  Vendor-specific formats   */
+ #define V4L2_PIX_FMT_CPIA1    v4l2_fourcc('C', 'P', 'I', 'A') /* cpia1 YUV */
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index f00f074..5520e69 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -194,6 +194,7 @@ static const GstV4L2FormatDesc gst_v4l2_formats[] = {
+   {V4L2_PIX_FMT_VP8, FALSE, GST_V4L2_CODEC | GST_V4L2_NO_PARSE},
+   {V4L2_PIX_FMT_VP9, FALSE, GST_V4L2_CODEC | GST_V4L2_NO_PARSE},
+   {V4L2_PIX_FMT_AV1, FALSE, GST_V4L2_CODEC | GST_V4L2_NO_PARSE},
++  {V4L2_PIX_FMT_SPK, FALSE, GST_V4L2_CODEC},
+ 
+   /*  Vendor-specific formats   */
+   {V4L2_PIX_FMT_WNVA, TRUE, GST_V4L2_CODEC},
+@@ -1550,6 +1551,9 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+     case V4L2_PIX_FMT_AV1:
+       structure = gst_structure_new_empty ("video/x-av1");
+       break;
++    case V4L2_PIX_FMT_SPK:
++      structure = gst_structure_new_empty ("video/x-flash-video");
++      break;
+     case V4L2_PIX_FMT_GREY:    /*  8  Greyscale     */
+     case V4L2_PIX_FMT_Y16:
+     case V4L2_PIX_FMT_Y16_BE:
+@@ -2050,6 +2054,8 @@ gst_v4l2_object_get_caps_info (GstV4l2Object * v4l2object, GstCaps * caps,
+         else if (!g_ascii_strcasecmp (format, "rggb"))
+           fourcc = V4L2_PIX_FMT_SRGGB8;
+       }
++    } else if (g_str_equal (mimetype, "video/x-flash-video")) {
++      fourcc = V4L2_PIX_FMT_SPK;
+     } else if (g_str_equal (mimetype, "video/x-sonix")) {
+       fourcc = V4L2_PIX_FMT_SN9C10X;
+     } else if (g_str_equal (mimetype, "video/x-pwc1")) {
+diff --git a/sys/v4l2/gstv4l2videodec.c b/sys/v4l2/gstv4l2videodec.c
+index a7fe506..00d392f 100644
+--- a/sys/v4l2/gstv4l2videodec.c
++++ b/sys/v4l2/gstv4l2videodec.c
+@@ -1602,6 +1602,8 @@ G_STMT_START { \
+     SET_META ("PWC1");
+   } else if (gst_structure_has_name (s, "video/x-pwc2")) {
+     SET_META ("PWC2");
++  } else if (gst_structure_has_name (s, "video/x-flash-video")) {
++    SET_META ("FLV");
+   } else {
+     /* This code should be kept on sync with the exposed CODEC type of format
+      * from gstv4l2object.c. This warning will only occur in case we forget
+-- 
+2.34.1
+

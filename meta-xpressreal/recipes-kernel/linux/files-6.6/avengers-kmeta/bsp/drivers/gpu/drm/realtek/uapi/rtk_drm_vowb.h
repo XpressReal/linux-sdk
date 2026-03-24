@@ -16,6 +16,12 @@
 
 #define RTK_DRM_VOWB_MAX_SRC_PIC               16
 
+/**
+ * features
+ */
+#define RTK_DRM_VOWB_FEATURE_DEINTERLACE_SUPPORT   0x1LL
+#define RTK_DRM_VOWB_FEATURE_VIDEO_OSD_MIX_SUPPORT   0x2LL
+
 struct rtk_drm_vowb_dst_pic {
 	__u32 w;
 	__u32 h;
@@ -136,10 +142,12 @@ struct rtk_drm_vowb_pic {
 	__u32 buf_bit_depth;
 	__u32 buf_format;
 
-	__u32 y_addr_prev;
-	__u32 c_addr_prev;
-	__u32 y_addr_next;
-	__u32 c_addr_next;
+	__u32 prev_handle;
+	__u32 prev_y_offset;
+	__u32 prev_c_offset;
+	__u32 next_handle;
+	__u32 next_y_offset;
+	__u32 next_c_offset;
 
 	__u32 sub_enable;
 	__u32 sub_handle;
@@ -156,6 +164,10 @@ struct rtk_drm_vowb_pic {
 	__u32 tvve_bypass_en;
 	__u32 tvve_qlevel_sel_y;
 	__u32 tvve_qlevel_sel_c;
+
+	__u32 transferCharacteristics;
+	__u32 video_full_range_flag;
+	__u32 matrix_coefficients;
 };
 
 /**

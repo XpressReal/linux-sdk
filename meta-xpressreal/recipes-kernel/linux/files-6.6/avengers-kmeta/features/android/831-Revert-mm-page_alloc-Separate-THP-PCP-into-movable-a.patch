@@ -1,0 +1,69 @@
+From abde6f852539546fccd25863c1d79159b164f274 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Thu, 2 Oct 2025 10:58:04 +0800
+Subject: [PATCH 1/5] Revert "mm/page_alloc: Separate THP PCP into movable and
+ non-movable categories"
+
+This reverts commit c5978b996260534aca5ff1b6dcbef92c2bbea947.
+
+Change-Id: I56c6eba50b866ecbd2140a706eb1ec6f0d7d4ecd
+---
+ include/linux/mmzone.h | 9 +++++----
+ mm/page_alloc.c        | 9 ++-------
+ 2 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index 05092c37a430..bd8c85eda511 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -664,12 +664,13 @@ enum zone_watermarks {
+ };
+ 
+ /*
+- * One per migratetype for each PAGE_ALLOC_COSTLY_ORDER. Two additional lists
+- * are added for THP. One PCP list is used by GPF_MOVABLE, and the other PCP list
+- * is used by GFP_UNMOVABLE and GFP_RECLAIMABLE.
++ * One per migratetype for each PAGE_ALLOC_COSTLY_ORDER. One additional list
++ * for THP which will usually be GFP_MOVABLE. Even if it is another type,
++ * it should not contribute to serious fragmentation causing THP allocation
++ * failures.
+  */
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+-#define NR_PCP_THP 2
++#define NR_PCP_THP 1
+ #else
+ #define NR_PCP_THP 0
+ #endif
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index edb32635037f..3182eed45aad 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -519,15 +519,10 @@ static void bad_page(struct page *page, const char *reason)
+ 
+ static inline unsigned int order_to_pindex(int migratetype, int order)
+ {
+-	bool __maybe_unused movable;
+-
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+ 	if (order > PAGE_ALLOC_COSTLY_ORDER) {
+ 		VM_BUG_ON(order != pageblock_order);
+-
+-		movable = migratetype == MIGRATE_MOVABLE;
+-
+-		return NR_LOWORDER_PCP_LISTS + movable;
++		return NR_LOWORDER_PCP_LISTS;
+ 	}
+ #else
+ 	VM_BUG_ON(order > PAGE_ALLOC_COSTLY_ORDER);
+@@ -541,7 +536,7 @@ static inline int pindex_to_order(unsigned int pindex)
+ 	int order = pindex / MIGRATE_PCPTYPES;
+ 
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+-	if (pindex >= NR_LOWORDER_PCP_LISTS)
++	if (pindex == NR_LOWORDER_PCP_LISTS)
+ 		order = pageblock_order;
+ #else
+ 	VM_BUG_ON(order > PAGE_ALLOC_COSTLY_ORDER);
+-- 
+2.34.1
+

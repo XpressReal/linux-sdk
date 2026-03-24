@@ -5,7 +5,7 @@ Before=kvmd.service
 
 [Service]
 Type=oneshot
-#ExecStartPre=/usr/bin/mkdir -p /run/kvmd
+ExecStartPre=/usr/local/bin/gadget-conf.sh
 ExecStart=/usr/bin/kvmd-otg start
 ExecStop=/usr/bin/kvmd-otg stop
 RemainAfterExit=true

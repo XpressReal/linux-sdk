@@ -1120,9 +1120,11 @@ static int snd_realtek_hw_capture_malloc_ring(struct snd_pcm_runtime *runtime)
 	mutex_lock(&dev->mutex);
 
 	if (dpcm->source_in == ENUM_AIN_I2S_LOOPBACK) {
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 		rheap_setup_dma_pools(dev, "rtk_media_heap",
 			RTK_FLAG_PROTECTED_V2_AO_POOL | RTK_FLAG_SCPUACC |
 			RTK_FLAG_ACPUACC, __func__);
+#endif
 	}
 
 	for (ch = 0; ch < runtime->channels ; ++ch) {
@@ -1141,11 +1143,13 @@ static int snd_realtek_hw_capture_malloc_ring(struct snd_pcm_runtime *runtime)
 		if (!vaddr) {
 			dev_err(dev, "%s dma_alloc fail \n", __func__);
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 			/* Reset to the default heap */
 			rheap_setup_dma_pools(dev, "rtk_media_heap",
 					RTK_FLAG_NONCACHED |
 					RTK_FLAG_SCPUACC |
 					RTK_FLAG_ACPUACC, __func__);
+#endif
 
 			mutex_unlock(&dev->mutex);
 			return bMallocSuccess;
@@ -1156,10 +1160,12 @@ static int snd_realtek_hw_capture_malloc_ring(struct snd_pcm_runtime *runtime)
 		dpcm->nRingSize = size;
 	}
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	/* Reset to the default heap */
 	rheap_setup_dma_pools(dev, "rtk_media_heap",
 			RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
 			RTK_FLAG_ACPUACC, __func__);
+#endif
 
 	mutex_unlock(&dev->mutex);
 
@@ -3879,10 +3885,12 @@ static int snd_card_probe(struct platform_device *devptr)
 	if (err < 0)
 		return err;
 
+#ifdef CONFIG_DMABUF_HEAPS_REALTEK
 	set_dma_ops(&devptr->dev, &rheap_dma_ops);
 	rheap_setup_dma_pools(&devptr->dev, "rtk_audio_heap",
 				 RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC |
 				 RTK_FLAG_ACPUACC, __func__);
+#endif
 
 	// save the platform device
 	devices[card->number] = devptr;

@@ -3,6 +3,10 @@
 #ifndef _RTK_DSI_H
 #define _RTK_DSI_H
 
+#define DSI1 0
+#define DSI2 1
+#define DSI_POLL_HPD_MS 1
+
 #define XTAL_FREQ 27
 #define MHZ(v) ((unsigned int)((v) * 1000000U))
 #define TOTAL_LANE_NUM 4

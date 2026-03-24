@@ -1,0 +1,27 @@
+From f75ad7514c6db7b26f435c87cd3999a5f9234e43 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 5 Jan 2026 12:29:01 +0800
+Subject: [PATCH] dts: rtd1501.dtsi: reduce linux,cma memory
+
+- reduce linux,cma to -480M- 448M
+
+---
+ arch/arm64/boot/dts/realtek/rtd1501.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501.dtsi b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+index 83125d783664d..47258859425b4 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+@@ -234,7 +234,7 @@ cma_reserved_0:linux,cma {
+ 		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+ 		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+ 		alloc-ranges=<0x0 0x40000000 0x0 0x20000000>;
+-		size = <0x0 0x20000000>; /* 512M */
++		size = <0x0 0x1c000000>; /* 448M */
+ 		linux,cma-default;
+ 		reusable;
+ 	};
+-- 
+2.34.1
+

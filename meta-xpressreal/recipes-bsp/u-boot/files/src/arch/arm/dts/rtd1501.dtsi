@@ -12,6 +12,10 @@
 	status = "okay";
 };
 
+&nic {
+	status = "okay";
+};
+
 &nor_flash {
 	status = "okay";
 };
