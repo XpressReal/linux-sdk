@@ -31,55 +31,60 @@ jobs:
           git clone -b scarthgap https://git.yoctoproject.org/poky
 
       - name: 2. Checkout linux-sdk repo and move meta-xpressreal
-        if: ${{ hashFiles('poky/meta-xpressreal/EULA.txt') == '' }}
         uses: actions/checkout@v4
         with:
           path: linux-sdk-temp
-          
+
       - name: Move meta-xpressreal
-        if: ${{ hashFiles('poky/meta-xpressreal/EULA.txt') == '' }}
-        run: mv linux-sdk-temp/meta-xpressreal poky/
+        run: |
+          rm -rf poky/meta-xpressreal
+          mv linux-sdk-temp/meta-xpressreal poky/
 
       - name: 3. Download prebuilt rootfs
         if: ${{ hashFiles('poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files/debian-rootfs.tar.xz') == '' }}
         run: |
           echo "--- Download prebuilt rootfs ---"
-          export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs"
+          export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs-v2.7.1"
           export OUTPUT_DIR="./poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files"
           for d in debian ubuntu; do for v in "" "weston-" "desktop-"; do echo "Downloading ${v}${d}-rootfs.tar.xz"; wget -q -O ${OUTPUT_DIR}/${v}${d}-rootfs.tar.xz ${ROOTFS_DL_URL}/${v}${d}-rootfs.tar.xz; done; done
 
-      - name: 4. Clone Dependency Layers into poky/
-        if: ${{ hashFiles('poky/LICENSE') == '' }}
+      - name: 4. Clone and lock dependency layers into poky/
         working-directory: ./poky
         run: |
-          echo "--- Cloning meta-openembedded ---"
-          git clone -b scarthgap git://git.openembedded.org/meta-openembedded
+          set -e
+          # Runs unconditionally: the runner workspace is persistent, so a
+          # clone-time-only guard would leave stale commits in place forever.
+          sync_layer() {
+            dir="$1"; url="$2"; branch="$3"; commit="$4"
+            if [ ! -d "$dir/.git" ]; then
+              echo "--- Cloning $dir ---"
+              git clone -b "$branch" "$url" "$dir"
+            fi
+            echo "--- Locking $dir to $commit ---"
+            git -C "$dir" fetch --all --tags
+            git -C "$dir" checkout "$commit"
+          }
 
-          echo "--- Cloning meta-qt5 ---"
-          git clone -b scarthgap https://github.com/meta-qt5/meta-qt5.git
+          echo "--- Locking poky to b56134ff90 ---"
+          git fetch --all --tags
+          git checkout b56134ff90
 
-          echo "--- Cloning meta-neural-network ---"
-          git clone -b scarthgap https://github.com/nnstreamer/meta-neural-network.git
-
-      - name: 5. Lock All Repos to Specific Commits
-        if: ${{ hashFiles('poky/LICENSE') == '' }}
-        working-directory: ./poky
-        run: |
-          echo "--- Locking Poky to specific commit ---"
-          git checkout dabe9e157f
-
-          echo "--- Locking dependency layers to specific commits ---"
-          cd meta-openembedded && git checkout 2338409efc && cd ..
-          cd meta-qt5 && git checkout eb82841826 && cd ..
-          cd meta-neural-network && git checkout c14458c94e && cd ..
+          sync_layer meta-openembedded   https://git.openembedded.org/meta-openembedded     scarthgap         fdd1894976
+          sync_layer meta-qt5            https://github.com/meta-qt5/meta-qt5               scarthgap         eb82841826
+          sync_layer meta-neural-network https://github.com/nnstreamer/meta-neural-network  scarthgap         c14458c94e
+          sync_layer meta-browser        https://github.com/OSSystems/meta-browser          scarthgap         168d284276
+          sync_layer meta-clang          https://github.com/kraj/meta-clang                 scarthgap-clang20 76596813cd
+          sync_layer meta-lts-mixins     https://git.yoctoproject.org/meta-lts-mixins       scarthgap/rust    96deb45139
 
           echo "--- Final directory structure inside poky: ---"
           ls -l
 
       - name: Initialize Build Environment using TEMPLATECONF
-        if: ${{ hashFiles('poky/build/conf/local.conf') == '' }}
         working-directory: ./poky
         run: |
+          # oe-init-build-env never overwrites an existing conf, so drop the
+          # previous run's copies to keep config in step with the tagged SDK.
+          rm -f build/conf/local.conf build/conf/bblayers.conf
           TEMPLATECONF=meta-xpressreal/conf/templates/default/ source oe-init-build-env build
           echo "--- Generated bblayers.conf ---"
           cat conf/bblayers.conf
@@ -97,49 +102,44 @@ jobs:
             ${{ runner.os }}-yocto-scarthgap-
 
       - name: Run BitBake Build (core-image-minimal)
-        if: ${{ hashFiles('poky/build/images/xpressreal-core-image-minimal.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           bitbake core-image-minimal
-          mkdir images
-          cp ./tmp/deploy/images/bleedingedge-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
+          mkdir -p images
+          cp ./tmp/deploy/images/xpressreal-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
 
       - name: Run BitBake Build (debian image server)
-        if: ${{ hashFiles('poky/build/images/xpressreal-debian-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           bitbake debian-image
-          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
+          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
 
       - name: Run BitBake Build (ubuntu image server)
-        if: ${{ hashFiles('poky/build/images/xpressreal-ubuntu-image-server.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           echo 'OVERRIDES:append = ":ubuntu"' > temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
+          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
 
       - name: Run BitBake Build (debian image desktop)
-        if: ${{ hashFiles('poky/build/images/xpressreal-debian-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
+          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
 
       - name: Run BitBake Build (ubuntu image desktop)
-        if: ${{ hashFiles('poky/build/images/xpressreal-ubuntu-image-desktop.wic.xz') == '' }}
         working-directory: ./poky
         run: |
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
           echo 'OVERRIDES:append = ":ubuntu"' >> temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/bleedingedge-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
+          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
 
       - name: Create Release and Upload Artifacts
         if: startsWith(github.ref, 'refs/tags/')
