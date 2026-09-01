@@ -52,7 +52,16 @@ jobs:
           echo "--- Download prebuilt rootfs ---"
           export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs-v2.7.1"
           export OUTPUT_DIR="./poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files"
-          for d in debian ubuntu; do for v in "" "weston-" "desktop-"; do echo "Downloading ${v}${d}-rootfs.tar.xz"; wget -q -O ${OUTPUT_DIR}/${v}${d}-rootfs.tar.xz ${ROOTFS_DL_URL}/${v}${d}-rootfs.tar.xz; done; done
+          # Every archive the layer references must be present: bitbake
+          # checksums all SRC_URI entries at parse time, so a missing tarball
+          # fails the build even for targets that never use it.
+          for name in debian ubuntu rpios \
+                      desktop-debian desktop-ubuntu desktop-rpios \
+                      weston-debian weston-ubuntu \
+                      gamepad-debian gamepad-ubuntu; do
+            echo "Downloading ${name}-rootfs.tar.xz"
+            wget -q -O "${OUTPUT_DIR}/${name}-rootfs.tar.xz" "${ROOTFS_DL_URL}/${name}-rootfs.tar.xz"
+          done
 
       - name: 4. Clone and lock dependency layers into poky/
         working-directory: ./poky
