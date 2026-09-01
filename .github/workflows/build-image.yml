@@ -7,9 +7,23 @@ on:
     tags:
       - 'v*'
 
+# One shared workspace on one self-hosted runner: concurrent runs would
+# corrupt each other's poky tree.
+concurrency:
+  group: build-images
+  cancel-in-progress: false
+
+env:
+  ROOTFS_ARCHIVES: >-
+    debian ubuntu rpios
+    desktop-debian desktop-ubuntu desktop-rpios
+    weston-debian weston-ubuntu
+    gamepad-debian gamepad-ubuntu
+
 jobs:
   build-and-release:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 350
     permissions:
       contents: write
 
@@ -20,7 +34,7 @@ jobs:
           NEEDRESTART_SUSPEND: 1
         run: |
           # No TTY here: an interactive needrestart/debconf prompt or a held
-          # dpkg lock would block until the 6h job timeout instead of failing.
+          # dpkg lock would block until the job timeout instead of failing.
           sudo -n true
           sudo -E apt-get update -o Acquire::Retries=3
           sudo -E apt-get install -y -o DPkg::Lock::Timeout=300 file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio libacl1 locales python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libsdl1.2-dev python3-subunit zstd liblz4-tool
@@ -30,47 +44,56 @@ jobs:
           git config --global user.name "XpressReal SDK Builder"
           git config --global user.email "builder@example.com"
 
-      - name: 1. Checkout Poky from Yocto Project
-        if: ${{ hashFiles('poky/LICENSE') == '' }}
-        run: |
-          echo "--- Cloning poky ---"
-          git clone -b scarthgap https://git.yoctoproject.org/poky
-
-      - name: 2. Checkout linux-sdk repo and move meta-xpressreal
+      - name: 1. Checkout linux-sdk repo
         uses: actions/checkout@v4
         with:
           path: linux-sdk-temp
 
-      - name: Move meta-xpressreal
-        run: |
-          rm -rf poky/meta-xpressreal
-          mv linux-sdk-temp/meta-xpressreal poky/
+      - name: 2. Load SDK manifest
+        run: grep -E '^[A-Z_]+=' linux-sdk-temp/ci/sdk.env >> "$GITHUB_ENV"
 
-      - name: 3. Download prebuilt rootfs
-        if: ${{ hashFiles('poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files/debian-rootfs.tar.xz') == '' }}
+      - name: 3. Checkout Poky from Yocto Project
         run: |
-          echo "--- Download prebuilt rootfs ---"
-          export ROOTFS_DL_URL="https://github.com/XpressReal/linux-sdk/releases/download/prebuilt-rootfs-v2.7.1"
-          export OUTPUT_DIR="./poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files"
-          # Every archive the layer references must be present: bitbake
-          # checksums all SRC_URI entries at parse time, so a missing tarball
-          # fails the build even for targets that never use it.
-          for name in debian ubuntu rpios \
-                      desktop-debian desktop-ubuntu desktop-rpios \
-                      weston-debian weston-ubuntu \
-                      gamepad-debian gamepad-ubuntu; do
-            echo "Downloading ${name}-rootfs.tar.xz"
-            wget -q -O "${OUTPUT_DIR}/${name}-rootfs.tar.xz" "${ROOTFS_DL_URL}/${name}-rootfs.tar.xz"
+          [ -d poky/.git ] || git clone -b "$POKY_BRANCH" "$POKY_URL" poky
+          git -C poky fetch --all --tags
+          git -C poky checkout "$POKY_COMMIT"
+
+      - name: 4. Move meta-xpressreal into poky
+        run: |
+          rm -rf poky/meta-xpressreal poky/ci
+          mv linux-sdk-temp/meta-xpressreal poky/
+          cp -r linux-sdk-temp/ci poky/ci
+          rm -rf linux-sdk-temp
+
+      - name: 5. Download prebuilt rootfs
+        run: |
+          CACHE="$HOME/rootfs-cache/${PREBUILT_ROOTFS_TAG}"
+          OUT="poky/meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files"
+          URL="https://github.com/${{ github.repository }}/releases/download/${PREBUILT_ROOTFS_TAG}"
+          mkdir -p "$CACHE" "$OUT"
+          for name in $ROOTFS_ARCHIVES; do
+            f="$CACHE/${name}-rootfs.tar.xz"
+            # Download to .part then rename: an interrupted transfer must not
+            # be left behind looking like a complete cached archive.
+            if [ ! -s "$f" ]; then
+              echo "Downloading ${name}-rootfs.tar.xz"
+              wget -q -O "$f.part" "${URL}/${name}-rootfs.tar.xz"
+              mv "$f.part" "$f"
+            else
+              echo "Cached ${name}-rootfs.tar.xz"
+            fi
+            cp -l "$f" "$OUT/${name}-rootfs.tar.xz" 2>/dev/null \
+              || cp "$f" "$OUT/${name}-rootfs.tar.xz"
           done
 
-      - name: 4. Clone and lock dependency layers into poky/
+      - name: 6. Clone and lock dependency layers into poky/
         working-directory: ./poky
         run: |
           set -e
           # Runs unconditionally: the runner workspace is persistent, so a
           # clone-time-only guard would leave stale commits in place forever.
-          sync_layer() {
-            dir="$1"; url="$2"; branch="$3"; commit="$4"
+          grep -v '^#' ci/layers.tsv | while IFS=$'\t' read -r dir url branch commit; do
+            [ -n "$dir" ] || continue
             if [ ! -d "$dir/.git" ]; then
               echo "--- Cloning $dir ---"
               git clone -b "$branch" "$url" "$dir"
@@ -78,23 +101,11 @@ jobs:
             echo "--- Locking $dir to $commit ---"
             git -C "$dir" fetch --all --tags
             git -C "$dir" checkout "$commit"
-          }
-
-          echo "--- Locking poky to b56134ff90 ---"
-          git fetch --all --tags
-          git checkout b56134ff90
-
-          sync_layer meta-openembedded   https://git.openembedded.org/meta-openembedded     scarthgap         fdd1894976
-          sync_layer meta-qt5            https://github.com/meta-qt5/meta-qt5               scarthgap         eb82841826
-          sync_layer meta-neural-network https://github.com/nnstreamer/meta-neural-network  scarthgap         c14458c94e
-          sync_layer meta-browser        https://github.com/OSSystems/meta-browser          scarthgap         168d284276
-          sync_layer meta-clang          https://github.com/kraj/meta-clang                 scarthgap-clang20 76596813cd
-          sync_layer meta-lts-mixins     https://git.yoctoproject.org/meta-lts-mixins       scarthgap/rust    96deb45139
-
+          done
           echo "--- Final directory structure inside poky: ---"
           ls -l
 
-      - name: Initialize Build Environment using TEMPLATECONF
+      - name: 7. Initialize Build Environment using TEMPLATECONF
         working-directory: ./poky
         run: |
           # oe-init-build-env never overwrites an existing conf, so drop the
@@ -106,55 +117,97 @@ jobs:
           echo "--- Generated local.conf ---"
           cat conf/local.conf
 
-      - name: Cache Yocto Downloads and SSTATE
-        uses: actions/cache@v4
-        with:
-          path: |
-            poky/build/downloads
-            poky/build/sstate-cache
-          key: ${{ runner.os }}-yocto-scarthgap-${{ hashFiles('poky/build/conf/local.conf', 'poky/build/conf/bblayers.conf') }}
-          restore-keys: |
-            ${{ runner.os }}-yocto-scarthgap-
+      - name: 8. Pre-flight checks
+        working-directory: ./poky
+        run: |
+          rc=0
+          FILES=meta-xpressreal/recipes-xpressreal/prebuilt-rootfs/files
+          for name in $ROOTFS_ARCHIVES; do
+            if [ ! -s "$FILES/${name}-rootfs.tar.xz" ]; then
+              echo "::error::${name}-rootfs.tar.xz is missing or empty"
+              rc=1
+            fi
+          done
+          if ! grep -q "^MACHINE ??= \"${MACHINE}\"" build/conf/local.conf; then
+            echo "::error::local.conf MACHINE does not match ci/sdk.env (${MACHINE})"
+            rc=1
+          fi
+          avail=$(df -BG --output=avail . | tail -1 | tr -dc '0-9')
+          echo "Free space: ${avail}G"
+          if [ "$avail" -lt 100 ]; then
+            echo "::error::need >=100G free for a Yocto build, have ${avail}G"
+            rc=1
+          fi
+          exit $rc
 
       - name: Run BitBake Build (core-image-minimal)
         working-directory: ./poky
         run: |
+          STAMP="$PWD/build/images/.core-image-minimal.sha"
+          mkdir -p "$(dirname "$STAMP")"
+          if [ "$(cat "$STAMP" 2>/dev/null)" = "${{ github.sha }}" ]; then
+            echo "already built for ${{ github.sha }}, skipping"; exit 0
+          fi
           source oe-init-build-env build
           bitbake core-image-minimal
-          mkdir -p images
-          cp ./tmp/deploy/images/xpressreal-rtd1619b/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
+          cp ./tmp/deploy/images/${MACHINE}/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
+          echo "${{ github.sha }}" > "$STAMP"
 
       - name: Run BitBake Build (debian image server)
         working-directory: ./poky
         run: |
+          STAMP="$PWD/build/images/.debian-image-server.sha"
+          mkdir -p "$(dirname "$STAMP")"
+          if [ "$(cat "$STAMP" 2>/dev/null)" = "${{ github.sha }}" ]; then
+            echo "already built for ${{ github.sha }}, skipping"; exit 0
+          fi
           source oe-init-build-env build
           bitbake debian-image
-          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
+          cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
+          echo "${{ github.sha }}" > "$STAMP"
 
       - name: Run BitBake Build (ubuntu image server)
         working-directory: ./poky
         run: |
+          STAMP="$PWD/build/images/.ubuntu-image-server.sha"
+          mkdir -p "$(dirname "$STAMP")"
+          if [ "$(cat "$STAMP" 2>/dev/null)" = "${{ github.sha }}" ]; then
+            echo "already built for ${{ github.sha }}, skipping"; exit 0
+          fi
           source oe-init-build-env build
           echo 'OVERRIDES:append = ":ubuntu"' > temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
+          cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
+          echo "${{ github.sha }}" > "$STAMP"
 
       - name: Run BitBake Build (debian image desktop)
         working-directory: ./poky
         run: |
+          STAMP="$PWD/build/images/.debian-image-desktop.sha"
+          mkdir -p "$(dirname "$STAMP")"
+          if [ "$(cat "$STAMP" 2>/dev/null)" = "${{ github.sha }}" ]; then
+            echo "already built for ${{ github.sha }}, skipping"; exit 0
+          fi
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
+          cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
+          echo "${{ github.sha }}" > "$STAMP"
 
       - name: Run BitBake Build (ubuntu image desktop)
         working-directory: ./poky
         run: |
+          STAMP="$PWD/build/images/.ubuntu-image-desktop.sha"
+          mkdir -p "$(dirname "$STAMP")"
+          if [ "$(cat "$STAMP" 2>/dev/null)" = "${{ github.sha }}" ]; then
+            echo "already built for ${{ github.sha }}, skipping"; exit 0
+          fi
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
           echo 'OVERRIDES:append = ":ubuntu"' >> temp-config.conf
           bitbake --postread=temp-config.conf debian-image
-          cp ./tmp/deploy/images/xpressreal-rtd1619b/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
+          cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
+          echo "${{ github.sha }}" > "$STAMP"
 
       - name: Create Release and Upload Artifacts
         if: startsWith(github.ref, 'refs/tags/')

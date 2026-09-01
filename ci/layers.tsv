@@ -1,0 +1,7 @@
+# Dependency layers cloned into poky/. Columns: dir url branch commit
+meta-openembedded	https://git.openembedded.org/meta-openembedded	scarthgap	fdd1894976
+meta-qt5	https://github.com/meta-qt5/meta-qt5	scarthgap	eb82841826
+meta-neural-network	https://github.com/nnstreamer/meta-neural-network	scarthgap	c14458c94e
+meta-browser	https://github.com/OSSystems/meta-browser	scarthgap	168d284276
+meta-clang	https://github.com/kraj/meta-clang	scarthgap-clang20	76596813cd
+meta-lts-mixins	https://git.yoctoproject.org/meta-lts-mixins	scarthgap/rust	96deb45139
