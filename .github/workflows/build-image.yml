@@ -149,6 +149,7 @@ jobs:
             echo "already built for ${{ github.sha }}, skipping"; exit 0
           fi
           source oe-init-build-env build
+          bash ../ci/prepare-kernel.sh base
           bitbake core-image-minimal
           cp ./tmp/deploy/images/${MACHINE}/core-image-minimal-*.rootfs.wic.xz ./images/xpressreal-core-image-minimal.wic.xz
           echo "${{ github.sha }}" > "$STAMP"
@@ -162,6 +163,7 @@ jobs:
             echo "already built for ${{ github.sha }}, skipping"; exit 0
           fi
           source oe-init-build-env build
+          bash ../ci/prepare-kernel.sh base
           bitbake debian-image
           cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-server.wic.xz
           echo "${{ github.sha }}" > "$STAMP"
@@ -176,6 +178,7 @@ jobs:
           fi
           source oe-init-build-env build
           echo 'OVERRIDES:append = ":ubuntu"' > temp-config.conf
+          bash ../ci/prepare-kernel.sh base
           bitbake --postread=temp-config.conf debian-image
           cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-server.wic.xz
           echo "${{ github.sha }}" > "$STAMP"
@@ -190,6 +193,7 @@ jobs:
           fi
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
+          bash ../ci/prepare-kernel.sh xdesktop --postread=temp-config.conf
           bitbake --postread=temp-config.conf debian-image
           cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-debian-image-desktop.wic.xz
           echo "${{ github.sha }}" > "$STAMP"
@@ -205,6 +209,7 @@ jobs:
           source oe-init-build-env build
           echo 'MACHINE_FEATURES:append = " panfrost hifi xdesktop"' > temp-config.conf
           echo 'OVERRIDES:append = ":ubuntu"' >> temp-config.conf
+          bash ../ci/prepare-kernel.sh xdesktop --postread=temp-config.conf
           bitbake --postread=temp-config.conf debian-image
           cp ./tmp/deploy/images/${MACHINE}/debian-image-*.rootfs.wic.xz ./images/xpressreal-ubuntu-image-desktop.wic.xz
           echo "${{ github.sha }}" > "$STAMP"
