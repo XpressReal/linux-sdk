@@ -15,9 +15,15 @@ jobs:
 
     steps:
       - name: Install Yocto Build Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_SUSPEND: 1
         run: |
-          sudo apt-get update
-          sudo apt-get install -y file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio libacl1 locales python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libsdl1.2-dev python3-subunit zstd liblz4-tool
+          # No TTY here: an interactive needrestart/debconf prompt or a held
+          # dpkg lock would block until the 6h job timeout instead of failing.
+          sudo -n true
+          sudo -E apt-get update -o Acquire::Retries=3
+          sudo -E apt-get install -y -o DPkg::Lock::Timeout=300 file gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio libacl1 locales python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libsdl1.2-dev python3-subunit zstd liblz4-tool
 
       - name: Config git ident name
         run: |
