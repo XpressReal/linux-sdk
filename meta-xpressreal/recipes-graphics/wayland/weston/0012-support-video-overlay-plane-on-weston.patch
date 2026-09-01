@@ -1,9 +1,11 @@
-From 71c58c1660c9ad7fe6ca05ee9e72454e9f58b684 Mon Sep 17 00:00:00 2001
+From 57ae44c0d027eecac3078ec5db06c4a8954b1fc8 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Mon, 9 Dec 2024 16:47:29 +0800
+Date: Tue, 14 Apr 2026 01:59:11 -0400
 Subject: [PATCH] support video overlay plane on weston
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  include/libweston/libweston.h         |  3 ++
  libweston/backend-drm/drm-gbm.c       | 10 ++++--
@@ -13,10 +15,10 @@ Upstream-Status: Inappropriate [rtk specific]
  5 files changed, 85 insertions(+), 10 deletions(-)
 
 diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
-index cc9c457..cfeb0b2 100644
+index c1c27de..cfdacb6 100644
 --- a/include/libweston/libweston.h
 +++ b/include/libweston/libweston.h
-@@ -1520,6 +1520,7 @@ struct weston_compositor {
+@@ -1521,6 +1521,7 @@ struct weston_compositor {
  	} output_capture;
  
  	bool dmabuf_v1_overlay;
@@ -24,7 +26,7 @@ index cc9c457..cfeb0b2 100644
  	bool transparent_fade_layer;
  	bool gbm_afbc;
  	bool found_drm_fd;
-@@ -1744,6 +1745,8 @@ struct weston_view {
+@@ -1745,6 +1746,8 @@ struct weston_view {
  
  	bool is_mapped;
  	struct weston_log_pacer subsurface_parent_log_pacer;
@@ -55,7 +57,7 @@ index 580a87f..601391a 100644
  	bo = gbm_surface_lock_front_buffer(output->gbm_surface);
  	if (!bo) {
 diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
-index 2b42e3d..5bb11aa 100644
+index 2b42e3d..cb36ce0 100644
 --- a/libweston/backend-drm/state-propose.c
 +++ b/libweston/backend-drm/state-propose.c
 @@ -552,7 +552,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
@@ -135,7 +137,7 @@ index 2b42e3d..5bb11aa 100644
 +				struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 +				if (buffer->type == WESTON_BUFFER_DMABUF) {
 +					dmabuf = buffer->dmabuf;
-+					if (dmabuf != NULL && dmabuf->attributes.format == DRM_FORMAT_NV12)
++					if (ev->surface->rtk_surface == WL_RTK_VIDEO_SURFACE && dmabuf != NULL && dmabuf->attributes.format == DRM_FORMAT_NV12)
 +						use_video_overlay = true;
 +				}
 +			}
@@ -149,7 +151,7 @@ index 2b42e3d..5bb11aa 100644
  		} else {
  			drm_debug(b, "\t[repaint] view %p using renderer "
 diff --git a/libweston/compositor.c b/libweston/compositor.c
-index d4c16ba..96c15a4 100644
+index 193810c..aeb880b 100644
 --- a/libweston/compositor.c
 +++ b/libweston/compositor.c
 @@ -602,6 +602,7 @@ weston_view_create_internal(struct weston_surface *surface)

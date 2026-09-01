@@ -1,0 +1,94 @@
+From 042a78d9bb0c4ca2c0659f0a860a97491402aeeb Mon Sep 17 00:00:00 2001
+From: Takahiro Kuwano <Takahiro.Kuwano@infineon.com>
+Date: Tue, 30 Sep 2025 03:20:59 +0300
+Subject: [PATCH 26/38] mtd: spinand: Introduce a way to avoid raw access
+
+SkyHigh spinand device has ECC enable bit in configuration register but
+it must be always enabled. If ECC is disabled, read and write ops
+results in undetermined state. For such devices, a way to avoid raw
+access is needed.
+
+Introduce SPINAND_NO_RAW_ACCESS flag to advertise the device does not
+support raw access. In such devices, the on-die ECC engine ops returns
+error to I/O request in raw mode.
+
+Checking and marking BBM need to be cared as special case, by adding
+fallback mechanism that tries read/write OOB with ECC enabled.
+
+This is a port of linux commit
+6d9d6ab3a82a (mtd: spinand: Introduce a way to avoid raw access)
+
+Signed-off-by: Takahiro Kuwano <Takahiro.Kuwano@infineon.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 22 ++++++++++++++++++++--
+ include/linux/mtd/spinand.h |  1 +
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index d0c9083a5b3..c04e82651fa 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -298,6 +298,9 @@ static int spinand_ondie_ecc_prepare_io_req(struct nand_device *nand,
+ 	struct spinand_device *spinand = nand_to_spinand(nand);
+ 	bool enable = (req->mode != MTD_OPS_RAW);
+ 
++	if (!enable && spinand->flags & SPINAND_NO_RAW_ACCESS)
++		return -EOPNOTSUPP;
++
+ 	memset(spinand->oobbuf, 0xff, nanddev_per_page_oobsize(nand));
+ 
+ 	/* Only enable or disable the engine */
+@@ -749,9 +752,17 @@ static bool spinand_isbad(struct nand_device *nand, const struct nand_pos *pos)
+ 		.oobbuf.in = marker,
+ 		.mode = MTD_OPS_RAW,
+ 	};
++	int ret;
+ 
+ 	spinand_select_target(spinand, pos->target);
+-	spinand_read_page(spinand, &req);
++
++	ret = spinand_read_page(spinand, &req);
++	if (ret == -EOPNOTSUPP) {
++		/* Retry with ECC in case raw access is not supported */
++		req.mode = MTD_OPS_PLACE_OOB;
++		spinand_read_page(spinand, &req);
++	}
++
+ 	if (marker[0] != 0xff || marker[1] != 0xff)
+ 		return true;
+ 
+@@ -795,7 +806,14 @@ static int spinand_markbad(struct nand_device *nand, const struct nand_pos *pos)
+ 	if (ret)
+ 		return ret;
+ 
+-	return spinand_write_page(spinand, &req);
++	ret = spinand_write_page(spinand, &req);
++	if (ret == -EOPNOTSUPP) {
++		/* Retry with ECC in case raw access is not supported */
++		req.mode = MTD_OPS_PLACE_OOB;
++		ret = spinand_write_page(spinand, &req);
++	}
++
++	return ret;
+ }
+ 
+ static int spinand_mtd_block_markbad(struct mtd_info *mtd, loff_t offs)
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index fb3a2e5d909..63626c9c27c 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -320,6 +320,7 @@ struct spinand_ecc_info {
+ #define SPINAND_HAS_CR_FEAT_BIT			BIT(1)
+ #define SPINAND_HAS_PROG_PLANE_SELECT_BIT	BIT(2)
+ #define SPINAND_HAS_READ_PLANE_SELECT_BIT	BIT(3)
++#define SPINAND_NO_RAW_ACCESS			BIT(4)
+ 
+ /**
+  * struct spinand_info - Structure used to describe SPI NAND chips
+-- 
+2.47.0
+

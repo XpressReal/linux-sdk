@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2022 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1315e-captainmarvel.dtsi"
+
+/ {
+	compatible = "realtek,captainmarvel", "realtek,rtd1315e";
+	model = "Realtek Captain Marvel EVB (1GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x3ffc0000>; /* 1 GB */
+	};
+};
+
+&reserved_memory {
+	audio_heap@4200000 {
+		compatible = "audio_heap";
+		reg = <0x04200000 0xc0000>;
+	};
+
+	media_heap@4e00000 {
+		compatible = "media_heap";
+		reg = <0x04e00000 0x02000000>;
+	};
+
+	tee@10100000 {
+		reg = <0x10100000 0x1400000>;
+	};
+
+	linux,default_cma {
+		status = "disabled";
+	};
+
+	linux,cma_1 {
+		status = "disabled";
+	};
+
+	linux,cma_2 {
+		status = "disabled";
+	};
+
+	linux,cma_3 {
+		status = "disabled";
+	};
+
+	linux,cma_4 {
+		status = "disabled";
+	};
+
+	linux,cma_5 {
+		status = "disabled";
+	};
+
+	linux,cma_6 {
+		status = "disabled";
+	};
+
+	linux,cma_7 {
+		status = "disabled";
+	};
+
+	linux,cma_8 {
+		status = "disabled";
+	};
+
+	linux,cma_9 {
+		status = "disabled";
+	};
+};
+
+&rtk_fb {
+	resolution = <1280 720>;
+};

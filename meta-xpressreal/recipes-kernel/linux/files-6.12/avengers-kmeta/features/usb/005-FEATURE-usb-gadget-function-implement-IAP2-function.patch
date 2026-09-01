@@ -1,0 +1,70 @@
+From e8cc548e768053955a7568bf13fc4d77b342df99 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Mon, 15 Sep 2025 14:32:03 +0800
+Subject: [PATCH 12/33] [FEATURE] usb: gadget: function: implement IAP2
+ function
+
+[PLATFORM] Kent
+[TEST] Kent
+[JIRA] NA
+
+Change-Id: I2bac2b177053b435de31ac661b44f438b826d4b5
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/gadget/Kconfig           | 12 +++++++++++-
+ drivers/usb/gadget/function/Makefile |  2 ++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/Kconfig b/drivers/usb/gadget/Kconfig
+index 76521555e3c14..0ffec6b2b36cb 100644
+--- a/drivers/usb/gadget/Kconfig
++++ b/drivers/usb/gadget/Kconfig
+@@ -171,6 +171,9 @@ config USB_F_OBEX
+ config USB_F_NCM
+ 	tristate
+ 
++config USB_F_IAP
++	tristate
++
+ config USB_F_ECM
+ 	tristate
+ 
+@@ -278,6 +281,13 @@ config USB_CONFIGFS_NCM
+ 	  grouping of several ethernet frames into one USB transfer and
+ 	  different alignment possibilities.
+ 
++config USB_CONFIGFS_IAP
++	tristate "IAP gadget"
++	depends on USB_CONFIGFS
++	select USB_F_IAP
++	help
++	  USB gadget IAP support.
++
+ config USB_CONFIGFS_ECM
+ 	bool "Ethernet Control Model (CDC ECM)"
+ 	depends on USB_CONFIGFS
+@@ -343,7 +353,7 @@ config USB_CONFIGFS_PHONET
+ 	  The Phonet protocol implementation for USB device.
+ 
+ config USB_CONFIGFS_MASS_STORAGE
+-	bool "Mass storage"
++	tristate "Mass storage"
+ 	depends on USB_CONFIGFS
+ 	depends on BLOCK
+ 	select USB_F_MASS_STORAGE
+diff --git a/drivers/usb/gadget/function/Makefile b/drivers/usb/gadget/function/Makefile
+index 87917a7d4a9be..ea6d7bdf88ab5 100644
+--- a/drivers/usb/gadget/function/Makefile
++++ b/drivers/usb/gadget/function/Makefile
+@@ -19,6 +19,8 @@ obj-$(CONFIG_USB_F_OBEX)	+= usb_f_obex.o
+ obj-$(CONFIG_USB_U_ETHER)	+= u_ether.o
+ usb_f_ncm-y			:= f_ncm.o
+ obj-$(CONFIG_USB_F_NCM)		+= usb_f_ncm.o
++usb_f_iap-y			:= f_iap.o
++obj-$(CONFIG_USB_F_IAP)		+= usb_f_iap.o
+ usb_f_ecm-y			:= f_ecm.o
+ obj-$(CONFIG_USB_F_ECM)		+= usb_f_ecm.o
+ usb_f_phonet-y			:= f_phonet.o
+-- 
+2.47.0
+

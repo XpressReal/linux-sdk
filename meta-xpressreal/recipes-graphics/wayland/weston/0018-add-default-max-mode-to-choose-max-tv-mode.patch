@@ -1,0 +1,88 @@
+From 03bb595aa33d107214ae18e5007149a89424b642 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 14 Apr 2026 04:04:57 -0400
+Subject: [PATCH] add default-max-mode to choose max tv mode
+
+Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
+---
+ compositor/main.c             |  1 +
+ include/libweston/libweston.h |  1 +
+ libweston/backend-drm/modes.c | 15 +++++++++++++++
+ 3 files changed, 17 insertions(+)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index 6a6e0d4..ed35dba 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -2133,6 +2133,7 @@ drm_backend_output_configure(struct weston_output *output,
+ 
+ 	weston_config_section_get_string(section, "mode", &s, "preferred");
+ 	weston_config_section_get_string(section, "tv-mode", &tv_modeline, NULL);
++	weston_config_section_get_bool(section, "default-max-mode", &output->compositor->default_max_mode, false);
+ 
+ 	if (weston_config_section_get_uint(section, "max-bpc", &max_bpc, 16) == 0)
+ 		max_bpc_specified = true;
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index ca84f5a..60f1f12 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1530,6 +1530,7 @@ struct weston_compositor {
+ 	bool found_drm_fd;
+ 	bool full_damage;
+ 	bool ui_hole_punch;
++	bool default_max_mode;
+ };
+ 
+ struct weston_solid_buffer_values {
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 2d0e233..ff306c8 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -649,6 +649,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	struct drm_mode *fps_match_configured = NULL;
+ 	struct drm_mode *config_fall_back = NULL;
+ 	struct drm_mode *best = NULL;
++	struct drm_mode *max_mode = NULL;
+ 	struct drm_mode *drm_mode;
+ 	drmModeModeInfo drm_modeline;
+ 	int32_t width = 0;
+@@ -658,6 +659,8 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	uint32_t aspect_height = 0;
+ 	enum weston_mode_aspect_ratio aspect_ratio = WESTON_MODE_PIC_AR_NONE;
+ 	int n;
++	int32_t max_width = 0;
++	int32_t max_height = 0;
+ 	char interlace[64] = {0};
+ 
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_PREFERRED && modeline) {
+@@ -736,6 +739,13 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 		if (drm_mode->base.flags & WL_OUTPUT_MODE_PREFERRED)
+ 			preferred = drm_mode;
+ 
++		if (drm_mode->base.width >= max_width && drm_mode->base.height >= max_height)
++		{
++			max_width = drm_mode->base.width;
++			max_height = drm_mode->base.height;
++			max_mode = drm_mode;
++		}
++
+ 		best = drm_mode;
+ 	}
+ 
+@@ -757,6 +767,11 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	if (configured)
+ 		return configured;
+ 
++	if (output->base.compositor->default_max_mode == true)
++	{
++		return max_mode;
++	}
++
+ 	if (config_fall_back)
+ 		return config_fall_back;
+ 
+-- 
+2.34.1
+

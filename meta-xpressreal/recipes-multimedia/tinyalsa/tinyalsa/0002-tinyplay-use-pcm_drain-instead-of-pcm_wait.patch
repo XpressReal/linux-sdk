@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] tinyplay: use pcm_drain instead of pcm_wait before close
+
+pcm_wait() waits for buffer space (POLLOUT) and returns immediately when
+there is room to write. Replace with pcm_drain() which waits for the
+hardware to finish playing all buffered data before closing.
+
+---
+ utils/tinyplay.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/tinyplay.c b/utils/tinyplay.c
+--- a/utils/tinyplay.c
++++ b/utils/tinyplay.c
+@@ -494,7 +494,7 @@
+         printf("Remains %zu bytes.\n", remaining_data_size);
+     }
+ 
+-    pcm_wait(ctx->pcm, -1);
++    pcm_drain(ctx->pcm);
+ 
+     free(buffer);
+     return 0;

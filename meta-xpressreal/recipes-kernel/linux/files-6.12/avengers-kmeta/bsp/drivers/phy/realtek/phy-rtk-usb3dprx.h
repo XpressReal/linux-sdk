@@ -1,0 +1,4104 @@
+/*
+ *  Copyright (C) 2025 Realtek Semiconductors, All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __PHY_RTK_U3DPRX_H
+#define __PHY_RTK_U3DPRX_H
+
+/* Type C port control */
+#define disable_cc				0x0
+#define enable_cc1				0x1
+#define enable_cc2				0x2
+
+/*reg start from 0x9814f000 */
+#define U3DP_PHY_MODE_CDR_5G			0x0
+#define U3DP_PHY_MODE_GAIN_5G			0x4
+#define U3DP_PHY_MODE_GAIN_5G_01		0x8
+#define U3DP_PHY_MODE_OFFSET_K_5G_00		0xc
+#define U3DP_PHY_MODE_OFFSET_K_5G_01		0x10
+#define U3DP_PHY_MODE_CDR_10G			0x14
+#define U3DP_PHY_MODE_GAIN_10G_00		0x18
+#define U3DP_PHY_MODE_GAIN_10G_01		0x1c
+#define U3DP_PHY_MODE_OFFSET_K_10G_00		0x20
+#define U3DP_PHY_MODE_OFFSET_K_10G_01		0x24
+#define U3DP_PHY_MODE_CDR_DP			0x28
+#define U3DP_PHY_MODE_GAIN_DP_00		0x2c
+#define U3DP_PHY_MODE_GAIN_DP_01		0x30
+#define U3DP_PHY_MODE_OFFSET_K_DP_00		0x34
+#define U3DP_PHY_MODE_OFFSET_K_DP_01		0x38
+#define U3DP_PHY_SEL_USB_10BIT			0x3c
+#define U3DP_PHY_FLD_5G_0			0x40
+#define U3DP_PHY_FLD_5G_1			0x44
+#define U3DP_PHY_FLD_5G_2			0x48
+#define U3DP_PHY_FLD_5G_3			0x4c
+#define U3DP_PHY_EYE_MON_0			0x50
+#define U3DP_PHY_EYE_MON_1			0x54
+#define U3DP_PHY_EYE_MON_2			0x58
+#define U3DP_PHY_EYE_MON_3			0x5c
+#define U3DP_PHY_EYE_MON_4			0x60
+#define U3DP_PHY_EYE_MON_5			0x64
+#define U3DP_PHY_EYE_MON_6			0x68
+#define U3DP_PHY_EYE_MON_7			0x6c
+#define U3DP_PHY_EYE_MON_8			0x70
+#define U3DP_PHY_FLD_10G_0			0x80
+#define U3DP_PHY_FLD_10G_1			0x84
+#define U3DP_PHY_FLD_10G_2			0x88
+#define U3DP_PHY_FLD_10G_3			0x8c
+#define U3DP_PHY_EYE_MON_9			0x90
+#define U3DP_PHY_EYE_MON_10			0x94
+#define U3DP_PHY_EYE_MON_11			0x98
+#define U3DP_PHY_EYE_MON_12			0x9c
+#define U3DP_PHY_FLD_DP_0			0xc0
+#define U3DP_PHY_FLD_DP_1			0xc4
+#define U3DP_PHY_FLD_DP_2			0xc8
+#define U3DP_PHY_FLD_DP_3			0xcc
+
+#define U3DP_PHY_ADJR_U3_TAP0_LV0		0x1a0
+#define U3DP_PHY_ADJR_U3_TAP0_LV1		0x1a4
+#define U3DP_PHY_ADJR_U3_TAP0_LV2		0x1a8
+#define U3DP_PHY_ADJR_U3_TAP0_LV3		0x1ac
+#define U3DP_PHY_ADJR_U3_TAP0_LV4		0x1b0
+#define U3DP_PHY_ADJR_U3_TAP0_LV5		0x1b4
+#define U3DP_PHY_ADJR_U3_TAP0_LV6		0x1b8
+#define U3DP_PHY_ADJR_LEQ_LV0_L0_5G		0x1c0
+#define U3DP_PHY_ADJR_LEQ_LV1_L0_5G		0x1c4
+#define U3DP_PHY_ADJR_LEQ_LV2_L0_5G		0x1c8
+#define U3DP_PHY_ADJR_LEQ_LV3_L0_5G		0x1cc
+#define U3DP_PHY_ADJR_LEQ_LV4_L0_5G		0x1d0
+#define U3DP_PHY_ADJR_LEQ_LV5_L0_5G		0x1d4
+#define U3DP_PHY_ADJR_LEQ_LV6_L0_5G		0x1d8
+#define U3DP_PHY_ADJR_LEQ_LV7_L0_5G		0x1dc
+
+#define U3DP_PHY_ADJR_LEQ_LV0_L3_5G		0x200
+#define U3DP_PHY_ADJR_LEQ_LV1_L3_5G		0x204
+#define U3DP_PHY_ADJR_LEQ_LV2_L3_5G		0x208
+#define U3DP_PHY_ADJR_LEQ_LV3_L3_5G		0x20c
+#define U3DP_PHY_ADJR_LEQ_LV4_L3_5G		0x210
+#define U3DP_PHY_ADJR_LEQ_LV5_L3_5G		0x214
+#define U3DP_PHY_ADJR_LEQ_LV6_L3_5G		0x218
+#define U3DP_PHY_ADJR_LEQ_LV7_L3_5G		0x21c
+#define U3DP_PHY_DPHY_00			0x240
+#define U3DP_PHY_DPHY_01			0x244
+#define U3DP_PHY_DPHY_02			0x248
+#define U3DP_PHY_DPHY_03			0x24c
+#define U3DP_PHY_DPHY_04			0x250
+#define U3DP_PHY_DPHY_05			0x254
+#define U3DP_PHY_DATA_TIMER_0			0x258
+#define U3DP_PHY_DATA_TIMER_1			0x25c
+#define U3DP_PHY_DATA_TIMER_2			0x260
+#define U3DP_PHY_DATA_TIMER_3			0x264
+#define U3DP_PHY_DATA_TIMER_4			0x268
+#define U3DP_PHY_DATA_TIMER_5			0x26c
+#define U3DP_PHY_DATA_TIMER_6			0x270
+#define U3DP_PHY_DATA_TIMER_7			0x274
+#define U3DP_PHY_RX_DATA_INBUF_0		0x278
+#define U3DP_PHY_RX_DATA_INBUF_1		0x27c
+#define U3DP_PHY_DATA_TIMER_8			0x280
+#define U3DP_PHY_TX_DDC_00			0x284
+#define U3DP_PHY_ADJR_00			0x28c
+#define U3DP_PHY_ADJR_01			0x290
+#define U3DP_PHY_ADJR_02			0x294
+#define U3DP_PHY_ADJR_03			0x298
+#define U3DP_PHY_ADJR_04			0x29c
+#define U3DP_PHY_ADJR_05			0x2a0
+#define U3DP_PHY_ADJR_06			0x2a4
+
+#define U3DP_PHY_FLD_TX_0			0x340
+#define U3DP_PHY_FLD_TX_1			0x344
+#define U3DP_PHY_FLD_TX_2			0x348
+#define U3DP_PHY_FLD_TX_3			0x34c
+#define U3DP_PHY_FLD_TX_4			0x350
+#define U3DP_PHY_FLD_TX_5			0x354
+#define U3DP_PHY_FLD_TX_6			0x358
+#define U3DP_PHY_FLD_TX_7			0x35c
+#define U3DP_PHY_FLD_TX_8			0x360
+#define U3DP_PHY_FLD_TX_9			0x364
+#define U3DP_PHY_FLD_TX_10			0x368
+#define U3DP_PHY_FLD_TX_11			0x36c
+#define U3DP_PHY_FLD_TX_12			0x370
+#define U3DP_PHY_FLD_TX_13			0x374
+#define U3DP_PHY_FLD_TX_14			0x378
+#define U3DP_PHY_FLD_TX_15			0x37c
+#define U3DP_PHY_FLD_TX_16			0x380
+#define U3DP_PHY_FLD_TX_17			0x384
+#define U3DP_PHY_FLD_TX_18			0x388
+#define U3DP_PHY_FLD_TX_19			0x38c
+#define U3DP_PHY_FLD_TX_20			0x390
+#define U3DP_PHY_FLD_TX_21			0x394
+#define U3DP_PHY_FLD_TX_22			0x398
+#define U3DP_PHY_FLD_TX_23			0x39c
+#define U3DP_PHY_FLD_TX_24			0x3a0
+#define U3DP_PHY_FLD_TX_25			0x3a4
+#define U3DP_PHY_FLD_TX_26			0x3a8
+#define U3DP_PHY_PRBS_CNT_L0_00			0x3c0
+#define U3DP_PHY_PRBS_CNT_L0_01			0x3c4
+#define U3DP_PHY_PRBS_CNT_L1_00			0x3c8
+#define U3DP_PHY_PRBS_CNT_L1_01			0x3cc
+#define U3DP_PHY_PRBS_CNT_L2_00			0x3d0
+#define U3DP_PHY_PRBS_CNT_L2_01			0x3d4
+#define U3DP_PHY_PRBS_CNT_L3_00			0x3d8
+#define U3DP_PHY_PRBS_CNT_L3_01			0x3dc
+#define U3DP_PHY_APHY_RESET_00			0x3e0
+#define U3DP_PHY_APHY_RESET_01			0x3e4
+#define U3DP_PHY_JFM_DELAY			0x3e8
+#define U3DP_PHY_RESERVED_DPHY_02		0x3f8
+
+#define U3DP_PHY_FLD_L0_0			0x400
+#define U3DP_PHY_FLD_L0_1			0x404
+#define U3DP_PHY_FLD_L0_2			0x408
+#define U3DP_PHY_FLD_L0_3			0x40c
+#define U3DP_PHY_FLD_L0_4			0x410
+#define U3DP_PHY_FLD_L0_5			0x414
+#define U3DP_PHY_FLD_L0_6			0x418
+#define U3DP_PHY_FLD_L0_7			0x41c
+#define U3DP_PHY_FLD_L0_8			0x420
+#define U3DP_PHY_FLD_L0_9			0x424
+#define U3DP_PHY_FLD_L0_10			0x428
+#define U3DP_PHY_FLD_L0_11			0x42c
+#define U3DP_PHY_FLD_L0_12			0x430
+#define U3DP_PHY_FLD_L0_13			0x434
+#define U3DP_PHY_FLD_L0_14			0x438
+#define U3DP_PHY_FLD_L0_15			0x43c
+#define U3DP_PHY_FLD_L0_16			0x440
+#define U3DP_PHY_FLD_L0_17			0x444
+#define U3DP_PHY_FLD_L0_18			0x448
+#define U3DP_PHY_FLD_L0_19			0x44c
+#define U3DP_PHY_FLD_L0_20			0x450
+#define U3DP_PHY_FLD_L0_21			0x454
+#define U3DP_PHY_FLD_L0_22			0x458
+#define U3DP_PHY_FLD_L0_23			0x45c
+#define U3DP_PHY_FLD_L0_24			0x460
+#define U3DP_PHY_FLD_L0_25			0x464
+#define U3DP_PHY_FLD_L0_26			0x468
+#define U3DP_PHY_FLD_L0_27			0x46c
+#define U3DP_PHY_FLD_L0_28			0x470
+#define U3DP_PHY_FLD_L0_29			0x474
+#define U3DP_PHY_FLD_L0_30			0x480
+#define U3DP_PHY_FLD_L0_31			0x484
+#define U3DP_PHY_FLD_L0_32			0x488
+#define U3DP_PHY_FLD_L0_33			0x48c
+#define U3DP_PHY_FLD_L0_34			0x490
+#define U3DP_PHY_FLD_L0_35			0x494
+#define U3DP_PHY_FLD_L0_36			0x498
+#define U3DP_PHY_FLD_L0_37			0x49c
+#define U3DP_PHY_FLD_L0_38			0x4a0
+#define U3DP_PHY_FLD_L0_39			0x4a4
+#define U3DP_PHY_FLD_L0_40			0x4a8
+#define U3DP_PHY_FLD_L0_41			0x4ac
+#define U3DP_PHY_FLD_L0_42			0x4b0
+#define U3DP_PHY_FLD_L0_43			0x4b4
+#define U3DP_PHY_FLD_L0_44			0x4b8
+#define U3DP_PHY_FLD_L0_45			0x4bc
+#define U3DP_PHY_FLD_L0_46			0x4c0
+#define U3DP_PHY_FLD_L0_47			0x4c4
+#define U3DP_PHY_FLD_L0_48			0x4c8
+#define U3DP_PHY_FLD_L0_49			0x4cc
+#define U3DP_PHY_FLD_L0_50			0x4d0
+#define U3DP_PHY_FLD_L0_51			0x4d4
+#define U3DP_PHY_FLD_L0_52			0x4d8
+#define U3DP_PHY_FLD_L0_53			0x4dc
+#define U3DP_PHY_FLD_L0_54			0x4e0
+#define U3DP_PHY_FLD_L0_55			0x4e4
+#define U3DP_PHY_FLD_L0_56			0x4e8
+#define U3DP_PHY_FLD_L0_57			0x4ec
+#define U3DP_PHY_FLD_L0_58			0x4f0
+#define U3DP_PHY_FLD_L0_59			0x4f4
+#define U3DP_PHY_FLD_L0_60			0x4f8
+
+#define U3DP_PHY_FLD_L1_0			0x500
+#define U3DP_PHY_FLD_L1_1			0x504
+#define U3DP_PHY_FLD_L1_2			0x508
+#define U3DP_PHY_FLD_L1_3			0x50c
+#define U3DP_PHY_FLD_L1_4			0x510
+#define U3DP_PHY_FLD_L1_5			0x514
+#define U3DP_PHY_FLD_L1_6			0x518
+#define U3DP_PHY_FLD_L1_7			0x51c
+#define U3DP_PHY_FLD_L1_8			0x520
+#define U3DP_PHY_FLD_L1_9			0x524
+#define U3DP_PHY_FLD_L1_10			0x528
+#define U3DP_PHY_FLD_L1_11			0x52c
+#define U3DP_PHY_FLD_L1_12			0x530
+#define U3DP_PHY_FLD_L1_13			0x534
+#define U3DP_PHY_FLD_L1_14			0x538
+#define U3DP_PHY_FLD_L1_15			0x53c
+#define U3DP_PHY_FLD_L1_16			0x540
+#define U3DP_PHY_FLD_L1_17			0x544
+#define U3DP_PHY_FLD_L1_18			0x548
+#define U3DP_PHY_FLD_L1_19			0x54c
+#define U3DP_PHY_FLD_L1_20			0x550
+#define U3DP_PHY_FLD_L1_21			0x554
+#define U3DP_PHY_FLD_L1_22			0x558
+#define U3DP_PHY_FLD_L1_23			0x55c
+#define U3DP_PHY_FLD_L1_24			0x560
+#define U3DP_PHY_FLD_L1_25			0x564
+#define U3DP_PHY_FLD_L1_26			0x568
+#define U3DP_PHY_FLD_L1_27			0x56c
+#define U3DP_PHY_FLD_L1_28			0x570
+#define U3DP_PHY_FLD_L1_29			0x574
+#define U3DP_PHY_FLD_L1_30			0x580
+#define U3DP_PHY_FLD_L1_31			0x584
+#define U3DP_PHY_FLD_L1_32			0x588
+#define U3DP_PHY_FLD_L1_33			0x58c
+#define U3DP_PHY_FLD_L1_34			0x590
+#define U3DP_PHY_FLD_L1_35			0x594
+#define U3DP_PHY_FLD_L1_36			0x598
+#define U3DP_PHY_FLD_L1_37			0x59c
+#define U3DP_PHY_FLD_L1_38			0x5a0
+#define U3DP_PHY_FLD_L1_39			0x5a4
+#define U3DP_PHY_FLD_L1_40			0x5a8
+#define U3DP_PHY_FLD_L1_41			0x5ac
+#define U3DP_PHY_FLD_L1_42			0x5b0
+#define U3DP_PHY_FLD_L1_43			0x5b4
+#define U3DP_PHY_FLD_L1_44			0x5b8
+#define U3DP_PHY_FLD_L1_45			0x5bc
+#define U3DP_PHY_FLD_L1_46			0x5c0
+#define U3DP_PHY_FLD_L1_47			0x5c4
+#define U3DP_PHY_FLD_L1_48			0x5c8
+#define U3DP_PHY_FLD_L1_49			0x5cc
+#define U3DP_PHY_FLD_L1_50			0x5d0
+#define U3DP_PHY_FLD_L1_51			0x5d4
+#define U3DP_PHY_FLD_L1_52			0x5d8
+#define U3DP_PHY_FLD_L1_53			0x5dc
+#define U3DP_PHY_FLD_L1_54			0x5e0
+#define U3DP_PHY_FLD_L1_55			0x5e4
+#define U3DP_PHY_FLD_L1_56			0x5e8
+#define U3DP_PHY_FLD_L1_57			0x5ec
+#define U3DP_PHY_FLD_L1_58			0x5f0
+#define U3DP_PHY_FLD_L1_59			0x5f4
+#define U3DP_PHY_FLD_L1_60			0x5f8
+
+#define U3DP_PHY_FLD_L2_0			0x600
+#define U3DP_PHY_FLD_L2_1			0x604
+#define U3DP_PHY_FLD_L2_2			0x608
+#define U3DP_PHY_FLD_L2_3			0x60c
+#define U3DP_PHY_FLD_L2_4			0x610
+#define U3DP_PHY_FLD_L2_5			0x614
+#define U3DP_PHY_FLD_L2_6			0x618
+#define U3DP_PHY_FLD_L2_7			0x61c
+#define U3DP_PHY_FLD_L2_8			0x620
+#define U3DP_PHY_FLD_L2_9			0x624
+#define U3DP_PHY_FLD_L2_10			0x628
+#define U3DP_PHY_FLD_L2_11			0x62c
+#define U3DP_PHY_FLD_L2_12			0x630
+#define U3DP_PHY_FLD_L2_13			0x634
+#define U3DP_PHY_FLD_L2_14			0x638
+#define U3DP_PHY_FLD_L2_15			0x63c
+#define U3DP_PHY_FLD_L2_16			0x640
+#define U3DP_PHY_FLD_L2_17			0x644
+#define U3DP_PHY_FLD_L2_18			0x648
+#define U3DP_PHY_FLD_L2_19			0x64c
+#define U3DP_PHY_FLD_L2_20			0x650
+#define U3DP_PHY_FLD_L2_21			0x654
+#define U3DP_PHY_FLD_L2_22			0x658
+#define U3DP_PHY_FLD_L2_23			0x65c
+#define U3DP_PHY_FLD_L2_24			0x660
+#define U3DP_PHY_FLD_L2_25			0x664
+#define U3DP_PHY_FLD_L2_26			0x668
+#define U3DP_PHY_FLD_L2_27			0x66c
+#define U3DP_PHY_FLD_L2_28			0x670
+#define U3DP_PHY_FLD_L2_29			0x674
+#define U3DP_PHY_FLD_L2_30			0x680
+#define U3DP_PHY_FLD_L2_31			0x684
+#define U3DP_PHY_FLD_L2_32			0x688
+#define U3DP_PHY_FLD_L2_33			0x68c
+#define U3DP_PHY_FLD_L2_34			0x690
+#define U3DP_PHY_FLD_L2_35			0x694
+#define U3DP_PHY_FLD_L2_36			0x698
+#define U3DP_PHY_FLD_L2_37			0x69c
+#define U3DP_PHY_FLD_L2_38			0x6a0
+#define U3DP_PHY_FLD_L2_39			0x6a4
+#define U3DP_PHY_FLD_L2_40			0x6a8
+#define U3DP_PHY_FLD_L2_41			0x6ac
+#define U3DP_PHY_FLD_L2_42			0x6b0
+#define U3DP_PHY_FLD_L2_43			0x6b4
+#define U3DP_PHY_FLD_L2_44			0x6b8
+#define U3DP_PHY_FLD_L2_45			0x6bc
+#define U3DP_PHY_FLD_L2_46			0x6c0
+#define U3DP_PHY_FLD_L2_47			0x6c4
+#define U3DP_PHY_FLD_L2_48			0x6c8
+#define U3DP_PHY_FLD_L2_49			0x6cc
+#define U3DP_PHY_FLD_L2_50			0x6d0
+#define U3DP_PHY_FLD_L2_51			0x6d4
+#define U3DP_PHY_FLD_L2_52			0x6d8
+#define U3DP_PHY_FLD_L2_53			0x6dc
+#define U3DP_PHY_FLD_L2_54			0x6e0
+#define U3DP_PHY_FLD_L2_55			0x6e4
+#define U3DP_PHY_FLD_L2_56			0x6e8
+#define U3DP_PHY_FLD_L2_57			0x6ec
+#define U3DP_PHY_FLD_L2_58			0x6f0
+#define U3DP_PHY_FLD_L2_59			0x6f4
+#define U3DP_PHY_FLD_L2_60			0x6f8
+
+#define U3DP_PHY_FLD_L3_0			0x700
+#define U3DP_PHY_FLD_L3_1			0x704
+#define U3DP_PHY_FLD_L3_2			0x708
+#define U3DP_PHY_FLD_L3_3			0x70c
+#define U3DP_PHY_FLD_L3_4			0x710
+#define U3DP_PHY_FLD_L3_5			0x714
+#define U3DP_PHY_FLD_L3_6			0x718
+#define U3DP_PHY_FLD_L3_7			0x71c
+#define U3DP_PHY_FLD_L3_8			0x720
+#define U3DP_PHY_FLD_L3_9			0x724
+#define U3DP_PHY_FLD_L3_10			0x728
+#define U3DP_PHY_FLD_L3_11			0x72c
+#define U3DP_PHY_FLD_L3_12			0x730
+#define U3DP_PHY_FLD_L3_13			0x734
+#define U3DP_PHY_FLD_L3_14			0x738
+#define U3DP_PHY_FLD_L3_15			0x73c
+#define U3DP_PHY_FLD_L3_16			0x740
+#define U3DP_PHY_FLD_L3_17			0x744
+#define U3DP_PHY_FLD_L3_18			0x748
+#define U3DP_PHY_FLD_L3_19			0x74c
+#define U3DP_PHY_FLD_L3_20			0x750
+#define U3DP_PHY_FLD_L3_21			0x754
+#define U3DP_PHY_FLD_L3_22			0x758
+#define U3DP_PHY_FLD_L3_23			0x75c
+#define U3DP_PHY_FLD_L3_24			0x760
+#define U3DP_PHY_FLD_L3_25			0x764
+#define U3DP_PHY_FLD_L3_26			0x768
+#define U3DP_PHY_FLD_L3_27			0x76c
+#define U3DP_PHY_FLD_L3_28			0x770
+#define U3DP_PHY_FLD_L3_29			0x774
+#define U3DP_PHY_FLD_L3_30			0x780
+#define U3DP_PHY_FLD_L3_31			0x784
+#define U3DP_PHY_FLD_L3_32			0x788
+#define U3DP_PHY_FLD_L3_33			0x78c
+#define U3DP_PHY_FLD_L3_34			0x790
+#define U3DP_PHY_FLD_L3_35			0x794
+#define U3DP_PHY_FLD_L3_36			0x798
+#define U3DP_PHY_FLD_L3_37			0x79c
+#define U3DP_PHY_FLD_L3_38			0x7a0
+#define U3DP_PHY_FLD_L3_39			0x7a4
+#define U3DP_PHY_FLD_L3_40			0x7a8
+#define U3DP_PHY_FLD_L3_41			0x7ac
+#define U3DP_PHY_FLD_L3_42			0x7b0
+#define U3DP_PHY_FLD_L3_43			0x7b4
+#define U3DP_PHY_FLD_L3_44			0x7b8
+#define U3DP_PHY_FLD_L3_45			0x7bc
+#define U3DP_PHY_FLD_L3_46			0x7c0
+#define U3DP_PHY_FLD_L3_47			0x7c4
+#define U3DP_PHY_FLD_L3_48			0x7c8
+#define U3DP_PHY_FLD_L3_49			0x7cc
+#define U3DP_PHY_FLD_L3_50			0x7d0
+#define U3DP_PHY_FLD_L3_51			0x7d4
+#define U3DP_PHY_FLD_L3_52			0x7d8
+#define U3DP_PHY_FLD_L3_53			0x7dc
+#define U3DP_PHY_FLD_L3_54			0x7e0
+#define U3DP_PHY_FLD_L3_55			0x7e4
+#define U3DP_PHY_FLD_L3_56			0x7e8
+#define U3DP_PHY_FLD_L3_57			0x7ec
+#define U3DP_PHY_FLD_L3_58			0x7f0
+#define U3DP_PHY_FLD_L3_59			0x7f4
+#define U3DP_PHY_FLD_L3_60			0x7f8
+
+#define U3DP_PHY_SSC_TX_00			0x900
+#define U3DP_PHY_SSC_TX_01			0x904
+#define U3DP_PHY_SSC_TX_02			0x908
+#define U3DP_PHY_SSC_TX_03			0x90c
+#define U3DP_PHY_SSC_TX_04			0x910
+#define U3DP_PHY_SSC_TX_05			0x914
+#define U3DP_PHY_SSC_TX_06			0x918
+#define U3DP_PHY_SSC_TX_07			0x91c
+#define U3DP_PHY_SSC_TX_08			0x920
+#define U3DP_PHY_SSC_TX_09			0x924
+#define U3DP_PHY_DCDR_00			0x928
+#define U3DP_PHY_DCDR_01			0x92c
+#define U3DP_PHY_DCDR_02			0x930
+#define U3DP_PHY_DCDR_03			0x934
+#define U3DP_PHY_DCDR_04			0x938
+#define U3DP_PHY_ALPM_00			0x940
+#define U3DP_PHY_ALPM_01			0x944
+#define U3DP_PHY_ALPM_02			0x948
+#define U3DP_PHY_ALPM_03			0x94c
+#define U3DP_PHY_ALPM_10			0x968
+#define U3DP_PHY_ALPM_11			0x96c
+#define U3DP_PHY_ALPM_12			0x970
+#define U3DP_PHY_ALPM_13			0x974
+#define U3DP_PHY_ALPM_14			0x978
+#define U3DP_PHY_ALPM_15			0x97c
+#define U3DP_PHY_ALPM_16			0x980
+#define U3DP_PHY_ALPM_17			0x984
+#define U3DP_PHY_ALPM_18			0x988
+#define U3DP_PHY_ALPM_19			0x98c
+#define U3DP_PHY_ALPM_20			0x990
+#define U3DP_PHY_ALPM_21			0x994
+#define U3DP_PHY_ALPM_22			0x998
+#define U3DP_PHY_ALPM_23			0x99c
+#define U3DP_PHY_ALPM_24			0x9a0
+#define U3DP_PHY_ALPM_25			0x9a4
+#define U3DP_PHY_SPPHY_00			0x9c0
+#define U3DP_PHY_SPPHY_01			0x9c4
+#define U3DP_PHY_SPPHY_02			0x9c8
+#define U3DP_PHY_SPPHY_03			0x9cc
+#define U3DP_PHY_SPPHY_04			0x9d0
+#define U3DP_PHY_SPPHY_05			0x9d4
+#define U3DP_PHY_SPPHY_06			0x9d8
+#define U3DP_PHY_SPPHY_07			0x9dc
+#define U3DP_PHY_SPPHY_08			0x9e0
+#define U3DP_PHY_SPPHY_09			0x9e4
+#define U3DP_PHY_SPPHY_10			0x9e8
+#define U3DP_PHY_SPPHY_11			0x9ec
+#define U3DP_PHY_SPPHY_12			0x9f0
+#define U3DP_PHY_SPPHY_13			0x9f4
+#define U3DP_PHY_SPPHY_14			0x9f8
+#define U3DP_PHY_SPPHY_15			0x9fc
+
+#define U3DP_PHY_SPPHY_16			0xa00
+#define U3DP_PHY_SPPHY_18			0xa08
+#define U3DP_PHY_SPPHY_19			0xa0c
+#define U3DP_PHY_SPPHY_20			0xa10
+#define U3DP_PHY_SPPHY_21			0xa14
+#define U3DP_PHY_SPPHY_22			0xa18
+#define U3DP_PHY_SPPHY_23			0xa1c
+#define U3DP_PHY_SPPHY_24			0xa20
+#define U3DP_PHY_SPPHY_25			0xa24
+#define U3DP_PHY_SPPHY_26			0xa28
+#define U3DP_PHY_SPPHY_27			0xa2c
+#define U3DP_PHY_SPPHY_28			0xa30
+#define U3DP_PHY_SPPHY_29			0xa34
+#define U3DP_PHY_SPPHY_30			0xa38
+#define U3DP_PHY_SPPHY_31			0xa3c
+#define U3DP_PHY_SPPHY_31_2			0xa40
+#define U3DP_PHY_SPPHY_32			0xa80
+#define U3DP_PHY_SPPHY_33			0xa84
+#define U3DP_PHY_SPPHY_34			0xa88
+#define U3DP_PHY_SPPHY_35			0xa8c
+#define U3DP_PHY_SPPHY_36			0xa90
+#define U3DP_PHY_SPPHY_37			0xa94
+#define U3DP_PHY_SPPHY_38			0xa98
+#define U3DP_PHY_SPPHY_39			0xa9c
+#define U3DP_PHY_SPPHY_40			0xaa0
+#define U3DP_PHY_SPPHY_41			0xaa4
+#define U3DP_PHY_SPPHY_42			0xaa8
+#define U3DP_PHY_SPPHY_43			0xaac
+#define U3DP_PHY_SPPHY_44			0xab0
+#define U3DP_PHY_SPPHY_45			0xab4
+#define U3DP_PHY_SPPHY_46			0xab8
+#define U3DP_PHY_SPPHY_47			0xabc
+#define U3DP_PHY_SPPHY_48			0xac0
+#define U3DP_PHY_SPPHY_49			0xac4
+#define U3DP_PHY_SPPHY_50			0xac8
+#define U3DP_PHY_SPPHY_51			0xacc
+#define U3DP_PHY_SPPHY_52			0xad0
+
+#define U3DP_PHY_SPPHY_53			0xb00
+#define U3DP_PHY_SPPHY_54			0xb04
+#define U3DP_PHY_SPPHY_55			0xb08
+#define U3DP_PHY_SPPHY_56			0xb0c
+#define U3DP_PHY_SPPHY_57			0xb10
+#define U3DP_PHY_SPPHY_58			0xb14
+#define U3DP_PHY_LFPS_EQEN_0			0xb18
+#define U3DP_PHY_LFPS_EQEN_1			0xb1c
+#define U3DP_PHY_LFPS_EQEN_2			0xb20
+#define U3DP_PHY_LFPS_EQEN_3			0xb24
+#define U3DP_PHY_LFPS_EQEN_4			0xb28
+#define U3DP_PHY_LFPS_EQEN_5			0xb2c
+#define U3DP_PHY_LFPS_EQEN_6			0xb30
+#define U3DP_PHY_LFPS_EQEN_7			0xb34
+#define U3DP_PHY_LFPS_EQEN_8			0xb38
+#define U3DP_PHY_LFPS_EQEN_9			0xb3c
+#define U3DP_PHY_LFPS_EQEN_10			0xb40
+#define U3DP_PHY_LFPS_EQEN_11			0xb44
+#define U3DP_PHY_LFPS_EQEN_12			0xb48
+#define U3DP_PHY_RX_K_OOBS_00			0xb50
+#define U3DP_PHY_RX_K_OOBS_01			0xb54
+#define U3DP_PHY_RX_K_OOBS_02			0xb58
+#define U3DP_PHY_RX_K_OOBS_03			0xb5c
+#define U3DP_PHY_RX_K_OOBS_04			0xb60
+#define U3DP_PHY_RX_K_OOBS_05			0xb64
+#define U3DP_PHY_RX_K_OOBS_06			0xb68
+#define U3DP_PHY_RX_K_OOBS_07			0xb6c
+#define U3DP_PHY_RX_K_OOBS_08			0xb70
+#define U3DP_PHY_RX_K_OOBS_09			0xb74
+#define U3DP_PHY_RX_K_OOBS_10			0xb78
+#define U3DP_PHY_TX_MAIN_DAT_00			0xb80
+#define U3DP_PHY_TX_MAIN_DAT_01			0xb84
+#define U3DP_PHY_TX_POST_DAT_00			0xb88
+#define U3DP_PHY_TX_POST_DAT_01			0xb90
+#define U3DP_PHY_TX_PRE_DAT_00			0xb94
+#define U3DP_PHY_TX_PRE_DAT_01			0xb98
+#define U3DP_PHY_TX_POST_DAT_G1_00		0xb9c
+#define U3DP_PHY_TX_POST_DAT_G1_01		0xba0
+#define U3DP_PHY_TX_POST_DAT_G1_02		0xba4
+#define U3DP_PHY_TX_POST_DAT_G1_03		0xba8
+#define U3DP_PHY_TX_POST_DAT_G1_04		0xbac
+#define U3DP_PHY_TX_POST_DAT_G1_05		0xbb0
+#define U3DP_PHY_RX_OOBS_RXIDLE_00		0xbb4
+#define U3DP_PHY_WD_TX_00			0xbe0
+#define U3DP_PHY_WD_TX_01			0xbe4
+#define U3DP_PHY_OOBS_00			0xbe8
+#define U3DP_PHY_OOBS_01			0xbec
+#define U3DP_PHY_OOBS_02			0xbf0
+#define U3DP_PHY_OOBS_03			0xbf4
+
+#define U3DP_PHY_CTRL_R0P0			0xc00
+#define U3DP_PHY_CTRL_R1P0			0xc04
+#define U3DP_PHY_CTRL_R2P0			0xc08
+#define U3DP_PHY_CTRL_R3P0			0xc0c
+#define U3DP_PHY_CTRL_R4P0			0xc10
+#define U3DP_PHY_CTRL_R5P0			0xc14
+#define U3DP_PHY_CTRL_R6P0			0xc18
+#define U3DP_PHY_CTRL_R7P0			0xc1c
+#define U3DP_PHY_CTRL_R8P0			0xc20
+#define U3DP_PHY_CTRL_R9P0			0xc24
+#define U3DP_PHY_CTRL_RAP0			0xc28
+#define U3DP_PHY_CTRL_RBP0			0xc2c
+#define U3DP_PHY_CTRL_RCP0			0xc30
+#define U3DP_PHY_CTRL_RDP0			0xc34
+#define U3DP_PHY_CTRL_REP0			0xc38
+#define U3DP_PHY_CTRL_G0P0			0xc40
+#define U3DP_PHY_CTRL_G1P0			0xc44
+#define U3DP_PHY_CTRL_G2P0			0xc48
+#define U3DP_PHY_CTRL_G3P0			0xc4c
+#define U3DP_PHY_CTRL_G4P0			0xc50
+#define U3DP_PHY_CTRL_G5P0			0xc54
+#define U3DP_PHY_CTRL_G6P0			0xc58
+#define U3DP_PHY_CTRL_G7P0			0xc5c
+#define U3DP_PHY_CTRL_G8P0			0xc60
+#define U3DP_PHY_CTRL_G9P0			0xc64
+#define U3DP_PHY_CTRL_GAP0			0xc68
+#define U3DP_PHY_CTRL_GBP0			0xc6c
+#define U3DP_PHY_CTRL_GCP0			0xc70
+#define U3DP_PHY_CTRL_GDP0			0xc74
+#define U3DP_PHY_CTRL_GEP0			0xc78
+#define U3DP_PHY_CTRL_B0P0			0xc80
+#define U3DP_PHY_CTRL_B1P0			0xc84
+#define U3DP_PHY_CTRL_B2P0			0xc88
+#define U3DP_PHY_CTRL_B3P0			0xc8c
+#define U3DP_PHY_CTRL_B4P0			0xc90
+#define U3DP_PHY_CTRL_B5P0			0xc94
+#define U3DP_PHY_CTRL_B6P0			0xc98
+#define U3DP_PHY_CTRL_B7P0			0xc9c
+#define U3DP_PHY_CTRL_B8P0			0xca0
+#define U3DP_PHY_CTRL_B9P0			0xca4
+#define U3DP_PHY_CTRL_BAP0			0xca8
+#define U3DP_PHY_CTRL_BBP0			0xcac
+#define U3DP_PHY_CTRL_BCP0			0xcb0
+#define U3DP_PHY_CTRL_BDP0			0xcb4
+#define U3DP_PHY_CTRL_BEP0			0xcb8
+#define U3DP_PHY_CTRL_CK0P0			0xcc0
+#define U3DP_PHY_CTRL_CK1P0			0xcc4
+#define U3DP_PHY_CTRL_CK2P0			0xcc8
+#define U3DP_PHY_CTRL_CK3P0			0xccc
+#define U3DP_PHY_CTRL_CK4P0			0xcd0
+#define U3DP_PHY_CTRL_CK5P0			0xcd4
+#define U3DP_PHY_CTRL_CK6P0			0xcd8
+#define U3DP_PHY_CTRL_CK7P0			0xcdc
+#define U3DP_PHY_CTRL_CK8P0			0xce0
+#define U3DP_PHY_CTRL_CK9P0			0xce4
+#define U3DP_PHY_CTRL_CKAP0			0xce8
+#define U3DP_PHY_CTRL_CKBP0			0xcec
+#define U3DP_PHY_CTRL_CKCP0			0xcf0
+#define U3DP_PHY_CTRL_CKDP0			0xcf4
+#define U3DP_PHY_CTRL_CKEP0			0xcf8
+
+#define U3DP_PHY_ADPHY_REG0			0xd30
+#define U3DP_PHY_ADPHY_REG1			0xd34
+#define U3DP_PHY_ADPHY_REG2			0xd38
+#define U3DP_PHY_ADPHY_REG3			0xd3c
+#define U3DP_PHY_HD21_P0_KOFF_REGD00		0xd44
+#define U3DP_PHY_HD21_P0_KOFF_REGD01		0xd48
+#define U3DP_PHY_HD21_P0_KOFF_REGD02		0xd4c
+#define U3DP_PHY_HD21_P0_KOFF_REGD03		0xd50
+#define U3DP_PHY_HD21_P0_KOFF_REGD04		0xd54
+#define U3DP_PHY_HD21_P0_KOFF_REGD05		0xd58
+#define U3DP_PHY_HD21_P0_KOFF_REGD06		0xd5c
+#define U3DP_PHY_HD21_P0_KOFF_REGD07		0xd60
+#define U3DP_PHY_HD21_P0_KOFF_REGD08		0xd64
+#define U3DP_PHY_HD21_P0_KOFF_REGD09		0xd68
+#define U3DP_PHY_HD21_P0_KOFF_REGD10		0xd6c
+#define U3DP_PHY_HD21_P0_KOFF_REGD11		0xd70
+#define U3DP_PHY_HD21_P0_KOFF_REGD12		0xd74
+#define U3DP_PHY_HD21_P0_KOFF_REGD13		0xd78
+#define U3DP_PHY_HD21_P0_KOFF_REGD14		0xd7c
+#define U3DP_PHY_HD21_P0_KOFF_REGD15		0xd80
+#define U3DP_PHY_HD21_P0_KOFF_REGD16		0xd84
+#define U3DP_PHY_HD21_P0_DFE_REGD00		0xd90
+#define U3DP_PHY_HD21_P0_DFE_REGD01		0xd94
+#define U3DP_PHY_HD21_P0_DFE_REGD02		0xd98
+#define U3DP_PHY_HD21_P0_KOFF_REGD17		0xda0
+#define U3DP_PHY_HD21_P0_KOFF_REGD18		0xda4
+#define U3DP_PHY_HD21_P0_KOFF_REGD19		0xda8
+#define U3DP_PHY_HD21_P0_KOFF_REGD20		0xdac
+#define U3DP_PHY_HD21_P0_KOFF_REGD21		0xdb0
+#define U3DP_PHY_HD21_P0_KOFF_REGD22		0xdb4
+#define U3DP_PHY_HD21_P0_KOFF_REGD23		0xdb8
+
+#define U3DP_PHY_REG_ANA_0E00			0xe00
+#define U3DP_PHY_REG_ANA_0E04			0xe04
+#define U3DP_PHY_REG_ANA_0E08			0xe08
+#define U3DP_PHY_REG_ANA_0E0C			0xe0c
+#define U3DP_PHY_REG_ANA_0E10			0xe10
+#define U3DP_PHY_REG_ANA_0E14			0xe14
+#define U3DP_PHY_REG_ANA_0E18			0xe18
+#define U3DP_PHY_REG_ANA_0E1C			0xe1c
+#define U3DP_PHY_REG_ANA_0E20			0xe20
+#define U3DP_PHY_REG_ANA_0E24			0xe24
+#define U3DP_PHY_REG_ANA_0E28			0xe28
+#define U3DP_PHY_REG_ANA_0E2C			0xe2c
+#define U3DP_PHY_REG_ANA_0E30			0xe30
+#define U3DP_PHY_REG_ANA_0E34			0xe34
+#define U3DP_PHY_REG_ANA_0E38			0xe38
+#define U3DP_PHY_REG_ANA_0E3C			0xe3c
+#define U3DP_PHY_REG_ANA_0E40			0xe40
+#define U3DP_PHY_REG_ANA_0E44			0xe44
+#define U3DP_PHY_REG_ANA_0E48			0xe48
+#define U3DP_PHY_REG_ANA_0E4C			0xe4c
+#define U3DP_PHY_REG_ANA_0E50			0xe50
+#define U3DP_PHY_REG_ANA_0E54			0xe54
+#define U3DP_PHY_REG_ANA_0E58			0xe58
+#define U3DP_PHY_REG_ANA_0E5C			0xe5c
+#define U3DP_PHY_REG_ANA_0E60			0xe60
+#define U3DP_PHY_REG_ANA_0E64			0xe64
+#define U3DP_PHY_REG_ANA_0E68			0xe68
+#define U3DP_PHY_REG_ANA_0E6C			0xe6c
+#define U3DP_PHY_REG_ANA_0E70			0xe70
+#define U3DP_PHY_REG_ANA_0E74			0xe74
+#define U3DP_PHY_REG_ANA_0E78			0xe78
+#define U3DP_PHY_REG_ANA_0E7C			0xe7c
+#define U3DP_PHY_REG_ANA_0E80			0xe80
+#define U3DP_PHY_REG_ANA_0E84			0xe84
+#define U3DP_PHY_REG_ANA_0E88			0xe88
+#define U3DP_PHY_REG_ANA_0E8C			0xe8c
+#define U3DP_PHY_REG_ANA_0E90			0xe90
+#define U3DP_PHY_REG_ANA_0E94			0xe94
+#define U3DP_PHY_REG_ANA_0E98			0xe98
+#define U3DP_PHY_REG_ANA_0E9C			0xe9c
+#define U3DP_PHY_REG_ANA_0EA0			0xea0
+#define U3DP_PHY_REG_ANA_0EA4			0xea4
+#define U3DP_PHY_REG_ANA_0EA8			0xea8
+#define U3DP_PHY_REG_ANA_0EAC			0xeac
+#define U3DP_PHY_REG_ANA_0EB0			0xeb0
+#define U3DP_PHY_REG_ANA_0EB4			0xeb4
+#define U3DP_PHY_REG_ANA_0EB8			0xeb8
+#define U3DP_PHY_REG_ANA_0EBC			0xebc
+#define U3DP_PHY_REG_ANA_0EC0			0xec0
+#define U3DP_PHY_REG_ANA_0EC4			0xec4
+#define U3DP_PHY_REG_ANA_0EC8			0xec8
+#define U3DP_PHY_REG_ANA_0ECC			0xecc
+#define U3DP_PHY_REG_ANA_0ED0			0xed0
+#define U3DP_PHY_REG_ANA_0ED4			0xed4
+#define U3DP_PHY_REG_ANA_0ED8			0xed8
+#define U3DP_PHY_REG_ANA_0EDC			0xedc
+#define U3DP_PHY_REG_ANA_0EE0			0xee0
+#define U3DP_PHY_REG_ANA_0EE4			0xee4
+#define U3DP_PHY_REG_ANA_0EE8			0xee8
+#define U3DP_PHY_REG_ANA_0EEC			0xeec
+#define U3DP_PHY_REG_ANA_0EF0			0xef0
+#define U3DP_PHY_REG_ANA_0EF4			0xef4
+#define U3DP_PHY_REG_ANA_0EF8			0xef8
+#define U3DP_PHY_REG_ANA_0EFC			0xefc
+
+#define U3DP_PHY_REG_ANA_0F00			0xf00
+#define U3DP_PHY_REG_ANA_0F04			0xf04
+#define U3DP_PHY_REG_ANA_0F08			0xf08
+#define U3DP_PHY_REG_ANA_0F0C			0xf0c
+#define U3DP_PHY_REG_ANA_0F10			0xf10
+#define U3DP_PHY_REG_ANA_0F14			0xf14
+#define U3DP_PHY_REG_ANA_0F18			0xf18
+#define U3DP_PHY_REG_ANA_0F1C			0xf1c
+#define U3DP_PHY_REG_ANA_0F20			0xf20
+#define U3DP_PHY_REG_ANA_0F24			0xf24
+#define U3DP_PHY_REG_ANA_0F28			0xf28
+#define U3DP_PHY_REG_ANA_0F2C			0xf2c
+#define U3DP_PHY_REG_ANA_0F30			0xf30
+#define U3DP_PHY_REG_ANA_0F34			0xf34
+#define U3DP_PHY_REG_ANA_0F38			0xf38
+#define U3DP_PHY_REG_ANA_0F3C			0xf3c
+#define U3DP_PHY_REG_ANA_0F40			0xf40
+#define U3DP_PHY_REG_ANA_0F44			0xf44
+#define U3DP_PHY_REG_ANA_0F48			0xf48
+#define U3DP_PHY_REG_ANA_0F4C			0xf4c
+#define U3DP_PHY_REG_ANA_0F50			0xf50
+#define U3DP_PHY_REG_ANA_0F54			0xf54
+#define U3DP_PHY_REG_ANA_0F58			0xf58
+#define U3DP_PHY_REG_ANA_0F5C			0xf5c
+#define U3DP_PHY_REG_ANA_0F60			0xf60
+#define U3DP_PHY_REG_ANA_0F64			0xf64
+#define U3DP_PHY_REG_ANA_0F68			0xf68
+#define U3DP_PHY_REG_ANA_0F6C			0xf6c
+#define U3DP_PHY_REG_ANA_0F70			0xf70
+#define U3DP_PHY_REG_ANA_0F74			0xf74
+#define U3DP_PHY_REG_ANA_0F78			0xf78
+#define U3DP_PHY_REG_ANA_0F7C			0xf7c
+#define U3DP_PHY_REG_ANA_0F80			0xf80
+#define U3DP_PHY_REG_ANA_0F84			0xf84
+#define U3DP_PHY_REG_ANA_0F88			0xf88
+#define U3DP_PHY_REG_ANA_0F8C			0xf8c
+#define U3DP_PHY_REG_ANA_0F90			0xf90
+#define U3DP_PHY_REG_ANA_0F94			0xf94
+#define U3DP_PHY_REG_ANA_0F98			0xf98
+#define U3DP_PHY_REG_ANA_0F9C			0xf9c
+#define U3DP_PHY_REG_ANA_0FA0			0xfa0
+
+/* pwr cut*/
+#define U3DP_ANA_PWR_CTRL_0			0x0
+#define U3DP_ANA_PWR_CTRL_1			0x10
+#define U3DP_ANA_PWR_CTRL_2			0x14
+#define U3DP_ANA_PWR_CTRL_3			0x18
+#define U3DP_ANA_PWR_CTRL_4			0x1c
+#define U3DP_ANA_PWR_CTRL_5			0x20
+
+/*0x9812936c*/
+#define	VDDCMU_EN				BIT(12) | BIT(13) | BIT(14)
+#define	HV_EN					BIT(6) | BIT(7) | BIT(8)
+/*0x98129370*/
+#define	TX_U3_ISO_L2				BIT(1)
+
+/*0x9814f010*/
+#define REG_DIV_5G_MASK				BIT(0) | BIT(1) | BIT(2)
+/*0x9814f024*/
+#define REG_DIV_10G_MASK			BIT(0) | BIT(1) | BIT(2)
+/*0x9814f03c*/
+#define REG_DIV_5G_BIT_WIDTH_MASK		BIT(0) | BIT(1)
+#define REG_DIV_10G_BIT_WIDTH_MASK		BIT(2) | BIT(3)
+/*0x9814f248*/
+#define REG_CDR_RST_N_L0_MASK			BIT(0)
+#define REG_CDR_RST_N_L3_MASK			BIT(3)
+/*0x9814f258 */
+#define REG_RDY_TIMER_EN_MASK			BIT(4) | BIT(5) | BIT(6) | BIT(7)
+/*0x9814f278*/
+#define REG_DATA_INBUF_NUM_L0_MASK		BIT(0) | BIT(1) | BIT(2)
+/*0x9814f27c*/
+#define REG_DATA_INBUF_NUM_L2_MASK		BIT(3) | BIT(4) | BIT(5)
+/*0x9814f28c*/
+#define ADJR_FOR_OFF_MASK			BIT(7)
+/*0x9814f29c*/
+#define ADJR_FORE_OFF_EN_L0_MASK		BIT(0)
+#define ADJR_FORE_OFF_EN_L3_MASK		BIT(3)
+
+/*0x9814f370*/
+#define FLD_TX12_TIME_DELAY_MASK		BIT(0)
+/*0x9814f3f8*/
+#define FLD_RSV_DPY_MASK			0xff
+
+/*0x9814f400*/
+#define FLD_RST_N_L0_MASK			BIT(7)
+/*0x9814f430*/
+#define	FLD_L0_12_LIMIT_MASK			0xff
+/*0x9814f434*/
+#define FLD_L0_13_LIMIT_MASK			0xf
+/*0x9814f438*/
+#define	FLD_L0_14_LIMIT_MASK			0xff
+/*0x9814f43C*/
+#define FLD_L0_15_LIMIT_MASK			0xf
+/*0x9814f44C*/
+#define FLD_CP_EN_MASK				BIT(7)
+#define FLD_ADP_EN_MASK				BIT(6)
+/*0x9814f458*/
+#define FLD_ADP_DLY_TIME_MASK			0x1f
+/*0x9814f45C*/
+#define FLD_L0_23_CNT_MASK			0xff
+/*0x9814f460*/
+#define FLD_L0_24_CNT_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+/*0x9814f464*/
+#define FLD_L0_25_CNT_MASK			0xff
+/*0x9814f468*/
+#define	FLD_L0_26_CNT_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+/*0x9814f46C*/
+#define FLD_L0_27_CNT_MASK			0xff
+/*0x9814f488*/
+#define FLD_L0_32_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f48C*/
+#define FLD_L0_33_ACDR_CONFIG2_L0_MASK		0xff
+/*0x9814f490*/
+#define	FLD_L0_34_ACDR_CONFIG3_L0_MASK		0xff
+/*0x9814f494*/
+#define FLD_L0_35_ACDR_CONFIG4_L0_MASK		0xff
+/*0x9814f4a4*/
+#define FLD_FINE_TUNE_MASK			BIT(1)
+/*0x9814f4AC*/
+#define FLD_L0_CDR_LPF_RES_MASK			0x3f
+/*0x9814f4B4*/
+#define FLD_L0_VC_SEL_MASK			BIT(0) | BIT(1)
+/*0x9814f4D4*/
+#define FLD_L0_ST_TIME_DELAY_MASK		BIT(0) | BIT(1) | BIT(2)
+/*0x9814f4DC*/
+#define FLD_L0_53_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4E0*/
+#define FLD_L0_54_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4E4*/
+#define FLD_L0_55_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4E8*/
+#define FLD_L0_56_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4EC*/
+#define FLD_L0_57_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4F0*/
+#define FLD_L0_58_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4F4*/
+#define FLD_L0_59_ACDR_CONFTG1_L0_MASK		0xff
+/*0x9814f4F8*/
+#define FLD_L0_60_ACDR_CONFTG1_L0_MASK		0xff
+
+/*0x9814f700*/
+#define FLD_RST_N_L3_MASK			BIT(7)
+/*0x9814f730*/
+#define FLD_L3_12_LIMIT_MASK			0xff
+/*0x9814f734*/
+#define FLD_L3_13_LIMIT_MASK			0xf
+/*0x9814f738*/
+#define FLD_L3_14_LIMIT_MASK                    0xff
+/*0x9814f73C*/
+#define FLD_L3_15_LIMIT_MASK			0xf
+/*0x9814f74C*/
+#define FLD_CP_EN_L3_MASK                       BIT(7)
+#define FLD_ADP_EN_L3_MASK                      BIT(6)
+/*0x9814f758*/
+#define FLD_ADP_DLY_TIME_L3_MASK		0x1f
+/*0x9814f75C*/
+#define FLD_L3_23_CNT_MASK			0xff
+/*0x9814f760*/
+#define FLD_L3_24_CNT_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+/*0x9814f764*/
+#define FLD_L3_25_CNT_MASK			0xff
+/*0x9814f768*/
+#define FLD_L3_26_CNT_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+/*0x9814f76C*/
+#define FLD_L3_27_CNT_MASK			0xff
+/*0x9814f788*/
+#define FLD_L3_32_ACDR_CONFTG1_L3_MASK          0xff
+/*0x9814f78C*/
+#define FLD_L3_33_ACDR_CONFIG2_L3_MASK          0xff
+/*0x9814f790*/
+#define FLD_L3_34_ACDR_CONFIG3_L3_MASK		0xff
+/*0x9814f794*/
+#define FLD_L3_35_ACDR_CONFIG4_L3_MASK		0xff
+/*0x9814f7a4*/
+#define FLD_FINE_TUNE_L3_MASK			BIT(1)
+/*0x9814f7AC*/
+#define FLD_L3_CDR_LPF_RES_MASK			0x3f
+/*0x9814f7B4*/
+#define FLD_L3_VC_SEL_MASK			BIT(0) | BIT(1)
+/*0x9814f7D4*/
+#define FLD_L3_ST_TIME_DELAY_MASK		BIT(0) | BIT(1) | BIT(2)
+/*0x9814f7DC*/
+#define FLD_L3_53_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7E0*/
+#define FLD_L3_54_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7E4*/
+#define FLD_L3_55_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7E8*/
+#define FLD_L3_56_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7EC*/
+#define FLD_L3_57_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7F0*/
+#define FLD_L3_58_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7F4*/
+#define FLD_L3_59_ACDR_CONFTG1_L3_MASK		0xff
+/*0x9814f7F8*/
+#define FLD_L3_60_ACDR_CONFTG1_L3_MASK		0xff
+
+/*0x9814fc08*/
+#define DFE_CTRL_EQ_SELREG_MASK			BIT(31)
+#define DFE_VTH_DFE_EN_MASK			BIT(23)
+#define DFE_VTH_EN_MASK				BIT(22)
+/*0x9814fc0c*/
+#define DFE_TAP_TIMER_MASK			BIT(24) | BIT(25) | BIT(26)
+#define DFE_VTH_TIMER_MASK			BIT(21) | BIT(22) | BIT(23)
+#define DFE_LEQ_TIMER_MASK			BIT(18) | BIT(19) | BIT(20)
+#define DFE_EQFE_EN_MASK			BIT(13)
+#define DFE_VTH_LOAD_IN_MASK			BIT(5)
+#define DFE_TAP_LOAD_IN_MASK			0x1f
+/*0x9814fc10*/
+#define DFE_LEQ1_INV_MASK			BIT(31)
+#define DFE_LEQ2_INV_MASK			BIT(30)
+/*0x9814fc14*/
+#define DFE_LEQ_GAIN1_MASK			BIT(15) | BIT(16) | BIT(17)
+#define DFE_LEQ_GAIN2_MASK			BIT(12) | BIT(13) | BIT(14)
+#define DFE_TAP1_GAIN_MASK			BIT(6) | BIT(7) | BIT(8)
+#define DFE_TAP2_GAIN_MASK			BIT(3) | BIT(4) | BIT(5)
+#define DFE_TAP3_GAIN_MASK			BIT(0) | BIT(1) | BIT(2)
+/*0x9814fc18*/
+#define DFE_TAP4_GAIN_MASK			BIT(29) | BIT(30) | BIT(31)
+#define DFE_VTHP_GAIN_MASK			BIT(26) | BIT(27) | BIT(28)
+#define DFE_VTHN_GAIN_MASK			BIT(23) | BIT(24) | BIT(25)
+#define DFE_LEQ1_TRANS_MODE_MASK		BIT(21) | BIT(22)
+#define DFE_LEQ2_TRANS_MODE_MASK		BIT(19) | BIT(20)
+/*0x9814fc1c*/
+#define DFE_TAP0_ADJUST_MASK			BIT(30) | BIT(31)
+/*0x9814fc20*/
+#define DFE_LEQ_INIT_MASK			0x1f
+/*0x9814fc24*/
+#define DFE_TAP0_INIT_MASK			0xFF000000
+#define DFE_TAP0_INIT_VAL_MASK			0x3F000000
+#define DFE_TAP1_INIT_MASK			0xFC0000
+#define DFE_TAP2_INIT_MASK			0x3B000
+#define DFE_TAP3_INIT_MASK			0xFC0
+#define DFE_TAP4_INIT_MASK			0x3F
+/*0x9814fc28*/
+#define DFE_ADAPT_EN_MASK			0x3E000000
+#define DFE_VTHP_INIT_MASK			0x3E0
+#define DFE_VTHN_INIT_MASK			0x1f
+/*0x9814fc34*/
+#define DFE_ROTATION_MODE_R_MASK		BIT(15) | BIT(16) | BIT(17)
+/*0x9814fc38*/
+#define DFE_SIGN_INV_R_MASK			BIT(23)
+/*0x9814fcc8*/
+#define DFE_CK2_EQ_SELREG_MASK			BIT(31)
+#define DFE_VTH_DFE_EN_CK_MASK			BIT(23)
+#define DFE_VTH_EN_CK_MASK			BIT(22)
+/*0x9814fccc*/
+#define DFE_TAP_TIMER_CK_MASK			BIT(24) | BIT(25) | BIT(26)
+#define DFE_VTH_TIMER_CK_MASK			BIT(21) | BIT(22) | BIT(23)
+#define DFE_LEQ_TIMER_CK_MASK			BIT(18) | BIT(19) | BIT(20)
+#define DFE_EQFE_EN_CK_MASK			BIT(13)
+#define DFE_VTH_LOAD_IN_CK_MASK			BIT(5)
+#define DFE_TAP_LOAD_IN_CK_MASK			0x1f
+/*0x9814fcd0*/
+#define DFE_LEQ1_INV_CK_MASK			BIT(31)
+#define DFE_LEQ2_INV_CK_MASK			BIT(30)
+/*0x9814fcd4*/
+#define DFE_LEQ_GAIN1_CK_MASK			BIT(15) | BIT(16) | BIT(17)
+#define DFE_LEQ_GAIN2_CK_MASK			BIT(12) | BIT(13) | BIT(14)
+#define DFE_TAP1_GAIN_CK_MASK			BIT(6) | BIT(7) | BIT(8)
+#define DFE_TAP2_GAIN_CK_MASK			BIT(3) | BIT(4) | BIT(5)
+#define DFE_TAP3_GAIN_CK_MASK			BIT(0) | BIT(1) | BIT(2)
+/*0x9814fcd8*/
+#define DFE_TAP4_GAIN_CK_MASK			BIT(29) | BIT(30) | BIT(31)
+#define DFE_VTHP_GAIN_CK_MASK			BIT(26) | BIT(27) | BIT(28)
+#define DFE_VTHN_GAIN_CK_MASK			BIT(23) | BIT(24) | BIT(25)
+#define DFE_LEQ1_TRANS_MODE_CK_MASK		BIT(21) | BIT(22)
+#define DFE_LEQ2_TRANS_MODE_CK_MASK		BIT(19) | BIT(20)
+/*0x9814fcdc*/
+#define DFE_TAP0_ADJUST_CK_MASK			BIT(30) | BIT(31)
+/*0x9814fce0*/
+#define DFE_LEQ_INIT_CK_MASK                    0x1f
+/*0x9814fce4*/
+#define DFE_TAP0_INIT_CK_MASK			0xFF000000
+#define DFE_TAP1_INIT_CK_MASK			0xFC0000
+#define DFE_TAP2_INIT_CK_MASK			0x3B000
+#define DFE_TAP3_INIT_CK_MASK			0xFC0
+#define DFE_TAP4_INIT_CK_MASK			0x3F
+/*0x9814fce8*/
+#define DFE_ADAPT_EN_CK_MASK			0x3E000000
+#define DFE_VTHP_INIT_CK_MASK			0x3E0
+#define DFE_VTHN_INIT_CK_MASK			0x1f
+/*0x9814fcf4*/
+#define DFE_ROTATION_MODE_CK_MASK		BIT(15) | BIT(16) | BIT(17)
+/*0x9814fcf8*/
+#define DFE_SIGN_INV_CK_MASK			BIT(23)
+
+/*0x9814fd50*/
+#define P0_B_OFF_EN_EQ_MASK			BIT(20)
+/*0x9814fd60*/
+#define P0_G_OFF_EN_EQ_MASK                     BIT(20)
+/*0x9814fd64*/
+#define P0_R_OFF_TIMEOUT_SHIFT_MASK		0x7F00000
+#define P0_R_OFF_DIV_SHIFT_MASK			0xFC000
+#define P0_R_OFF_DLY_CNT_MASK			0xF00
+#define P0_R_OFF_COEF_SEL_MASK			0xF0
+#define P0_R_OFF_RSTN_MASK			BIT(0)
+/*0x9814fd68*/
+#define P0_R_OFF_Z0_OK_OPO_MASK			BIT(19)
+#define P0_R_OFF_MANUAL_OPO_MASK		BIT(18)
+#define P0_R_OFF_PC_OPO_MASK			BIT(11)
+#define P0_R_OFF_EN_OPO_MASK			BIT(10)
+#define P0_R_OFF_Z0_OK_OPE_MASK			BIT(9)
+#define P0_R_OFF_MANUAL_OPE_MASK		BIT(8) 
+#define P0_R_OFF_PC_OPE_MASK			BIT(1)
+#define P0_R_OFF_EN_OPE_MASK			BIT(0)
+/*0x9814fd6c*/
+#define P0_R_OFF_Z0_OK_DO_MASK			BIT(29)
+#define P0_R_OFF_MANUAL_DO_MASK			BIT(28)
+#define P0_R_OFF_PC_DO_MASK			BIT(21)
+#define P0_R_OFF_EN_DO_MASK			BIT(20)
+#define P0_R_OFF_Z0_OK_DE_MASK			BIT(19)
+#define P0_R_OFF_MANUAL_DE_MASK			BIT(18)
+#define P0_R_OFF_PC_DE_MASK			BIT(11)
+#define P0_R_OFF_EN_DE_MASK			BIT(10)
+/*0x9814fd70*/
+#define P0_R_OFF_MANUAL_EQ_MASK			BIT(28)
+#define P0_R_OFF_INI_EQ_SHIFT_MASK		0x7C00000
+#define P0_R_OFF_PC_EQ_MASK			BIT(21)
+#define P0_R_OFF_EN_EQ_MASK			BIT(20)
+#define P0_R_OFF_Z0_19_OK_EO_MASK		BIT(19)
+#define P0_R_OFF_MANUAL_EO_MASK			BIT(18)
+#define P0_R_OFF_PC_EO_MASK			BIT(11)
+#define P0_R_OFF_EN_EO_MASK			BIT(10)
+#define P0_R_OFF_Z0_OK_EO_MASK			BIT(9)
+#define P0_R_OFF_MANUAL_EE_MASK			BIT(8)
+#define P0_R_OFF_PC_EE_MASK			BIT(1)
+#define P0_R_OFF_PC_EN_MASK			BIT(0)
+/*0x9814fd74*/
+#define P0_CK_OFF_TIMEOUT_SHIFT_MASK		0x7F00000
+#define P0_CK_OFF_DIV_SHIFT_MASK		0xFC000
+#define P0_CK_OFF_DLY_CNT_MASK			0xF00
+#define P0_CK_OFF_COEF_SEL_MASK			0xF0
+#define P0_CK_OFF_RSTN_MASK			BIT(0)
+/*0x9814fd78*/
+#define P0_CK_OFF_Z0_OK_OPO_MASK		BIT(19)
+#define P0_CK_OFF_MANUAL_OPO_MASK		BIT(18)
+#define P0_CK_OFF_PC_OPO_MASK			BIT(11)
+#define P0_CK_OFF_EN_OPO_MASK			BIT(10)
+#define P0_CK_OFF_Z0_OK_OPE_MASK		BIT(9)
+#define P0_CK_OFF_MANUAL_OPE_MASK		BIT(8)
+#define P0_CK_OFF_PC_OPE_MASK			BIT(1)
+#define P0_CK_OFF_EN_OPE_MASK			BIT(0)
+/*0x9814fd7c*/
+#define P0_CK_OFF_Z0_OK_DO_MASK			BIT(29)
+#define P0_CK_OFF_MANUAL_DO_MASK		BIT(28)
+#define P0_CK_OFF_PC_DO_MASK			BIT(21)
+#define P0_CK_OFF_EN_DO_MASK			BIT(20)
+#define P0_CK_OFF_Z0_OK_DE_MASK			BIT(19)
+#define P0_CK_OFF_MANUAL_DE_MASK		BIT(18)
+#define P0_CK_OFF_PC_DE_MASK			BIT(11)
+#define P0_CK_OFF_EN_DE_MASK			BIT(10)
+/*0x9814fd80*/
+#define P0_CK_OFF_MANUAL_EQ_MASK		BIT(28)
+#define P0_CK_OFF_INI_EQ_SHIFT_MASK		0x7C00000
+#define P0_CK_OFF_PC_EQ_MASK			BIT(21)
+#define P0_CK_OFF_EN_EQ_MASK			BIT(20)
+#define P0_CK_OFF_Z0_19_OK_EO_MASK		BIT(19)
+#define P0_CK_OFF_MANUAL_EO_MASK		BIT(18)
+#define P0_CK_OFF_PC_EO_MASK			BIT(11)
+#define P0_CK_OFF_EN_EO_MASK			BIT(10)
+#define P0_CK_OFF_Z0_OK_EO_MASK			BIT(9)
+#define P0_CK_OFF_MANUAL_EE_MASK		BIT(8)
+#define P0_CK_OFF_PC_EE_MASK			BIT(1)
+#define P0_CK_OFF_PC_EN_MASK			BIT(0)
+/*0x9814fd90*/
+#define P0_CK_VTH_EN_MASK			BIT(15)
+#define P0_R_VTH_EN_MASK			BIT(14)
+#define P0_CK_DFE_EN_MASK			BIT(11)
+#define P0_R_DFE_EN_MASK			BIT(10)
+#define P0_CK_LEQ_EN_MASK			BIT(7)
+#define P0_R_LEQ_EN_MASK			BIT(6)
+#define P0_CK_RSTB_EQ_MASK			BIT(3)
+#define P0_R_RSTB_EQ_MASK			BIT(2)
+/*0x9814fda8*/
+#define P0_R_OFF_AUTO_EN_CNT_MASK		BIT(28) | BIT(29) | BIT(30)
+/*0x9814fdac*/
+#define P0_CK_OFF_AUTO_EN_CNT_MASK		BIT(28) | BIT(29) | BIT(30)
+/*0x9814fdb0*/
+#define P0_R_13_VTH_OFFPN_SEL_MASK		BIT(13)
+#define P0_CK_12_VTH_OFFPN_SEL_MASK		BIT(12)
+#define P0_R_9_VTH_OFFPN_SEL_MASK		BIT(9)
+#define P0_CK_8_VTH_OFFPN_SEL_MASK		BIT(8)
+/*0x9814fdb4*/
+#define P0_R_OFF_INTOPE_USB5G_SHIFT_MASK	0x7C000000
+#define P0_R_OFF_INTOPO_USB5G_SHIFT_MASK	0x1F00000
+#define P0_R_OFF_INTDE_USB5G_SHIFT_MASK		0xF8000
+#define P0_R_OFF_INTDO_USB5G_SHIFT_MASK		0x7C00
+#define P0_R_OFF_INTEE_USB5G_SHIFT_MASK		0x3E0
+#define P0_R_OFF_INTEO_USB5G_SHIFT_MASK		0x1F
+/*0x9814fdb8*/
+#define P0_CK_OFF_INTOPE_SHIFT_MASK		0x7C000000
+#define P0_CK_OFF_INTOPO_SHIFT_MASK		0x1F00000
+#define P0_CK_OFF_INTDE_SHIFT_MASK		0xF8000
+#define P0_CK_OFF_INTDO_SHIFT_MASK		0x7C00
+#define P0_CK_OFF_INTEE_SHIFT_MASK		0x3E0
+#define P0_CK_OFF_INTEO_SHIFT_MASK		0x1F
+
+/*0x9814fe00*/
+#define APHY_CK_CMU_SEL_MASK			BIT(0) | BIT(1) | BIT(2)
+#define APHY_CK_RSTB_SEL_MASK			BIT(3) | BIT(4)
+/*0x9814fe04*/
+#define APHY_CK_CMU_PRESCALER_MASK		BIT(19)
+#define APHY_CK_CMU_M_DIV_MASK			BIT(20)
+#define APHY_CK_REF_MASK			BIT(21) | BIT(22) | BIT(23)
+/*0x9814fe08*/
+#define APHY_L0_LE1_ISEL_IN_1_MASK		BIT(0) | BIT(1) | BIT(2) | BIT(3)
+/*0x9814fe0c*/
+#define APHY_L3_LE1_ISEL_IN_1_MASK		BIT(16) | BIT(17) | BIT(18) | BIT(19)
+#define APHY_L3_RLSEL_LE1_2_MASK		BIT(20) | BIT(21)
+#define APHY_L3_RLSEL_NC_2_MASK			BIT(22) | BIT(23)
+/*0x9814fe18*/
+#define APHY_L0_RSTB_PFD_MASK			BIT(0)
+#define APHY_L0_RSTB_CLK_CLD_MASK		BIT(1)
+#define APHY_L0_ACDR_DIV_FLD_MASK		BIT(2) | BIT(3)
+#define APHY_L0_ACDR_DIV_REF_MASK		BIT(4) | BIT(5)
+#define APHY_L0_ACDR_DIV_PLL_MASK		BIT(6) | BIT(7)
+/*0x9814fe1c*/
+#define APHY_L3_RSTB_PFD_MASK			BIT(16)
+#define APHY_L3_RSTB_CLK_CLD_MASK		BIT(17)
+#define APHY_L3_ACDR_DIV_FLD_MASK		BIT(18) | BIT(19)
+#define APHY_L3_ACDR_DIV_REF_MASK		BIT(20) | BIT(21)
+#define APHY_L3_ACDR_DIV_PLL_MASK		BIT(22) | BIT(23)
+/*0x9814fe20*/
+#define APHY_L0_ACDR_SEL_IDNBIAS_LV_MASK        BIT(2) | BIT(3)
+/*0x9814fe24*/
+#define APHY_L3_ACDR_SEL_DIV_TRAINING_MASK      BIT(16) | BIT(17)
+#define APHY_L3_ACDR_SEL_IDNBIAS_LV_MASK        BIT(18) | BIT(19)
+#define APHY_L3_ACDR_DUMMY_MASK                 BIT(20)
+#define APHY_L3_ACDR_SEL_FLD_0CKFB_1CKREF_MASK  BIT(21)
+/*0x9814fe28*/
+#define L0_ACDR_RSTB_CLK_FLD_MASK		BIT(0)
+#define L0_ACDR_RSTB_DIV_BAND_2OR4_LV_MASK	BIT(1)
+#define L0_ACDR_SEL_HS_CLK_MASK			BIT(3)
+#define L0_ACDR_SEL_0FR_1HR_DIV_IQ_MASK		BIT(4)
+#define L0_ACDR_SEL_DIV_BAND_2OR4_LV_MASK	BIT(5) | BIT(6) | BIT(7)
+/*0x9814fe2c*/
+#define L3_ACDR_RSTB_DIV_IQ_MASK		BIT(16)
+#define L3_ACDR_RSTB_DIV_BAND_2OR4_LV_MASK	BIT(17)
+#define L3_ACDR_SEL_HS_CLK_MASK			BIT(19)
+#define L3_ACDR_SEL_0FR_1HR_DIV_IQ_MASK		BIT(20)
+#define L3_ACDR_SEL_DIV_BAND_2OR4_LV_MASK	BIT(21) | BIT(22) | BIT(23)
+/*0x9814fe30*/
+#define L0_ACDR_EN_UPDN_PULSE_FILTER		BIT(0)
+#define L0_ACDR_RSTB_UPDN_MASK			BIT(1)
+#define L0_ACDR_SEL_UPDN_WIDT_MASK		BIT(2) | BIT(3)
+#define L0_ACDR_POW_LPF_IDAC_MASK		BIT(4)
+#define L0_ACDR_SEL_LPF_IDAC_MASK		BIT(5) | BIT(6) | BIT(7)
+/*0x9814fe34*/
+#define L3_ACDR_EN_UPDN_PULSE_FILTER		BIT(16)
+#define L3_ACDR_RSTB_UPDN_MASK			BIT(17)
+#define L3_ACDR_SEL_UPDN_WIDT_MASK		BIT(18) | BIT(19)
+#define L3_ACDR_POW_LPF_IDAC_MASK		BIT(20)
+#define L3_ACDR_SEL_LPF_IDAC_MASK		BIT(21) | BIT(22) | BIT(23)
+/*0x9814fe38*/
+#define L0_ACDR_POW_CP_MASK			BIT(0)
+#define L0_ACDR_POW_CP_INTG2_CORE_MASK		BIT(1)
+#define L0_ACDR_POW_IDN_BBPD_MASK		BIT(2)
+#define L0_ACDR_SEL_TIE_IDN_BBPD_MASK		BIT(4) | BIT(5) | BIT(6)
+#define L0_ACDR_POW_IBIAS_IDN_HV_MASK		BIT(7)
+/*0x9814fe3c*/
+#define L3_ACDR_POW_CP_MASK			BIT(16)
+#define L3_ACDR_POW_CP_INTG2_CORE_MASK		BIT(17)
+#define L3_ACDR_POW_IDN_BBPD_MASK		BIT(18)
+#define L3_ACDR_SEL_TIE_IDN_BBPD_MASK		BIT(20) | BIT(21) | BIT(22)
+#define L3_ACDR_POW_IBIAS_IDN_HV_MASK           BIT(23)
+/*0x9814fe40*/
+#define L0_ACDR_POW_VCO_MASK			BIT(0)
+#define L0_ACDR_POW_VCO_VDAC_MASK		BIT(1)
+#define L0_ACDR_SEL_V15_VDAC_MASK		BIT(2) | BIT(3)
+#define L0_ACDR_SEL_BAND_CAP_MASK		BIT(4) | BIT(5)
+/*0x9814fe44*/
+#define L3_ACDR_POW_VCO_MASK			BIT(16)
+#define L3_ACDR_POW_VCO_VDAC_MASK		BIT(17)
+#define L3_ACDR_SEL_V15_VDAC_MASK		BIT(18) | BIT(19)
+#define L3_ACDR_SEL_BAND_CAP_MASK		BIT(20) | BIT(21)
+/*0x9814fe48*/
+#define L0_ACDR_POW_TEST_MODE_MASK		BIT(0)
+#define L0_ACDR_SEL_TEST_MODE_MASK		BIT(1) | BIT(2)
+#define L0_TIE_VCTRL_MASK			BIT(3)
+#define L0_VCO_SEL_BAND_V2I_MASK		BIT(4) | BIT(5) | BIT(6)
+#define L0_TIE_VCTRL_MANUAL_MASK		BIT(7)
+/*0x9814fe4c*/
+#define L3_ACDR_POW_TEST_MODE_MASK              BIT(16)
+#define L3_ACDR_SEL_TEST_MODE_MASK              BIT(17) | BIT(18)
+#define L3_TIE_VCTRL_MASK                       BIT(19)
+#define L3_VCO_SEL_BAND_V2I_MASK                BIT(20) | BIT(21) | BIT(22)
+#define L3_TIE_VCTRL_MANUAL_MASK                BIT(23)
+/*0x9814fe50*/
+#define L0_RSTB_BBPD_KP_KI_MASK			BIT(0)
+#define L0_CK_BBPD_KP_SEL_MASK			BIT(1) | BIT(2)
+#define L0_CK_BBPD_KI_SEL_MASK			BIT(3) | BIT(4)
+#define L0_CK_BBPD_BYPASS_CTN_KP_MASK		BIT(5)
+#define L0_CK_BBPD_BYPASS_CTN_KI_MASK		BIT(6)
+/*0x9814fe54*/
+#define L3_RSTB_BBPD_KP_KI_MASK                 BIT(16)
+#define L3_CK_BBPD_KP_SEL_MASK                  BIT(17) | BIT(18)
+#define L3_CK_BBPD_KI_SEL_MASK                  BIT(19) | BIT(20)
+#define L3_CK_BBPD_BYPASS_CTN_KP_MASK           BIT(21)
+#define L3_CK_BBPD_BYPASS_CTN_KI_MASK           BIT(22)
+/*0x9814fe58*/
+#define L0_CMU_SEL_M_DIV_MASK			0xff
+/*0x9814fe60*/
+#define L0_DFR_ADAPT_RN_MASK			BIT(0)
+#define L3_DFR_ADAPT_RN_MASK			BIT(2)
+#define L0_DFE_POW_MASK				BIT(12)
+#define L0_DFE_SUMAMP_ISEL_MASK			BIT(16) | BIT(17) | BIT(18)
+#define L0_DFE_SUMAMP_DCGAIN_MAX_MASK		BIT(19)
+/*0x9814fe68*/
+#define L0_CK_DFE_POW_MASK			BIT(0)
+#define L0_CK_PTAT_CUR_ADJ_FINE_MASK		BIT(1) | BIT(2) | BIT(3)
+#define L0_CK_DFE_SUMAMP_MASK			BIT(4) | BIT(5) | BIT(6)
+#define L0_CK_DFE_SUMAMP_DCGAIN_MASK		BIT(7)
+#define L0_CK_FR_CK_SEL_MASK			BIT(16)
+#define L0_CK_BBPD_RSTB_MASK			BIT(17)
+#define L0_CK_DUMMY_MASK			BIT(18) | BIT(19)
+#define L0_CK_DFE_CKI_DLY_EN_MASK		BIT(20)
+#define L0_CK_DFE_CKIB_DLY_EN_MASK		BIT(21)
+#define L0_CK_DFE_CKQ_DLY_EN_MASK		BIT(22)
+#define L0_CK_DFE_CKQB_DLY_EN_MASK		BIT(23)
+/*0x9814fe70*/
+#define L3_CK_FR_CK_SEL_MASK                    BIT(0)
+#define L3_CK_BBPD_RSTB_MASK                    BIT(1)
+#define L3_CK_DUMMY_MASK                        BIT(2) | BIT(3)
+#define L3_CK_DFE_CKI_DLY_EN_MASK               BIT(4)
+#define L3_CK_DFE_CKIB_DLY_EN_MASK              BIT(5)
+#define L3_CK_DFE_CKQ_DLY_EN_MASK               BIT(6)
+#define L3_CK_DFE_CKQB_DLY_EN_MASK              BIT(7)
+#define L0_CK_EN_EYE_MNT_MASK			BIT(16)
+#define L0_DEMUX_DEGREE_EYE_MNT_MASK		BIT(17)
+#define L0_VTH_MANUAL_MASK			BIT(18)
+#define L0_DA_EG_VOS_PULLLOW_MASK		BIT(19)
+#define L0_DFE_TAP0_ICOM_EN_MASK		BIT(20)
+#define L0_REG70_DUMMY_MASK			BIT(21) | BIT(22) | BIT(23)
+/*0x9814fe78*/
+#define L3_B_EN_EYE_MNT_MASK			BIT(0)
+#define L3_DEMUX_DEGREE_EYE_MNT_MASK		BIT(1)
+#define L3_VTH_MANUAL_MASK			BIT(2)
+#define L3_DA_EG_VOS_PULLLOW_MASK		BIT(3)
+#define L3_DFE_TAP0_ICOM_EN_MASK		BIT(4)
+#define L3_REG78_DUMMY_MASK			BIT(5) | BIT(6) | BIT(7)
+#define L3_B_DFE_TAP_DELAY_MASK			BIT(16) | BIT(17) | BIT(18)
+#define L3_B_DFE_TAP_EN_MASK			BIT(19) | BIT(20) | BIT(21) | BIT(22)
+#define L3_B_DFE_ADAPT_EN_MASK			BIT(23)
+/*0x9814fe80*/
+#define L3_DFE_TAP_DELAY_MASK			BIT(0) | BIT(1) | BIT(2)
+#define L3_DFE_TAP_EN_MASK			BIT(3) | BIT(4) | BIT(5) | BIT(6)
+#define L3_DFE_ADAPT_EN_MASK			BIT(7)
+#define L0_EN_TST_CDR_MASK			BIT(16)
+#define L0_DEMUX_PIN_RATE_SEL_MASK		BIT(17) | BIT(18) | BIT(19)
+#define L0_DEMUX_FR_CK_SEL_MASK			BIT(20)
+#define L0_DEMUX_RATE_SEL_MASK			BIT(21) | BIT(22) | BIT(23)
+/*0x9814fe88*/
+#define L3_EN_TST_CDR_MASK                      BIT(0)
+#define L3_DEMUX_PIX_RATE_SEL_MASK		BIT(1) | BIT(2) | BIT(3)
+#define L3_DEMUX_FR_CK_SEL_MASK			BIT(4)
+#define L3_DEMUX_FR_RATE_SEL_MASK		BIT(5) | BIT(6) | BIT(7)
+#define L0_TRANSITION_CNT_EN_DUMMY_MASK		0xFF0000
+/*0x9814fe90*/
+#define L3_TRANSITION_CNT_EN_MASK		BIT(0)
+#define B_L0_REG90_UP_DUMMY_MASK		0xF00000
+/*0x9814fe98*/
+#define B_L3_REG98_UP_DUMMY_MASK		0xF0
+#define B_L0_REG98_UP_DUMMY_MASK		0xF00000
+/*0x9814fea0*/
+#define R_L3_REGA0_UP_DUMMY_MASK		0xF0
+#define	L0_PI_EN_MASK				BIT(16)
+#define L0_PI_ISEL_MASK				BIT(17) | BIT(18) | BIT(19)
+#define L0_PI_DUMMY_MASK			BIT(20) | BIT(21)
+#define L0_PI_CSEL_MASK				BIT(22)
+#define L0_BIAS_PI_CUR_SEL_MASK			BIT(23)
+/*0x9814fea8*/
+#define L3_PI_EN_MASK				BIT(0)
+#define L3_PI_ISEL_MASK				BIT(1) | BIT(2) | BIT(3)
+#define L3_PI_DUMMY_MASK			BIT(4) | BIT(5)
+#define L3_PI_CSEL_MASK				BIT(6)
+#define L3_BIAS_PI_CUR_SEL_MASK			BIT(7)
+#define L0_DCDR_RSTB_MASK			BIT(16)
+#define L0_PI_DIV_RSTB_MASK			BIT(17)
+#define L0_PI_DIV_SEL_MASK			BIT(18) | BIT(19) | BIT(20)
+#define L0_PI_EYE_EN_MASK			BIT(21)
+#define L0_PI_REGA8_DUMMY_MASK			BIT(23)
+/*0x9814feb0*/
+#define L3_DCDR_RSTB_MASK                       BIT(0)
+#define L3_PI_DIV_RSTB_MASK                     BIT(1)
+#define L3_PI_DIV_SEL_MASK                      BIT(2) | BIT(3) | BIT(4)
+#define L3_PI_EYE_EN_MASK                       BIT(5)
+#define L0_INOFF_EN_MASK			BIT(16)
+#define L0_INNOFF_SINGLE_EN_MASK		BIT(17)
+#define L0_INPOFF_SINGLE_EN_MASK		BIT(18)
+#define L0_POW_AC_COUPLE_MASK			BIT(19)
+#define L0_RXVCM_SEL_MASK			BIT(20) | BIT(21)
+#define L0_FAST_SW_EN_MASK			BIT(22)
+#define L0_FAST_SW_DLY_EN_MASK			BIT(23)
+/*0x9814feb8*/
+#define L3_INOFF_EN_MASK                        BIT(0)
+#define L3_INNOFF_SINGLE_EN_MASK                BIT(1)
+#define L3_INPOFF_SINGLE_EN_MASK                BIT(2)
+#define L3_POW_AC_COUPLE_MASK                   BIT(3)
+#define L3_RXVCM_SEL_MASK                       BIT(4) | BIT(5)
+#define L3_FAST_SW_EN_MASK                      BIT(6)
+#define L3_FAST_SW_DLY_EN_MASK                  BIT(7)
+#define L0_FKP_EN_MASK				BIT(20)
+#define L0_DFE_CKIN_SEL_MASK			BIT(23)
+/*0x9814fec0*/
+#define L3_FKP_EN_MASK                          BIT(4)
+#define L3_REGC0_DUMMY_UP_MASK                  BIT(5) | BIT(6)
+#define L3_DFE_CKIN_SEL_MASK                    BIT(7)
+#define L0_CK_RLSEL_LE1_MASK			BIT(16) | BIT(17)
+#define L0_CK_RLSEL_LE2_MASK			BIT(18) | BIT(19)
+#define L0_CK_RLSEL_NC_MASK			BIT(20) | BIT(21)
+#define L0_CK_RLSEL_TAP0_MASK			BIT(22) | BIT(23)
+/*0x9814fec8*/
+#define L3_CK_RLSEL_LE1_MASK			BIT(0) | BIT(1)
+#define L3_CK_RLSEL_LE2_MASK			BIT(2) | BIT(3)
+#define L3_CK_RLSEL_NC_MASK			BIT(4) | BIT(5)
+#define L3_CK_RLSEL_TAP0_MASK			BIT(6) | BIT(7)
+#define L0_CK_RSSEL_LE1_1_MASK			BIT(16) | BIT(17) | BIT(18) | BIT(19)
+#define L0_CK_RSSEL_LE1_2_MASK			BIT(20) | BIT(21) | BIT(22) | BIT(23)
+/*0x9814fed0*/
+#define L3_CK_RSSEL_LE1_1_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+#define L3_CK_RSSEL_LE1_2_MASK			BIT(4) | BIT(5) | BIT(6) | BIT(7)
+#define L0_CK_RSSEL_LE2_MASK			BIT(16) | BIT(17) | BIT(18) | BIT(19)
+#define L0_CK_RSSEL_TAP0_MASK			BIT(20) | BIT(21)
+#define L0_CK_KOFF_RANGE_MASK			BIT(22) | BIT(23)
+/*0x9814fed8*/
+#define L3_CK_RSSEL_LE2_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+#define L3_CK_RSSEL_TAP0_MASK			BIT(4) | BIT(5)
+#define L3_CK_KOFF_RANGE_MASK			BIT(6) | BIT(7)
+#define L0_CK_LE1_ISEL_IN_MASK			BIT(16) | BIT(17) | BIT(18) | BIT(19)
+#define L0_CK_LE2_ISEL_IN_MASK			BIT(20) | BIT(21) | BIT(22) | BIT(23)
+/*0x9814fee0*/
+#define L3_CK_LE1_ISEL_IN_MASK			BIT(0) | BIT(1) | BIT(2) | BIT(3)
+#define L3_CK_LE2_ISEL_IN_MASK			BIT(4) | BIT(5) | BIT(6) | BIT(7)
+#define L0_CK_LE_NC_ISEL_IN_MASK		BIT(16) | BIT(17) | BIT(18) | BIT(19)
+#define L0_CK_TAP0_ISEL_MASK			BIT(20) | BIT(21) | BIT(22) | BIT(23)
+/*0x9814fee8*/
+#define L3_CK_LE_NC_ISEL_IN_MASK		BIT(0) | BIT(1) | BIT(2) | BIT(3)
+#define L3_CK_TAP0_ISEL_MASK			BIT(4) | BIT(5) | BIT(6) | BIT(7)
+#define L0_CK_LE_IHALF_MASK			BIT(16) | BIT(17)
+#define L0_CK_NC_IHALF_MASK			BIT(18)
+#define L0_CK_TAP0_IHALF_MASK			BIT(19)
+#define L0_CK_LEQ6G_EN_MASK			BIT(20)
+#define L0_CK_RS_CAL_EN_MASK			BIT(21)
+#define L0_CK_POW_NC_MASK			BIT(22)
+#define L0_CK_POW_LEQ_KOFF_MASK			BIT(23)
+/*0x9814fef0*/
+#define L1_CK_LE_IHALF_MASK			BIT(0) | BIT(1)
+#define L1_CK_NC_IHALF_MASK			BIT(2)
+#define L1_CK_TAP0_IHALF_MASK			BIT(3)
+#define L1_CK_LEQ6G_EN_MASK			BIT(4)
+#define L1_CK_RS_CAL_EN_MASK			BIT(5)
+#define L1_CK_POW_NC_MASK			BIT(6)
+#define L1_CK_POW_LEQ_KOFF_MASK			BIT(7)
+#define L2_CK_POW_LEQ_MASK			BIT(16)
+#define L2_CK_LE_IHALF_MASK			BIT(17)
+#define L2_CK_NC_IHALF_MASK			BIT(18)
+#define L2_CK_TAP0_IHALF_MASK			BIT(19)
+/*0x9814fef8*/
+#define L3_POW_LEQ_MASK				BIT(0)
+#define L3_POW_DATALANE_BIAS_MASK		BIT(1)
+#define L3_REG_FORCE_STARTUP_MASK		BIT(2)
+#define L3_REG_POWB_STARTUP_MASK		BIT(3)
+#define L3_DATALANE_BIAS_ISEL_MASK		BIT(4) | BIT(5) | BIT(6)
+#define L3_POW_LEQ_RL_MASK			BIT(7)
+#define L0_POW_CMFB_1P8_CDM_MASK		BIT(16)
+#define L0_SEL_CMFB_LS_MASK			BIT(17)
+#define L0_LEQ_CUR_ADJ_MASK			BIT(18) | BIT(19)
+#define L0_PTAT_CUR_ADJ_MASK			BIT(20) | BIT(21)
+#define L0_BIAS_POW_CON_GM_MASK			BIT(22)
+
+/*0x9814ff00*/
+#define REG_POW_CMFB_1P8_CDM_MASK		BIT(0)
+#define REG_SEL_CMFB_LS_MASK			BIT(1)
+#define REG_LEQ_CUR_ADJ_MASK			BIT(2) | BIT(3)
+#define REG_PTAT_CUR_MASK			BIT(4) | BIT(5)
+#define REG_BIAS_POW_CON_GM_MASK		BIT(6)
+/*0x9814ff04*/
+#define REG_CK_TST_SEL_REV_L0_MASK		BIT(10) | BIT(11)
+#define REG_CK_TST_SEL_REV_L3_MASK		BIT(22) | BIT(23)
+/*0x9814ff10*/
+#define REG_DEMUX_RSTB_L0_MASK			BIT(26)
+/*0x9814ff14*/
+#define REG_DEMUX_RSTB_L3_MASK			BIT(0)
+#define REG_DP0_USB1_L0_MASK			BIT(8)
+#define REG_DP0_USB1_L3_MASK			BIT(10)
+#define REG_Z0_FT_PN_SHORT_EN_L0_MASK		BIT(24)
+#define REG_Z0_FT_PN_SHORT_EN_L3_MASK		BIT(26)
+/*0x9814ff18*/
+#define REG_Z0_N_OFF_L0_MASK			BIT(8)
+#define REG_Z0_N_OFF_L3_MASK			BIT(10)
+#define REG_Z0_P_OFF_L0_MASK			BIT(12)
+#define REG_Z0_P_OFF_L3_MASK			BIT(14)
+/*0x9814ff1c*/
+#define REG_HDMIRX_BIAS_EN_L0_MASK		BIT(8)
+#define REG_HDMIRX_BIAS_EN_L3_MASK		BIT(14)
+/*0x9814ff40*/
+#define REG_POW_RTERM_L0_MASK			BIT(14)
+#define REG_POW_RTERM_L3_MASK			BIT(16)
+#define REG_RX50_LINK_L0_MASK			BIT(26)
+#define REG_RX50_LINK_L3_MASK			BIT(28)
+/*0x9814ff44*/
+#define REG_RX_EN_L0_MASK			BIT(16)
+#define REG_RX_EN_L3_MASK			BIT(22)
+/*0x9814ff58*/
+#define REG_SEL_RX50_LINK_L0_MASK		BIT(0)
+#define REG_SEL_RX50_LINK_L3_MASK		BIT(2)
+#define REG_SEL_RX_EN_L0_MASK			BIT(4)
+#define REG_SEL_RX_EN_L3_MASK			BIT(10)
+/*0x9814ff9c*/
+#define REG_Z0_ADJR_L0_MASK			0x1F0000
+#define REG_Z0_ADJR_L3_MASK			0x7C000000
+/*0x9814ffa0*/
+#define REG_Z0_Z0POW_FIX_L0_MASK		BIT(5)
+#define REG_Z0_Z0POW_FIX_L3_MASK		BIT(7)
+
+#define PHY_LANE_MUX_USB			0
+#define PHY_LANE_MUX_DP				1
+
+struct rtk_pwr_reg_entry {
+	u32 offset;
+	u32 val;
+};
+
+struct type_c_data {
+	void __iomem *base;
+	void __iomem *pwr_base;
+	void __iomem *iso_base;
+	/* node for type_c driver */
+	struct device_node *node;
+        /* for extcon type c connector */
+	struct extcon_dev *edev;
+	struct extcon_dev *phy_edev;
+	struct notifier_block edev_nb;
+	u32 pre_lane;
+	u32 state;
+	unsigned int start_addr;
+	bool is_enable;
+	bool is_attach;
+	bool ss; /* flag for super-speed */
+};
+
+struct rtk_phy {
+	struct phy *phy_u3;
+	struct phy *phy_dp;
+	struct device *dev;
+	struct dentry *debug_dir;
+	struct type_c_data type_c;
+	struct workqueue_struct *wq_typec_phy;
+	struct delayed_work delayed_work;
+	struct typec_switch_dev *sw;
+	struct typec_mux_dev *mux;
+	struct typec_mux_state state;
+	struct mutex mutex; /* mutex to protect access to individual PHYs */
+	struct regmap *sb2_regmap;
+	struct regmap *misc_regmap;
+	u32 lane_mux_sel[4];
+	int flip;
+	unsigned int lanes;
+	unsigned int link_rate;
+	u32 *saved_reg;
+	struct typec_altmode *dp_altmode; /* DP Alt Mode for HPD signaling */
+	bool dp_hpd_high;
+};
+
+enum {
+	DP_4,
+	USB_NON_FLIP,	/*usb0,1*/
+	USB_DP,
+	USB_FLIP,	/*usb2,3*/
+	DP_USB,
+};
+
+static inline u32 u3rx_readl(struct type_c_data *typec, u32 off)
+{
+	return readl(typec->base + off);
+}
+
+static inline void u3rx_writel(struct type_c_data *typec, u32 val, u32 off)
+{
+	writel(val, typec->base + off);
+}
+
+static inline int get_signed_val(u32 val, u32 sign)
+{
+	return sign ? -(int)val : (int)val;
+}
+
+static inline void u3rx_update_bits(struct type_c_data *typec, u32 off, u32 mask, u32 val)
+{
+	u32 v;
+	int shift = __builtin_ctz(mask);
+
+	v = u3rx_readl(typec, off);
+	v &= ~mask;
+	v |= (val << shift) & mask;
+	u3rx_writel(typec, v, off);
+}
+
+static inline u32 u3rx_get_bits(struct type_c_data *typec, u32 off, u32 mask)
+{
+	u32 v;
+	int shift = __builtin_ctz(mask);
+
+	v = u3rx_readl(typec, off);
+	return (v & mask) >> shift;
+}
+
+static inline void u3rx_offset_5g_div(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_MODE_OFFSET_K_5G_01, REG_DIV_5G_MASK, val);
+}
+
+static inline void u3rx_offset_10g_div(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_MODE_OFFSET_K_10G_01, REG_DIV_10G_MASK, val);
+}
+
+static inline void u3rx_usb_10g(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_SEL_USB_10BIT, REG_DIV_10G_BIT_WIDTH_MASK, val);
+}
+
+static inline void u3rx_usb_5g(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_SEL_USB_10BIT, REG_DIV_5G_BIT_WIDTH_MASK, val);
+}
+
+static inline void u3rx_DPHY2_rst_n_L0_set(struct type_c_data *typec, bool reset)
+{
+        u3rx_update_bits(typec, U3DP_PHY_DPHY_02, REG_CDR_RST_N_L0_MASK, reset);
+}
+
+static inline void u3rx_DPHY2_rst_n_L3_set(struct type_c_data *typec, bool reset)
+{
+	u3rx_update_bits(typec, U3DP_PHY_DPHY_02, REG_CDR_RST_N_L3_MASK, reset);
+}
+
+static inline void u3rx_data_timer0_en(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_DATA_TIMER_0, REG_RDY_TIMER_EN_MASK, val);
+}
+
+static inline void u3rx_data_inbuf0(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_RX_DATA_INBUF_0, REG_DATA_INBUF_NUM_L0_MASK, val);
+}
+
+static inline void u3rx_data_inbuf1(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_RX_DATA_INBUF_1, REG_DATA_INBUF_NUM_L2_MASK, val);
+}
+
+static inline void u3rx_fore_off_00(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_ADJR_00, ADJR_FOR_OFF_MASK, val);
+}
+
+static inline void u3rx_fore_off_calibration_l0_en(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_ADJR_04, ADJR_FORE_OFF_EN_L0_MASK, val);
+}
+
+static inline void u3rx_fore_off_calibration_l3_en(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_ADJR_04, ADJR_FORE_OFF_EN_L3_MASK, val);
+}
+
+static inline void u3rx_fld_tx_timing_delay(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_TX_12, FLD_TX12_TIME_DELAY_MASK, val);
+}
+
+static inline void u3rx_fld_rst_manual_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_RESERVED_DPHY_02, FLD_RSV_DPY_MASK, val);
+}
+
+static inline void u3rx_fld_rst_n_l0_set(struct type_c_data *typec, bool reset)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_0, FLD_RST_N_L0_MASK, reset);
+}
+
+static inline void u3rx_fld_coarse_lock_dn_limit_l0_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_12, FLD_L0_12_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_dn_limit_l0_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_13, FLD_L0_13_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_up_limit_l0_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_14, FLD_L0_14_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_up_limit_l0_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_15, FLD_L0_15_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_manual_l0_en(struct type_c_data *typec, bool en)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_19, FLD_CP_EN_MASK | FLD_ADP_EN_MASK, en);
+}
+
+static inline void u3rx_fld_adp_dly_time_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_22, FLD_ADP_DLY_TIME_MASK, val);
+}
+
+static inline void u3rx_fld_lock_up_limit_l0_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_23, FLD_L0_23_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_up_limit_l0_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_24, FLD_L0_24_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_dn_limit_l0_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_25, FLD_L0_25_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_dn_limit_l0_11_8(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L0_26, FLD_L0_26_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_divider_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_27, FLD_L0_27_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_p0_ck_acdr_manual_config_1(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_32, FLD_L0_32_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_ck_acdr_manual_config_2(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_33, FLD_L0_33_ACDR_CONFIG2_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_ck_acdr_manual_config_3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_34, FLD_L0_34_ACDR_CONFIG3_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_ck_acdr_manual_config_4(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L0_35, FLD_L0_35_ACDR_CONFIG4_L0_MASK, val);
+}
+
+static inline void u3rx_fld_acdr_fine_tune_start(struct type_c_data *typec, bool start)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_39, FLD_FINE_TUNE_MASK, start);
+}
+
+static inline void u3rx_fld_cdr_lpf_res_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_41, FLD_L0_CDR_LPF_RES_MASK, val);
+}
+
+static inline void u3rx_fld_vc_sel(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_43, FLD_L0_VC_SEL_MASK, val);
+}
+
+static inline void u3rx_fld_init_time_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_51, FLD_L0_ST_TIME_DELAY_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_1_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_53, FLD_L0_53_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_2_L0(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L0_54, FLD_L0_54_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_3_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_55, FLD_L0_55_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_4_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_56, FLD_L0_56_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_1_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_57, FLD_L0_57_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_2_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_58, FLD_L0_58_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_3_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_59, FLD_L0_59_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_4_L0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L0_60, FLD_L0_60_ACDR_CONFTG1_L0_MASK, val);
+}
+
+static inline void u3rx_fld_rst_n_l3_set(struct type_c_data *typec, bool reset)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_0, FLD_RST_N_L3_MASK, reset);
+}
+
+static inline void u3rx_fld_coarse_lock_dn_limit_l3_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_12, FLD_L3_12_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_dn_limit_l3_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_13, FLD_L3_13_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_up_limit_l3_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_14, FLD_L3_14_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_coarse_lock_up_limit_l3_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_15, FLD_L3_15_LIMIT_MASK, val);
+}
+
+static inline void u3rx_fld_manual_l3_en(struct type_c_data *typec, bool en)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L3_19, FLD_CP_EN_L3_MASK | FLD_ADP_EN_L3_MASK, en);
+}
+
+static inline void u3rx_fld_adp_dly_time_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_22, FLD_ADP_DLY_TIME_L3_MASK, val);
+}
+
+static inline void u3rx_fld_lock_up_limit_l3_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_23, FLD_L3_23_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_up_limit_l3_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_24, FLD_L3_24_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_dn_limit_l3_7_0(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_25, FLD_L3_25_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_lock_dn_limit_l3_11_8(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_26, FLD_L3_26_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_divider_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_27, FLD_L3_27_CNT_MASK, val);
+}
+
+static inline void u3rx_fld_p0_l3_ck_acdr_manual_config_1(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L3_32, FLD_L3_32_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_l3_ck_acdr_manual_config_2(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_FLD_L3_33, FLD_L3_33_ACDR_CONFIG2_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_l3_ck_acdr_manual_config_3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_34, FLD_L3_34_ACDR_CONFIG3_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_l3_ck_acdr_manual_config_4(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_35, FLD_L3_35_ACDR_CONFIG4_L3_MASK, val);
+}
+
+static inline void u3rx_fld_acdr_l3_fine_tune_start(struct type_c_data *typec, bool start)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_39, FLD_FINE_TUNE_L3_MASK, start);
+}
+
+static inline void u3rx_fld_cdr_lpf_l3_res_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_41, FLD_L3_CDR_LPF_RES_MASK, val);
+}
+
+static inline void u3rx_fld_vc_sel_l3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_43, FLD_L3_VC_SEL_MASK, val);
+}
+
+static inline void u3rx_fld_init_time_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_51, FLD_L3_ST_TIME_DELAY_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_1_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_53, FLD_L3_53_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_2_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_54, FLD_L3_54_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_3_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_55, FLD_L3_55_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_cdr_config_4_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_56, FLD_L3_56_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_1_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_57, FLD_L3_57_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_2_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_58, FLD_L3_58_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_3_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_59, FLD_L3_59_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_fld_p0_b_acdr_pll_config_4_L3(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_FLD_L3_60, FLD_L3_60_ACDR_CONFTG1_L3_MASK, val);
+}
+
+static inline void u3rx_dfe_r0p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R0P0);
+}
+
+static inline void u3rx_dfe_r1p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R1P0);
+}
+
+static inline void u3rx_dfe_r2p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R2P0);
+}
+
+static inline void u3rx_dfe_EQ_selreg(struct type_c_data *typec, bool sel)
+{
+        u3rx_update_bits(typec, U3DP_PHY_CTRL_R2P0, DFE_CTRL_EQ_SELREG_MASK, sel);
+}
+
+static inline void u3rx_dfe_VTH_DFE_en(struct type_c_data *typec, bool en)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R2P0, DFE_VTH_DFE_EN_MASK, en);
+}
+
+static inline void u3rx_dfe_VTH_en(struct type_c_data *typec, bool en)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R2P0, DFE_VTH_EN_MASK, en);
+}
+
+static inline void u3rx_dfe_r3p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R3P0);
+}
+
+static inline void u3rx_dfe_eqfe_en(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_EQFE_EN_MASK, val);
+}
+
+static inline void u3rx_dfe_vth_loadin(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_VTH_LOAD_IN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap_loadin(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_TAP_LOAD_IN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_TAP_TIMER_MASK, val);
+}
+
+static inline void u3rx_dfe_leq_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_LEQ_TIMER_MASK, val);
+}
+
+static inline void u3rx_dfe_vth_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R3P0, DFE_VTH_TIMER_MASK, val);
+}
+
+static inline void u3rx_dfe_r4p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R4P0);
+}
+
+static inline void u3rx_dfe_leq1_inv_set(struct type_c_data *typec, bool sel)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R4P0, DFE_LEQ1_INV_MASK, sel);
+}
+
+static inline void u3rx_dfe_leq2_inv_set(struct type_c_data *typec, bool sel)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R4P0, DFE_LEQ2_INV_MASK, sel);
+}
+
+static inline void u3rx_dfe_r5p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R5P0);
+}
+
+static inline void u3rx_dfe_leq_gain1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R5P0, DFE_LEQ_GAIN1_MASK, val);
+}
+
+static inline void u3rx_dfe_leq_gain2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R5P0, DFE_LEQ_GAIN2_MASK, val);
+}
+
+static inline void u3rx_dfe_tap1_gain_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R5P0, DFE_TAP1_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap2_gain_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R5P0, DFE_TAP2_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap3_gain_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R5P0, DFE_TAP3_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_r6p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R6P0);
+}
+
+static inline void u3rx_dfe_tap4_gain_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R6P0, DFE_TAP4_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap4_vthp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R6P0, DFE_VTHP_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_tap4_vthn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R6P0, DFE_VTHN_GAIN_MASK, val);
+}
+
+static inline void u3rx_dfe_leq1_trans_mode(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R6P0, DFE_LEQ1_TRANS_MODE_MASK , val);
+}
+
+static inline void u3rx_dfe_leq2_trans_mode(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R6P0, DFE_LEQ2_TRANS_MODE_MASK , val);
+}
+
+static inline void u3rx_dfe_r7p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R7P0);
+}
+
+static inline void u3rx_dfe_tap0_adjust_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R7P0, DFE_TAP0_ADJUST_MASK, val);
+}
+
+static inline void u3rx_dfe_r8p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R8P0);
+}
+
+static inline void u3rx_dfe_leq_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R8P0, DFE_LEQ_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_r9p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_R9P0);
+}
+
+static inline void u3rx_dfe_tap0_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP0_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_tap0_init_val(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP0_INIT_VAL_MASK, val);
+}
+
+static inline void u3rx_dfe_tap1_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP1_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_tap2_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP2_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_tap3_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP3_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_tap4_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_R9P0, DFE_TAP4_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_rap0_set(struct type_c_data *typec, u32 val)
+{
+        u3rx_writel(typec, val, U3DP_PHY_CTRL_RAP0);
+}
+
+static inline void u3rx_dfe_apadt_en(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_RAP0, DFE_ADAPT_EN_MASK, val);
+}
+
+static inline void u3rx_dfe_vthp_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_RAP0, DFE_VTHP_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_vthn_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_RAP0, DFE_VTHN_INIT_MASK, val);
+}
+
+static inline void u3rx_dfe_rbp0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_RBP0);
+}
+
+static inline void u3rx_dfe_rcp0_set(struct type_c_data *typec, u32 val)
+{
+        u3rx_writel(typec, val, U3DP_PHY_CTRL_RCP0);
+}
+
+static inline void u3rx_dfe_adapt_flow_ctrl_r_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_RDP0, DFE_ROTATION_MODE_R_MASK, val);
+}
+
+static inline void u3rx_dfe_inverse_vth_sign_polarity(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_REP0, DFE_SIGN_INV_R_MASK, val);
+}
+
+static inline void u3rx_dfe_ck0p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK0P0);
+}
+
+static inline void u3rx_dfe_ck1p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK1P0);
+}
+
+static inline void u3rx_dfe_ck2p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK2P0);
+}
+
+static inline void u3rx_dfe_ck_EQ_selreg(struct type_c_data *typec, bool sel)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK2P0, DFE_CK2_EQ_SELREG_MASK, sel);
+}
+
+static inline void u3rx_dfe_ck_VTH_DFE_en(struct type_c_data *typec, bool en)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK2P0, DFE_VTH_DFE_EN_CK_MASK, en);
+}
+
+static inline void u3rx_dfe_ck_VTH_en(struct type_c_data *typec, bool en)
+{
+	 u3rx_update_bits(typec, U3DP_PHY_CTRL_CK2P0, DFE_VTH_EN_CK_MASK, en);
+}
+
+static inline void u3rx_dfe_ck3p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK3P0);
+}
+
+static inline void u3rx_dfe_ck_eqfe_en(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_EQFE_EN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_vth_loadin(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_VTH_LOAD_IN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap_loadin(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_TAP_LOAD_IN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_TAP_TIMER_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_leq_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_LEQ_TIMER_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_vth_timer(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK3P0, DFE_VTH_TIMER_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck4p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK4P0);
+}
+
+static inline void u3rx_dfe_leq1_inv_ck_set(struct type_c_data *typec, bool sel)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK4P0, DFE_LEQ1_INV_CK_MASK, sel);
+}
+
+static inline void u3rx_dfe_leq2_inv_ck_set(struct type_c_data *typec, bool sel)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK4P0, DFE_LEQ2_INV_CK_MASK, sel);
+}
+
+static inline void u3rx_dfe_ck5p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK5P0);
+}
+
+static inline void u3rx_dfe_leq_gain1_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK5P0, DFE_LEQ_GAIN1_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_leq_gain2_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK5P0, DFE_LEQ_GAIN2_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_tap1_gain_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK5P0, DFE_TAP1_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_tap2_gain_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK5P0, DFE_TAP2_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_tap3_gain_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK5P0, DFE_TAP3_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck6p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK6P0);
+}
+
+static inline void u3rx_dfe_tap4_gain_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK6P0, DFE_TAP4_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_tap4_ck_vthp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK6P0, DFE_VTHP_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_tap4_ck_vthn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK6P0, DFE_VTHN_GAIN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_leq1_trans_ck_mode(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK6P0, DFE_LEQ1_TRANS_MODE_CK_MASK , val);
+}
+
+static inline void u3rx_dfe_leq2_trans_ck_mode(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK6P0, DFE_LEQ2_TRANS_MODE_CK_MASK , val);
+}
+
+static inline void u3rx_dfe_ck7p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK7P0);
+}
+
+static inline void u3rx_dfe_tap0_adjust_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK7P0, DFE_TAP0_ADJUST_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck8p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK8P0);
+}
+
+static inline void u3rx_dfe_ck_leq_init(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_CTRL_CK8P0, DFE_LEQ_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck9p0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CK9P0);
+}
+
+static inline void u3rx_dfe_ck_tap0_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK9P0, DFE_TAP0_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap1_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK9P0, DFE_TAP1_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap2_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK9P0, DFE_TAP2_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap3_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK9P0, DFE_TAP3_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_tap4_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CK9P0, DFE_TAP4_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ckap0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CKAP0);
+}
+
+static inline void u3rx_dfe_ck_apadt_en(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CKAP0, DFE_ADAPT_EN_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_vthp_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CKAP0, DFE_VTHP_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ck_vthn_init(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CKAP0, DFE_VTHN_INIT_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_ckbp0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CKBP0);
+}
+
+static inline void u3rx_dfe_ckcp0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_writel(typec, val, U3DP_PHY_CTRL_CKCP0);
+}
+
+static inline void u3rx_dfe_adapt_flow_ctrl_ck_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CKDP0, DFE_ROTATION_MODE_CK_MASK, val);
+}
+
+static inline void u3rx_dfe_inverse_vth_sign_polarity_ck(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_CTRL_CKEP0, DFE_SIGN_INV_CK_MASK, val);
+}
+
+static inline void u3rx_p0_b_off_en_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD03, P0_B_OFF_EN_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_g_off_en_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD07, P0_G_OFF_EN_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_timeout_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD08, P0_R_OFF_TIMEOUT_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_div_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD08, P0_R_OFF_DIV_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_dly_cnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD08, P0_R_OFF_DLY_CNT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_coef_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD08, P0_R_OFF_COEF_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_rstn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD08, P0_R_OFF_RSTN_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_z0_ok_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_Z0_OK_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_MANUAL_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_PC_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_EN_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_z0_ok_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_Z0_OK_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_MANUAL_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_PC_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD09, P0_R_OFF_EN_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_z0_ok_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_Z0_OK_DO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_MANUAL_DO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_PC_DO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_EN_DO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_z0_ok_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_Z0_OK_DE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_MANUAL_DE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_PC_DE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD10, P0_R_OFF_EN_DE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_MANUAL_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_ini_eq_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_INI_EQ_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_PC_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_EN_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_z0_19_ok_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_Z0_19_OK_EO_MASK, val);
+}
+static inline void u3rx_p0_r_off_z0_ok_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_Z0_OK_EO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_MANUAL_EO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_PC_EO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_en_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_EN_EO_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_manual_ee_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_MANUAL_EE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_ee_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_PC_EE_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_pc_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD11, P0_R_OFF_PC_EN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_timeout_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD12, P0_CK_OFF_TIMEOUT_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_div_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD12, P0_CK_OFF_DIV_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_dly_cnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD12, P0_CK_OFF_DLY_CNT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_coef_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD12, P0_CK_OFF_COEF_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_rstn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD12, P0_CK_OFF_RSTN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_ok_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_Z0_OK_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_MANUAL_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_PC_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_opo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_EN_OPO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_ok_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_Z0_OK_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_MANUAL_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_PC_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_ope_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD13, P0_CK_OFF_EN_OPE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_ok_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_Z0_OK_DO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_MANUAL_DO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_PC_DO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_do_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_EN_DO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_ok_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_Z0_OK_DE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_MANUAL_DE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_PC_DE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_de_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD14, P0_CK_OFF_EN_DE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_MANUAL_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_ini_eq_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_INI_EQ_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_PC_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_EN_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_19_ok_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_Z0_19_OK_EO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_z0_ok_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_Z0_OK_EO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_MANUAL_EO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_PC_EO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_en_eo_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_EN_EO_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_manual_ee_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_MANUAL_EE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_ee_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_PC_EE_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_pc_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD15, P0_CK_OFF_PC_EN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_vth_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_CK_VTH_EN_MASK, val);
+}
+
+static inline void u3rx_p0_r_vth_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_R_VTH_EN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_dfe_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_CK_DFE_EN_MASK, val);
+}
+
+static inline void u3rx_p0_r_dfe_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_R_DFE_EN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_leq_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_CK_LEQ_EN_MASK, val);
+}
+
+static inline void u3rx_p0_r_leq_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_R_LEQ_EN_MASK, val);
+}
+
+static inline void u3rx_p0_ck_rstb_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_CK_RSTB_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_rstb_eq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_DFE_REGD00, P0_R_RSTB_EQ_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_auto_en_cnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD19, P0_R_OFF_AUTO_EN_CNT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_auto_en_cnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD20, P0_CK_OFF_AUTO_EN_CNT_MASK, val);
+}
+
+static inline void u3rx_p0_r_13_vth_offpn_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD21, P0_R_13_VTH_OFFPN_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_r_9_vth_offpn_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD21, P0_R_9_VTH_OFFPN_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_ck_12_vth_offpn_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD21, P0_CK_12_VTH_OFFPN_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_ck_8_vth_offpn_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD21, P0_CK_8_VTH_OFFPN_SEL_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_intope_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTOPE_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_intopo_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTOPO_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_intde_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTDE_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_intdo_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTDO_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_intee_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTEE_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_r_off_inteo_usb5g_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD22, P0_R_OFF_INTEO_USB5G_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_intope_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTOPE_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_intopo_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTOPO_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_intde_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTDE_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_intdo_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTDO_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_intee_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTEE_SHIFT_MASK, val);
+}
+
+static inline void u3rx_p0_ck_off_inteo_shift_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_HD21_P0_KOFF_REGD23, P0_CK_OFF_INTEO_SHIFT_MASK, val);
+}
+
+static inline void u3rx_aphy_ck_rstb_sel(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E00, APHY_CK_RSTB_SEL_MASK, val);
+}
+
+static inline void u3rx_aphy_ck_ref_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E04, APHY_CK_REF_MASK, val);
+}
+
+static inline void u3rx_aphy_ck_cmu_prescale(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E04, APHY_CK_CMU_PRESCALER_MASK, val);
+}
+
+static inline void u3rx_aphy_ck_cmu_m_div_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E04, APHY_CK_CMU_M_DIV_MASK , val);
+}
+
+static inline void u3rx_aphy_l0_isel_in1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E08, APHY_L0_LE1_ISEL_IN_1_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_isel_in1_set(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E0C, APHY_L3_LE1_ISEL_IN_1_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rlsel_le1_2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E0C, APHY_L3_RLSEL_LE1_2_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rlsel_nc_2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E0C, APHY_L3_RLSEL_NC_2_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_rstb_pfb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E18, APHY_L0_RSTB_PFD_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_rstb_clk_cld_set(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E18, APHY_L0_RSTB_CLK_CLD_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_rstb_div_fld_set(struct type_c_data *typec, u32 val)
+{
+        u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E18, APHY_L0_ACDR_DIV_FLD_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_rstb_div_ref_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E18, APHY_L0_ACDR_DIV_REF_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_rstb_div_pll_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E18, APHY_L0_ACDR_DIV_PLL_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rstb_pfb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E1C, APHY_L3_RSTB_PFD_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rstb_clk_cld_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E1C, APHY_L3_RSTB_CLK_CLD_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rstb_div_fld_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E1C, APHY_L3_ACDR_DIV_FLD_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rstb_div_ref_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E1C, APHY_L3_ACDR_DIV_REF_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_rstb_div_pll_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E1C, APHY_L3_ACDR_DIV_PLL_MASK, val);
+}
+
+static inline void u3rx_aphy_l0_acdr_sel_idnbias_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E20, APHY_L0_ACDR_SEL_IDNBIAS_LV_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_acdr_sel_div_training_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E24, APHY_L3_ACDR_SEL_DIV_TRAINING_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_acdr_sel_idnbias_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E24, APHY_L3_ACDR_SEL_IDNBIAS_LV_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_acdr_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E24, APHY_L3_ACDR_DUMMY_MASK, val);
+}
+
+static inline void u3rx_aphy_l3_acdr_sel_fld_0ckfb_1ckref_set(struct type_c_data *typec, u32 val)
+{
+	 u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E24, APHY_L3_ACDR_SEL_FLD_0CKFB_1CKREF_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_rstb_clk_fld_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E28, L0_ACDR_RSTB_CLK_FLD_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_rstb_div_band_2or4_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E28, L0_ACDR_RSTB_DIV_BAND_2OR4_LV_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_hs_clk_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E28, L0_ACDR_SEL_HS_CLK_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_0fr_1hr_div_iq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E28, L0_ACDR_SEL_0FR_1HR_DIV_IQ_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_div_band_2or4_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E28, L0_ACDR_SEL_DIV_BAND_2OR4_LV_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_rstb_div_iq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E2C, L3_ACDR_RSTB_DIV_IQ_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_rstb_div_band_2or4_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E2C, L3_ACDR_RSTB_DIV_BAND_2OR4_LV_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_hs_clk_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E2C, L3_ACDR_SEL_HS_CLK_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_0fr_1hr_div_iq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E2C, L3_ACDR_SEL_0FR_1HR_DIV_IQ_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_div_band_2or4_lv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E2C, L3_ACDR_SEL_DIV_BAND_2OR4_LV_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_en_updn_pulse_filter_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E30, L0_ACDR_EN_UPDN_PULSE_FILTER, val);
+}
+
+static inline void u3rx_l0_acdr_rstb_updn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E30, L0_ACDR_RSTB_UPDN_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_updn_widt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E30, L0_ACDR_SEL_UPDN_WIDT_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_lpf_idac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E30, L0_ACDR_POW_LPF_IDAC_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_lpf_idac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E30, L0_ACDR_SEL_LPF_IDAC_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_en_updn_pulse_filter_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E34, L3_ACDR_EN_UPDN_PULSE_FILTER, val);
+}
+
+static inline void u3rx_l3_acdr_rstb_updn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E34, L3_ACDR_RSTB_UPDN_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_updn_widt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E34, L3_ACDR_SEL_UPDN_WIDT_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_lpf_idac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E34, L3_ACDR_POW_LPF_IDAC_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_lpf_idac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E34, L3_ACDR_SEL_LPF_IDAC_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_cp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E38, L0_ACDR_POW_CP_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_cp_intg2_core_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E38, L0_ACDR_POW_CP_INTG2_CORE_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_idn_bbpd_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E38, L0_ACDR_POW_IDN_BBPD_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_tie_idn_bbpd_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E38, L0_ACDR_SEL_TIE_IDN_BBPD_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_ibias_idn_hv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E38, L0_ACDR_POW_IBIAS_IDN_HV_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_cp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E3C, L3_ACDR_POW_CP_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_cp_intg2_core_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E3C, L3_ACDR_POW_CP_INTG2_CORE_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_idn_bbpd_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E3C, L3_ACDR_POW_IDN_BBPD_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_tie_idn_bbpd_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E3C, L3_ACDR_SEL_TIE_IDN_BBPD_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_ibias_idn_hv_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E3C, L3_ACDR_POW_IBIAS_IDN_HV_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_vco_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E40, L0_ACDR_POW_VCO_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_vco_vdac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E40, L0_ACDR_POW_VCO_VDAC_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_v15_vdac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E40, L0_ACDR_SEL_V15_VDAC_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_band_cap_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E40, L0_ACDR_SEL_BAND_CAP_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_vco_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E44, L3_ACDR_POW_VCO_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_vco_vdac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E44, L3_ACDR_POW_VCO_VDAC_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_v15_vdac_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E44, L3_ACDR_SEL_V15_VDAC_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_band_cap_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E44, L3_ACDR_SEL_BAND_CAP_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_pow_test_mode_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E48, L0_ACDR_POW_TEST_MODE_MASK, val);
+}
+
+static inline void u3rx_l0_acdr_sel_test_mode_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E48, L0_ACDR_SEL_TEST_MODE_MASK, val);
+}
+
+static inline void u3rx_l0_tie_vctrl_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E48, L0_TIE_VCTRL_MASK, val);
+}
+
+static inline void u3rx_l0_vco_sel_band_v2i_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E48, L0_VCO_SEL_BAND_V2I_MASK, val);
+}
+
+static inline void u3rx_l0_tie_vctrl_manual_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E48, L0_TIE_VCTRL_MANUAL_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_pow_test_mode_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E4C, L3_ACDR_POW_TEST_MODE_MASK, val);
+}
+
+static inline void u3rx_l3_acdr_sel_test_mode_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E4C, L3_ACDR_SEL_TEST_MODE_MASK, val);
+}
+
+static inline void u3rx_l3_tie_vctrl_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E4C, L3_TIE_VCTRL_MASK, val);
+}
+
+static inline void u3rx_l3_vco_sel_band_v2i_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E4C, L3_VCO_SEL_BAND_V2I_MASK, val);
+}
+
+static inline void u3rx_l3_tie_vctrl_manual_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E4C, L3_TIE_VCTRL_MANUAL_MASK, val);
+}
+
+static inline void u3rx_l0_rstb_bbpd_kp_ki_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E50, L0_RSTB_BBPD_KP_KI_MASK, val);
+}
+
+static inline void u3rx_l0_ck_bbpd_kp_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E50, L0_CK_BBPD_KP_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_ck_bbpd_ki_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E50, L0_CK_BBPD_KI_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_ck_bbpd_bypass_ctn_kp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E50, L0_CK_BBPD_BYPASS_CTN_KP_MASK, val);
+}
+
+static inline void u3rx_l0_ck_bbpd_bypass_ctn_ki_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E50, L0_CK_BBPD_BYPASS_CTN_KI_MASK, val);
+}
+
+static inline void u3rx_l3_rstb_bbpd_kp_ki_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E54, L3_RSTB_BBPD_KP_KI_MASK, val);
+}
+
+static inline void u3rx_l3_ck_bbpd_kp_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E54, L3_CK_BBPD_KP_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_ck_bbpd_ki_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E54, L3_CK_BBPD_KI_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_ck_bbpd_bypass_ctn_kp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E54, L3_CK_BBPD_BYPASS_CTN_KP_MASK, val);
+}
+
+static inline void u3rx_l3_ck_bbpd_bypass_ctn_ki_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E54, L3_CK_BBPD_BYPASS_CTN_KI_MASK, val);
+}
+
+static inline void u3rx_l0_cmu_sel_m_div_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E58, L0_CMU_SEL_M_DIV_MASK, val);
+}
+
+static inline void u3rx_l0_dfr_adapt_rn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E60, L0_DFR_ADAPT_RN_MASK, val);
+}
+
+static inline void u3rx_l3_dfr_adapt_rn_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E60, L3_DFR_ADAPT_RN_MASK, val);
+}
+
+static inline void u3rx_l0_dfe_pow_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E60, L0_DFE_POW_MASK, val);
+}
+
+static inline void u3rx_l0_dfe_sumamp_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E60, L0_DFE_SUMAMP_ISEL_MASK, val);
+}
+
+static inline void u3rx_l0_dfe_sumamp_dcgain_max_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E60, L0_DFE_SUMAMP_DCGAIN_MAX_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_pow_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_POW_MASK, val);
+}
+
+static inline void u3rx_l0_ck_ptat_cur_adj_fine_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_PTAT_CUR_ADJ_FINE_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_sumamp_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_SUMAMP_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_sumamp_dcgain_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_SUMAMP_DCGAIN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_fr_ck_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_FR_CK_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_ck_bbpd_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_BBPD_RSTB_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_cki_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_CKI_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_ckib_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_CKIB_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_ckq_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_CKQ_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_dfe_ckqb_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E68, L0_CK_DFE_CKQB_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_fr_ck_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_FR_CK_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_ck_bbpd_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_BBPD_RSTB_MASK, val);
+}
+
+static inline void u3rx_l3_ck_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_ck_dfe_cki_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_DFE_CKI_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_dfe_ckib_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_DFE_CKIB_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_dfe_ckq_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_DFE_CKQ_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_dfe_ckqb_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L3_CK_DFE_CKQB_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_en_eye_mnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_CK_EN_EYE_MNT_MASK, val);
+}
+
+static inline void u3rx_l0_demux_degree_eye_mnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_DEMUX_DEGREE_EYE_MNT_MASK, val);
+}
+
+static inline void u3rx_l0_vth_manual_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_VTH_MANUAL_MASK, val);
+}
+
+static inline void u3rx_l0_da_eg_vos_pulllow_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_DA_EG_VOS_PULLLOW_MASK, val);
+}
+
+static inline void u3rx_l0_dfe_tap0_icom_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_DFE_TAP0_ICOM_EN_MASK, val);
+}
+
+static inline void u3rx_l0_reg70_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E70, L0_REG70_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_b_en_eye_mnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_B_EN_EYE_MNT_MASK, val);
+}
+
+static inline void u3rx_l3_demux_degree_eye_mnt_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_DEMUX_DEGREE_EYE_MNT_MASK, val);
+}
+
+static inline void u3rx_l3_vth_manual_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_VTH_MANUAL_MASK, val);
+}
+
+static inline void u3rx_l3_da_eg_vos_pulllow_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_DA_EG_VOS_PULLLOW_MASK, val);
+}
+
+static inline void u3rx_l3_dfe_tap0_icom_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_DFE_TAP0_ICOM_EN_MASK, val);
+}
+
+static inline void u3rx_l3_reg78_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_REG78_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_b_dfe_tap_delay_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_B_DFE_TAP_DELAY_MASK, val);
+}
+
+static inline void u3rx_l3_b_dfe_tap_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_B_DFE_TAP_EN_MASK, val);
+}
+
+static inline void u3rx_l3_b_dfe_adapt_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E78, L3_B_DFE_ADAPT_EN_MASK, val);
+}
+
+static inline void u3rx_l3_dfe_tap_delay_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L3_DFE_TAP_DELAY_MASK, val);
+}
+
+static inline void u3rx_l3_dfe_tap_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L3_DFE_TAP_EN_MASK, val);
+}
+
+static inline void u3rx_l3_dfe_adapt_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L3_DFE_ADAPT_EN_MASK, val);
+}
+
+static inline void u3rx_l0_en_tst_cdr_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L0_EN_TST_CDR_MASK, val);
+}
+
+static inline void u3rx_l0_demux_pin_rate_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L0_DEMUX_PIN_RATE_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_demux_fr_ck_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L0_DEMUX_FR_CK_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_demux_rate_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E80, L0_DEMUX_RATE_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_en_tst_cdr_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E88, L3_EN_TST_CDR_MASK, val);
+}
+
+static inline void u3rx_l3_demux_pix_rate_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E88, L3_DEMUX_PIX_RATE_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_demux_fr_ck_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E88, L3_DEMUX_FR_CK_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_demux_fr_rate_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E88, L3_DEMUX_FR_RATE_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_transition_cnt_en_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E88, L0_TRANSITION_CNT_EN_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_transition_cnt_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E90, L3_TRANSITION_CNT_EN_MASK, val);
+}
+
+static inline void u3rx_b_l0_reg90_up_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E90, B_L0_REG90_UP_DUMMY_MASK, val);
+}
+
+static inline void u3rx_b_l3_reg98_up_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E98, B_L3_REG98_UP_DUMMY_MASK, val);
+}
+
+static inline void u3rx_b_l0_reg98_up_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0E98, B_L0_REG98_UP_DUMMY_MASK, val);
+}
+
+static inline void u3rx_r_l3_rega0_up_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, R_L3_REGA0_UP_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l0_pi_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, L0_PI_EN_MASK, val);
+}
+
+static inline void u3rx_l0_pi_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, L0_PI_ISEL_MASK, val);
+}
+
+static inline void u3rx_l0_pi_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, L0_PI_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l0_pi_csel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, L0_PI_CSEL_MASK, val);
+}
+
+static inline void u3rx_l0_bias_pi_cur_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA0, L0_BIAS_PI_CUR_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_pi_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L3_PI_EN_MASK, val);
+}
+
+static inline void u3rx_l3_pi_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L3_PI_ISEL_MASK, val);
+}
+
+static inline void u3rx_l3_pi_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L3_PI_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_pi_csel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L3_PI_CSEL_MASK, val);
+}
+
+static inline void u3rx_l3_bias_pi_cur_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L3_BIAS_PI_CUR_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_dcdr_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L0_DCDR_RSTB_MASK, val);
+}
+
+static inline void u3rx_l0_pi_div_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L0_PI_DIV_RSTB_MASK, val);
+}
+
+static inline void u3rx_l0_pi_div_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L0_PI_DIV_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_pi_eye_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L0_PI_EYE_EN_MASK, val);
+}
+
+static inline void u3rx_l0_pi_rega8_dummy_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EA8, L0_PI_REGA8_DUMMY_MASK, val);
+}
+
+static inline void u3rx_l3_dcdr_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L3_DCDR_RSTB_MASK, val);
+}
+
+static inline void u3rx_l3_pi_div_rstb_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L3_PI_DIV_RSTB_MASK, val);
+}
+
+static inline void u3rx_l3_pi_div_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L3_PI_DIV_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_pi_eye_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L3_PI_EYE_EN_MASK, val);
+}
+
+static inline void u3rx_l0_inoff_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_INOFF_EN_MASK, val);
+}
+
+static inline void u3rx_l0_innoff_single_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_INNOFF_SINGLE_EN_MASK, val);
+}
+
+static inline void u3rx_l0_inpoff_single_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_INPOFF_SINGLE_EN_MASK, val);
+}
+
+static inline void u3rx_l0_pow_ac_couple_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_POW_AC_COUPLE_MASK, val);
+}
+
+static inline void u3rx_l0_rxvcm_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_RXVCM_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_fast_sw_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_FAST_SW_EN_MASK, val);
+}
+
+static inline void u3rx_l0_fast_sw_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB0, L0_FAST_SW_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l3_inoff_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_INOFF_EN_MASK, val);
+}
+
+static inline void u3rx_l3_innoff_single_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_INNOFF_SINGLE_EN_MASK, val);
+}
+
+static inline void u3rx_l3_inpoff_single_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_INPOFF_SINGLE_EN_MASK, val);
+}
+
+static inline void u3rx_l3_pow_ac_couple_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_POW_AC_COUPLE_MASK, val);
+}
+
+static inline void u3rx_l3_rxvcm_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_RXVCM_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_fast_sw_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_FAST_SW_EN_MASK, val);
+}
+
+static inline void u3rx_l3_fast_sw_dly_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L3_FAST_SW_DLY_EN_MASK, val);
+}
+
+static inline void u3rx_l0_fkp_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L0_FKP_EN_MASK, val);
+}
+
+static inline void u3rx_l0_dfe_ckin_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EB8, L0_DFE_CKIN_SEL_MASK, val);
+}
+
+static inline void u3rx_l3_fkp_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L3_FKP_EN_MASK, val);
+}
+
+static inline void u3rx_l3_regc0_dummy_up_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L3_REGC0_DUMMY_UP_MASK, val);
+}
+
+static inline void u3rx_l3_dfe_ckin_sel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L3_DFE_CKIN_SEL_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rlsel_le1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L0_CK_RLSEL_LE1_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rlsel_le2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L0_CK_RLSEL_LE2_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rlsel_nc_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L0_CK_RLSEL_NC_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rlsel_tap0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC0, L0_CK_RLSEL_TAP0_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rlsel_le1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L3_CK_RLSEL_LE1_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rlsel_le2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L3_CK_RLSEL_LE2_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rlsel_nc_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L3_CK_RLSEL_NC_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rlsel_tap0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L3_CK_RLSEL_TAP0_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rssel_le1_1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L0_CK_RSSEL_LE1_1_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rssel_le1_2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EC8, L0_CK_RSSEL_LE1_2_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rssel_le1_1_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED0, L3_CK_RSSEL_LE1_1_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rssel_le1_2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED0, L3_CK_RSSEL_LE1_2_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rssel_le2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED0, L0_CK_RSSEL_LE2_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rssel_tap0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED0, L0_CK_RSSEL_TAP0_MASK, val);
+}
+
+static inline void u3rx_l0_ck_koff_range_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED0, L0_CK_KOFF_RANGE_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rssel_le2_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED8, L3_CK_RSSEL_LE2_MASK, val);
+}
+
+static inline void u3rx_l3_ck_rssel_tap0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED8, L3_CK_RSSEL_TAP0_MASK, val);
+}
+
+static inline void u3rx_l3_ck_koff_range_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED8, L3_CK_KOFF_RANGE_MASK, val);
+}
+
+static inline void u3rx_l0_ck_le1_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED8, L0_CK_LE1_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_le2_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0ED8, L0_CK_LE2_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_le1_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE0, L3_CK_LE1_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_le2_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE0, L3_CK_LE2_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_le_nc_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE0, L0_CK_LE_NC_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_tap0_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE0, L0_CK_TAP0_ISEL_MASK, val);
+}
+
+static inline void u3rx_l3_ck_le_nc_isel_in_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L3_CK_LE_NC_ISEL_IN_MASK, val);
+}
+
+static inline void u3rx_l3_ck_tap0_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L3_CK_TAP0_ISEL_MASK, val);
+}
+
+static inline void u3rx_l0_ck_le_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_LE_IHALF_MASK, val);
+}
+
+static inline void u3rx_l0_ck_nc_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_NC_IHALF_MASK, val);
+}
+
+static inline void u3rx_l0_ck_tap0_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_TAP0_IHALF_MASK, val);
+}
+
+static inline void u3rx_l0_ck_leq6g_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_LEQ6G_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_rs_cal_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_RS_CAL_EN_MASK, val);
+}
+
+static inline void u3rx_l0_ck_pow_nc_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_POW_NC_MASK, val);
+}
+
+static inline void u3rx_l0_ck_pow_leq_koff_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EE8, L0_CK_POW_LEQ_KOFF_MASK, val);
+}
+
+static inline void u3rx_l1_ck_le_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_LE_IHALF_MASK, val);
+}
+
+static inline void u3rx_l1_ck_nc_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_NC_IHALF_MASK, val);
+}
+
+static inline void u3rx_l1_ck_tap0_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_TAP0_IHALF_MASK, val);
+}
+
+static inline void u3rx_l1_ck_leq6g_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_LEQ6G_EN_MASK, val);
+}
+
+static inline void u3rx_l1_ck_rs_cal_en_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_RS_CAL_EN_MASK, val);
+}
+
+static inline void u3rx_l1_ck_pow_nc_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_POW_NC_MASK, val);
+}
+
+static inline void u3rx_l1_ck_pow_leq_koff_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L1_CK_POW_LEQ_KOFF_MASK, val);
+}
+
+static inline void u3rx_l2_ck_pow_leq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L2_CK_POW_LEQ_MASK, val);
+}
+
+static inline void u3rx_l2_ck_le_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L2_CK_LE_IHALF_MASK, val);
+}
+
+static inline void u3rx_l2_ck_nc_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L2_CK_NC_IHALF_MASK, val);
+}
+
+static inline void u3rx_l2_ck_tap0_ihalf_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF0, L2_CK_TAP0_IHALF_MASK, val);
+}
+
+static inline void u3rx_l3_pow_leq_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_POW_LEQ_MASK, val);
+}
+
+static inline void u3rx_l3_pow_datalane_bias_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_POW_DATALANE_BIAS_MASK, val);
+}
+
+static inline void u3rx_l3_reg_force_startup_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_REG_FORCE_STARTUP_MASK, val);
+}
+
+static inline void u3rx_l3_reg_powb_startup_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_REG_POWB_STARTUP_MASK, val);
+}
+
+static inline void u3rx_l3_datalane_bias_isel_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_DATALANE_BIAS_ISEL_MASK, val);
+}
+
+static inline void u3rx_l3_pow_leq_rl_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L3_POW_LEQ_RL_MASK, val);
+}
+
+static inline void u3rx_l0_pow_cmfb_1p8_cdm_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L0_POW_CMFB_1P8_CDM_MASK, val);
+}
+
+static inline void u3rx_l0_sel_cmfb_ls_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L0_SEL_CMFB_LS_MASK, val);
+}
+
+static inline void u3rx_l0_leq_cur_adj_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L0_LEQ_CUR_ADJ_MASK, val);
+}
+
+static inline void u3rx_l0_ptat_cur_adj_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L0_PTAT_CUR_ADJ_MASK, val);
+}
+
+static inline void u3rx_l0_bias_pow_con_gm_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0EF8, L0_BIAS_POW_CON_GM_MASK, val);
+}
+
+static inline void u3rx_reg_pow_cmfb_1p8_cdm_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F00, REG_POW_CMFB_1P8_CDM_MASK, val);
+}
+
+static inline void u3rx_reg_sel_cmfb_ls_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F00, REG_SEL_CMFB_LS_MASK, val);
+}
+
+static inline void u3rx_reg_leq_cur_adj_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F00, REG_LEQ_CUR_ADJ_MASK, val);
+}
+
+static inline void u3rx_reg_ptat_cur_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F00, REG_PTAT_CUR_MASK, val);
+}
+
+static inline void u3rx_reg_bias_pow_con_gm_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F00, REG_BIAS_POW_CON_GM_MASK, val);
+}
+
+static inline void u3rx_reg_ck_tst_sel_rev_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F04, REG_CK_TST_SEL_REV_L0_MASK, val);
+}
+
+static inline void u3rx_reg_ck_tst_sel_rev_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F04, REG_CK_TST_SEL_REV_L3_MASK, val);
+}
+
+static inline void u3rx_reg_demux_rstb_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F10, REG_DEMUX_RSTB_L0_MASK, val);
+}
+
+static inline void u3rx_reg_demux_rstb_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F14, REG_DEMUX_RSTB_L3_MASK, val);
+}
+
+static inline void u3rx_reg_dp0_usb1_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F14, REG_DP0_USB1_L0_MASK, val);
+}
+
+static inline void u3rx_reg_dp0_usb1_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F14, REG_DP0_USB1_L3_MASK, val);
+}
+
+static inline void u3rx_reg_z0_ft_pn_short_en_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F14, REG_Z0_FT_PN_SHORT_EN_L0_MASK, val);
+}
+
+static inline void u3rx_reg_z0_ft_pn_short_en_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F14, REG_Z0_FT_PN_SHORT_EN_L3_MASK, val);
+}
+
+static inline void u3rx_reg_z0_n_off_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F18, REG_Z0_N_OFF_L0_MASK, val);
+}
+
+static inline void u3rx_reg_z0_n_off_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F18, REG_Z0_N_OFF_L3_MASK, val);
+}
+
+static inline void u3rx_reg_z0_p_off_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F18, REG_Z0_P_OFF_L0_MASK, val);
+}
+
+static inline void u3rx_reg_z0_p_off_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F18, REG_Z0_P_OFF_L3_MASK, val);
+}
+
+static inline void u3rx_reg_hdmirx_bias_en_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F1C, REG_HDMIRX_BIAS_EN_L0_MASK, val);
+}
+
+static inline void u3rx_reg_hdmirx_bias_en_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F1C, REG_HDMIRX_BIAS_EN_L3_MASK, val);
+}
+
+static inline void u3rx_reg_pow_rterm_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F40, REG_POW_RTERM_L0_MASK, val);
+}
+
+static inline void u3rx_reg_pow_rterm_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F40, REG_POW_RTERM_L3_MASK, val);
+}
+
+static inline void u3rx_reg_rx50_link_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F40, REG_RX50_LINK_L0_MASK, val);
+}
+
+static inline void u3rx_reg_rx50_link_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F40, REG_RX50_LINK_L3_MASK, val);
+}
+
+static inline void u3rx_reg_rx_en_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F44, REG_RX_EN_L0_MASK, val);
+}
+
+static inline void u3rx_reg_rx_en_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F44, REG_RX_EN_L3_MASK, val);
+}
+
+static inline void u3rx_reg_sel_rx50_link_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F58, REG_SEL_RX50_LINK_L0_MASK, val);
+}
+
+static inline void u3rx_reg_sel_rx50_link_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F58, REG_SEL_RX50_LINK_L3_MASK, val);
+}
+
+static inline void u3rx_reg_sel_rx_en_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F58, REG_SEL_RX_EN_L0_MASK, val);
+}
+
+static inline void u3rx_reg_sel_rx_en_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F58, REG_SEL_RX_EN_L3_MASK, val);
+}
+
+static inline void u3rx_reg_z0_adjr_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F9C, REG_Z0_ADJR_L0_MASK, val);
+}
+
+static inline void u3rx_reg_z0_adjr_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0F9C, REG_Z0_ADJR_L3_MASK, val);
+}
+
+static inline void u3rx_reg_z0_z0pow_fix_l0_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0FA0, REG_Z0_Z0POW_FIX_L0_MASK, val);
+}
+
+static inline void u3rx_reg_z0_z0pow_fix_l3_set(struct type_c_data *typec, u32 val)
+{
+	u3rx_update_bits(typec, U3DP_PHY_REG_ANA_0FA0, REG_Z0_Z0POW_FIX_L3_MASK, val);
+}
+#endif

@@ -15,5 +15,6 @@ patch 833-usb-gadget-function-add-a-f_usbperf-for-usb-performa.patch
 patch 833-01-BUG_FIX-usb-gadget-function-f_ncm-add-the-workaround.patch
 patch 834-revert-USB-xhci-plat-fix-legacy-PHY-double-init.patch
 patch 835-usb-typec-rts54xx-add-realtek-rts54xx-type-c.patch
+patch 836-phy-fix-usb3dp-build-fail.patch
 
 kconf hardware usb.cfg

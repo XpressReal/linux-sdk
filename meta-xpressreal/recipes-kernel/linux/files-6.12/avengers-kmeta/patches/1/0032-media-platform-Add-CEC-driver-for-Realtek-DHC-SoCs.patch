@@ -1,0 +1,42 @@
+From cf8f0245a604c9677cb5f1e75da684e47a47957d Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 21:31:53 +0800
+Subject: [PATCH 32/73]  media: platform: Add CEC driver for Realtek DHC SoCs
+
+Change-Id: I6c691b855124d8e50a0b423f7f72fcd8d65fae06
+---
+ drivers/media/cec/platform/Kconfig  | 10 ++++++++++
+ drivers/media/cec/platform/Makefile |  2 +-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/cec/platform/Kconfig b/drivers/media/cec/platform/Kconfig
+index ede81fe331b0d..51ec0be68228d 100644
+--- a/drivers/media/cec/platform/Kconfig
++++ b/drivers/media/cec/platform/Kconfig
+@@ -118,3 +118,13 @@ config CEC_SECO_RC
+ 	  SECO Boards Consumer-IR in seco-cec driver.
+ 	  The embedded controller supports RC5 protocol only, default mapping
+ 	  is set to rc-hauppauge.
++
++config CEC_RTK
++	tristate "Realtek HDMI CEC driver"
++	select CEC_CORE
++	select CEC_NOTIFIER
++	help
++	  This is a driver for Realtek HDMI CEC interface. It uses the
++	  generic CEC framework interface.
++	  CEC bus is present in the HDMI connector and enables communication
++	  between compatible devices.
+diff --git a/drivers/media/cec/platform/Makefile b/drivers/media/cec/platform/Makefile
+index a51e98ab4958d..c9c059bde84d2 100644
+--- a/drivers/media/cec/platform/Makefile
++++ b/drivers/media/cec/platform/Makefile
+@@ -12,4 +12,4 @@ obj-$(CONFIG_CEC_SECO) += seco/
+ obj-$(CONFIG_CEC_STI) += sti/
+ obj-$(CONFIG_CEC_STM32) += stm32/
+ obj-$(CONFIG_CEC_TEGRA) += tegra/
+-
++obj-$(CONFIG_CEC_RTK) += realtek/
+-- 
+2.47.0
+

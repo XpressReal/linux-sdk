@@ -19,6 +19,7 @@ inherit autotools deploy nopackages
 TARGET_LDFLAGS:append = " -static"
 
 do_deploy() {
+	${STRIP} ${B}/pv
 	install -d ${DEPLOYDIR}/staging
 	install -m 0755 ${B}/pv ${DEPLOYDIR}/staging/
 }

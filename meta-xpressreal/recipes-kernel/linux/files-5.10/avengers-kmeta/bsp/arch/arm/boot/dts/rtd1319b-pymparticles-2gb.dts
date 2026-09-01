@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2019-2020 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1319b-pymparticles.dtsi"
+
+/ {
+	compatible = "realtek,pym-particles", "realtek,rtd1319b";
+	model = "Realtek Pym Particles EVB (2GB, TEE)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x000040000 0x7ffc0000>; /* 2 GiB */
+	};
+
+	chosen {
+		linux,initrd-start = <0x03100000>;
+		linux,initrd-end = <0x03500000>;
+		bootargs = "console=ttyS0,460800 init=/init loop.max_part=7 androidboot.storage=emmc androidboot.hardware=hank";
+	};
+};
+
+&reserved_memory {
+	linux,cma_3 {
+		size = <0x12000000>;
+	};
+
+	linux,cma_6 {
+		status = "disabled";
+	};
+};
+
+&pcie {
+	status = "disabled";
+};
+
+&pcie1 {
+	status = "disabled";
+};
+
+&pcie2 {
+	status = "disabled";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&rfkill {
+	status = "okay";
+};

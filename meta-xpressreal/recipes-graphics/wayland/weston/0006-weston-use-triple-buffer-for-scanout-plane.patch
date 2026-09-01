@@ -4,6 +4,8 @@ Date: Tue, 8 Oct 2024 14:04:03 +0800
 Subject: [PATCH] weston use triple buffer for scanout plane
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/drm-internal.h |  6 ++++++
  libweston/backend-drm/drm.c          |  2 ++

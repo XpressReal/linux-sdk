@@ -43,7 +43,7 @@ static inline const u32 get_rtd1xxx_gpio_select(void) {
 static inline const bool rtk_is_secure_boot(void) {
 	struct arm_smccc_res res = {0};
 	bool ret = 0;
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	char mem __aligned(64) = 0;
 	flush_cache((uintptr_t)&mem, 1);
 	arm_smccc_smc(0x82000401, (uintptr_t)&mem, 0, 0, 0, 0, 0, 0, &res);
@@ -56,7 +56,7 @@ static inline const bool rtk_is_secure_boot(void) {
 	return ret;
 }
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 static inline u32 rtk_get_bootmode(void)
 {
 	return (__raw_readl(0x98007678) >> 29) & GENMASK(1, 0);

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config RTK_XDI
+	tristate "RTK xDI Support"
+	help
+	  This enables support for Realtek xDI devices.

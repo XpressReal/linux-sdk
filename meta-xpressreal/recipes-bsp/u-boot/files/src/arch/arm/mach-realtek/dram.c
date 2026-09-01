@@ -44,7 +44,9 @@ static struct mm_region rtd161xb_mem_map[] = {
 		/* RBUS */
 		.virt = RBUS_ADDR,
 		.phys = RBUS_ADDR,
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1635)
+		.size = 0x00700000,
+#elif defined(CONFIG_TARGET_RTD1625)
 		.size = 0x00EF0000,
 #else
 		.size = MMU_SECTION_SIZE,
@@ -80,7 +82,7 @@ int dram_init_banksize(void)
 	gd->bd->bi_dram[0].start = gd->ram_base;
 	gd->bd->bi_dram[0].size = get_effective_memsize();
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	if (sizeGB >= 4) {
 		gd->bd->bi_dram[1].start = 0x8a100000;
 		gd->bd->bi_dram[1].size = 0x0def0000;
@@ -96,6 +98,10 @@ int dram_init_banksize(void)
 		gd->bd->bi_dram[4].size = 0xa0000000;
 		gd->bd->bi_dram[5].start = 0x1a0600000;
 		gd->bd->bi_dram[5].size = 0x5fa00000;
+	}
+	if (sizeGB >= 16) {
+		gd->bd->bi_dram[6].start = 0x200000000;
+		gd->bd->bi_dram[6].size = 0x200000000;
 	}
 #else
 	if (sizeGB >= 3) {
@@ -129,7 +135,7 @@ int dram_init(void)
 	if (size > (phys_size_t)SZ_2G)
 		size = SZ_2G;
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	gd->ram_base = 0x00050000;
 #else
 	gd->ram_base = 0x00040000;

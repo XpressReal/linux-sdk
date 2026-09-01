@@ -1,0 +1,120 @@
+From b30c93f1382a8a4f26bee582182166ae9c90c0d6 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Wed, 8 Jul 2026 14:49:15 +0800
+Subject: [PATCH] gpu: drm: fix incorrect mixer number and frame buffer pitch
+
+  - fix incorrect mixer number
+  - fix incorrect frame buffer pitch
+  - set low-delay display mode for aosp/chrome platform
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c  |  4 +++-
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 23 ++++++++++++++++-------
+ drivers/gpu/drm/realtek/rtk_drm_rpc.h   |  3 ++-
+ 3 files changed, 21 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 66d13e199ef07..82776fa62567b 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -534,7 +534,8 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 	dev_set_drvdata(dev, rtk_crtc);
+ 
+ 	rtk_crtc->rpc_info = &priv->rpc_info[RTK_RPC_MAIN];
+-	memset(&rtk_crtc->mixer_order, 0, sizeof(struct rpc_disp_mixer_order));
++	// set unused mixer order to 10
++	memset(&rtk_crtc->mixer_order, 10, sizeof(struct rpc_disp_mixer_order));
+ 
+ 	display_type = priv->display_type;
+ 
+@@ -637,6 +638,7 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 		}
+ #endif
+ 	}
++	rtk_crtc->mixer_order.MixerNum = rtk_crtc->mixer;
+ 
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (rtk_crtc_set_mixer_order(rtk_crtc->rpc_info, &rtk_crtc->mixer_order)) {
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 41d22f762bdfa..89ad0170e4479 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -564,37 +564,32 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 	init_video_object(obj);
+ 
+ 	DRM_DEBUG_DRIVER("fb info:\n");
+-	DRM_DEBUG_DRIVER("widthxheight (%dx%d)\n", fb->width, fb->height);
++	DRM_DEBUG_DRIVER("widthxheight (%dx%d), pitch: %d\n", fb->width, fb->height, fb->pitches[0]);
+ 	DRM_DEBUG_DRIVER("format (0x%x) num_planes (%d)\n", fb->format->format, info->num_planes);
+ 
+ 	switch (fb->format->format) {
+ 		case DRM_FORMAT_NV12:
+-			obj->Y_pitch = fb->width;
+ 			break;
+ 		case DRM_FORMAT_NV21:
+ 			obj->mode |= INBAND_CMD_VIDEO_FORMAT_NV21;
+-			obj->Y_pitch = fb->width;
+ 			break;
+ 		case DRM_FORMAT_YUYV:
+ 			obj->mode |= INBAND_CMD_VIDEO_FORMAT_PACKED_EN;
+-			obj->Y_pitch = fb->width * 2;
+ 			break;
+ 		case DRM_FORMAT_YVYU:
+ 			obj->mode |= (INBAND_CMD_VIDEO_FORMAT_PACKED_EN | INBAND_CMD_VIDEO_FORMAT_YVYU);
+-			obj->Y_pitch = fb->width * 2;
+ 			break;
+ 		case DRM_FORMAT_UYVY:
+ 			obj->mode |= (INBAND_CMD_VIDEO_FORMAT_PACKED_EN | INBAND_CMD_VIDEO_FORMAT_UYVY);
+-			obj->Y_pitch = fb->width * 2;
+ 			break;
+ 		case DRM_FORMAT_VYUY:
+ 			obj->mode |= (INBAND_CMD_VIDEO_FORMAT_PACKED_EN | INBAND_CMD_VIDEO_FORMAT_VYUY);
+-			obj->Y_pitch = fb->width * 2;
+ 			break;
+ 		default:
+ 			DRM_ERROR("Unsupported video format\n");
+ 			break;
+ 	}
++	obj->Y_pitch = fb->pitches[0];
+ 
+ #ifdef CONFIG_RTK_METADATA_AUTOJUDGE
+ 	if (rtk_gem[0]->dmabuf_type == DMABUF_TYPE_NORMAL) {
+@@ -1521,6 +1516,20 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 
+ 	rtk_plane_rpc_init(rtk_plane, layer_nr);
+ 
++#if defined(CONFIG_CHROME_PLATFORMS)
++	/* Put video/overlay channels into low-delay display mode at init */
++	if (type == DRM_PLANE_TYPE_OVERLAY) {
++		struct rpc_config_channel_lowdelay arg;
++
++		arg.mode = LOW_DELAY_DISPLAY;
++		arg.instanceId = rtk_plane->info.instance;
++
++		if (rpc_video_config_channel_lowdelay(rpc_info, &arg))
++			DRM_ERROR("%s: set LOW_DELAY_DISPLAY fail\n",
++				  plane_names[rtk_plane->layer_nr]);
++	}
++#endif
++
+ 	if (type == DRM_PLANE_TYPE_PRIMARY)
+ 		rtk_drm_fence_init(rtk_plane);
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.h b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+index fdb5d88fdc041..74c0d48cfd8e8 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+@@ -1488,7 +1488,8 @@ struct rpc_disp_mixer_order {
+ 	unsigned char v4;
+ 	unsigned char osd3;
+ 	unsigned char osd4;
+-	unsigned char reserved[3] ;
++	unsigned char MixerNum;
++	unsigned char reserved[2] ;
+ };
+ 
+ /**
+-- 
+2.50.1
+

@@ -4,6 +4,8 @@ Date: Tue, 8 Oct 2024 13:16:07 +0800
 Subject: [PATCH] add alpha channel when gbm format ARGB8888
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/drm-gbm.c | 6 +++++-
  1 file changed, 5 insertions(+), 1 deletion(-)

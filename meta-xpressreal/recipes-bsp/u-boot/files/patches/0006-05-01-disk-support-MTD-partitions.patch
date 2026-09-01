@@ -1,0 +1,155 @@
+From c29a6daec184dd429bfccee42179bb5b079843b8 Mon Sep 17 00:00:00 2001
+From: Alexey Romanov <avromanov@salutedevices.com>
+Date: Thu, 18 Jul 2024 08:46:04 +0300
+Subject: [PATCH 1/9] disk: support MTD partitions
+
+Add new MTD partition driver, which can be useful with
+mtdblock driver combination.
+
+Signed-off-by: Alexey Romanov <avromanov@salutedevices.com>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ disk/part.c           |  3 +-
+ drivers/mtd/Kconfig   |  1 +
+ drivers/mtd/mtdpart.c | 76 +++++++++++++++++++++++++++++++++++++++++++
+ include/part.h        |  3 ++
+ 4 files changed, 82 insertions(+), 1 deletion(-)
+
+diff --git a/disk/part.c b/disk/part.c
+index bc932526f90..86f669926e1 100644
+--- a/disk/part.c
++++ b/disk/part.c
+@@ -304,7 +304,8 @@ static void print_part_header(const char *type, struct blk_desc *desc)
+ 	CONFIG_IS_ENABLED(DOS_PARTITION) || \
+ 	CONFIG_IS_ENABLED(ISO_PARTITION) || \
+ 	CONFIG_IS_ENABLED(AMIGA_PARTITION) || \
+-	CONFIG_IS_ENABLED(EFI_PARTITION)
++	CONFIG_IS_ENABLED(EFI_PARTITION) || \
++	CONFIG_IS_ENABLED(MTD_PARTITIONS)
+ 	puts ("\nPartition Map for ");
+ 	switch (desc->uclass_id) {
+ 	case UCLASS_IDE:
+diff --git a/drivers/mtd/Kconfig b/drivers/mtd/Kconfig
+index 4fdc9645d08..e4e29e0a3c3 100644
+--- a/drivers/mtd/Kconfig
++++ b/drivers/mtd/Kconfig
+@@ -2,6 +2,7 @@ menu "MTD Support"
+ 
+ config MTD_PARTITIONS
+ 	bool
++	select PARTITIONS
+ 
+ config MTD
+ 	bool "Enable MTD layer"
+diff --git a/drivers/mtd/mtdpart.c b/drivers/mtd/mtdpart.c
+index be1d19b4ffa..88094b81e7a 100644
+--- a/drivers/mtd/mtdpart.c
++++ b/drivers/mtd/mtdpart.c
+@@ -20,4 +20,6 @@
+ #include <malloc.h>
++#include <memalign.h>
++#include <part.h>
+ #include <linux/bug.h>
+ #include <linux/errno.h>
+ #include <linux/compat.h>
+@@ -1054,3 +1056,77 @@ uint64_t mtd_get_device_size(const struct mtd_info *mtd)
+ 	return mtd->size;
+ }
+ EXPORT_SYMBOL_GPL(mtd_get_device_size);
++
++static struct mtd_info *mtd_get_partition_by_index(struct mtd_info *mtd, int index)
++{
++	struct mtd_info *part;
++	int i = 0;
++
++	list_for_each_entry(part, &mtd->partitions, node)
++		if (i++ == index)
++			return part;
++
++	debug("Partition with idx=%d not found on MTD device %s\n", index, mtd->name);
++	return NULL;
++}
++
++static int __maybe_unused part_get_info_mtd(struct blk_desc *dev_desc, int part_idx,
++					    struct disk_partition *info)
++{
++	struct mtd_info *master = blk_desc_to_mtd(dev_desc);
++	struct mtd_info *part;
++
++	if (!master) {
++		debug("MTD device is NULL\n");
++		return -EINVAL;
++	}
++
++	part = mtd_get_partition_by_index(master, part_idx);
++	if (!part) {
++		debug("Failed to find partition with idx=%d\n", part_idx);
++		return -EINVAL;
++	}
++
++	snprintf(info->name, PART_NAME_LEN, part->name);
++	info->start = part->offset / dev_desc->blksz;
++	info->size = part->size / dev_desc->blksz;
++	info->blksz = dev_desc->blksz;
++
++	return 0;
++}
++
++static void __maybe_unused part_print_mtd(struct blk_desc *dev_desc)
++{
++	struct mtd_info *master = blk_desc_to_mtd(dev_desc);
++	struct mtd_info *part;
++
++	if (!master)
++		return;
++
++	list_for_each_entry(part, &master->partitions, node)
++		printf("- 0x%012llx-0x%012llx : \"%s\"\n",
++		       part->offset, part->offset + part->size, part->name);
++}
++
++static int part_test_mtd(struct blk_desc *dev_desc)
++{
++	struct mtd_info *master = blk_desc_to_mtd(dev_desc);
++	ALLOC_CACHE_ALIGN_BUFFER(unsigned char, buffer, dev_desc->blksz);
++
++	if (!master)
++		return -1;
++
++	if (blk_dread(dev_desc, 0, 1, (ulong *)buffer) != 1)
++		return -1;
++
++	return 0;
++}
++
++U_BOOT_PART_TYPE(mtd) = {
++	.name		= "MTD",
++	.part_type	= PART_TYPE_MTD,
++	.max_entries	= MTD_ENTRY_NUMBERS,
++	.get_info	= part_get_info_ptr(part_get_info_mtd),
++	.print		= part_print_ptr(part_print_mtd),
++	.test		= part_test_mtd,
++};
+diff --git a/include/part.h b/include/part.h
+index b187ec4b4bd..a5994f2cace 100644
+--- a/include/part.h
++++ b/include/part.h
+@@ -30,12 +30,15 @@ struct block_drvr {
+ #define PART_TYPE_ISO		0x03
+ #define PART_TYPE_AMIGA		0x04
+ #define PART_TYPE_EFI		0x05
++#define PART_TYPE_MTD		0x06
+ 
+ /* maximum number of partition entries supported by search */
+ #define DOS_ENTRY_NUMBERS	8
+ #define ISO_ENTRY_NUMBERS	64
+ #define MAC_ENTRY_NUMBERS	64
+ #define AMIGA_ENTRY_NUMBERS	8
++#define MTD_ENTRY_NUMBERS	64
++
+ /*
+  * Type string for U-Boot bootable partitions
+  */
+-- 
+2.47.0
+

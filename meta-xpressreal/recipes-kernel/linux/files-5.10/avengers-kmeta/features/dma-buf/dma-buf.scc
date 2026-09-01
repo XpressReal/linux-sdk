@@ -1,0 +1,21 @@
+patch 0001-Revert-treewide-Change-list_sort-to-use-const-pointe.patch
+patch 001-ANDROID-dma-heap-Add-proper-kref-handling-on-dma-buf.patch
+patch 002-ANDROID-dma-heap-Refactor-code-to-allow-for-future-i.patch
+patch 003-ANDROID-dma-heap-Rework-allocation-calls-to-return-s.patch
+patch 004-BACKPORT-dma-buf-system_heap-Rework-system-heap-to-u.patch
+patch 005-ANDROID-dma-heap-Provide-accessors-so-that-in-kernel.patch
+patch 006-BACKPORT-dma-buf-heaps-Move-heap-helper-logic-into-t.patch
+patch 007-ANDROID-dma-buf-Cleanup-minor-usage-in-Add-proper-kr.patch
+patch 008-BACKPORT-dma-buf-heaps-Skip-sync-if-not-mapped.patch
+patch 009-FROMLIST-dma-buf-dma-heap-Keep-track-of-the-heap-dev.patch
+patch 010-FROMGIT-dma-buf-cma_heap-Fix-memory-leak-in-CMA-heap.patch
+patch 011-FROMLIST-mm-cma-introduce-gfp-flag-in-cma_alloc-inst.patch
+patch 012-BACKPORT-FROMLIST-dma-buf-dma-heap-Provide-accessor-.patch
+patch 013-FROMLIST-dma-buf-heaps-Fix-the-name-used-when-export.patch
+patch 014-FROMLIST-dma-buf-support-users-to-change-dma_buf.nam.patch
+patch 015-ANDROID-dma-buf-Add-support-for-partial-cache-mainte.patch
+patch 016-add-media-heap-for-Realtek-DHC-SoCs.patch
+patch 017-dma-buf-heaps-realtek-an-option-to-use-Realtek-media.patch
+patch 018-dma-buf-heaps-add-sync-function-for-Realtek-media-he.patch
+
+kconf non-hardware dma-buf.cfg

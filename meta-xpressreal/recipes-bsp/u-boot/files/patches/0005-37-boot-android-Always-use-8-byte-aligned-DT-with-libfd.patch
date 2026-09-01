@@ -1,0 +1,112 @@
+From 2da3af2f9ee0dbacaf26e95e1ae5261445f1a43c Mon Sep 17 00:00:00 2001
+From: Marek Vasut <marek.vasut+renesas@mailbox.org>
+Date: Wed, 19 Nov 2025 20:32:51 +0100
+Subject: [PATCH] boot: android: Always use 8-byte aligned DT with libfdt
+
+Newer versions of libfdt strictly check whether the FDT blob
+passed to them is at 8-byte aligned offset, if it is not, then
+the library fails checks with -FDT_ERR_ALIGNMENT . Currently,
+android_image_print_dtb_contents() passed FDT directly mapped
+from abootimg to libfdt, and this FDT is not always aligned to
+8-byte offset. Specifically, the FDTs are somewhat packed in
+the abootimg, therefore if the first FDT blob is e.g. 0xfd bytes
+long, then the next FDT blob ends up at 0xfd offset, which is
+not 8-byte aligned.
+
+Fix this by first extracting the header into 8-byte aligned buffer,
+checking only the header for validity, and then by copying the
+entire FDT into newly allocated 8-byte aligned buffer. While this
+is not efficient, it is the correct way to handle DTs, which must
+be at 8-byte aligned offsets. Mitigate the inefficiency for the
+common case by checking whether the DT might be 8-byte aligned and
+if it is, map it directly.
+
+Signed-off-by: Marek Vasut <marek.vasut+renesas@mailbox.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Reviewed-by: Tom Rini <trini@konsulko.com>
+Link: https://lore.kernel.org/r/20251119193311.127633-1-marek.vasut+renesas@mailbox.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ boot/image-android.c | 42 +++++++++++++++++++++++++++++++-----------
+ 1 file changed, 31 insertions(+), 11 deletions(-)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index e46dee0d9b3..ea47869a64c 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -721,17 +721,19 @@ bool android_image_get_dtb_by_index(ulong hdr_addr, ulong vendor_boot_img,
+ 	dtb_addr = dtb_img_addr;
+ 	while (dtb_addr < dtb_img_addr + dtb_img_size) {
+ 		const struct fdt_header *fdt;
++		struct fdt_header fdth __aligned(8);
+ 		u32 dtb_size;
+ 
+ 		fdt = map_sysmem(dtb_addr, sizeof(*fdt));
+-		if (fdt_check_header(fdt) != 0) {
+-			unmap_sysmem(fdt);
++		memcpy(&fdth, fdt, sizeof(*fdt));
++		unmap_sysmem(fdt);
++
++		if (fdt_check_header(&fdth) != 0) {
+ 			printf("Error: Invalid FDT header for index %u\n", i);
+ 			return false;
+ 		}
+ 
+-		dtb_size = fdt_totalsize(fdt);
+-		unmap_sysmem(fdt);
++		dtb_size = fdt_totalsize(&fdth);
+ 
+ 		if (i == index) {
+ 			if (size)
+@@ -885,23 +887,41 @@ bool android_image_print_dtb_contents(ulong hdr_addr)
+ 	dtb_addr = dtb_img_addr;
+ 	while (dtb_addr < dtb_img_addr + dtb_img_size) {
+ 		const struct fdt_header *fdt;
++		struct fdt_header *fulldt;
++		struct fdt_header fdth __aligned(8);
+ 		u32 dtb_size;
+ 
+ 		fdt = map_sysmem(dtb_addr, sizeof(*fdt));
+-		if (fdt_check_header(fdt) != 0) {
+-			unmap_sysmem(fdt);
++		memcpy(&fdth, fdt, sizeof(*fdt));
++		unmap_sysmem(fdt);
++
++		if (fdt_check_header(&fdth) != 0) {
+ 			printf("Error: Invalid FDT header for index %u\n", i);
+ 			return false;
+ 		}
+ 
+-		res = android_image_print_dtb_info(fdt, i);
+-		if (!res) {
++		dtb_size = fdt_totalsize(&fdth);
++
++		/* The device tree must be at an 8-byte aligned address */
++		if (!IS_ALIGNED((uintptr_t)fdt, 8)) {
++			fulldt = memalign(8, dtb_size);
++			if (!fulldt)
++				return false;
++
++			fdt = map_sysmem(dtb_addr, dtb_size);
++			memcpy(fulldt, fdt, dtb_size);
+ 			unmap_sysmem(fdt);
+-			return false;
++			res = android_image_print_dtb_info(fulldt, i);
++			free(fulldt);
++		} else {
++			fulldt = map_sysmem(dtb_addr, dtb_size);
++			res = android_image_print_dtb_info(fulldt, i);
++			unmap_sysmem(fulldt);
+ 		}
+ 
+-		dtb_size = fdt_totalsize(fdt);
+-		unmap_sysmem(fdt);
++		if (!res)
++			return false;
++
+ 		dtb_addr += dtb_size;
+ 		++i;
+ 	}
+-- 
+2.47.0
+

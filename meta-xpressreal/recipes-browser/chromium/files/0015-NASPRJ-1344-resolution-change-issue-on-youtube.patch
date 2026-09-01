@@ -1,0 +1,32 @@
+From 3b86237d290eda26e38a98310673eb48af71e59c Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Fri, 27 Mar 2026 02:51:36 -0400
+Subject: [PATCH] NASPRJ-1344: resolution change issue on youtube
+
+v4l2 use V4L2_MEMORY_MMAP mode, the main_frame_pool will be reset after PickDecoderOutputFormat.
+It will cause crash at calling InitializeTask when resolution change
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ media/gpu/chromeos/mailbox_video_frame_converter.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/media/gpu/chromeos/mailbox_video_frame_converter.cc b/media/gpu/chromeos/mailbox_video_frame_converter.cc
+index 4ed96a780c..ad165631b2 100644
+--- a/media/gpu/chromeos/mailbox_video_frame_converter.cc
++++ b/media/gpu/chromeos/mailbox_video_frame_converter.cc
+@@ -501,7 +501,11 @@ bool MailboxVideoFrameConverter::HasPendingFramesImpl() const {
+ }
+ 
+ bool MailboxVideoFrameConverter::UsesGetOriginalFrameCBImpl() const {
++#if BUILDFLAG(IS_LINUX) && BUILDFLAG(USE_V4L2_CODEC)
++  return false;
++#elif
+   return true;
++#endif
+ }
+ 
+ void MailboxVideoFrameConverter::OnError(const base::Location& location,
+-- 
+2.34.1
+

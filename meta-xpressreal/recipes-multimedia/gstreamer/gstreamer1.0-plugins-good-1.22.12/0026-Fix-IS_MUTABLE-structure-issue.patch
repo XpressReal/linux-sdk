@@ -2,6 +2,8 @@ From 54f2c4aaae548eb8a6d4fb261f8d0a10830e32ab Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Thu, 2 Oct 2025 20:32:14 +0800
 Subject: [PATCH 1/1] Fix IS_MUTABLE (structure) issue
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 ---
  sys/v4l2/gstv4l2object.c | 10 ++++++++--

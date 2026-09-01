@@ -11,6 +11,7 @@
 #include <linux/arm-smccc.h>
 #include <linux/libfdt.h>
 #include <cpu_func.h>
+#include <semihosting.h>
 #include <spl.h>
 #include <mmc.h>
 #include <asm/sections.h>
@@ -46,10 +47,25 @@ void *board_fdt_blob_setup(int *err)
 }
 #endif
 
+#if defined(CONFIG_SPL_SPI_LOAD)
+u32 spl_spi_boot_bus(void)
+{
+	u32 bus = CONFIG_SF_DEFAULT_BUS;
+#ifdef CONFIG_SPI_RTK_SFC
+	bus = (CONFIG_IS_ENABLED(SPI_RTK_NAND)) ? 1 : 0;
+#endif
+	return bus;
+}
+#endif
 
 void board_boot_order(u32 *spl_boot_list)
 {
 	int index = 0;
+
+#if CONFIG_IS_ENABLED(SEMIHOSTING)
+	if (semihosting_enabled())
+		spl_boot_list[index++] = BOOT_DEVICE_SMH;
+#endif
 #if CONFIG_IS_ENABLED(USB_STORAGE)
 #if CONFIG_USB_BOOT_GPIO_NUM > 0
 	gpio_request(CONFIG_USB_BOOT_GPIO_NUM, "usb-boot-key");
@@ -72,7 +88,7 @@ void board_boot_order(u32 *spl_boot_list)
 
 #ifdef CONFIG_RTK_MMC_DRIVER
 	spl_boot_list[index++] = BOOT_DEVICE_MMC1;
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	/* Use eMMC boot part only on eMMC BOOT */
 	if (rtk_get_bootmode() == 0x3)
 #endif
@@ -83,9 +99,27 @@ void board_boot_order(u32 *spl_boot_list)
 #endif /* RTK_MMC_DRIVER */
 #endif /* SPL_MMC */
 
-#ifdef CONFIG_SPI_RTK_SFC
-	spl_boot_list[index++] = BOOT_DEVICE_SPI;
+#if CONFIG_IS_ENABLED(SPI_NAND_LOAD) && CONFIG_IS_ENABLED(SPI_RTK_NAND)
+	spl_boot_list[index++] = BOOT_DEVICE_NAND; // spl_ubi
+#endif /* SPI_RTK_NAND*/
+
+#if defined(CONFIG_SPL_SPI_LOAD) && defined(CONFIG_SPI_RTK_SFC)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
+	if (rtk_get_bootmode() == 0x2)
+#endif
+	spl_boot_list[index++] = BOOT_DEVICE_SPI; // spl_spi
 #endif /* SPI_RTK_SFC */
+
+#if CONFIG_IS_ENABLED(SPI_NAND_LOAD) && CONFIG_IS_ENABLED(SPI_RTK_NAND)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
+	if (rtk_get_bootmode() == 0x1)
+#endif
+	{
+	spl_boot_list[index++] = BOOT_DEVICE_SPI_NAND; // spl_spi_nand
+	spl_boot_list[index++] = BOOT_DEVICE_SPI_NAND; // spl_spi_nand
+	}
+#endif /* SPI_RTK_NAND*/
+
 	spl_boot_list[index++] = BOOT_DEVICE_NONE;
 }
 
@@ -146,6 +180,11 @@ static volatile uint FW_INFO[][3] = {
 	};
 
 #if CONFIG_IS_ENABLED(LOAD_FIT) || CONFIG_IS_ENABLED(LOAD_FIT_FULL)
+struct legacy_img_hdr *spl_get_load_buffer(ssize_t offset, size_t size)
+{
+	return (struct legacy_img_hdr *)(CONFIG_SYS_LOAD_ADDR);
+}
+
 void spl_perform_fixups(struct spl_image_info *spl_image) {
 	void *blob = spl_image->fdt_addr;
 	void *dtbo;
@@ -154,7 +193,7 @@ void spl_perform_fixups(struct spl_image_info *spl_image) {
 	int node;
 	const void *p;
 	int i;
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	const char *tee_dtbo_name = "rtd1501-tee";
 #else
 	const char *tee_dtbo_name = "tee";
@@ -227,7 +266,7 @@ int cmd_bl31_fw(uint idx)
 	a1 = fw_addr;
 	a2 = fw_size;
 	a3 = type;
-#elif defined(CONFIG_TARGET_RTD1625)
+#elif defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	if (!idx) {
 		/* (cert_pa, cert_size, fw_pa, fw_size) */
 		fid = 0x82000001;
@@ -236,6 +275,7 @@ int cmd_bl31_fw(uint idx)
 		a3 = fw_addr + 1024;
 		a4 = fw_size - 1024;
 	}
+#if defined(CONFIG_TARGET_RTD1625)
 	else if (idx == 1) {
 		fid = 0xBF000002; //NSSMC_OPTEED_CALL_LOAD_IMAGE;
 		a1 = 0x0;
@@ -243,6 +283,7 @@ int cmd_bl31_fw(uint idx)
 		a3 = 0x0;
 		a4 = fw_addr;
 	}
+#endif // CONFIG_TARGET_RTD1625
 #endif
 	if (fid) {
 		flush_cache(fw_addr, fw_size);
@@ -260,7 +301,7 @@ void spl_board_prepare_for_boot(void)
 #elif defined(CONFIG_TARGET_RTD1619B)
 	cmd_bl31_fw(0);
 	cmd_bl31_fw(1);
-#elif defined(CONFIG_TARGET_RTD1625)
+#elif defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	cmd_bl31_fw(0);
 	cmd_bl31_fw(1);
 #endif
@@ -268,7 +309,7 @@ void spl_board_prepare_for_boot(void)
 
 int fdtdec_board_setup(const void *fdt_blob) {
 	int ret = 0;
-#if defined(CONFIG_RTK_MMC_DRIVER)
+#if defined(CONFIG_RTK_MMC_DRIVER) || CONFIG_IS_ENABLED(SPI_RTK_NAND)
 	const bool secure = rtk_is_secure_boot();
 
 	if(FIT_IMAGE_ENABLE_VERIFY && secure)

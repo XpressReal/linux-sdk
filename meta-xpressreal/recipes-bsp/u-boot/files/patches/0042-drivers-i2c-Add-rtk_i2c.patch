@@ -16,7 +16,7 @@ index a96a8c7e95..d5e23492be 100644
  
  obj-$(CONFIG_$(SPL_)I2C_MUX) += muxes/
 +
-+ifndef CONFIG_TARGET_RTD1625
++ifdef CONFIG_TARGET_RTD1619B
 +obj-y += rtk_i2c-pow.o
 +obj-y += rtk_i2c-lib.o
 +obj-y += rtk_i2c.o

@@ -12,6 +12,7 @@ LIC_FILES_CHKSUM = "file://${WORKDIR}/objectdetect/ssdmobilenet/LICENSE.txt;md5=
 SOC_NAME:hank= "stark"
 SOC_NAME:stark = "stark"
 SOC_NAME:kent = "kent"
+SOC_NAME:prince = "kent"
 SOC_NAME:rtd16xx = "stark"
 
 SRC_URI = " \

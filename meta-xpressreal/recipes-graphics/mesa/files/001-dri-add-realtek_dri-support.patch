@@ -2,7 +2,8 @@ From 41de05d81fce84292b52d1b74a6e084e630be7d2 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
 Date: Thu, 15 May 2025 00:39:18 -0400
 Subject: [PATCH] dri-add-realtek_dri-support
-
+License: MIT
+Source: realtek
 ---
  src/gallium/targets/dri/meson.build | 1 +
  src/gallium/targets/dri/target.c    | 1 +

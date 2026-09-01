@@ -1,0 +1,12 @@
+config REALTEK_RPC_V2
+	tristate "Realtek RPC driver v2"
+	depends on REALTEK_SOC
+	select RTK_REFCLK
+	help
+	  new Realtek RPC driver.
+
+config RTK_VO_ON_HIFI
+	tristate "Realtek VO on HIFI"
+	depends on REALTEK_RPC_V2
+	help
+	  Enabled VO on HIFI feature.

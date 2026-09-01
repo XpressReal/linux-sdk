@@ -1,0 +1,42 @@
+From f83b03d1d0758749d8ee9c56d888e8a5d1c67460 Mon Sep 17 00:00:00 2001
+From: junfan_liu <junfan_liu@apowertec.com>
+Date: Thu, 22 May 2025 17:44:38 +0800
+Subject: [PATCH 18/33] arm64: dts: realtek: rtd1861:add lsadc button
+
+Change-Id: I0e60b8bbd768d2fd14cf8fe33eb2de95ab2737b6
+---
+ drivers/input/misc/Kconfig  | 9 +++++++++
+ drivers/input/misc/Makefile | 2 ++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/drivers/input/misc/Kconfig b/drivers/input/misc/Kconfig
+index 2804f4dc0c849..b9dc44b00634f 100644
+--- a/drivers/input/misc/Kconfig
++++ b/drivers/input/misc/Kconfig
+@@ -978,4 +978,13 @@ config INPUT_REALTEK_LSADC_KNOB
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called rtk_lsadc_knob.
+ 
++config INPUT_REALTEK_LSADC_BUTTON
++	tristate "Realtek LSADC Button support"
++	depends on IIO
++	select IIO_BUFFER_CB
++	help
++		Say Y to support Realtek LSADC Button.
++
++		To compile this driver as a module, choose M here: the
++		module will be called rtk_lsadc_button.
+ endif
+diff --git a/drivers/input/misc/Makefile b/drivers/input/misc/Makefile
+index 518368d54c042..5940acd0561d9 100644
+--- a/drivers/input/misc/Makefile
++++ b/drivers/input/misc/Makefile
+@@ -93,3 +93,5 @@ obj-$(CONFIG_INPUT_XEN_KBDDEV_FRONTEND)	+= xen-kbdfront.o
+ obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
+ obj-$(CONFIG_INPUT_IDEAPAD_SLIDEBAR)	+= ideapad_slidebar.o
+ obj-$(CONFIG_INPUT_REALTEK_LSADC_KNOB)	+= rtk_lsadc_knob.o
++obj-$(CONFIG_INPUT_REALTEK_LSADC_BUTTON)	+= rtk_lsadc_button.o
++
+-- 
+2.47.0
+

@@ -1,3 +1,4 @@
 patch 0001-chromium-browser-over-mali-patch.patch
+patch 309-soc-realtek-ve1-increase-MAX_NUM_INSTANCE-for-Androi.patch
 
 kconf hardware chromium-browser.cfg

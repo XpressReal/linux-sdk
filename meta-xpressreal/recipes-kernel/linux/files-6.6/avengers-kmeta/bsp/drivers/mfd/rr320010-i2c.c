@@ -8,9 +8,14 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 
+static const unsigned int rr320010_restore_regs[] = {
+	RR320010_BUCKS_BUCK8_VOUT,  /* cpudvs */
+};
+
 struct rr320010_device {
 	struct regmap *regmap;
 	struct device *dev;
+	unsigned int saved_regs[ARRAY_SIZE(rr320010_restore_regs)];
 };
 
 static bool rr320010_i2c_regmap_readable_reg(struct device *dev, unsigned int reg)
@@ -130,6 +135,7 @@ static int rr320010_i2c_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct rr320010_device *rrdev;
 	int ret;
+	int i;
 
 	rrdev = devm_kzalloc(dev, sizeof(*rrdev), GFP_KERNEL);
 	if (!rrdev)
@@ -142,6 +148,9 @@ static int rr320010_i2c_probe(struct i2c_client *client)
 	rrdev->dev = dev;
 	i2c_set_clientdata(client, rrdev);
 
+	for (i = 0; i < ARRAY_SIZE(rr320010_restore_regs); i++)
+		regmap_read(rrdev->regmap, rr320010_restore_regs[i], &rrdev->saved_regs[i]);
+
 	ret = devm_mfd_add_devices(rrdev->dev, PLATFORM_DEVID_NONE, rr320010_devs,
 				   ARRAY_SIZE(rr320010_devs), 0, 0, 0);
 	if (ret) {
@@ -153,6 +162,15 @@ static int rr320010_i2c_probe(struct i2c_client *client)
 
 static void rr320010_i2c_remove(struct i2c_client *client)
 {
+}
+
+static void rr320010_i2c_shutdown(struct i2c_client *client)
+{
+	struct rr320010_device *rrdev = i2c_get_clientdata(client);
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rr320010_restore_regs); i++)
+		regmap_write(rrdev->regmap, rr320010_restore_regs[i], rrdev->saved_regs[i]);
 }
 static const struct of_device_id rr320010_of_match[] = {
 	{ .compatible = "renesas,rr320010", },
@@ -175,6 +193,7 @@ static struct i2c_driver rr320010_i2c_driver = {
 	.id_table = rr320010_i2c_ids,
 	.probe    = rr320010_i2c_probe,
 	.remove   = rr320010_i2c_remove,
+	.shutdown = rr320010_i2c_shutdown,
 };
 module_i2c_driver(rr320010_i2c_driver);
 

@@ -1,0 +1,45 @@
+From e43f823b2cfd9aff97a26d3ac4e564c01f47fee2 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 11:15:55 +0800
+Subject: [PATCH 52/73] net: ethernet: realtek: add r8125 nic driver (version
+ 9.014.01)
+
+Change-Id: I11d201fb26b9b5064bd8adf0baf613f269b6e34e
+---
+ drivers/net/ethernet/realtek/Kconfig  | 12 ++++++++++++
+ drivers/net/ethernet/realtek/Makefile |  1 +
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/Kconfig b/drivers/net/ethernet/realtek/Kconfig
+index 6d2ff160f7399..b863c15d800c1 100644
+--- a/drivers/net/ethernet/realtek/Kconfig
++++ b/drivers/net/ethernet/realtek/Kconfig
+@@ -170,4 +170,16 @@ config R8168
+ 
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called r8168.  This is recommended.
++
++config R8125
++	tristate "Realtek 8125 2.5 gigabit ethernet support"
++	depends on PCI
++	select FW_LOADER
++	select CRC32
++	select MII
++	help
++	  Say Y here if you have a Realtek 8125 PCI 2.5 Gigabit Ethernet adapter.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called r8125.  This is recommended.
+ endif # NET_VENDOR_REALTEK
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index 194a5b655e6d5..4661bd6657681 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -13,3 +13,4 @@ obj-$(CONFIG_RTASE) += rtase/
+ r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
+ obj-$(CONFIG_R8169SOC) += r8169soc.o
+ obj-$(CONFIG_R8168) += r8168/
++obj-$(CONFIG_R8125) += r8125/
+-- 
+2.47.0
+

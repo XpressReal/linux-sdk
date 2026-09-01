@@ -1,0 +1,39 @@
+From 4d135d8a8540036a32983ff25e15810e00ae5938 Mon Sep 17 00:00:00 2001
+From: Takahiro Kuwano <Takahiro.Kuwano@infineon.com>
+Date: Tue, 30 Sep 2025 03:20:58 +0300
+Subject: [PATCH 25/38] mtd: spinand: Remove write_enable_op() in markbad()
+
+We don't have to call spinand_write_enable_op() in spinand_markbad() as
+it is called in spinand_write_page().
+
+This is the port of linux commit
+c6858779f1f5 (mtd: spinand: Remove write_enable_op() in markbad())
+
+Signed-off-by: Takahiro Kuwano <Takahiro.Kuwano@infineon.com>
+Reviewed-by: Tudor Ambarus <tudor.ambarus@linaro.org>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 2083e3673cc..d0c9083a5b3 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -795,10 +795,6 @@ static int spinand_markbad(struct nand_device *nand, const struct nand_pos *pos)
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = spinand_write_enable_op(spinand);
+-	if (ret)
+-		return ret;
+-
+ 	return spinand_write_page(spinand, &req);
+ }
+ 
+-- 
+2.47.0
+

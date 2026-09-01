@@ -1,0 +1,43 @@
+From 0ba6090675db98ab21a385d97ae95d5100cff02e Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 21:47:36 +0800
+Subject: [PATCH 34/73] media: i2c: Add MAX96724 GMSL deserializer V4L2
+ sub-device driver
+
+Change-Id: Ieef034667fb42e389144ce9c64bab47c9dd08df2
+---
+ drivers/media/i2c/Kconfig  | 8 ++++++++
+ drivers/media/i2c/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index 3114dcde32057..aecabef3faae6 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -1332,6 +1332,14 @@ config VIDEO_PR2000
+ 	help
+ 	  This driver supports the PIXELPLUS PR2000KA Video receiver.
+ 
++config VIDEO_MAX96724
++	tristate "Maxim MAX96724 quad GMSL2/1 deserializer support"
++	depends on I2C
++	depends on OF_GPIO
++	select VIDEO_V4L2_SUBDEV_API
++	help
++	  This driver supports the Maxim MAX96724 quad GMSL2/1 deserializer.
++
+ config VIDEO_VPX3220
+ 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"
+ 	depends on VIDEO_DEV && I2C
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+index 20e547c73d507..8103c8f646d23 100644
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -158,3 +158,4 @@ obj-$(CONFIG_VIDEO_VPX3220) += vpx3220.o
+ obj-$(CONFIG_VIDEO_WM8739) += wm8739.o
+ obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
+ obj-$(CONFIG_VIDEO_PR2000) += pr2000.o
++obj-$(CONFIG_VIDEO_MAX96724) += max96724.o
+-- 
+2.47.0
+

@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1625_spi.dtsi"
+
+&spi {
+	filename = "rtd1625_spi_nand_bind.bin";
+};
+
+#include "rtd1625_snand.dtsi"
+
+&binman {
+	multiple-images;
+};

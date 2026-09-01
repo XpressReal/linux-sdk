@@ -1,0 +1,44 @@
+From 696384e2cb6effbe52e008f04920687af29ce266 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 17 Jun 2026 10:12:48 +0800
+Subject: [PATCH 1/1] Reject high bit-depth/HDR input formats for v4l2encoder
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2videoenc.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/sys/v4l2/gstv4l2videoenc.c b/sys/v4l2/gstv4l2videoenc.c
+index 0da2b3a..2860d77 100644
+--- a/sys/v4l2/gstv4l2videoenc.c
++++ b/sys/v4l2/gstv4l2videoenc.c
+@@ -313,6 +313,26 @@ gst_v4l2_video_enc_set_format (GstVideoEncoder * encoder,
+ 
+   GST_DEBUG_OBJECT (self, "Setting format: %" GST_PTR_FORMAT, state->caps);
+ 
++  /* Reject high bit-depth (HDR / 10-bit+) input formats */
++  {
++    GstVideoInfo info;
++
++    if (gst_video_info_from_caps (&info, state->caps)) {
++      switch (info.colorimetry.transfer) {
++        case GST_VIDEO_TRANSFER_BT2020_10:
++        case GST_VIDEO_TRANSFER_BT2020_12:
++        case GST_VIDEO_TRANSFER_SMPTE2084:
++        case GST_VIDEO_TRANSFER_ARIB_STD_B67:
++          GST_ERROR_OBJECT (self,
++              "High bit-depth input is not supported (transfer %u)",
++              info.colorimetry.transfer);
++          return FALSE;
++        default:
++          break;
++      }
++    }
++  }
++
+   if (self->input_state) {
+     if (gst_v4l2_object_caps_equal (self->v4l2output, state->caps)) {
+       GST_DEBUG_OBJECT (self, "Compatible caps");
+-- 
+2.34.1
+

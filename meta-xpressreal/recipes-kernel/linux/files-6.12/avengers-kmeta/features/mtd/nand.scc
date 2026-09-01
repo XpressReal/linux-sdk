@@ -1,0 +1,10 @@
+patch 0015-mtd-nand-spi-Add-spi-nand-flash-controller-driver-fo.patch
+patch 0048-mtd-nand-raw-Add-nand-flash-controller-driver-for-Re.patch
+patch 405-spi-nand-rtk-sn-skip-timeout-on-SPINAND_GET_FEATURE.patch
+patch 406-spi-nand-rtk-sn-return-rtknand-in-get_name.patch
+patch 407-mtd-nand-spi-register-_panic_write-to-mtd.patch
+patch 408-fs-pstore-support-pstore_blkdev-setup-in-bootargs.patch
+
+#kconf hardware nand.cfg
+kconf hardware snand.cfg
+kconf non-hardware pstore.cfg

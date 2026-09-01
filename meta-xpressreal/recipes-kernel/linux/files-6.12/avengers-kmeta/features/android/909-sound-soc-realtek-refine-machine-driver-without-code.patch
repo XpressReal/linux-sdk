@@ -1,0 +1,570 @@
+From dda90f9019542cb3de6109e47d91e3d9cce5fc6f Mon Sep 17 00:00:00 2001
+From: "yao.tsai" <yao.tsai@realtek.com>
+Date: Fri, 7 Nov 2025 10:00:17 +0800
+Subject: [PATCH] sound: soc: realtek: refine machine driver without
+ codec arm64: dts: realtek: refine dts for 1501
+
+[JIRA]CHROME-778
+
+- change default fw_path and tplg_path to "sof"
+
+Change-Id: Ia708587b174887e17d158bb875c803d4e628a90e
+---
+ arch/arm64/boot/dts/realtek/kent-audio.dtsi   |  1 -
+ .../realtek/rtd1501s-phantom-chromium-8gb.dts |  3 +-
+ .../boot/dts/realtek/rtd1920s-smallville.dtsi |  1 +
+ sound/soc/realtek/Kconfig                     |  5 --
+ sound/soc/realtek/rtk-hifi-machine.c          | 301 ++++-----------------------
+ sound/soc/sof/realtek/hifi-dsp.c              | 24 ++++++
+
+diff --git a/arch/arm64/boot/dts/realtek/kent-audio.dtsi b/arch/arm64/boot/dts/realtek/kent-audio.dtsi
+index a80b0b7706c9c..0f985ded091ba 100644
+--- a/arch/arm64/boot/dts/realtek/kent-audio.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent-audio.dtsi
+@@ -108,5 +108,4 @@ rtk_vad: rtk-vad {
+ 	};
+ 
+ 	rtk_sof: rtk_sof {
+-		compatible = "realtek,rtd1920s-hifi";
+ 		realtek,krpc-agent = <&hifi_kernel_agent>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
+index f0a06fa47c529..58dba061f3e21 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
+@@ -170,6 +170,7 @@ &rtk_pm {
+ 
+ &rtk_sof {
+ 	status = "okay";
++	compatible = "realtek,rtd1501s-hifi";
+ 	intr-syscon = <&sb2>;
+ 	ipc-syscon = <&sb2_pmu>;
+ };
+@@ -180,7 +181,7 @@ &rtk_asoc_machine {
+ 	realtek,audio-platform = <&rtk_sof>;
+ 	realtek,hdmi-audio = <&hdmi>;
+ 	realtek,dp-audio = <&dp>;
+-	realtek,dai-link = "RDAI_I2S","RDAI_I2S1","RDAI_DMIC","RDAI_HDMI","RDAI_DP";
++	realtek,dai-link = "RDAI_HDMI","RDAI_DP","RDAI_DMIC";
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+index 0ec8099b9715f..b4a714c5e01c9 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+@@ -237,6 +237,7 @@ rt5650: rt5650@1a {
+ 
+ &rtk_sof {
+ 	status = "okay";
++	compatible = "realtek,rtd1920s-hifi";
+ 	intr-syscon = <&sb2>;
+ 	ipc-syscon = <&sb2_pmu>;
+ };
+diff --git a/sound/soc/realtek/Kconfig b/sound/soc/realtek/Kconfig
+index 2651c6d8e6cbe..e6b78522e69fc 100644
+--- a/sound/soc/realtek/Kconfig
++++ b/sound/soc/realtek/Kconfig
+@@ -39,12 +39,6 @@ config SND_SOC_REALTEK_FL3236
+ 
+ config SND_SOC_RTK_HIFI_MACHINE
+ 	tristate "Realtek hifi asoc machine Driver"
+-	select SND_SOC_RT5645
+-	default n
+-
+-config SND_SOC_RTK_HIFI_RT5650_MACHINE
+-	tristate "Realtek hifi with rt5650 codec asoc machine Driver"
+-	select SND_SOC_RT5645
+ 	select SND_SOC_HDMI_CODEC
+ 	default n
+ 
+diff --git a/sound/soc/realtek/rtk-hifi-machine.c b/sound/soc/realtek/rtk-hifi-machine.c
+index d32bf495f8912..3cd0bfe9b6f59 100644
+--- a/sound/soc/realtek/rtk-hifi-machine.c
++++ b/sound/soc/realtek/rtk-hifi-machine.c
+@@ -13,36 +13,19 @@
+ #include <sound/soc.h>
+ 
+ #include <sound/jack.h>
+-#include "../codecs/rt5645.h"
+ 
+ #define DP_CODEC_DAI	"spdif-hifi"
+ #define HDMI_CODEC_DAI	"spdif-hifi"
+ 
+ enum {
+-	DAI_LINK_DL0_FE = 0,
++	DAI_LINK_AO0_BE = 0,
+ 	DAI_LINK_DL1_FE,
+ 	DAI_LINK_DL2_FE,
+-	DAI_LINK_DL3_FE,
+-	DAI_LINK_DL4_FE,
+-	DAI_LINK_DL5_FE,
+-	DAI_LINK_DL6_FE,
+-	DAI_LINK_DL7_FE,
+-	DAI_LINK_UL0_FE,
+ 	DAI_LINK_UL1_FE,
+ 	DAI_LINK_UL2_FE,
+-	DAI_LINK_I2S0,
+-	DAI_LINK_I2S1,
+-	DAI_LINK_STI2S0,
+-	DAI_LINK_STI2S1,
++	DAI_LINK_I2S,
+ 	DAI_LINK_I2S_LOOPBACK,
+-	DAI_LINK_AO0_BE,
+ 	DAI_LINK_DMIC_BE,
+-	DAI_LINK_PDM_BE,
+-	DAI_LINK_TDM0_BE,
+-	DAI_LINK_TDM1_BE,
+-	DAI_LINK_TDM2_BE,
+-	DAI_LINK_ADC0_BE,
+-	DAI_LINK_ADC1_BE,
+ 	DAI_LINK_DP_AUDIO_BE,
+ 	DAI_LINK_HDMI_AUDIO_BE,
+ };
+@@ -53,11 +36,6 @@ struct rtk_soc_card_data {
+ };
+ 
+ /* FE */
+-SND_SOC_DAILINK_DEFS(DL0_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL0")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+ SND_SOC_DAILINK_DEFS(DL1_FE,
+ 		     DAILINK_COMP_ARRAY(COMP_CPU("DL1")),
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+@@ -68,36 +46,6 @@ SND_SOC_DAILINK_DEFS(DL2_FE,
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+-SND_SOC_DAILINK_DEFS(DL3_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL3")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(DL4_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL4")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(DL5_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL5")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(DL6_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL6")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(DL7_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("DL7")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(UL0_FE,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("UL0")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+ SND_SOC_DAILINK_DEFS(UL1_FE,
+ 		     DAILINK_COMP_ARRAY(COMP_CPU("UL1")),
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+@@ -109,11 +57,13 @@ SND_SOC_DAILINK_DEFS(UL2_FE,
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+ SND_SOC_DAILINK_DEFS(HDMI_AO, DAILINK_COMP_ARRAY(COMP_CPU("SOF_HDMI")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
++		     DAILINK_COMP_ARRAY(COMP_CODEC(NULL,
++						HDMI_CODEC_DAI)),
+                      DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+ SND_SOC_DAILINK_DEFS(DP_AO, DAILINK_COMP_ARRAY(COMP_CPU("SOF_DP")),
+-                     DAILINK_COMP_ARRAY(COMP_DUMMY()),
++                     DAILINK_COMP_ARRAY(COMP_CODEC(NULL,
++						HDMI_CODEC_DAI)),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ /* BE */
+ SND_SOC_DAILINK_DEFS(I2S0,
+@@ -121,56 +71,11 @@ SND_SOC_DAILINK_DEFS(I2S0,
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+-SND_SOC_DAILINK_DEFS(I2S1,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("I2S1")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(STI2S0,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("STI2S0")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(STI2S1,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("STI2S1")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+ SND_SOC_DAILINK_DEFS(I2S0_LOOPBACK,
+ 		     DAILINK_COMP_ARRAY(COMP_CPU("I2S0_LOOPBACK")),
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+ 		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+ 
+-SND_SOC_DAILINK_DEFS(SOC_ADC0,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("ADC0_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(SOC_ADC1,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("ADC1_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(SOC_TDM0,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("TDM0_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(SOC_TDM1,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("TDM1_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(SOC_TDM2,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("TDM2_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+-SND_SOC_DAILINK_DEFS(SOC_PDM,
+-		     DAILINK_COMP_ARRAY(COMP_CPU("PDM_IN")),
+-		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+-		     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+-
+ SND_SOC_DAILINK_DEFS(DMIC_PDM,
+ 		     DAILINK_COMP_ARRAY(COMP_CPU("SOF_DMIC")),
+ 		     DAILINK_COMP_ARRAY(COMP_DUMMY()),
+@@ -244,104 +149,45 @@ static struct snd_soc_dai_link rtk_hifi_dai_links[] = {
+ 		.dpcm_capture = 1,
+ 		SND_SOC_DAILINK_REG(DMIC_PDM),
+ 	},
+-	[DAI_LINK_ADC0_BE] = {
+-		.name = "RDAI_SOC_ADC0",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_ADC0),
+-	},
+-	[DAI_LINK_ADC1_BE] = {
+-		.name = "RDAI_SOC_ADC1",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_ADC1),
+-	},
+-	[DAI_LINK_TDM0_BE] = {
+-		.name = "RDAI_SOC_TDM0",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_TDM0),
+-	},
+-	[DAI_LINK_TDM1_BE] = {
+-		.name = "RDAI_SOC_TDM1",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_TDM1),
+-	},
+-	[DAI_LINK_TDM2_BE] = {
+-		.name = "RDAI_SOC_TDM2",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_TDM2),
+-	},
+-	[DAI_LINK_PDM_BE] = {
+-		.name = "RDAI_SOC_PDM",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(SOC_PDM),
+-	},
+ 	[DAI_LINK_HDMI_AUDIO_BE] = {
+ 		.name = "RDAI_HDMI",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
++		.init = rtk_hdmi_codec_init,
+ 		SND_SOC_DAILINK_REG(HDMI_AO),
+ 	},
+ 	[DAI_LINK_DP_AUDIO_BE] = {
+ 		.name = "RDAI_DP",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
++		.init = rtk_dp_codec_init,
+ 		SND_SOC_DAILINK_REG(DP_AO),
+ 	},
+ 	[DAI_LINK_AO0_BE] = {
+ 		.name = "RDAI_SOC_AO0",
+ 		.no_pcm = 1,
+ 		.dpcm_playback = 1,
++		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
++			SND_SOC_DAIFMT_CBS_CFS,
+ 		SND_SOC_DAILINK_REG(AUDIO_OUT0),
+ 	},
+-	[DAI_LINK_I2S0] = {
++	[DAI_LINK_I2S] = {
+ 		.name = "RDAI_SOC_I2S",
+ 		.no_pcm = 1,
+ 		.dpcm_capture = 1,
++		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
++			SND_SOC_DAIFMT_CBS_CFS,
+ 		SND_SOC_DAILINK_REG(I2S0),
+ 	},
+-	[DAI_LINK_I2S1] = {
+-		.name = "RDAI_SOC_I2S1",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(I2S1),
+-	},
+-	[DAI_LINK_STI2S0] = {
+-		.name = "RDAI_SOC_STI2S0",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(STI2S0),
+-	},
+-	[DAI_LINK_STI2S1] = {
+-		.name = "RDAI_SOC_STI2S1",
+-		.no_pcm = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(STI2S1),
+-	},
+ 	[DAI_LINK_I2S_LOOPBACK] = {
+ 		.name = "RDAI_SOC_I2S0_LOOPBACK",
+ 		.no_pcm = 1,
+ 		.dpcm_capture = 1,
+ 		SND_SOC_DAILINK_REG(I2S0_LOOPBACK),
+ 	},
+-	[DAI_LINK_DL0_FE] = {
+-		.name = "RDAI_DL0_FE",
+-		.stream_name = "DL0 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL0_FE),
+-	},
+ 	[DAI_LINK_DL1_FE] = {
+ 		.name = "RDAI_DL1_FE",
+-		.stream_name = "DL1 Playback",
++		.stream_name = "DL1 Playback - AO0",
+ 		.trigger = {
+ 			SND_SOC_DPCM_TRIGGER_POST,
+ 			SND_SOC_DPCM_TRIGGER_POST,
+@@ -361,75 +207,9 @@ static struct snd_soc_dai_link rtk_hifi_dai_links[] = {
+ 		.dpcm_playback = 1,
+ 		SND_SOC_DAILINK_REG(DL2_FE),
+ 	},
+-	[DAI_LINK_DL3_FE] = {
+-		.name = "RDAI_DL3_FE",
+-		.stream_name = "DL3 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL3_FE),
+-	},
+-	[DAI_LINK_DL4_FE] = {
+-		.name = "RDAI_DL4_FE",
+-		.stream_name = "DL4 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL4_FE),
+-	},
+-	[DAI_LINK_DL5_FE] = {
+-		.name = "RDAI_DL5_FE",
+-		.stream_name = "DL5 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL5_FE),
+-	},
+-	[DAI_LINK_DL6_FE] = {
+-		.name = "RDAI_DL6_FE",
+-		.stream_name = "DL6 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL6_FE),
+-	},
+-	[DAI_LINK_DL7_FE] = {
+-		.name = "RDAI_DL7_FE",
+-		.stream_name = "DL7 Playback",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_playback = 1,
+-		SND_SOC_DAILINK_REG(DL7_FE),
+-	},
+-	[DAI_LINK_UL0_FE] = {
+-		.name = "RDAI_UL0_FE",
+-		.stream_name = "UL0 Capture",
+-		.trigger = {
+-			SND_SOC_DPCM_TRIGGER_POST,
+-			SND_SOC_DPCM_TRIGGER_POST,
+-		},
+-		.dynamic = 1,
+-		.dpcm_capture = 1,
+-		SND_SOC_DAILINK_REG(UL0_FE),
+-	},
+ 	[DAI_LINK_UL1_FE] = {
+ 		.name = "RDAI_UL1_FE",
+-		.stream_name = "UL1 Capture",
++		.stream_name = "I2S0 Capture",
+ 		.trigger = {
+ 			SND_SOC_DPCM_TRIGGER_POST,
+ 			SND_SOC_DPCM_TRIGGER_POST,
+@@ -440,7 +220,7 @@ static struct snd_soc_dai_link rtk_hifi_dai_links[] = {
+ 	},
+ 	[DAI_LINK_UL2_FE] = {
+ 		.name = "RDAI_UL2_FE",
+-		.stream_name = "UL2 Capture",
++		.stream_name = "I2S0 Loopback Capture",
+ 		.trigger = {
+ 			SND_SOC_DPCM_TRIGGER_POST,
+ 			SND_SOC_DPCM_TRIGGER_POST,
+@@ -597,34 +377,38 @@ static int rtk_hifi_dev_probe(struct platform_device *pdev)
+ 	/* assign the node of sof driver to platforms in dai_link */
+ 	for_each_card_prelinks(card, i, dai_link) {
+ 		dai_link->platforms->of_node = platform_node;
+-		if (strcmp(dai_link->name, "RDAI_I2S") == 0 ||
+-			   strcmp(dai_link->name, "RDAI_I2S1") == 0) {
++		if (strcmp(dai_link->name,"RDAI_HDMI") == 0){
+ 			card->dapm_routes = NULL;
+ 			card->num_dapm_routes = 0;//ARRAY_SIZE(rtk_hifi_routes),
+-			dai_link->codecs->of_node = of_parse_phandle(dev->of_node, "realtek,audio-codec", 0);
+-		} else if (strcmp(dai_link->name,"RDAI_HDMI") == 0){
+ 			codec_node = of_parse_phandle(dev->of_node, "realtek,hdmi-audio", 0);
+ 
+-			if(of_device_is_available(codec_node)) {
+-				dai_link->codecs->name = NULL;
+-				dai_link->codecs->dai_name = HDMI_CODEC_DAI;
+-				dai_link->codecs->of_node = codec_node;
+-				dai_link->init = rtk_hdmi_codec_init;
+-			} else
+-				pr_info("Cant find CODEC,RDAI_HDMI use DUMMY CODEC");
++			if (!codec_node) {
++				pr_err("Can NOT find node realtek,hdmi-audio");
++				ret = -EINVAL;
++				goto put_exist_node;
++			}
++
++			dai_link->codecs->of_node = codec_node;
+ 		} else if (strcmp(dai_link->name, "RDAI_DP") == 0) {
+                         codec_node = of_parse_phandle(dev->of_node, "realtek,dp-audio", 0);
+ 
+-                        if(of_device_is_available(codec_node)) {
+-				dai_link->codecs->name = NULL;
+-				dai_link->codecs->dai_name = DP_CODEC_DAI;
+-				dai_link->codecs->of_node = codec_node;
+-				dai_link->init = rtk_dp_codec_init;
+-                        } else
+-				pr_info("Cant find CODEC,RDAI_DP use DUMMY CODEC");
+-		} else if (strcmp(dai_link->name, "RDAI_SOC_AO0") == 0) {
++			if (!codec_node) {
++				pr_err("Can NOT find node realtek,dp-audio");
++				ret = -EINVAL;
++				goto put_exist_node;
++			}
++
++			dai_link->codecs->of_node = codec_node;
++		} else if (strcmp(dai_link->name, "RDAI_SOC_AO0") == 0 || strcmp(dai_link->name, "RDAI_SOC_I2S") == 0) {
+ 			card->dapm_routes = NULL;
+ 			card->num_dapm_routes = 0;//ARRAY_SIZE(rtk_hifi_routes),
++
++			codec_node = of_parse_phandle(dev->of_node, "realtek,audio-codec", 0);
++			if(!codec_node) {
++				pr_err("Cant find codec node for %s",dai_link->name);
++				return -EINVAL;
++			}
++			dai_link->codecs->of_node = codec_node;
+ 		}
+ 	}
+ 
+@@ -645,6 +429,11 @@ static int rtk_hifi_dev_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
++static const struct dev_pm_ops rtk_hifi_pm_ops = {
++	.poweroff = snd_soc_poweroff,
++	.restore = snd_soc_resume,
++};
++
+ #ifdef CONFIG_OF
+ static const struct of_device_id rtk_hifi_dt_match[] = {
+ 	{
+@@ -664,7 +453,7 @@ static struct platform_driver rtk_hifi_driver = {
+ #ifdef CONFIG_OF
+ 		.of_match_table = rtk_hifi_dt_match,
+ #endif
+-		.pm = &snd_soc_pm_ops,
++		.pm = &rtk_hifi_pm_ops,
+ 	},
+ 	.probe = rtk_hifi_dev_probe,
+ };
+diff --git a/sound/soc/sof/realtek/hifi-dsp.c b/sound/soc/sof/realtek/hifi-dsp.c
+index 4a1cb313c272c..3b38944903c7b 100644
+--- a/sound/soc/sof/realtek/hifi-dsp.c
++++ b/sound/soc/sof/realtek/hifi-dsp.c
+@@ -867,6 +867,11 @@ static struct snd_soc_acpi_mach sof_rtk_machs[] = {
+ 		.drv_name = "rtk-hifi",
+ 		.sof_tplg_filename = "sof-adsp-rtd1920s.tplg",
+ 	},
++	{
++		.board = "realtek,rtd1501s",
++		.drv_name = "rtk-hifi",
++		.sof_tplg_filename = "sof-adsp-rtd1501s.tplg",
++	},
+ 	{},
+ };
+ 
+@@ -887,9 +892,28 @@ static struct sof_dev_desc snd_sof_rtd1920s_desc = {
+ 	.ops = &sof_hifi_ops,
+ };
+ 
++static struct sof_dev_desc snd_sof_rtd1501s_desc = {
++        .machines = sof_rtk_machs,
++        .ipc_supported_mask     = BIT(SOF_IPC_TYPE_3),
++        .ipc_default            = SOF_IPC_TYPE_3,
++        .default_fw_path = {
++                [SOF_IPC_TYPE_3] = "sof",
++        },
++        .default_tplg_path = {
++                [SOF_IPC_TYPE_3] = "sof",
++        },
++        .default_fw_filename = {
++                [SOF_IPC_TYPE_3] = "sof-adsp-rtd1501s.ri",
++        },
++        .nocodec_tplg_filename = "",
++        .ops = &sof_hifi_ops,
++};
++
+ static const struct of_device_id sof_of_rtk_ids[] = {
+ 	{ .compatible = "realtek,rtd1920s-hifi",
+ 	  .data = &snd_sof_rtd1920s_desc },
++	{ .compatible = "realtek,rtd1501s-hifi",
++	  .data = &snd_sof_rtd1501s_desc },
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, sof_of_rtk_ids);
+-- 
+2.47.0
+

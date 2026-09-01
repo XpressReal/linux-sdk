@@ -1,0 +1,85 @@
+From 60784f04be501f23b70ad4d0a0adcf4e3aeee003 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 12 Jun 2026 20:16:22 +0800
+Subject: [PATCH 1/1] Add V4L2 device tree
+
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi              | 15 ++++++++++++++
+ .../boot/dts/realtek/rtd1501s-phantom-8gb.dts      | 12 ++++++++++++
+ 2 files changed, 27 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index 2db746c2772e..3fb78d062ac6 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -384,6 +384,21 @@ vcpu: vcpu {
+ 		status = "disabled";
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,kent-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
++	vpu_ve4: vcpu_ve4 {
++		compatible = "realtek,kent-vpu-ve4";
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
+ 	avcert_rproc: avcert-rproc {
+ 		compatible = "realtek,rtd-rproc-avcert";
+ 		firmware-name = "AFW_Certificate.bin";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+index 022d4b5c..c339a5c6 100755
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+@@ -98,6 +98,18 @@
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
++&ve4  {
++	status = "okay";
++};
++
+ &reserved_memory {
+ 	protected-mem@50000 {
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+index 30f0a12ea484..ebd13bee6ecc 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+@@ -98,6 +98,18 @@ &vowb {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
++&ve4  {
++	status = "okay";
++};
++
+ &reserved_memory {
+ 	protected-mem@50000 {
+ 		status = "okay";
+-- 
+2.34.1
+

@@ -1,0 +1,51 @@
+From dccd5fbf6329e1aef6c1cc0c02f436361cc662fe Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 16:42:07 +0800
+Subject: [PATCH 26/73] pci: controller: add pcie host driver for Realtek DHC
+ SoCs
+
+Change-Id: I3814966014b7851ff182b6181952321d6e8c7560
+---
+ drivers/pci/controller/Kconfig  | 12 ++++++++++++
+ drivers/pci/controller/Makefile |  2 ++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/pci/controller/Kconfig b/drivers/pci/controller/Kconfig
+index 9800b76810540..c75896822e5a9 100644
+--- a/drivers/pci/controller/Kconfig
++++ b/drivers/pci/controller/Kconfig
+@@ -231,6 +231,18 @@ config PCI_TEGRA
+ 	  Say Y here if you want support for the PCIe host controller found
+ 	  on NVIDIA Tegra SoCs.
+ 
++config PCIE_RTD
++	tristate "Realtek PCIe host controller"
++	select PHY_RTD_PCIE
++	help
++	  Realtek PCIe host controller support.
++
++config PCIE_RTD_TRANS
++	bool "Realtek PCIe tanslation"
++	depends on PCIE_RTD
++	help
++	  Realtek PCIe MMIO translation support.
++
+ config PCIE_RCAR_HOST
+ 	bool "Renesas R-Car PCIe controller (host mode)"
+ 	depends on ARCH_RENESAS || COMPILE_TEST
+diff --git a/drivers/pci/controller/Makefile b/drivers/pci/controller/Makefile
+index 038ccbd9e3ba2..b0a87bb1958b1 100644
+--- a/drivers/pci/controller/Makefile
++++ b/drivers/pci/controller/Makefile
+@@ -37,6 +37,8 @@ obj-$(CONFIG_VMD) += vmd.o
+ obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb.o
+ obj-$(CONFIG_PCI_LOONGSON) += pci-loongson.o
+ obj-$(CONFIG_PCIE_HISI_ERR) += pcie-hisi-error.o
++obj-$(CONFIG_PCIE_RTD) += pcie-rtd.o
++obj-$(CONFIG_PCIE_RTD_TRANS) += pcie-rtd-trans.o
+ obj-$(CONFIG_PCIE_APPLE) += pcie-apple.o
+ obj-$(CONFIG_PCIE_MT7621) += pcie-mt7621.o
+ 
+-- 
+2.47.0
+

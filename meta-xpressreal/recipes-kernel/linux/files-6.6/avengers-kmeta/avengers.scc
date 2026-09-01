@@ -13,7 +13,7 @@ include features/wifi/wifi.scc
 include features/media/usb/uvc/uvc.scc
 include features/sdcard/sdcard.scc
 
-include features/fs/fs.scc
+#include features/fs/fs.scc
 
 kconf non-hardware features/android/namespace.cfg
 kconf non-hardware features/blk/blk.cfg

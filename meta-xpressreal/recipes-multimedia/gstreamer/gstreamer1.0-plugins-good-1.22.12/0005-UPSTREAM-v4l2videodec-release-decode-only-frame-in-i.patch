@@ -2,9 +2,13 @@ From 99f4986a96e4829361a5390fab6389a5344e80b7 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Thu, 20 Feb 2025 15:21:40 +0800
 Subject: [PATCH 1/1] [UPSTREAM] v4l2videodec: release decode only frame in input list
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Backport
 
 For some frames with decode-only flag, the v4l2 decoder will not put them in output list. The corresponding decode-only frames will be still kept in input list, which may cause potential performance issue when the input list is full. So release the decode-only frames according to the decode-only flag after they are processed by decoder driver.
+
+Part-of: <https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/8153>
 ---
  sys/v4l2/gstv4l2videodec.c | 14 +++++++++++---
  1 file changed, 11 insertions(+), 3 deletions(-)

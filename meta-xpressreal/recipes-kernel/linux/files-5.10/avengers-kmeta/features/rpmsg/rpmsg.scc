@@ -1,0 +1,5 @@
+patch 0015-remoteproc-realtek-Add-remoteproc-driver-support.patch
+patch 890-Add-rpmsg-driver-for-realtek-DHC-platform.patch
+patch 0016-Remove-rheap-dma-APIs-for-rpc.patch
+
+kconf hardware rpmsg.cfg

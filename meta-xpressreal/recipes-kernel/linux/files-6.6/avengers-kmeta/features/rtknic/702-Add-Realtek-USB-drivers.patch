@@ -1,3 +1,12 @@
+From ef0051461e7baab71a9183c7cb0e264845b3d093 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Tue, 23 Jul 2024 20:08:45 +0800
+Subject: testing: pretend 5.5 as kernel 6.6 to get Yocto 5.0.2 rootfs compiled
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: I6bfba331b0b80e91b0cb5def0763fe88aaf7bfe3
+---
 diff --git a/drivers/net/usb/Makefile b/drivers/net/usb/Makefile
 index 4964f7b326fb..b5408f8daee3 100644
 --- a/drivers/net/usb/Makefile

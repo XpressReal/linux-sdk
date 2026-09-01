@@ -1,0 +1,588 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+&hdmi {
+	hdmi_tmds_phy: hdmi-tmds-phy {
+		pll-27m {
+			sd1 = <0x93680025>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x66318C00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x70000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-27x1p25 {
+			sd1 = <0x9368002F>;
+			ldo1 = <0x021C188C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6739CE00>;
+			ldo4 = <0x01142108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = < 0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x70000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-27x1p5 {
+			sd1 = <0x9368001B>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x67BDEF00>;
+			ldo4 = <0x01A42108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x30000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-54m {
+			sd1 = <0x93680025>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x67BDEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x30000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-54x1p25 {
+			sd1 = <0x9368002F>;
+			ldo1 = <0x021C188C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x67BDEF00>;
+			ldo4 = <0x01142108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x30000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-54x1p5 {
+			sd1 = <0x9368001B>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x67BDEF00>;
+			ldo4 = <0x01A42108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-59p4m {
+			sd1 = <0x93680029>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x66318C00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x30000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-59p4x1p25 {
+			sd1 = <0x936C0018>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63BDEF00>;
+			ldo4 = <0x01a42108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-59p4x1p5 {
+			sd1 = <0x9368001E>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x67BDEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-74p25m {
+			sd1 = <0x936C0018>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63BDEF00>;
+			ldo4 = <0x01A42108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-74p25x1p25 {
+			sd1 = <0x936B001F>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x663DEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-74p25x1p5 {
+			sd1 = <0x936A0026>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x663DEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-83p5m {
+			sd1 = <0x936DA178>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x663DEF00>;
+			ldo4 = <0x01a42108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x20000000>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-106p5m {
+			sd1 = <0x936B8E24>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x663DEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x20000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-108m {
+			sd1 = <0x93680025>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x663DEF00>;
+			ldo4 = <0x00742108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x20000002>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <2>;
+		};
+
+		pll-146p25m {
+			sd1 = <0x93695533>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63AD6B00>;
+			ldo4 = <0x01A00000>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x20000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-148p5m {
+			sd1 = <0x93680034>;
+			ldo1 = <0x021C108C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63AD6B00>;
+			ldo4 = <0x01A00000>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-148p5x1p25 {
+			sd1 = <0x936E0041>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x69529400>;
+			ldo4 = <0x00700000>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-148p5x1p5 {
+			sd1 = <0x936C004F>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x695EF700>;
+			ldo4 = <0x00700000>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-297m {
+			sd1 = <0x9368006B>;
+			ldo1 = <0x021C188C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63DEF7C0>;
+			ldo4 = <0x01118C63>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-297x1p25 {
+			sd1 = <0x936C0086>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6A673900>;
+			ldo4 = <0x00721084>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000000>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-297x1p5 {
+			sd1 = <0x936800A2>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6A673900>;
+			ldo4 = <0x00701084>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000000>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-348p5m {
+			sd1 = <0x9368977E>;
+			ldo1 = <0x021C1088>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6A673900>;
+			ldo4 = <0x00521084>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000080>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x20000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-594m_y420 {
+			sd1 = <0x9368006B>;
+			ldo1 = <0x021C188C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x63DEF7C0>;
+			ldo4 = <0x01118C63>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-594m_y420x1p25 {
+			sd1 = <0x936C0086>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6A673900>;
+			ldo4 = <0x00721084>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000000>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-594m_y420x1p5 {
+			sd1 = <0x936800A2>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEC0000>;
+			ldo3 = <0x6A673900>;
+			ldo4 = <0x00701084>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04444000>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000000>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <0>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-453p456m {
+			sd1 = <0x936FC950>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEE0007>;
+			ldo3 = <0x6A6B5CFF>;
+			ldo4 = <0x00712108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04666700>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-486p048m {
+			sd1 = <0x93681257>;
+			ldo1 = <0x021C208C>;
+			ldo2 = <0x2EEE0007>;
+			ldo3 = <0x6A6B5CFF>;
+			ldo4 = <0x00712108>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04666700>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000000>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <0>;
+		};
+
+		pll-594m {
+			sd1 = <0x9368006B>;
+			ldo1 = <0x021C188C>;
+			ldo2 = <0x2EEC0007>;
+			ldo3 = <0x654A52FF>;
+			ldo4 = <0x01110842>;
+			ldo5 = <0x00000000>;
+			ldo6 = <0x14540000>;
+			ldo7 = <0x04222700>;
+			ldo8 = <0x000000C3>;
+			ldo9 = <0x0B000087>;
+			ldo10 = <0x00EBAE83>;
+			ldo11 = <0x00000000>;
+			pll-hdmi2 = <0x00000001>;
+			pll-hdmi3 = <0x50900000>;
+			pll-hdmi4 = <0x00000000>;
+			kvco-res = <1>;
+			ps2-ckin-sel = <0>;
+		};
+	};
+};

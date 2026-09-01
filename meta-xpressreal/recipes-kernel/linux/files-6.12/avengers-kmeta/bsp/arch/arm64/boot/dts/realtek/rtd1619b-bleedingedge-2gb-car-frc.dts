@@ -1,0 +1,144 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2020 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1619b-bleedingedge.dtsi"
+
+/ {
+	compatible = "realtek,bleeding-edge", "realtek,rtd1619b";
+	model = "Realtek Bleeding Edge EVB (2GB)";
+
+	chosen {
+		stdout-path = "serial0:460800n8";
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=3 init=/init loglevel=4 max_loop=64 loop.max_part=7 maxcpus=3";
+	};
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>; /* 2 GB */
+	};
+};
+
+&reserved_memory {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	ranges;
+
+	lk_core_mem: lk-core-mem@4400000 {
+		reg = <0x04400000 0x00200000>;
+		no-map;
+	};
+
+	lk_heap_mem: lk-heap-mem@14000000 {
+		reg = <0x14000000 0x08000000>;
+		no-map;
+	};
+
+	lk_camera_mem: lk-camera-mem@30000000 {
+		reg = <0x30000000 0x00a00000>;
+		no-map;
+	};
+};
+
+&audio_out {
+	pinctrl-0 = <&spdif_pins>, <&ao_pins>, <&dmic_loc0_pins>;
+	i2s {
+		status = "okay";
+		channel = <2>;
+	};
+};
+
+&i2c_3 {
+	status = "disabled";
+};
+
+&tp {
+	status = "disabled";
+};
+
+&sound_compr {
+	status = "okay";
+};
+
+&rtk_vad {
+	status = "okay";
+};
+
+&cvbs {
+	status = "disabled";
+};
+
+&pwm {
+	status = "okay";
+
+	pwm_0 {
+		enable = <1>;
+		duty_rate = <50>;
+	};
+
+	pwm_1 {
+		enable = <1>;
+		duty_rate = <50>;
+	};
+};
+
+&aut_rearcam {
+	status = "okay";
+};
+
+&cpu3 {
+    device_type = "cpu";
+    compatible = "arm,cortex-a55";
+    reg = <0x300>;
+    enable-method = "none";
+    status = "disabled";
+};
+
+&arm_pmu {
+	interrupt-affinity = <&cpu0>, <&cpu1>, <&cpu2>;
+};
+
+&usb_manager {
+	/delete-property/ resets;
+	/delete-property/ clocks;
+};
+
+&usb_port0 {
+	/delete-property/ resets;
+	/delete-property/ clocks;
+	/delete-property/ realtek,power-gpio;
+	status = "okay";
+};
+
+&usb_port1 {
+	/delete-property/ resets;
+	/delete-property/ clocks;
+	/delete-property/ realtek,power-gpio;
+	status = "disabled";
+};
+
+&usb_port2 {
+	/delete-property/ resets;
+	/delete-property/ clocks;
+	/delete-property/ realtek,power-gpio;
+	status = "okay";
+};
+
+&usb_port0_usb2phy {
+	/delete-property/ resets;
+	status = "okay";
+};
+
+&usb_port1_usb2phy {
+	/delete-property/ resets;
+	status = "disabled";
+};
+
+&usb_port2_usb2phy {
+	/delete-property/ resets;
+	status = "okay";
+};
+

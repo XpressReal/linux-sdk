@@ -1,0 +1,55 @@
+From 8bac39515b50271896383514b43af0aa0ff2544a Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 10 Apr 2026 15:21:11 +0800
+Subject: [PATCH 1/1] V4L2 support av1 and sync up
+
+---
+ drivers/media/v4l2-core/v4l2-ioctl.c | 1 +
+ include/uapi/linux/v4l2-controls.h   | 6 ++++++
+ include/uapi/linux/videodev2.h       | 1 +
+ 3 files changed, 8 insertions(+)
+
+diff --git a/drivers/media/v4l2-core/v4l2-ioctl.c b/drivers/media/v4l2-core/v4l2-ioctl.c
+index 6d6d30dbbe68..aedb09cba9dc 100644
+--- a/drivers/media/v4l2-core/v4l2-ioctl.c
++++ b/drivers/media/v4l2-core/v4l2-ioctl.c
+@@ -1445,6 +1445,7 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
+ 		case V4L2_PIX_FMT_VP8:		descr = "VP8"; break;
+ 		case V4L2_PIX_FMT_VP8_FRAME:    descr = "VP8 Frame"; break;
+ 		case V4L2_PIX_FMT_VP9:		descr = "VP9"; break;
++		case V4L2_PIX_FMT_AV1:		descr = "AV1"; break;
+ 		case V4L2_PIX_FMT_HEVC:		descr = "HEVC"; break; /* aka H.265 */
+ 		case V4L2_PIX_FMT_HEVC_SLICE:	descr = "HEVC Parsed Slice Data"; break;
+ 		case V4L2_PIX_FMT_FWHT:		descr = "FWHT"; break; /* used in vicodec */
+diff --git a/include/uapi/linux/v4l2-controls.h b/include/uapi/linux/v4l2-controls.h
+index a184c4939438..4eb760b652d7 100644
+--- a/include/uapi/linux/v4l2-controls.h
++++ b/include/uapi/linux/v4l2-controls.h
+@@ -198,6 +198,12 @@ enum v4l2_colorfx {
+  */
+ #define V4L2_CID_USER_ATMEL_ISC_BASE		(V4L2_CID_USER_BASE + 0x10c0)
+ 
++/*
++ * The base for realtek codec driver controls.
++ * We reserve 32 controls for this driver.
++ */
++#define V4L2_CID_USER_REALTEK_BASE              (V4L2_CID_USER_BASE + 0x11e0)
++
+ /* MPEG-class control IDs */
+ /* The MPEG controls are applicable to all codec controls
+  * and the 'MPEG' part of the define is historical */
+diff --git a/include/uapi/linux/videodev2.h b/include/uapi/linux/videodev2.h
+index 55b8c4b82479..d604524acb9a 100644
+--- a/include/uapi/linux/videodev2.h
++++ b/include/uapi/linux/videodev2.h
+@@ -702,6 +702,7 @@ struct v4l2_pix_format {
+ #define V4L2_PIX_FMT_VC1_ANNEX_L v4l2_fourcc('V', 'C', '1', 'L') /* SMPTE 421M Annex L compliant stream */
+ #define V4L2_PIX_FMT_VP8      v4l2_fourcc('V', 'P', '8', '0') /* VP8 */
+ #define V4L2_PIX_FMT_VP9      v4l2_fourcc('V', 'P', '9', '0') /* VP9 */
++#define V4L2_PIX_FMT_AV1      v4l2_fourcc('A', 'V', '0', '1') /* AV1 */
+ #define V4L2_PIX_FMT_HEVC     v4l2_fourcc('H', 'E', 'V', 'C') /* HEVC aka H.265 */
+ #define V4L2_PIX_FMT_FWHT     v4l2_fourcc('F', 'W', 'H', 'T') /* Fast Walsh Hadamard Transform (vicodec) */
+ #define V4L2_PIX_FMT_FWHT_STATELESS     v4l2_fourcc('S', 'F', 'W', 'H') /* Stateless FWHT (vicodec) */
+-- 
+2.34.1
+

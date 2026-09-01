@@ -1,0 +1,1039 @@
+From 8d7cecb6300810d1fa4f0ca875aa24e5ea5397d6 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 15 Jul 2026 22:17:14 -0400
+Subject: [PATCH] gpu: drm: add drm fence flow
+
+---
+ drivers/gpu/drm/realtek/Makefile        |   1 +
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c  | 107 ++++++--
+ drivers/gpu/drm/realtek/rtk_drm_crtc.h  |  26 +-
+ drivers/gpu/drm/realtek/rtk_drm_fence.c | 349 ++++++++++++++----------
+ drivers/gpu/drm/realtek/rtk_drm_fence.h |  25 +-
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 106 ++++---
+ 6 files changed, 395 insertions(+), 219 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/Makefile b/drivers/gpu/drm/realtek/Makefile
+index 0b7bd3a3ee9b..9167babc4471 100644
+--- a/drivers/gpu/drm/realtek/Makefile
++++ b/drivers/gpu/drm/realtek/Makefile
+@@ -10,6 +10,7 @@ rtk_drm-y := rtk_drm_rpc.o \
+ 	     rtk_drm_gem.o \
+ 	     rtk_drm_fb.o \
+ 	     rtk_drm_drv.o \
++	     rtk_drm_trace.o \
+ 	     rtk_hdmi.o \
+ 	     rtk_hdmi_edid.o \
+          rtk_cvbs.o \
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 66d13e199ef0..d98dc056846c 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -33,6 +33,8 @@
+ #include "rtk_drm_crtc.h"
+ #include "rtk_drm_plane.h"
+ 
++#include <trace/events/rtk_drm_trace.h>
++
+ #if !defined(CONFIG_YOCTO_PLATFORMS)
+ #define to_rtk_crtc(s) container_of(s, struct rtk_drm_crtc, crtc)
+ #endif
+@@ -262,43 +264,74 @@ static void rtk_crtc_destroy(struct drm_crtc *crtc)
+ 	drm_crtc_cleanup(crtc);
+ }
+ 
++/**
++ * rtk_crtc_commit_count - Increment commit counter
++ * @rtk_crtc: rtk_drm_crtc
++ *
++ * Called in rtk_crtc_atomic_flush()
++ */
++static inline void rtk_crtc_commit_count(struct rtk_drm_crtc *rtk_crtc)
++{
++    atomic64_inc(&rtk_crtc->stats.commit_count);
++}
++
++/**
++ * rtk_crtc_pageflip_count - Increment pageflip counter
++ * @rtk_crtc: rtk_drm_crtc
++ *
++ * Called in rtk_crtc_finish_page_flip()
++ */
++static inline void rtk_crtc_pageflip_count(struct rtk_drm_crtc *rtk_crtc)
++{
++    atomic64_inc(&rtk_crtc->stats.pageflip_count);
++}
++
+ void rtk_crtc_finish_page_flip(struct drm_crtc *crtc)
++{
++    struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++
++    if (rtk_crtc->event) {
++        rtk_crtc_pageflip_count(rtk_crtc);
++        drm_crtc_send_vblank_event(crtc, rtk_crtc->event);
++        drm_crtc_vblank_put(crtc);
++        rtk_crtc->event = NULL;
++    } else {
++        trace_rtk_drm_func_event(TRACE_NO_PENDING_EVENT);
++    }
++}
++
++void rtk_drm_crtc_check_page_flip(struct drm_crtc *crtc)
+ {
+ 	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 	struct rtk_drm_plane *rtk_plane = &rtk_crtc->nplanes[0];
+ 	struct drm_device *drm = crtc->dev;
+ 	unsigned long flags;
+-	int i;
+-	s64 completed_time_ms;
+ 
+ 	spin_lock_irqsave(&drm->event_lock, flags);
+ 	if ((rtk_plane->pending_planes || rtk_crtc->pending_needs_vblank)) {
+ 		if (rtk_plane_check_update_done(&rtk_crtc->nplanes[0])) {
+-
+-			completed_time_ms = ktime_ms_delta(ktime_get(), rtk_crtc->begin);
+-			if (completed_time_ms > 33)
+-				DRM_DEBUG_DRIVER("event (%p) flip time (%lld) completed_time_ms (%lld)"
+-					"pending_planes = %d, pending_needs_vblank = %d\n",
+-					rtk_crtc->event, ktime_get(), completed_time_ms,
+-					rtk_plane->pending_planes, rtk_crtc->pending_needs_vblank);
+-
+-			if (rtk_crtc->event) {
+-				drm_crtc_send_vblank_event(crtc, rtk_crtc->event);
+-				drm_crtc_vblank_put(crtc);
+-			}
+-
+-			rtk_crtc->event = NULL;
++			rtk_crtc_finish_page_flip(crtc);
++			rtk_plane->pending_planes      = false;
+ 			rtk_crtc->pending_needs_vblank = false;
++		}
++	}
++	spin_unlock_irqrestore(&drm->event_lock, flags);
++}
+ 
+-			for (i = 0; i < rtk_crtc->plane_count; i++)
+-				if(rtk_crtc->nplanes[i].rtk_fence)
+-					rtk_drm_fence_update(&rtk_crtc->nplanes[i]);
++void rtk_drm_crtc_finish_page_flip(struct drm_crtc *crtc)
++{
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++	struct rtk_drm_plane *rtk_plane = &rtk_crtc->nplanes[0];
++	struct drm_device *drm = crtc->dev;
++	unsigned long flags;
+ 
+-			if (rtk_plane->pending_planes) {
+-				DRM_DEBUG_DRIVER("clear pending_planes\n");
+-				rtk_plane->pending_planes = false;
+-			}
+-		}
++	spin_lock_irqsave(&drm->event_lock, flags);
++	if ((rtk_plane->pending_planes || rtk_crtc->pending_needs_vblank)) {
++		rtk_crtc_finish_page_flip(crtc);
++		rtk_plane->pending_planes      = false;
++		rtk_crtc->pending_needs_vblank = false;
++	} else {
++		trace_rtk_drm_func_event(TRACE_LATE_PENDING_EVENT);
+ 	}
+ 	spin_unlock_irqrestore(&drm->event_lock, flags);
+ }
+@@ -444,6 +477,7 @@ irqreturn_t rtk_crtc_isr(int irq, void *dev_id)
+ 	struct drm_crtc *crtc = &rtk_crtc->crtc;
+ 	unsigned long flags;
+ 	unsigned int feedback_notify;
++	int i;
+ 
+ 	if (rpc_info->krpc_vo_opt != RPC_AUDIO) {
+ 		feedback_notify = 1U << (rtk_crtc->mixer * 2 + 1);
+@@ -466,12 +500,19 @@ irqreturn_t rtk_crtc_isr(int irq, void *dev_id)
+ 	drm_crtc_handle_vblank(crtc);
+ 
+ 	if (!rtk_crtc->present_time_en) {
+-		rtk_crtc_finish_page_flip(crtc);
++		if (rtk_plane_has_out_fence(&rtk_crtc->nplanes[0]))
++			rtk_drm_crtc_finish_page_flip(crtc);
++		else
++			rtk_drm_crtc_check_page_flip(crtc);
+ 	} else if (ktime_get() >= rtk_crtc->present_time) {
+-		rtk_crtc_finish_page_flip(crtc);
++		rtk_drm_crtc_finish_page_flip(crtc);
+ 		rtk_crtc->present_time_en = 0;
+ 	}
+ 
++	for (i = 0; i < rtk_crtc->plane_count; i++)
++		if (rtk_crtc->nplanes[i].rtk_fence)
++			rtk_drm_fence_update(&rtk_crtc->nplanes[i]);
++
+ 	rtk_drm_vowb_isr(rtk_crtc->crtc.dev);
+ 
+ 	return IRQ_HANDLED;
+@@ -491,6 +532,18 @@ static void rtk_crtc_change_tv_system(struct drm_crtc *crtc)
+ 	return;
+ }
+ 
++static void rtk_crtc_stats_init(struct rtk_drm_crtc *rtk_crtc)
++{
++	struct rtk_crtc_stats *stats = &rtk_crtc->stats;
++
++	atomic64_set(&stats->commit_count, 0);
++	atomic64_set(&stats->pageflip_count, 0);
++	stats->start_time = ktime_get();
++	stats->last_read_time = 0;
++	stats->last_commit_count = 0;
++	stats->last_pageflip_count = 0;
++}
++
+ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ {
+ 	struct platform_device *pdev = to_platform_device(dev);
+@@ -675,6 +728,8 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 				panel_usage_names, ARRAY_SIZE(panel_usage_names));
+ 	drm_object_attach_property(&rtk_crtc->crtc.base, rtk_crtc->display_panel_usage_prop, 0);
+ 
++	rtk_crtc_stats_init(rtk_crtc);
++
+ 	return 0;
+ 
+ err_cleanup_all:
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.h b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+index 3059d0a94781..7ba5faf1498e 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+@@ -41,6 +41,21 @@ struct crtc_data {
+ 	int (*rpc_bind)(struct rtk_drm_crtc *rtk_crtc, struct rtk_drm_private *priv);
+ };
+ 
++/* Per-CRTC statistics */
++struct rtk_crtc_stats {
++	/* Counters */
++	atomic64_t commit_count;
++	atomic64_t pageflip_count;
++
++	/* Baseline for rate calculation */
++	ktime_t start_time;
++
++	/* Last read state (only accessed in debugfs read) */
++	ktime_t last_read_time;
++	u64 last_commit_count;
++	u64 last_pageflip_count;
++};
++
+ struct rtk_drm_plane {
+ 	struct drm_plane plane;
+ 
+@@ -74,7 +89,6 @@ struct rtk_drm_plane {
+ 
+ 	struct rtk_drm_fence *rtk_fence;
+ 	struct drm_property *out_fence_ptr;
+-	struct drm_property *display_idx_prop;
+ 	struct drm_property *rtk_meta_data_prop;
+ 	struct drm_property *vo_plane_name_prop;
+ 
+@@ -89,6 +103,7 @@ struct rtk_drm_plane {
+ 
+ 	bool pending_planes;
+ 	ktime_t pending;
++	bool has_out_fence;
+ };
+ 
+ struct rtk_drm_crtc {
+@@ -116,6 +131,7 @@ struct rtk_drm_crtc {
+ 	ktime_t begin;
+ 	ktime_t completed;
+ 	void (*change_tv_system)(struct drm_crtc *crtc);
++	struct rtk_crtc_stats stats; /* Per-CRTC statistics */
+ };
+ 
+ struct rtk_crtc_state {
+@@ -123,12 +139,18 @@ struct rtk_crtc_state {
+ };
+ 
+ bool rtk_plane_check_update_done(struct rtk_drm_plane *rtk_plane);
++bool rtk_plane_has_out_fence(struct rtk_drm_plane *rtk_plane);
+ 
+ extern void rtk_plane_destroy(struct drm_plane *plane);
+ extern void rtk_crtc_finish_page_flip(struct drm_crtc *crtc);
+ extern int rtk_drm_fence_init(struct rtk_drm_plane *rtk_plane);
+ extern int rtk_drm_fence_uninit(struct rtk_drm_plane *rtk_plane);
+-extern int rtk_drm_fence_create(struct rtk_drm_fence *rtk_fence, s32 __user *out_fence_ptr);
++extern struct rtk_dma_fence *rtk_drm_fence_alloc(struct rtk_drm_fence *rtk_fence,
++						s32 __user *out_fence_ptr);
++extern void rtk_drm_fence_enqueue(struct rtk_drm_fence *rtk_fence,
++						struct rtk_dma_fence *fence, unsigned int idx);
++extern void rtk_drm_fence_abort(struct rtk_dma_fence *fence);
++extern void rtk_drm_fence_flush(struct rtk_drm_plane *rtk_plane);
+ extern int rtk_drm_fence_update(struct rtk_drm_plane *rtk_plane);
+ 
+ int rtk_crtc_ioctl_get_mixer_id(struct drm_device *dev, void *data, struct drm_file *file);
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_fence.c b/drivers/gpu/drm/realtek/rtk_drm_fence.c
+index b416991fb3cf..72deb515972f 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_fence.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_fence.c
+@@ -1,3 +1,4 @@
++// SPDX-License-Identifier: GPL-2.0-only
+ /*
+  * Copyright (C) 2019 Realtek Inc.
+  * Author: Simon Hsu <simon_hsu@realtek.com>
+@@ -12,7 +13,6 @@
+  * GNU General Public License for more details.
+  */
+ 
+-#include <linux/kthread.h>
+ #include <drm/drm_print.h>
+ #include <drm/drm_file.h>
+ #include <drm/drm_plane.h>
+@@ -22,6 +22,8 @@
+ #include "rtk_drm_drv.h"
+ #include "rtk_drm_crtc.h"
+ 
++#include <trace/events/rtk_drm_trace.h>
++
+ static const char *rtk_drm_fence_get_driver_name(struct dma_fence *fence)
+ {
+ 	return "rtk_plane_outfence";
+@@ -37,164 +39,147 @@ static const struct dma_fence_ops rtk_drm_fence_ops = {
+ 	.get_timeline_name = rtk_drm_fence_get_timeline_name,
+ };
+ 
+-static void fence_signal_worker(struct drm_flip_work *work, void *val)
++/*
++ * Returns true if context a is strictly before b in the CONTEXT_SIZE circular
++ * sequence, using a half-window to handle wrap-around.  Covers skipped-frame
++ * cases where (b - a) > 1, which the original strict a+1==b check missed.
++ */
++static bool fence_idx_before(unsigned int a, unsigned int b)
+ {
+-	struct rtk_dma_fence *fence = val;
++	unsigned int diff = (b - a) & (CONTEXT_SIZE - 1);
+ 
+-	DRM_DEBUG_DRIVER("signal out-fence[%d] : (%p) (%p)\n", fence->idx, fence , fence->fence);
++	return diff > 0 && diff < (CONTEXT_SIZE / 2);
++}
++
++static bool video_fence_idx_before(unsigned int a, unsigned int b)
++{
++	unsigned int diff = (b - a) % PLOCK_BUFFER_SET_SIZE;
+ 
++	return diff > 0 && diff < (PLOCK_BUFFER_SET_SIZE / 2);
++}
++
++static void fence_signal_free(struct rtk_dma_fence *fence)
++{
++	list_del(&fence->node);
+ 	dma_fence_signal(fence->fence);
+ 	dma_fence_put(fence->fence);
+-
+ 	kfree(fence);
+ }
+ 
++static void log_fence_idx(char *buf, int *pos, int size,
++			  unsigned int idx, const char *tag)
++{
++	*pos += scnprintf(buf + *pos, size - *pos, "%s%u%s",
++			  *pos ? "," : "", idx, tag);
++}
++
+ int rtk_drm_fence_update(struct rtk_drm_plane *rtk_plane)
+ {
+ 	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
+-	struct drm_flip_work *work = &rtk_fence->fence_signal_work;
+-	struct drm_flip_task *task, *tmp;
+-	struct rtk_dma_fence *fence;
++	struct rtk_dma_fence *fence, *tmp;
+ 	struct list_head tasks;
+-	struct list_head release_tasks;
++	struct list_head local_drop;
+ 	unsigned long flags;
++	unsigned int ctx;
++	int signaled = 0, pending = 0;
++	char sig_buf[128] = "";
++	char pend_buf[128] = "";
++	int sig_pos = 0, pend_pos = 0;
+ 
+ 	INIT_LIST_HEAD(&tasks);
+-	INIT_LIST_HEAD(&release_tasks);
++	INIT_LIST_HEAD(&local_drop);
+ 
+-	if (list_empty(&work->queued) && list_empty(&rtk_fence->pending)) {
+-		DRM_DEBUG_DRIVER("videoplane %d 's fence (%p) no flip work queued !\n",
+-			rtk_plane->layer_nr, rtk_plane->rtk_fence);
++	spin_lock_irqsave(&rtk_fence->list_lock, flags);
++	if (list_empty(&rtk_fence->queued) && list_empty(&rtk_fence->pending)) {
++		spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
+ 		return 0;
+ 	}
+-
+-	if (!list_empty(&rtk_fence->pending))
+-		list_splice_tail(&rtk_fence->pending, &tasks);
+-	INIT_LIST_HEAD(&rtk_fence->pending);
+-
+-	spin_lock_irqsave(&work->lock, flags);
+-	list_splice_tail(&work->queued, &tasks);
+-	INIT_LIST_HEAD(&work->queued);
+-	spin_unlock_irqrestore(&work->lock, flags);
+-
+-	DRM_DEBUG_DRIVER("release target : %d\n", rtk_plane->context);
+-
+-	list_for_each_entry_safe(task, tmp, &tasks, node) {
+-		fence = task->data;
+-
+-		spin_lock_irqsave(&rtk_fence->idx_lock, flags);
+-
+-		if (rtk_plane->context == fence->idx) {
+-			/**
+-			 * pending fence (current)
+-			 */
+-			DRM_DEBUG_DRIVER("pending fence : %d\n", fence->idx);
+-			list_move_tail(&task->node, &rtk_fence->pending);
+-		} else if (((fence->idx + 1) % CONTEXT_SIZE) == rtk_plane->context) {
+-			/**
+-			 * release fence (previous)
+-			 */
+-			DRM_DEBUG_DRIVER("release fence : %d\n", fence->idx);
+-			list_move_tail(&task->node, &release_tasks);
+-		}
+-		spin_unlock_irqrestore(&rtk_fence->idx_lock, flags);
+-	}
+-
+-#if 0 // TODO: For reference of overlay plane later
+-	list_for_each_entry_safe(task, tmp, &tasks, node) {
+-		fence = task->data;
+-
+-		spin_lock_irqsave(&rtk_fence->idx_lock, flags);
+-
+-		pRcv = *(volatile unsigned char*)(rtk_fence->rcv_vaddr + fence->idx);
+-		pLock = *(volatile unsigned char*)(rtk_fence->lock_vaddr + fence->idx);
+-
+-		DRM_DEBUG_DRIVER("pRcv : 0x%x, pLock : 0x%x\n", pRcv, pLock);
+-
+-		if (!(pLock == 0 && pRcv == PLOCK_RECEIVED)) {
+-
+-			DRM_DEBUG_DRIVER("fence[%d] : %p not ready, status: (0x%x)\n", fence->idx, fence, pRcv);
+-
+-			if (pRcv == PLOCK_INIT) {
+-				/* drop fence */
+-				list_move_tail(&task->node, &rtk_fence->drop_list);
+-			} else {
+-				/* pending fence */
+-				list_move_tail(&task->node, &rtk_fence->pending);
+-			}
+-			if (plockSt == PLOCK_STATUS_UNLOCK) {
+-				*(volatile unsigned char*)(rtk_fence->pReceived_viraddr + idx) = PLOCK_INIT;
+-		} else {
+-			drop_task = list_first_entry_or_null(&rtk_fence->drop_list, struct drm_flip_task, node);
+-			if (drop_task) {
+-				drop_fence = drop_task->data;
+-
+-				DRM_DEBUG_DRIVER("has drop fence[%d] : %p and ready fence[%d] : %p commited\n",
+-					drop_fence->idx, drop_fence, fence->idx, fence);
+-
+-				if (fence->idx < drop_fence->idx) {
+-					if (drop_fence->idx == (PLOCK_BUFFER_SET_SIZE - 1) && fence->idx == 0) {
+-						list_move_tail(&drop_task->node, &release_tasks);
+-						list_move_tail(&task->node, &release_tasks);
+-					} else {
+-						list_move_tail(&task->node, &release_tasks);
+-					}
+-				} else if (fence->idx > drop_fence->idx) {
+-					if (drop_fence->idx == 0 && fence->idx == (PLOCK_BUFFER_SET_SIZE - 1)) {
+-						list_move_tail(&task->node, &release_tasks);
+-					} else {
+-						list_move_tail(&drop_task->node, &release_tasks);
+-						list_move_tail(&task->node, &release_tasks);
+-					}
++	list_splice_tail_init(&rtk_fence->pending, &tasks);
++	list_splice_tail_init(&rtk_fence->queued, &tasks);
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY)
++		list_splice_tail_init(&rtk_fence->drop_list, &local_drop);
++	spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
++
++	ctx = READ_ONCE(rtk_plane->context);
++
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY) {
++		list_for_each_entry_safe(fence, tmp, &tasks, node) {
++			u8 pRcv  = READ_ONCE(rtk_fence->rcv_vaddr[fence->idx]);
++			u8 pLock = READ_ONCE(rtk_fence->lock_vaddr[fence->idx]);
++
++			if (pLock == 0 && pRcv == PLOCK_RECEIVED) {
++				struct rtk_dma_fence *drop = list_first_entry_or_null(
++						&local_drop, struct rtk_dma_fence, node);
++				if (drop && video_fence_idx_before(drop->idx, fence->idx)) {
++					log_fence_idx(sig_buf, &sig_pos, sizeof(sig_buf),
++						      drop->idx, "(drop)");
++					fence_signal_free(drop);
++					signaled++;
+ 				}
+-			} else {
+-				DRM_DEBUG_DRIVER("has ready fence[%d] : %p commited\n", fence->idx, fence);
+-				list_move_tail(&task->node, &release_tasks);
+-				*(volatile unsigned char*)(rtk_fence->rcv_vaddr + fence->idx) = PLOCK_INIT;
++				log_fence_idx(sig_buf, &sig_pos, sizeof(sig_buf),
++					      fence->idx, "");
++				WRITE_ONCE(rtk_fence->rcv_vaddr[fence->idx], PLOCK_INIT);
+ 				dsb(sy);
+-				rtk_fence->index[idx] = BUF_ST_UNLOCK;
+-				tmpIdx = idx;
++				fence_signal_free(fence);
++				signaled++;
++			} else if (pRcv == PLOCK_INIT) {
++				list_move_tail(&fence->node, &local_drop);
++			} else {
++				log_fence_idx(pend_buf, &pend_pos, sizeof(pend_buf),
++					      fence->idx, "");
++				pending++;
+ 			}
+-			mutex_unlock(&rtk_fence->idx_lock);
+-
+ 		}
+-
+-		if(tmpIdx != -1) {
+-			checkIdx = tmpIdx;
+-			checkIdx++;
++	} else {
++		bool done = rtk_plane_check_update_done(rtk_plane);
++
++		list_for_each_entry_safe(fence, tmp, &tasks, node) {
++			if (done && fence_idx_before(fence->idx, ctx)) {
++				log_fence_idx(sig_buf, &sig_pos, sizeof(sig_buf),
++					      fence->idx, "");
++				fence_signal_free(fence);
++				signaled++;
++			} else {
++				log_fence_idx(pend_buf, &pend_pos, sizeof(pend_buf),
++					      fence->idx, "");
++				pending++;
++			}
+ 		}
+-		spin_unlock_irqrestore(&rtk_fence->idx_lock, flags);
+ 	}
+-#endif // DRM_PLANE_TYPE_OVERLAY
+ 
+-	spin_lock_irqsave(&work->lock, flags);
+-	list_splice_tail(&release_tasks, &work->commited);
+-	spin_unlock_irqrestore(&work->lock, flags);
+-
+-	queue_work(system_unbound_wq, &work->worker);
++	if (signaled == 0)
++		trace_rtk_drm_fence_update(plane_names[rtk_plane->layer_nr], ctx,
++					   signaled + pending, signaled, sig_buf,
++					   pending, pend_buf);
++
++	/* Remaining items (not released or update not done) go back to pending */
++	if (!list_empty(&tasks) || !list_empty(&local_drop)) {
++		spin_lock_irqsave(&rtk_fence->list_lock, flags);
++		list_splice_tail(&tasks,      &rtk_fence->pending);
++		list_splice_tail(&local_drop, &rtk_fence->drop_list);
++		spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
++	}
+ 
+ 	return 0;
+ }
+ 
+-int rtk_drm_fence_create(struct rtk_drm_fence *rtk_fence, s32 __user *out_fence_ptr)
++struct rtk_dma_fence *rtk_drm_fence_alloc(struct rtk_drm_fence *rtk_fence,
++					   s32 __user *out_fence_ptr)
+ {
+ 	struct rtk_dma_fence *fence;
+-	int ret = 0;
+-	int retval = 0;
+-
+-	DRM_DEBUG_DRIVER("%d\n", __LINE__);
++	int ret;
+ 
+ 	fence = kzalloc(sizeof(*fence), GFP_KERNEL);
+ 	if (!fence) {
+ 		DRM_ERROR("rtk_dma_fence alloc fail\n");
+-		return -ENOMEM;
++		return ERR_PTR(-ENOMEM);
+ 	}
+ 
+ 	fence->fence = kzalloc(sizeof(struct dma_fence), GFP_KERNEL);
+ 	if (!fence->fence) {
+ 		DRM_ERROR("dma_fence alloc fail\n");
+ 		ret = -ENOMEM;
+-		goto create_error;
++		goto err_free;
+ 	}
+ 
+ 	dma_fence_init(fence->fence, &rtk_drm_fence_ops, &rtk_fence->fence_lock, 0, 0);
+@@ -203,47 +188,121 @@ int rtk_drm_fence_create(struct rtk_drm_fence *rtk_fence, s32 __user *out_fence_
+ 	if (fence->fd < 0) {
+ 		DRM_ERROR("rtk_dma_fence get unused fd fail\n");
+ 		ret = fence->fd;
+-		goto create_error;
+-	}
+-
+-	retval = put_user(fence->fd, out_fence_ptr);
+-	if (retval) {
+-		DRM_ERROR("fence fd put to user fail %d\n", retval);
+-		ret = -EFAULT;
+-		goto create_error;
++		goto err_put_fence;
+ 	}
+ 
+ 	fence->sync_file = sync_file_create(fence->fence);
+ 	if (!fence->sync_file) {
+ 		DRM_ERROR("sync_file create fail\n");
+ 		ret = -ENOMEM;
+-		goto create_error;
++		goto err_put_fd;
+ 	}
+ 
+-	fence->idx = rtk_fence->idx;
++	ret = put_user(fence->fd, out_fence_ptr);
++	if (ret) {
++		DRM_ERROR("fence fd put to user fail %d\n", ret);
++		ret = -EFAULT;
++		goto err_put_sync_file;
++	}
+ 
+ 	fd_install(fence->fd, fence->sync_file->file);
+-	drm_flip_work_queue(&rtk_fence->fence_signal_work, fence);
+ 
+-	DRM_DEBUG_DRIVER("create and install out-fence[%d] : (%p) (%p)\n", fence->idx, fence , fence->fence);
++	DRM_DEBUG_DRIVER("alloc out-fence fd=%d : (%p) (%p)\n", fence->fd, fence, fence->fence);
+ 
+-	return 0;
++	return fence;
+ 
+-create_error:
++err_put_sync_file:
++	fput(fence->sync_file->file);  /* sync_file_release -> dma_fence_put: refcnt 2->1 */
++err_put_fd:
++	put_unused_fd(fence->fd);
++err_put_fence:
++	dma_fence_put(fence->fence);   /* refcnt 1->0, freed */
++err_free:
+ 	kfree(fence);
+-	return ret;
++	return ERR_PTR(ret);
++}
++
++void rtk_drm_fence_enqueue(struct rtk_drm_fence *rtk_fence,
++			   struct rtk_dma_fence *fence, unsigned int idx)
++{
++	unsigned long flags;
++
++	fence->idx = idx;
++
++	spin_lock_irqsave(&rtk_fence->list_lock, flags);
++	list_add_tail(&fence->node, &rtk_fence->queued);
++	spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
++
++	DRM_DEBUG_DRIVER("enqueue out-fence[%u] : (%p) (%p)\n", fence->idx, fence, fence->fence);
++}
++
++void rtk_drm_fence_abort(struct rtk_dma_fence *fence)
++{
++	dma_fence_signal(fence->fence);
++	dma_fence_put(fence->fence);
++	kfree(fence);
++}
++
++void rtk_drm_fence_flush(struct rtk_drm_plane *rtk_plane)
++{
++	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
++	struct rtk_dma_fence *fence, *tmp;
++	struct list_head cleanup;
++	unsigned long flags;
++
++	if (!rtk_fence)
++		return;
++
++	INIT_LIST_HEAD(&cleanup);
++
++	spin_lock_irqsave(&rtk_fence->list_lock, flags);
++	list_splice_tail_init(&rtk_fence->queued, &cleanup);
++	list_splice_tail_init(&rtk_fence->pending, &cleanup);
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY)
++		list_splice_tail_init(&rtk_fence->drop_list, &cleanup);
++	spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
++
++	list_for_each_entry_safe(fence, tmp, &cleanup, node) {
++		dma_fence_signal(fence->fence);
++		dma_fence_put(fence->fence);
++		kfree(fence);
++	}
+ }
+ 
+ int rtk_drm_fence_uninit(struct rtk_drm_plane *rtk_plane)
+ {
+ 	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
++	struct rtk_dma_fence *fence, *tmp;
++	struct list_head cleanup;
++	unsigned long flags;
+ 
+ 	DRM_INFO("Uninit videoplane %d 's fence (%p)\n",
+ 		rtk_plane->layer_nr, rtk_plane->rtk_fence);
+ 
++	INIT_LIST_HEAD(&cleanup);
++
++	spin_lock_irqsave(&rtk_fence->list_lock, flags);
++	list_splice_tail_init(&rtk_fence->queued, &cleanup);
++	list_splice_tail_init(&rtk_fence->pending, &cleanup);
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY)
++		list_splice_tail_init(&rtk_fence->drop_list, &cleanup);
++	spin_unlock_irqrestore(&rtk_fence->list_lock, flags);
++
++	list_for_each_entry_safe(fence, tmp, &cleanup, node) {
++		dma_fence_signal(fence->fence);
++		dma_fence_put(fence->fence);
++		kfree(fence);
++	}
++
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY) {
++		memset(rtk_fence->lock_vaddr, 0,          PLOCK_MAX_BUFFER_INDEX);
++		memset(rtk_fence->rcv_vaddr,  PLOCK_INIT, PLOCK_MAX_BUFFER_INDEX);
++	}
++
+ 	kfree(rtk_fence);
++	rtk_plane->rtk_fence = NULL;
+ 
+-	return  0;
++	return 0;
+ }
+ 
+ int rtk_drm_fence_init(struct rtk_drm_plane *rtk_plane)
+@@ -251,6 +310,10 @@ int rtk_drm_fence_init(struct rtk_drm_plane *rtk_plane)
+ 	struct rtk_drm_fence *rtk_fence;
+ 
+ 	rtk_fence = kzalloc(sizeof(*rtk_fence), GFP_KERNEL);
++	if (!rtk_fence) {
++		DRM_ERROR("rtk_drm_fence alloc fail\n");
++		return -ENOMEM;
++	}
+ 
+ 	rtk_plane->rtk_fence = rtk_fence;
+ 
+@@ -258,11 +321,21 @@ int rtk_drm_fence_init(struct rtk_drm_plane *rtk_plane)
+ 		rtk_plane->layer_nr, rtk_plane->rtk_fence);
+ 
+ 	spin_lock_init(&rtk_fence->fence_lock);
+-	spin_lock_init(&rtk_fence->idx_lock);
+-
+-	drm_flip_work_init(&rtk_fence->fence_signal_work, "fence_signal",
+-			   fence_signal_worker);
++	spin_lock_init(&rtk_fence->list_lock);
++	INIT_LIST_HEAD(&rtk_fence->queued);
+ 	INIT_LIST_HEAD(&rtk_fence->pending);
+ 
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY) {
++		rtk_fence->lock_vaddr = (u8 *)rtk_plane->ringbase + (64 * 1024) + PLOCK_ADDR_SHIFT;
++		rtk_fence->rcv_vaddr  = rtk_fence->lock_vaddr + PLOCK_MAX_BUFFER_INDEX;
++		rtk_fence->lock_paddr = rtk_plane->dma_handle  + (64 * 1024) + PLOCK_ADDR_SHIFT;
++		rtk_fence->rcv_paddr  = rtk_fence->lock_paddr  + PLOCK_MAX_BUFFER_INDEX;
++
++		memset(rtk_fence->lock_vaddr, 0,          PLOCK_MAX_BUFFER_INDEX);
++		memset(rtk_fence->rcv_vaddr,  PLOCK_INIT, PLOCK_MAX_BUFFER_INDEX);
++
++		INIT_LIST_HEAD(&rtk_fence->drop_list);
++	}
++
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_fence.h b/drivers/gpu/drm/realtek/rtk_drm_fence.h
+index f63614c7815d..778b1ad2f817 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_fence.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_fence.h
+@@ -1,14 +1,17 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
+ #ifndef __RTK_FENCE_H__
+ #define __RTK_FENCE_H__
+ 
+ #include <linux/dma-fence.h>
+-#include "rtk_drm_rpc.h"
++#include <linux/list.h>
++#include <linux/spinlock.h>
+ #include <linux/sync_file.h>
+-#include <drm/drm_flip_work.h>
++#include "rtk_drm_rpc.h"
+ 
++#define PLOCK_ADDR_SHIFT        512
+ #define PLOCK_BUFFER_SET_SIZE   (32) //bytes
+ #define PLOCK_BUFFER_SET        (2)  // 2 set of PLock buffer for sequence change
+-#define PLOCK_MAX_BUFFER_INDEX  (PLOCK_BUFFER_SET_SIZE*PLOCK_BUFFER_SET) //bytes  // seperate to 2 set of PLock buffer for sequence change
++#define PLOCK_MAX_BUFFER_INDEX  (PLOCK_BUFFER_SET_SIZE*PLOCK_BUFFER_SET) //bytes
+ #define PLOCK_BUFFER_SIZE       (PLOCK_MAX_BUFFER_INDEX*2) //bytes
+ 
+ #define PLOCK_INIT              0xFF
+@@ -23,18 +26,22 @@ struct rtk_dma_fence {
+ 	struct sync_file *sync_file;
+ 	int fd;
+ 	unsigned int idx;
++	struct list_head node;
+ };
+ 
+ struct rtk_drm_fence {
+-	dma_addr_t pLock_paddr;
+-	dma_addr_t pReceived_paddr;
++	/* OVERLAY (PLock) - populated only for DRM_PLANE_TYPE_OVERLAY planes */
++	u8        *lock_vaddr;
++	u8        *rcv_vaddr;
++	dma_addr_t lock_paddr;
++	dma_addr_t rcv_paddr;
++	struct list_head drop_list;
+ 
+-	spinlock_t fence_lock;
+-	spinlock_t idx_lock;
++	spinlock_t fence_lock;  /* used by dma_fence_init */
++	spinlock_t list_lock;   /* protects queued, pending and drop_list */
+ 
+-	struct drm_flip_work fence_signal_work;
++	struct list_head queued;
+ 	struct list_head pending;
+-	struct list_head drop_list;
+ 
+ 	unsigned int idx;
+ };
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 41d22f762bdf..1a548cbf6cc8 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -117,10 +117,10 @@ static const struct drm_prop_enum_list vo_plane_list[] = {
+ struct rtk_drm_plane_state {
+ 	struct drm_plane_state state;
+ 	s32 __user *out_fence_ptr;
+-	unsigned int display_idx;
+ 	struct drm_property_blob *rtk_meta_data_blob;
+ 	struct drm_property_enum *vo_plane_name;
+ 	struct video_object rtk_meta_data;
++	struct rtk_dma_fence *rtk_pending_fence;
+ };
+ 
+ static struct vo_rectangle rect_plane_disabled = {0};
+@@ -538,13 +538,12 @@ static int rtk_plane_update_cursor(struct drm_plane *plane)
+ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ {
+ 	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
+-//	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
++	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
+ 	struct drm_framebuffer *fb = plane->state->fb;
+ 	struct drm_gem_object *gem[4];
+ 	struct rtk_gem_object *rtk_gem[4];
+ 	const struct drm_format_info *info;
+ 
+-	struct rtk_drm_plane_state *s = to_rtk_plane_state(plane->state);
+ 	int i;
+ 	int index;
+ 	struct video_object *obj = (struct video_object *)kzalloc(sizeof(struct video_object), GFP_KERNEL);
+@@ -627,14 +626,18 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 		obj->header.size = sizeof(struct video_object);
+ 		obj->version = 0x72746B3F;
+ 
+-		index = s->display_idx;
++		index = rtk_fence->idx;
++		rtk_plane->context = index;
++		if (++rtk_fence->idx >= PLOCK_BUFFER_SET_SIZE)
++			rtk_fence->idx -= PLOCK_BUFFER_SET_SIZE;
+ 		obj->context = index;
+-//		obj->pLock = rtk_fence->pLock_paddr+index;
+-//		obj->pReceived = rtk_fence->pReceived_paddr+index;
++		obj->pLock = rtk_fence->lock_paddr + index;
++		obj->pReceived = rtk_fence->rcv_paddr + index;
+ 		obj->PTSH = decObj->PTSH;
+ 		obj->PTSL = decObj->PTSL;
+ 		obj->RPTSH = decObj->RPTSH;
+ 		obj->RPTSL = decObj->RPTSL;
++		*(volatile unsigned char *)(rtk_fence->rcv_vaddr + index) = PLOCK_QPEND;
+ 	}
+ 
+ 	DRM_DEBUG_DRIVER("obj->mode = 0x%x\n", obj->mode);
+@@ -758,7 +761,6 @@ static int rtk_plane_update_graphic_obj(struct drm_plane *plane)
+ 
+ 	if (fb->modifier & AFBC_FORMAT_MOD_YTR) {
+ 		DRM_DEBUG_DRIVER("AFBBBBBBBC\n");
+-
+ 		flags |= eBuffer_AFBC_Enable | eBuffer_AFBC_YUV_Transform;
+ 
+ 		obj->mode = MODE_AFBC;
+@@ -766,7 +768,6 @@ static int rtk_plane_update_graphic_obj(struct drm_plane *plane)
+ 		obj->ext2 = (flags & eBuffer_AFBC_YUV_Transform)?1:0;
+ 	} else if (fb->modifier & AFRC_FORMAT_MOD_LAYOUT_SCAN) {
+ 		DRM_DEBUG_DRIVER("AFRRRRRRRC\n");
+-
+ 		obj->mode = MODE_AFRC;
+ 
+ 		switch (fb->modifier & AFRC_FORMAT_MOD_CU_SIZE_MASK) {
+@@ -827,7 +828,6 @@ bool rtk_plane_check_update_done(struct rtk_drm_plane *rtk_plane)
+ {
+ 	struct rtk_rpc_info *rpc_info = rtk_plane->rpc_info;
+ 	int refContext = -1;
+-	s64 received_time_ms;
+ 
+ 	rtk_plane->wait_a_vsync = true;
+ 	wake_up(&rtk_plane->wait_vsync);
+@@ -839,16 +839,8 @@ bool rtk_plane_check_update_done(struct rtk_drm_plane *rtk_plane)
+ 		else
+ 			refContext = htonl(rtk_plane->refclock->videoContext);
+ 
+-		if (refContext == rtk_plane->context) {
+-
+-			received_time_ms = ktime_ms_delta(ktime_get(), rtk_plane->pending);
+-			if (received_time_ms > 16) {
+-				DRM_DEBUG_DRIVER("%s's context %d update successful, received_time_ms (%lld)\n",
+-					plane_names[rtk_plane->layer_nr], rtk_plane->context, received_time_ms);
+-			}
+-
++		if (refContext == rtk_plane->context)
+ 			return true;
+-		}
+ 	}
+ 
+ 	DRM_DEBUG_DRIVER("%s's context %d update fail, continue to show %d\n",
+@@ -857,6 +849,11 @@ bool rtk_plane_check_update_done(struct rtk_drm_plane *rtk_plane)
+ 	return false;
+ }
+ 
++bool rtk_plane_has_out_fence(struct rtk_drm_plane *rtk_plane)
++{
++	return rtk_plane->has_out_fence;
++}
++
+ static int rtk_plane_rpc_init(struct rtk_drm_plane *rtk_plane,
+ 			      enum VO_VIDEO_PLANE layer_nr)
+ {
+@@ -1143,6 +1140,7 @@ rtk_plane_atomic_plane_duplicate_state(struct drm_plane *plane)
+ 		return NULL;
+ 
+ 	__drm_atomic_helper_plane_duplicate_state(plane, &copy->state);
++	copy->rtk_pending_fence = NULL;
+ 
+ 	return &copy->state;
+ }
+@@ -1150,6 +1148,13 @@ rtk_plane_atomic_plane_duplicate_state(struct drm_plane *plane)
+ void rtk_plane_atomic_plane_destroy_state(struct drm_plane *plane,
+ 					   struct drm_plane_state *state)
+ {
++	struct rtk_drm_plane_state *s = to_rtk_plane_state(state);
++
++	if (s->rtk_pending_fence) {
++		rtk_drm_fence_abort(s->rtk_pending_fence);
++		s->rtk_pending_fence = NULL;
++	}
++
+ 	__drm_atomic_helper_plane_destroy_state(state);
+ 	kfree(to_rtk_plane_state(state));
+ }
+@@ -1178,11 +1183,6 @@ static int rtk_plane_atomic_set_property(struct drm_plane *plane,
+ 	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
+ 	struct rtk_drm_plane_state *s =	to_rtk_plane_state(state);
+ 
+-	if (property == rtk_plane->display_idx_prop) {
+-		s->display_idx = (unsigned int)val;
+-		return 0;
+-	}
+-
+ 	if (property == rtk_plane->rtk_meta_data_prop) {
+ 		struct drm_property_blob *meta_data =
+ 			drm_property_lookup_blob(rtk_plane->plane.dev, val);
+@@ -1209,15 +1209,17 @@ static int rtk_plane_atomic_set_property(struct drm_plane *plane,
+ 			return 0;
+ 		}
+ 
+-		s->out_fence_ptr = fence_ptr;
+-
+ 		DRM_DEBUG_DRIVER("%s's fence (%p) has out-fence-ptr (%p)\n",
+-			plane_names[rtk_plane->layer_nr], rtk_plane->rtk_fence, s->out_fence_ptr);
+-
+-		if (rtk_plane->rtk_fence && s->out_fence_ptr) {
+-			if (!rtk_drm_fence_create(rtk_plane->rtk_fence, s->out_fence_ptr)) {
+-				s->out_fence_ptr = NULL;
++			plane_names[rtk_plane->layer_nr], rtk_plane->rtk_fence, fence_ptr);
++
++		if (rtk_plane->rtk_fence) {
++			struct rtk_dma_fence *pending =
++				rtk_drm_fence_alloc(rtk_plane->rtk_fence, fence_ptr);
++			if (IS_ERR(pending)) {
++				DRM_ERROR("rtk_drm_fence_alloc fail %ld\n", PTR_ERR(pending));
++				return PTR_ERR(pending);
+ 			}
++			s->rtk_pending_fence = pending;
+ 		}
+ 
+ 		return 0;
+@@ -1237,11 +1239,6 @@ static int rtk_plane_atomic_get_property(struct drm_plane *plane,
+ 	const struct rtk_drm_plane_state *s =
+ 		container_of(state, const struct rtk_drm_plane_state, state);
+ 
+-	if (property == rtk_plane->display_idx_prop) {
+-		*val = s->display_idx;
+-		return 0;
+-	}
+-
+ 	if (property == rtk_plane->rtk_meta_data_prop) {
+ 		*val = (s->rtk_meta_data_blob) ? s->rtk_meta_data_blob->base.id : 0;
+ 		return 0;
+@@ -1316,11 +1313,29 @@ static void rtk_plane_atomic_update(struct drm_plane *plane,
+ 	DRM_DEBUG_DRIVER("crtc[%d]-%s\n",
+ 		crtc->index, mixer_names[rtk_plane->mixer]);
+ 
+-	if (plane->type == DRM_PLANE_TYPE_OVERLAY)
++	if (plane->type == DRM_PLANE_TYPE_OVERLAY) {
++		struct rtk_drm_plane_state *s = to_rtk_plane_state(plane->state);
+ 		rtk_plane_update_video_obj(plane);
+-	else if (plane->type == DRM_PLANE_TYPE_PRIMARY)
++
++		if (s->rtk_pending_fence) {
++			rtk_drm_fence_enqueue(rtk_plane->rtk_fence,
++							s->rtk_pending_fence,
++							rtk_plane->context);
++			s->rtk_pending_fence = NULL;
++			rtk_plane->has_out_fence = true;
++		}
++	} else if (plane->type == DRM_PLANE_TYPE_PRIMARY) {
++		struct rtk_drm_plane_state *s = to_rtk_plane_state(plane->state);
+ 		rtk_plane_update_graphic_obj(plane);
+-	else if (plane->type == DRM_PLANE_TYPE_CURSOR)
++
++		if (s->rtk_pending_fence) {
++			rtk_drm_fence_enqueue(rtk_plane->rtk_fence,
++							s->rtk_pending_fence,
++							rtk_plane->context);
++			s->rtk_pending_fence = NULL;
++			rtk_plane->has_out_fence = true;
++		}
++	} else if (plane->type == DRM_PLANE_TYPE_CURSOR)
+ 		rtk_plane_update_cursor(plane);
+ 	else {
+ 		DRM_DEBUG_DRIVER("Please consider putting %s on OVERLAY/PRIMARY\n",
+@@ -1361,6 +1376,9 @@ static void rtk_plane_atomic_disable(struct drm_plane *plane,
+ 	if (rpc_video_config_disp_win(rpc_info, &rtk_plane->disp_win))
+ 		DRM_ERROR("rpc_video_config_disp_win RPC fail\n");
+ 
++	if (plane->type == DRM_PLANE_TYPE_OVERLAY)
++		rtk_drm_fence_flush(rtk_plane);
++
+ 	if (plane->type == DRM_PLANE_TYPE_PRIMARY) {
+ 		rtk_plane->wait_a_vsync = false;
+ 		wait_event_interruptible_timeout(rtk_plane->wait_vsync,
+@@ -1470,14 +1488,14 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 	if(type == DRM_PLANE_TYPE_OVERLAY) {
+ 		drm_plane_create_zpos_immutable_property(plane, 0);
+ 
+-		rtk_plane->display_idx_prop = drm_property_create_range(plane->dev, DRM_MODE_PROP_ATOMIC,
+-					"display_idx", 0, PLOCK_BUFFER_SET_SIZE-1);
+-		if (!rtk_plane->display_idx_prop) {
+-			pr_err("III %s create display_idx property fail\n", __func__);
++		rtk_plane->out_fence_ptr = drm_property_create_range(plane->dev, DRM_MODE_PROP_ATOMIC,
++						"OUT_FENCE_PTR", 0, U64_MAX);
++		if (!rtk_plane->out_fence_ptr) {
++			DRM_ERROR("create overlay out fence ptr property fail\n");
+ 			return -ENOMEM;
+ 		}
+ 
+-		drm_object_attach_property(&plane->base, rtk_plane->display_idx_prop, 0);
++		drm_object_attach_property(&plane->base, rtk_plane->out_fence_ptr, 0);
+ 	}
+ 	else if (type == DRM_PLANE_TYPE_PRIMARY) {
+ 		drm_plane_create_zpos_immutable_property(plane, 1);
+@@ -1521,7 +1539,7 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 
+ 	rtk_plane_rpc_init(rtk_plane, layer_nr);
+ 
+-	if (type == DRM_PLANE_TYPE_PRIMARY)
++	if (type == DRM_PLANE_TYPE_PRIMARY || type == DRM_PLANE_TYPE_OVERLAY)
+ 		rtk_drm_fence_init(rtk_plane);
+ 
+ 	rtk_plane->wait_a_vsync = true;
+-- 
+2.34.1
+

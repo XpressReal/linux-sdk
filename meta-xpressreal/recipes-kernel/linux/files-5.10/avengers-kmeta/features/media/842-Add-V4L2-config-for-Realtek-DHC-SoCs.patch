@@ -1,0 +1,146 @@
+From 5b283d1f65000adc5a9be6084ba5a8b862a00e2f Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 10 Apr 2026 15:15:25 +0800
+Subject: [PATCH 1/1] Add-V4L2 config for Realtek DHC SoCs
+
+---
+ drivers/media/platform/Kconfig            |   1 +
+ drivers/media/platform/rtk_vcodec/Kconfig | 117 ++++++++++++++++++++++
+ 2 files changed, 118 insertions(+)
+ create mode 100644 drivers/media/platform/rtk_vcodec/Kconfig
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 38b7baa841f4..abae90842ae6 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -585,3 +585,4 @@ source "drivers/media/platform/rtk_hdmitx/Kconfig"
+ source "drivers/media/platform/rtk_hdcptx/Kconfig"
+ source "drivers/media/platform/rtk_dsi/Kconfig"
+ source "drivers/media/platform/rtk_tpdemux/Kconfig"
++source "drivers/media/platform/rtk_vcodec/Kconfig"
+diff --git a/drivers/media/platform/rtk_vcodec/Kconfig b/drivers/media/platform/rtk_vcodec/Kconfig
+new file mode 100644
+index 000000000000..cc147f262f84
+--- /dev/null
++++ b/drivers/media/platform/rtk_vcodec/Kconfig
+@@ -0,0 +1,117 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++config RTK_V4L2_VDEC
++	tristate "Realtek V4L2 Video Decoder Interface"
++	depends on VIDEO_DEV
++	select V4L_MEM2MEM_DRIVERS
++	select V4L2_MEM2MEM_DEV
++	select V4L2_JPEG_HELPER
++	select VIDEOBUF2_DMA_CONTIG
++	select VIDEOBUF2_VMALLOC
++	select MEDIA_CONTROLLER
++	select MEDIA_CONTROLLER_REQUEST_API
++	default n
++	help
++	  Realtek V4L2 Video Decoder Driver Interface
++
++config RTK_V4L2_DEC_PREPEND_METADATA
++	bool "Prepend metadata in decoded frame buffer"
++	depends on RTK_V4L2_VDEC
++	default n
++	help
++	  Prepend metadata in front of decoded frame buffer.
++
++config RTK_V4L2_VENC
++	tristate "Realtek V4L2 Video Encoder Interface"
++	depends on VIDEO_DEV
++	select V4L_MEM2MEM_DRIVERS
++	select V4L2_MEM2MEM_DEV
++	select VIDEOBUF2_DMA_CONTIG
++	select VIDEOBUF2_VMALLOC
++	default n
++	help
++	  Realtek V4L2 Video Encoder Driver Interface
++
++config RTK_V4L2_EN_CODEC_H263
++	bool "Support RTK H263 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 h263 codec
++
++config RTK_V4L2_EN_CODEC_H264
++	bool "Support RTK H264 Codec"
++	depends on RTK_V4L2_VDEC || RTK_V4L2_VENC
++	default y
++	help
++	  Support realtek v4l2 h264 codec
++
++config RTK_V4L2_EN_CODEC_HEVC
++	bool "Support RTK H265 Codec"
++	depends on RTK_V4L2_VDEC || RTK_V4L2_VENC
++	default y
++	help
++	  Support realtek v4l2 h265 codec
++
++config RTK_V4L2_EN_CODEC_MPEG1
++	bool "Support RTK mpeg1 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 mpeg1 codec
++
++config RTK_V4L2_EN_CODEC_MPEG2
++	bool "Support RTK mpeg2 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 mpeg2 codec
++
++config RTK_V4L2_EN_CODEC_MPEG4
++	bool "Support RTK mpeg4 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 mpeg4 codec
++
++config RTK_V4L2_EN_CODEC_VP8
++	bool "Support RTK vp8 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 vp8 codec
++
++config RTK_V4L2_EN_CODEC_VP9
++	bool "Support RTK vp9 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 vp9 codec
++
++config RTK_V4L2_EN_CODEC_AV1
++	bool "Support RTK av1 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 av1 codec
++
++config RTK_V4L2_EN_CODEC_VC1
++	bool "Support RTK vc1 Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 vc1 codec
++
++config RTK_V4L2_EN_CODEC_SPK
++	bool "Support RTK sorenson spark Codec"
++	depends on RTK_V4L2_VDEC
++	default y
++	help
++	  Support realtek v4l2 sorenson spark codec
++
++config RTK_V4L2_JPEG
++	tristate "Support RTK JPEG Codec"
++	depends on !CONFIG_RTK_IMAGE_CODEC
++	default y
++	help
++	  Support realtek v4l2 jpeg codec
+-- 
+2.34.1
+

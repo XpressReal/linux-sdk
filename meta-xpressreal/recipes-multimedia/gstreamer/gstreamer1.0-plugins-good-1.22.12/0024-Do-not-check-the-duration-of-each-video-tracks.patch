@@ -2,6 +2,8 @@ From 1c9c2dd3cc610e52ed0c4efae37e317a465f2ca6 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 29 Sep 2025 19:06:02 +0800
 Subject: [PATCH 1/1] Do not check the duration of each video tracks
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 ---
  gst/isomp4/qtdemux.c | 44 +++++++++++++++++++++++++++++++++++++++++++-

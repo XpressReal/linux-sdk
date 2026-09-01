@@ -1,0 +1,49 @@
+From 930f58921d7af776bcf1f14c91587e434c03a2d5 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 8 Apr 2026 01:52:57 -0400
+Subject: [PATCH] gpu: drm: add video plane for Yocto platform
+
+---
+ drivers/gpu/drm/realtek/Kconfig        | 4 ++++
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c | 5 ++++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/realtek/Kconfig b/drivers/gpu/drm/realtek/Kconfig
+index 1dfbc2dc133b..40729b231a48 100644
+--- a/drivers/gpu/drm/realtek/Kconfig
++++ b/drivers/gpu/drm/realtek/Kconfig
+@@ -29,4 +29,8 @@ config RTK_METADATA_AUTOJUDGE
+ 	bool "Realtek specific METADATA buffer auto judgement"
+ 	default n
+ 
++config YOCTO_PLATFORMS
++	bool "Realtek Yocto platform"
++	default n
++
+ endif
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 629b2b9f48d9..5367fb31414a 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -721,7 +721,7 @@ static const struct crtc_plane_data rtd_crtc_plane_all[] = {
+ 	  .type = DRM_PLANE_TYPE_OVERLAY },
+ };
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+@@ -729,6 +729,9 @@ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+ 	  .type = DRM_PLANE_TYPE_CURSOR,
+ 	  .plane_order = 3 },
++	{ .layer_nr = VO_VIDEO_PLANE_V1,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = 1 },
+ };
+ #else
+ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+-- 
+2.34.1
+

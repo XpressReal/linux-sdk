@@ -29,7 +29,7 @@
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
-            load = <0x03000000>;
+            load = <0x03800000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -40,7 +40,7 @@
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
-            load = <0x03000000>;
+            load = <0x03800000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -51,7 +51,7 @@
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
-            load = <0x03000000>;
+            load = <0x03800000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -62,7 +62,7 @@
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
-            load = <0x03000000>;
+            load = <0x03800000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -73,7 +73,7 @@
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
-            load = <0x03000000>;
+            load = <0x03800000>;
             hash-1 {
                 algo = "sha256";
             };

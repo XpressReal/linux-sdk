@@ -1,0 +1,52 @@
+From c444461c1653dcebedb6f6f548ea2e769548d68b Mon Sep 17 00:00:00 2001
+From: "haowen.ting" <haowen.ting@realtek.com>
+Date: Fri, 1 Aug 2025 09:34:18 +0800
+Subject: [PATCH 07/33] clocksource: Add realtek systimer driver for 4-core
+ power-cut.
+
+Without the global tick-broadcast timer, one CPU must remain awake to
+wake up the others. The systimer can be used as a global tick-broadcast
+timer that allows all CPUs to simultaneously enter idle states with
+local-timer-stop (usually also power-cut) to reduce power consumption.
+
+Change-Id: Iea7772ca68acbd801b7b88e110d6b6575cc0d845
+---
+ drivers/clocksource/Kconfig  | 12 ++++++++++++
+ drivers/clocksource/Makefile |  3 +++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/drivers/clocksource/Kconfig b/drivers/clocksource/Kconfig
+index d546903dba4f3..f3c6abf2041b2 100644
+--- a/drivers/clocksource/Kconfig
++++ b/drivers/clocksource/Kconfig
+@@ -754,4 +754,16 @@ config EP93XX_TIMER
+ 	  Enables support for the Cirrus Logic timer block
+ 	  EP93XX.
+ 
++config RTK_SYSTIMER
++	bool "Realtek SYSDBG timer support"
++	help
++	  This enable the SYSDBG counter to be registered as global timer
++	  on Realtek platform.
++
++config RTK_SYSTIMER_TEST
++	tristate "Realtek SYSDBG timer test"
++	depends on RTK_SYSTIMER
++	help
++	  This test the SYSDBG timer.
++
+ endmenu
+diff --git a/drivers/clocksource/Makefile b/drivers/clocksource/Makefile
+index 22743785299ed..2973a33900146 100644
+--- a/drivers/clocksource/Makefile
++++ b/drivers/clocksource/Makefile
+@@ -91,3 +91,6 @@ obj-$(CONFIG_GOLDFISH_TIMER)		+= timer-goldfish.o
+ obj-$(CONFIG_GXP_TIMER)			+= timer-gxp.o
+ obj-$(CONFIG_CLKSRC_LOONGSON1_PWM)	+= timer-loongson1-pwm.o
+ obj-$(CONFIG_EP93XX_TIMER)		+= timer-ep93xx.o
++obj-$(CONFIG_RTK_SYSTIMER)		+= timer-realtek.o
++obj-$(CONFIG_RTK_SYSTIMER_TEST)		+= timer-realtek-test.o
++
+-- 
+2.47.0
+

@@ -1,9 +1,11 @@
-From 47c75ae9d55f20dae7c5658ccfc7c9940c70559b Mon Sep 17 00:00:00 2001
+From 975cbf9c9ad762bb111a8dfea0200cbe4065cbfa Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Thu, 23 Oct 2025 00:57:28 -0400
+Date: Tue, 14 Apr 2026 05:37:15 -0400
 Subject: [PATCH] weston: modeset fail when hotplug
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/kms.c | 8 ++++++++
  1 file changed, 8 insertions(+)

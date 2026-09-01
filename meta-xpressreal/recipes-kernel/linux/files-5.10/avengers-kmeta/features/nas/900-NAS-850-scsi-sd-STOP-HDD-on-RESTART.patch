@@ -1,0 +1,25 @@
+From 48c804c61bb831f9d0edb4d96294a1d9817ec8ea Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Mon, 16 Oct 2023 13:06:41 +0800
+Subject: recipes-kernel: leverage kmeta by creating cfg, features, and patches
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: I0c8d9af1027e4e31f7bea7dc885c1cbd00ea4477
+---
+Index: linux-5.10.109/drivers/scsi/sd.c
+===================================================================
+--- linux-5.10.109.orig/drivers/scsi/sd.c
++++ linux-5.10.109/drivers/scsi/sd.c
+@@ -3648,7 +3648,11 @@ static void sd_shutdown(struct device *d
+ 		sd_sync_cache(sdkp, NULL);
+ 	}
+ 
++#ifdef CONFIG_ARCH_REALTEK
++	if (sdkp->device->manage_start_stop) {
++#else
+ 	if (system_state != SYSTEM_RESTART && sdkp->device->manage_start_stop) {
++#endif
+ 		sd_printk(KERN_NOTICE, sdkp, "Stopping disk\n");
+ 		sd_start_stop_device(sdkp, 0);
+ 	}

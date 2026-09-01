@@ -1,0 +1,38 @@
+From 2e6d436713acf102de8af879355e3495614587d6 Mon Sep 17 00:00:00 2001
+From: TY Chang <tychang@realtek.com>
+Date: Fri, 8 May 2026 17:24:07 +0800
+Subject: [PATCH] rpmsg: pm: Add support for stark HIFI suspend resume
+
+---
+ drivers/rpmsg/rpmsg_rtk.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/rpmsg/rpmsg_rtk.c b/drivers/rpmsg/rpmsg_rtk.c
+index 12850de11502..3e331ade575b 100644
+--- a/drivers/rpmsg/rpmsg_rtk.c
++++ b/drivers/rpmsg/rpmsg_rtk.c
+@@ -1597,6 +1597,12 @@ static int rtk_rcpu_suspend(struct device *dev)
+ 			while ((rcpu_get_flag(rcpu) != 0x0) && ((timeout--) > 0))
+ 				mdelay(1);
+ 			dev_info(dev, "%d: wait %d ms\n", rcpu->info->id, (2000 - timeout));
++		} else if (rcpu->info->id == HIFI_ID){
++			rcpu_set_flag(rcpu, 0xdeadffff);
++			rcpu->info->send_interrupt(rcpu);
++			while ((rcpu_get_flag(rcpu) != 0x0) && ((timeout--) > 0))
++				mdelay(1);
++			dev_info(dev, "%d: wait %d ms\n", rcpu->info->id, (2000 - timeout));
+ 		}
+ 		dev_info(dev, "exit %s\n", __func__);
+ 	}
+@@ -1621,6 +1627,8 @@ static int rtk_rcpu_resume(struct device *dev)
+ 			if (rcpu->info->id == AUDIO_ID || rcpu->info->id == VIDEO_ID) {
+ 				RPC_SET_BIT(rcpu->rcpu_notify, rcpu->info->to_rcpu_notify_bit);
+ 				rcpu_set_flag(rcpu, 0xffffffff);
++			} else if (rcpu->info->id == HIFI_ID) {
++				rcpu_set_flag(rcpu, 0x55665566);
+ 			}
+ 		}
+ 	}
+-- 
+2.34.1
+

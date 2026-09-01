@@ -1,0 +1,43 @@
+From 680e75c4f9e144adba59efb334133f598d3c2392 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Mon, 20 Jul 2026 14:17:07 +0800
+Subject: [PATCH] gpu: drm: add video fence for normal dma buffer
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index bb279db82e4e8..1334f9bb17de3 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -650,6 +650,14 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 		obj->header.size = sizeof(struct video_object);
+ 		obj->version = 0x72746B3F;
+ 
++		rtk_plane->context = index;
++		obj->PTSH = decObj->PTSH;
++		obj->PTSL = decObj->PTSL;
++		obj->RPTSH = decObj->RPTSH;
++		obj->RPTSL = decObj->RPTSL;
++	}
++
++	if (rtk_fence && rtk_fence->rcv_vaddr) {
+ 		index = rtk_fence->idx;
+ 		rtk_plane->context = index;
+ 		if (++rtk_fence->idx >= PLOCK_BUFFER_SET_SIZE)
+@@ -657,10 +665,6 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 		obj->context = index;
+ 		obj->pLock = rtk_fence->lock_paddr + index;
+ 		obj->pReceived = rtk_fence->rcv_paddr + index;
+-		obj->PTSH = decObj->PTSH;
+-		obj->PTSL = decObj->PTSL;
+-		obj->RPTSH = decObj->RPTSH;
+-		obj->RPTSL = decObj->RPTSL;
+ 		*(volatile unsigned char *)(rtk_fence->rcv_vaddr + index) = PLOCK_QPEND;
+ 	}
+ 
+-- 
+2.50.1
+

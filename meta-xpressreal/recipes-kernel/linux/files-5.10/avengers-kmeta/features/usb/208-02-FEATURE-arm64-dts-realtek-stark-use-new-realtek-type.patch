@@ -1,0 +1,172 @@
+From 01f2364431fc5de34d5781637b1ddc2647233b72 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 17 Oct 2023 16:40:38 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: use new realtek type c
+ device node
+
+We use new upstream extcon-rtk-type-c driver, so updated the dts to
+new device node.
+
+Change-Id: If1a322f02b72934d6452f5c372a78508943db966
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ .../boot/dts/realtek/rtd1315c-arcreactor.dtsi |  2 +-
+ .../boot/dts/realtek/rtd1315c-morgan.dtsi     |  2 +-
+ .../boot/dts/realtek/rtd1315c-repulsor.dtsi   |  6 ++
+ .../dts/realtek/rtd1619b-bleedingedge.dtsi    |  2 -
+ .../boot/dts/realtek/rtd16xxb-rescue.dtsi     |  2 -
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 65 ++++++-------------
+ 6 files changed, 28 insertions(+), 51 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+index b9871d42cb9f7..f86fadd8adb6a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+@@ -448,7 +448,7 @@ dwc3@50000 {
+ &type_c {
+ 	status = "disabled";
+ 
+-	dwc3_rtk = <&usb_port0>;
++	realtek,usb-port = <&usb_port0>;
+ };
+ 
+ /* debug console (J1) */
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+index 181f280e098ff..5d52e83f6807c 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+@@ -445,7 +445,7 @@ dwc3@50000 {
+ &type_c {
+ 	status = "okay";
+ 
+-	dwc3_rtk = <&usb_port2>;
++	realtek,usb-port = <&usb_port2>;
+ };
+ 
+ /* debug console (J1) */
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+index 4f29c6a7d5a7d..89a09755460a6 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+@@ -412,6 +412,12 @@ dwc3@50000 {
+ 	};
+ };
+ 
++&type_c {
++	status = "okay";
++
++	realtek,usb-port = <&usb_port2>;
++};
++
+ /* debug console (J1) */
+ &uart0 {
+ 	status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+index a58994f429ee6..5c80f7d9f20c9 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+@@ -539,8 +539,6 @@ &usb_port2 {
+ 
+ &type_c {
+ 	status = "okay";
+-
+-	dwc3_rtk = <&usb_port2>;
+ };
+ 
+ /* debug console (J1) */
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
+index d6b1244f6b8a9..403f63d13af34 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
+@@ -84,8 +84,6 @@ &usb_port2 {
+ 
+ &type_c {
+ 	status = "okay";
+-
+-	dwc3_rtk = <&usb_port2>;
+ };
+ 
+ &emmc {
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index aea7f7edb8e03..089f19b9af3f4 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -205,55 +205,30 @@ dwc3@50000 {
+ 		};
+ 	};
+ 
+-	type_c: type_c@7220 {
+-		compatible= "realtek,extcon-rtk-type-c";
++	type_c: type-c@7220 {
++		compatible= "realtek,rtd1619b-type-c";
+ 		reg = <0x7220 0x20>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
+-	};
+-};
+ 
+-&type_c {
+-	interrupts = <0 60 4>;
+-	//debug; /*to enable debug log*/
+-
+-	realtek,usb_port = <&usb_port2>; /* default usb_port is u3drd*/
+-
+-	pinctrl-names = "default";
+-	pinctrl-0 = <&usb_cc1_pins>, <&usb_cc2_pins>;
+-
+-	nvmem-cells = <&otp_usb_cal>;
+-	nvmem-cell-names = "usb-cal";
+-
+-	status = "okay";
+-
+-	realtek,default_revision = <0xA00>;
+-	A00 {
+-		realtek,cc_dfp_mode = "dfp_1_5"; /*dfp_3_0, dfp_1_5, dfp_usb*/
+-		realtek,cc1_rp_4p7k_code = <0xF>;
+-		realtek,cc1_rp_36k_code = <0xF>;
+-		realtek,cc1_rp_12k_code = <0xF>;
+-		realtek,cc1_rd_code = <0xF>;
+-		realtek,cc1_vref_ufp = /bits/ 8
+-			<0x7 0x8 0x9>; /*<1p23v,0p66v,0p2v>*/
+-		realtek,cc1_vref_dfp_usb = /bits/ 8
+-			<0x7 0x9 0x0>; /*<0_1p6v,0p2v,unused>*/
+-		realtek,cc1_vref_dfp_1_5 = /bits/ 8
+-			<0x7 0x7 0x9>; /*<1_1p6v,0p4v,0p2v>*/
+-		realtek,cc1_vref_dfp_3_0 = /bits/ 8
+-			<0x9 0x9 0x9>; /*<2p6v,0p8v,0p2v>*/
+-		realtek,cc2_rp_4p7k_code = <0xF>;
+-		realtek,cc2_rp_36k_code = <0xF>;
+-		realtek,cc2_rp_12k_code = <0xF>;
+-		realtek,cc2_rd_code = <0xF>;
+-		realtek,cc2_vref_ufp = /bits/ 8
+-			<0x7 0x8 0x8>; /*<1p23v,0p66v,0p2v>*/
+-		realtek,cc2_vref_dfp_usb = /bits/ 8
+-			<0x7 0x8 0x0>; /*<0_1p6v,0p2v,unused>*/
+-		realtek,cc2_vref_dfp_1_5 = /bits/ 8
+-			<0x7 0x7 0x8>; /*<1_1p6v,0p4v,0p2v>*/
+-		realtek,cc2_vref_dfp_3_0 = /bits/ 8
+-			<0x9 0x9 0x8>; /*<2p6v,0p8v,0p2v>*/
++		interrupts = <0 60 IRQ_TYPE_LEVEL_HIGH>;
++
++		realtek,usb-port = <&usb_port2>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&usb_cc1_pins>, <&usb_cc2_pins>;
++
++		nvmem-cells = <&otp_usb_cal>;
++		nvmem-cell-names = "usb-cal";
++
++		status = "disabled";
++
++		connector {
++			compatible = "usb-c-connector";
++			label = "USB-C";
++			data-role = "dual";
++			power-role = "dual";
++		};
+ 	};
+ };
+-- 
+2.47.0
+

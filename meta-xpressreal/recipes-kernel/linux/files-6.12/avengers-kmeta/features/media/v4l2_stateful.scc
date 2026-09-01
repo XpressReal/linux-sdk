@@ -1,0 +1,4 @@
+patch 851-Add-V4L2-device-tree.patch
+patch 855-Add-RTK-V4L2-Compress-Pixel-Format.patch
+
+kconf hardware v4l2_stateful.cfg

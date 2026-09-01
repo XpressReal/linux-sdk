@@ -411,8 +411,8 @@ index 8f5e466bd582..044a8c4875ba 100644
  	if (!entity->rq) {
  		/* This will most likely be followed by missing frames
 @@ -695,7 +801,13 @@ int drm_sched_job_init(struct drm_sched_job *job,
- 		return -ENOENT;
- 	}
+ 	 */
+ 	memset(job, 0, sizeof(*job));
  
 +	if (unlikely(!credits)) {
 +		pr_err("*ERROR* %s: credits cannot be 0!\n", __func__);

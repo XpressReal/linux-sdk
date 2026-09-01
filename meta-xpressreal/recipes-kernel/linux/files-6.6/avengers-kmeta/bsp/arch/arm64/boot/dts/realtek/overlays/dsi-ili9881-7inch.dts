@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Raspberry Pi Touch Display 2 (7" 720x1280 ILI9881, portrait)
+ * Overlay for the panel-neutral base (rtd1619b-backinblack-2gb.dts):
+ *   - add the dsi_out_panel endpoint pointing at the ILI9881 panel
+ *   - add ILI9881 panel on the DSI bus, GT911 touch @0x5d and the v2 display
+ *     MCU (regulator/gpio/backlight) @0x45
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+&dsi {
+	display-timings {
+		native-mode = <&timing0>;
+		timing0: timing0 {
+			clock-frequency = <74204640>;
+			hactive = <720>;
+			vactive = <1280>;
+			hfront-porch = <239>;
+			hback-porch = <50>;
+			vfront-porch = <20>;
+			vback-porch = <30>;
+			hsync-len = <33>;
+			vsync-len = <2>;
+		};
+	};
+
+	dsi_panel_v2: dsi_panel@0 {
+		compatible = "raspberrypi,dsi-7inch";
+		reg = <0>;
+		reset-gpio = <&display_mcu 0 GPIO_ACTIVE_LOW>;
+		backlight = <&display_mcu>;
+		fps = <60>;
+		rotation = <0>;
+		port {
+			panel_in_dsi_v2: endpoint {
+				remote-endpoint = <&dsi_out_panel>;
+			};
+		};
+	};
+};
+
+/* base's dsi_out port has no panel endpoint (panel-neutral base) */
+&dsi_out {
+	dsi_out_panel: endpoint {
+		remote-endpoint = <&panel_in_dsi_v2>;
+	};
+};
+
+&i2c_5 {
+	gt911: gt911@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		AVDD28-supply = <&touch_reg>;
+		touchscreen-size-x = <720>;
+		touchscreen-size-y = <1280>;
+		touchscreen-x-mm = <90>;
+		touchscreen-y-mm = <151>;
+	};
+
+	display_mcu: display_mcu@45 {
+		compatible = "raspberrypi,v2-touchscreen-panel-regulator";
+		reg = <0x45>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+};
+
+/*
+ * touch_reg must NOT be a child of &i2c_5: the i2c core only ever
+ * instantiates its children as i2c_client (i2c_bus_type), but the
+ * regulator-fixed driver (reg-fixed-voltage) is a platform_driver, so
+ * it can never bind there and gt911's AVDD28-supply stays deferred
+ * forever. Put it at the root instead, like hdmi_supp_alt/wlan_supp_alt
+ * in the phantom overlays, where the same driver is confirmed to bind.
+ */
+&{/} {
+	touch_reg: touch_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "touch_reg_1";
+		gpio = <&display_mcu 1 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <50000>;
+		enable-active-high;
+	};
+};

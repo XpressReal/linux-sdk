@@ -1,0 +1,125 @@
+From ce22728f406dc6f8313c4582c94c0418b1ea9e1b Mon Sep 17 00:00:00 2001
+From: mingjayli <mingjayli@realtek.com>
+Date: Thu, 25 Jun 2026 10:49:43 +0800
+Subject: [PATCH] Add OCR to WebRTC mode
+
+---
+ kvmd/apps/__init__.py               |  1 +
+ kvmd/apps/kvmd/streamer/__init__.py | 55 +++++++++++++++++++++++++----
+ 2 files changed, 49 insertions(+), 7 deletions(-)
+
+diff --git a/kvmd/apps/__init__.py b/kvmd/apps/__init__.py
+index 75f5607..de2b6ee 100644
+--- a/kvmd/apps/__init__.py
++++ b/kvmd/apps/__init__.py
+@@ -474,6 +474,7 @@ def _get_config_scheme() -> dict:
+                 "unix":    Option("/run/kvmd/ustreamer.sock", type=valid_abs_path, unpack_as="unix_path"),
+                 "timeout": Option(2.0, type=valid_float_f01),
+                 "snapshot_timeout": Option(5.0, type=valid_float_f01),  # error_delay * 3 + 1
++                "snapshot_file": Option("", type=valid_abs_path, if_empty=""),
+ 
+                 "process_name_prefix": Option("kvmd/streamer"),
+ 
+diff --git a/kvmd/apps/kvmd/streamer/__init__.py b/kvmd/apps/kvmd/streamer/__init__.py
+index 08ca197..6286091 100644
+--- a/kvmd/apps/kvmd/streamer/__init__.py
++++ b/kvmd/apps/kvmd/streamer/__init__.py
+@@ -20,6 +20,7 @@
+ # ========================================================================== #
+ 
+ 
++import io
+ import signal
+ import asyncio
+ import dataclasses
+@@ -29,6 +30,7 @@ from typing import AsyncGenerator
+ from typing import Any
+ 
+ import aiohttp
++from PIL import Image as PilImage
+ 
+ from ....logging import get_logger
+ 
+@@ -61,6 +63,7 @@ class Streamer:  # pylint: disable=too-many-instance-attributes
+         unix_path: str,
+         timeout: float,
+         snapshot_timeout: float,
++        snapshot_file: str,
+ 
+         process_name_prefix: str,
+ 
+@@ -83,6 +86,7 @@ class Streamer:  # pylint: disable=too-many-instance-attributes
+ 
+         self.__unix_path = unix_path
+         self.__snapshot_timeout = snapshot_timeout
++        self.__snapshot_file = snapshot_file
+ 
+         self.__params = Params(**params_kwargs)
+ 
+@@ -218,19 +222,56 @@ class Streamer:  # pylint: disable=too-many-instance-attributes
+         if load:
+             return self.__snapshot
+         logger = get_logger()
++        snapshot: (StreamerSnapshot | None) = None
+         session = self.__ensure_client_session()
+         try:
+             snapshot = await session.take_snapshot(self.__snapshot_timeout)
+-            if snapshot.online or allow_offline:
+-                if save:
+-                    self.__snapshot = snapshot
+-                    self.__notifier.notify(self.__ST_SNAPSHOT)
+-                return snapshot
+-            logger.error("Stream is offline, no signal or so")
++            if not snapshot.online and not allow_offline:
++                logger.error("Stream is offline, no signal or so")
++                snapshot = None
+         except (aiohttp.ClientConnectionError, aiohttp.ServerConnectionError) as ex:
+-            logger.error("Can't connect to streamer: %s", tools.efmt(ex))
++            if not self.__snapshot_file:
++                logger.error("Can't connect to streamer: %s", tools.efmt(ex))
+         except Exception:
+             logger.exception("Invalid streamer response from /snapshot")
++        if snapshot is None and self.__snapshot_file:
++            snapshot = await aiotools.run_async(self.__read_snapshot_file)
++        if snapshot is not None:
++            if save:
++                self.__snapshot = snapshot
++                self.__notifier.notify(self.__ST_SNAPSHOT)
++            return snapshot
++        return None
++
++    def __read_snapshot_file(self) -> (StreamerSnapshot | None):
++        logger = get_logger()
++        try:
++            with open(self.__snapshot_file, "rb") as f:
++                data = f.read()
++            if not data:
++                logger.error("Snapshot file is empty: %s", self.__snapshot_file)
++                return None
++            with io.BytesIO(data) as bio:
++                with PilImage.open(bio) as img:
++                    (width, height) = img.size
++            return StreamerSnapshot(
++                online=True,
++                width=width,
++                height=height,
++                headers=(
++                    ("X-UStreamer-Online", "true"),
++                    ("X-UStreamer-Width", str(width)),
++                    ("X-UStreamer-Height", str(height)),
++                    ("Cache-Control", "no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0"),
++                    ("Pragma", "no-cache"),
++                    ("Expires", "0"),
++                ),
++                data=data,
++            )
++        except FileNotFoundError:
++            logger.error("Snapshot file not found: %s", self.__snapshot_file)
++        except Exception:
++            logger.exception("Can't read snapshot file: %s", self.__snapshot_file)
+         return None
+ 
+     def remove_snapshot(self) -> None:
+-- 
+2.34.1
+

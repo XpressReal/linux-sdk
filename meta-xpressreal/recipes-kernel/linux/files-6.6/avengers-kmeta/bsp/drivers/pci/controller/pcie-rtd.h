@@ -68,17 +68,20 @@ struct rtd_pcie_port {
 	struct gpio_desc *device_power_gpio;
 	struct regulator *device_power_supply;
 	int	msi_irq;
-	struct irq_domain *irq_domain;
+	struct irq_domain *msi_irq_domain;
 	struct irq_domain *msi_domain;
+	struct irq_domain *intx_irq_domain;
 	dma_addr_t msi_data;
 	u32 *msi_data_virt;
 	struct page *msi_page;
 	u32 msi_max_vector;
 	u32 irq_mask[RTK_MAX_MSI_CTRLS];
 	struct irq_chip *msi_irq_chip;
+	struct irq_chip intx_irq_chip;
 	raw_spinlock_t lock;
 	DECLARE_BITMAP(irq_bitmap, RTK_MAX_MSI_IRQS);
 	int ca_type;
+	irq_hw_number_t rc_msi_hwirq;
 };
 
 struct rtd_pcie_ops {
@@ -327,6 +330,7 @@ struct rtd_msi_ops {
 #define TIMEOUT_EN (0x1U)
 
 #define PCIE_MAC_ST 0x00000CB4
+#define PCIE_AER_MSI_STATUS 0xCA0
 #define PCIE_PME_ST 0xCA4
 #define LTSSM_STATE_MASK 0x3F0
 #define RDLH_LINK_UP (0x1U << 14)
@@ -359,7 +363,7 @@ struct rtd_msi_ops {
 #define CFG_ST_REC_TARGET_ABORT (1 << 28)
 #define CFG_ST_SIG_TAR_ABORT (1 << 27)
 
-#define PCIE_CONNECT_TIMEOUT 2000
+#define PCIE_CONNECT_TIMEOUT 20000
 #define ADDR_TO_DEVICE_NO(addr) ((addr >> 19) & 0x1F)
 #endif
 

@@ -1,9 +1,11 @@
-From ab9b3f722f276d26d0f879c802b01c1442b427f3 Mon Sep 17 00:00:00 2001
+From 84179d2dc1a6a7a20e139b772d4bca501b5231c5 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Tue, 17 Dec 2024 08:40:32 +0800
+Date: Tue, 14 Apr 2026 02:12:05 -0400
 Subject: [PATCH] to support subtitle layer feature
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  compositor/main.c                   |  1 +
  include/libweston/libweston.h       |  1 +
@@ -24,10 +26,10 @@ index 5bd8bfe..8550a5f 100644
  	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
  
 diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
-index cfeb0b2..fee5f33 100644
+index cfdacb6..bea2ba9 100644
 --- a/include/libweston/libweston.h
 +++ b/include/libweston/libweston.h
-@@ -1524,6 +1524,7 @@ struct weston_compositor {
+@@ -1525,6 +1525,7 @@ struct weston_compositor {
  	bool transparent_fade_layer;
  	bool gbm_afbc;
  	bool found_drm_fd;
@@ -36,10 +38,10 @@ index cfeb0b2..fee5f33 100644
  
  struct weston_solid_buffer_values {
 diff --git a/libweston/compositor.c b/libweston/compositor.c
-index 96c15a4..f74b770 100644
+index aeb880b..f3d719e 100644
 --- a/libweston/compositor.c
 +++ b/libweston/compositor.c
-@@ -3106,10 +3106,13 @@ view_update_visible(struct weston_view *view,
+@@ -3117,10 +3117,13 @@ view_update_visible(struct weston_view *view,
                               pixman_region32_t *opaque)
  {
  	assert(!view->transform.dirty);
@@ -58,7 +60,7 @@ index 96c15a4..f74b770 100644
  
  
 diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
-index 92faee6..4b40452 100644
+index 92faee6..a39c73b 100644
 --- a/libweston/renderer-gl/gl-renderer.c
 +++ b/libweston/renderer-gl/gl-renderer.c
 @@ -1401,7 +1401,12 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
@@ -67,7 +69,7 @@ index 92faee6..4b40452 100644
  				 z_order_link) {
 -		if (pnode->plane == &output->primary_plane)
 +		bool need_paint = true;
-+		if (strncmp(pnode->view->surface->app_id, "rtk_video", 9) == 0) {
++		if (pnode->view->surface->rtk_surface == WL_RTK_TOPLEVEL_SURFACE) {
 +			need_paint = false;
 +		}
 +

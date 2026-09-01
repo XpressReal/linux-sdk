@@ -1,0 +1,67 @@
+From eeae89cd35a90d0f1c5afe5d94a56ba6eb991347 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 14:03:02 +0300
+Subject: [PATCH 6/6] cmd: mtd: add benchmark option to the help
+
+The patch adds benchmark option to the help of mtd command. For the
+'mtd write' case the help line exceed 80 characters. Ignore this issue
+as modern terminals are capable to handle more characters.
+
+The patch also formats other command to make sure all device names
+starts on the same collumn.
+
+Fixes: d246e70cf81d0 ("cmd: mtd: Enable speed benchmarking")
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ cmd/mtd.c | 24 ++++++++++++------------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/cmd/mtd.c b/cmd/mtd.c
+index e415a2d7f02..acd886da6da 100644
+--- a/cmd/mtd.c
++++ b/cmd/mtd.c
+@@ -1216,27 +1216,27 @@ static int mtd_name_complete(int argc, char *const argv[], char last_char,
+ U_BOOT_LONGHELP(mtd,
+ 	"- generic operations on memory technology devices\n\n"
+ 	"mtd list\n"
+-	"mtd read[.raw][.oob]                  <name> <addr> [<off> [<size>]]\n"
+-	"mtd dump[.raw][.oob]                  <name>        [<off> [<size>]]\n"
+-	"mtd write[.raw][.oob][.dontskipff]    <name> <addr> [<off> [<size>]]\n"
+-	"mtd erase[.dontskipbad]               <name>        [<off> [<size>]]\n"
++	"mtd read[.raw][.oob][.benchmark]                <name> <addr> [<off> [<size>]]\n"
++	"mtd dump[.raw][.oob]                            <name>        [<off> [<size>]]\n"
++	"mtd write[.raw][.oob][.dontskipff][.benchmark]  <name> <addr> [<off> [<size>]]\n"
++	"mtd erase[.dontskipbad]                         <name>        [<off> [<size>]]\n"
+ 	"\n"
+ 	"Specific functions:\n"
+-	"mtd bad                               <name>\n"
++	"mtd bad                                         <name>\n"
+ #if CONFIG_IS_ENABLED(CMD_MTD_OTP)
+-	"mtd otpread                           <name> [u|f] <off> <size>\n"
+-	"mtd otpwrite                          <name> <off> <hex string>\n"
+-	"mtd otplock                           <name> <off> <size>\n"
+-	"mtd otpinfo                           <name> [u|f]\n"
++	"mtd otpread                                     <name> [u|f] <off> <size>\n"
++	"mtd otpwrite                                    <name> <off> <hex string>\n"
++	"mtd otplock                                     <name> <off> <size>\n"
++	"mtd otpinfo                                     <name> [u|f]\n"
+ #endif
+ #if CONFIG_IS_ENABLED(CMD_MTD_MARKBAD)
+-	"mtd markbad                           <name>         <off> [<off> ...]\n"
++	"mtd markbad                                     <name>         <off> [<off> ...]\n"
+ #endif
+ #if CONFIG_IS_ENABLED(CMD_MTD_NAND_WRITE_TEST)
+-	"mtd nand_write_test                   <name>        [<off> [<size>]]\n"
++	"mtd nand_write_test                             <name>        [<off> [<size>]]\n"
+ #endif
+ #if CONFIG_IS_ENABLED(CMD_MTD_NAND_READ_TEST)
+-	"mtd nand_read_test                    <name>\n"
++	"mtd nand_read_test                              <name>\n"
+ #endif
+ 	"\n"
+ 	"With:\n"
+-- 
+2.47.0
+

@@ -3,6 +3,14 @@ SECTION = "bluetooth"
 DEPENDS = ""
 LICENSE = "CLOSED"
 
+inherit systemd
+
+SYSTEMD_PACKAGES = "${PN}"
+SYSTEMD_SERVICE:${PN} = "rtk-hciattach.service"
+SYSTEMD_SERVICE:${PN}:rtd16xx = ""
+SYSTEMD_AUTO_ENABLE = "enable"
+SYSTEMD_AUTO_ENABLE:rtd16xx = "disable"
+
 SRC_URI = "file://${BPN}.tar.xz"
 SRCREV = "${AUTOREV}"
 include ${BPN}.inc
@@ -24,8 +32,6 @@ INSANE_SKIP:${PN} += "ldflags"
 # when this question was originally asked the format was
 INSANE_SKIP_${PN} += "ldflags"
 
-inherit systemd
-
 do_install() {
 	install -d ${D}${bindir}
 	install -d ${D}${systemd_unitdir}/system
@@ -40,10 +46,6 @@ do_install() {
 	install -m 0644 ${WORKDIR}/rtk-hciattach.service ${D}${systemd_unitdir}/system/rtk-hciattach.service
 	(cd ${D}/${nonarch_base_libdir}/firmware/rtlbt/; for fw in *; do ln -s $fw $fw.bin; done)
 }
-
-SYSTEMD_PACKAGES = "${PN}"
-SYSTEMD_SERVICE_${PN} = "rtk-hciattach.service"
-SYSTEMD_SERVICE_${PN}:rtd16xx = ""
 
 FILES:${PN} = "${bindir}/rtk_hciattach \
 	       ${systemd_unitdir}/system/rtk-hciattach.service \

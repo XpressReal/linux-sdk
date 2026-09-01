@@ -1,0 +1,42 @@
+From 672dd35bc4776bbed8c2e10ece25cb99e2ce9c86 Mon Sep 17 00:00:00 2001
+From: "chase.yen" <chase.yen@realtek.com>
+Date: Fri, 18 Apr 2025 20:12:43 +0800
+Subject: [PATCH 22/33] media: platform: rtk_dprx: Add DisplayPort receiver
+ driver
+
+Add V4L2 DisplayPort 1.4 RX driver for Realtek SoCs
+Supports up to 4K60, RBR/HBR/HBR2 link rates, 1/2/4 lanes
+
+[Jira] SW-9010
+
+Change-Id: Ie9fc6d865ffe8cc769a9fd9fee9a23d012d78566
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index b2763de1c0c7f..2e3ce62814720 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -94,4 +94,5 @@ source "drivers/media/platform/rtk_tpdemux/Kconfig"
+ source "drivers/media/platform/rtk-vi/Kconfig"
+ source "drivers/media/platform/rtk-mipi-csi/Kconfig"
+ source "drivers/media/platform/rtk_npp/Kconfig"
++source "drivers/media/platform/rtk_dprx/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 898301835a855..24ed2f366f03c 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -37,6 +37,7 @@ obj-y += rtk_tpdemux/
+ obj-y += rtk-vi/
+ obj-y += rtk-mipi-csi/
+ obj-y += rtk_npp/
++obj-y += rtk_dprx/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

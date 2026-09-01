@@ -9,6 +9,7 @@ require conf/machine/include/overlayfs.inc
 #UBOOT_MACHINE = "rtd1625_emmc_defconfig"
 UBOOT_CONFIG ??= "rtd1625_emmc"
 UBOOT_CONFIG[rtd1625_emmc] = "rtd1625_phantom_defconfig,,u-boot.itb"
+UBOOT_CONFIG[rtd1625_spi] = "rtd1625_snand_defconfig,,u-boot.itb"
 
 IMAGE_BOOT_FILES += " \
 	u-boot.bin-rtd1625_emmc \
@@ -19,12 +20,14 @@ KERNEL_DEVICETREE = " \
 	realtek/rtd1501s-phantom-8gb.dtb \
 	realtek/rtd1501-rescue.dtb \
 	"
+KERNEL_DEVICETREE:append = " realtek/rtd1501s-phantom-spi.dtb"
+
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'drm', 'linux-firmware-rtd1625', '', d)}"
 
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'libnpu', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'rtk-mod-npu', '', d)}"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'npu-header-dev', '', d)}"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'fr-demo', '', d)}"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'od-demo', '', d)}"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'pose-demo', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'libnpu-header', '', d)}"
+#IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'fr-demo', '', d)}"
+#IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'od-demo', '', d)}"
+#IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'npu', 'pose-demo', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'tee', 'linux-tee', '', d)}"

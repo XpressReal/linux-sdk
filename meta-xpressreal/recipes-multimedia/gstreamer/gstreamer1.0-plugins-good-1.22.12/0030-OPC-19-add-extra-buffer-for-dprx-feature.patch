@@ -1,0 +1,156 @@
+From 16dd998774f72149a5970fe0988cacfd80e15621 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 8 Apr 2026 20:49:05 -0400
+Subject: [PATCH] OPC-19: add extra buffer for dprx feature
+Source: Realtek
+License: LGPL-2.1-or-later
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ sys/v4l2/gstv4l2object.c | 10 +++++++++-
+ sys/v4l2/gstv4l2object.h |  3 +++
+ sys/v4l2/gstv4l2src.c    | 19 ++++++++++++++++++-
+ sys/v4l2/gstv4l2src.h    |  2 ++
+ 4 files changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 5520e69..8696a5e 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -531,6 +531,7 @@ gst_v4l2_object_new (GstElement * element,
+   v4l2object->poll = gst_poll_new (TRUE);
+   v4l2object->can_poll_device = TRUE;
+ 
++  v4l2object->extra_buffers = 0;
+   /* We now disable libv4l2 by default, but have an env to enable it. */
+ #ifdef HAVE_LIBV4L2
+   if (g_getenv ("GST_V4L2_USE_LIBV4L2")) {
+@@ -5456,7 +5457,7 @@ gst_v4l2_object_decide_allocation (GstV4l2Object * obj, GstQuery * query)
+      * held by the decoder. We account 2 buffers for v4l2 so when one is being
+      * pushed downstream the other one can already be queued for the next
+      * frame. */
+-    own_min = min + obj->min_buffers + 2;
++    own_min = min + obj->min_buffers + 2 + obj->extra_buffers;
+ 
+     /* If no allocation parameters where provided, allow for a little more
+      * buffers and enable copy threshold */
+@@ -5910,3 +5911,10 @@ gst_v4l2_object_subscribe_event (GstV4l2Object * v4l2object, guint32 event)
+ 
+   return FALSE;
+ }
++
++gboolean
++gst_v4l2_object_set_extra_buffers(GstV4l2Object *v4l2object, guint32 extra_buffers)
++{
++  v4l2object->extra_buffers = extra_buffers;
++  return TRUE;
++}
+diff --git a/sys/v4l2/gstv4l2object.h b/sys/v4l2/gstv4l2object.h
+index c0744f9..d26ad38 100644
+--- a/sys/v4l2/gstv4l2object.h
++++ b/sys/v4l2/gstv4l2object.h
+@@ -228,6 +228,8 @@ struct _GstV4l2Object {
+    * on slow USB firmwares. When this is set, gst_v4l2_set_format() will modify
+    * the caps to reflect what was negotiated during fixation */
+   gboolean skip_try_fmt_probes;
++
++  guint32 extra_buffers;
+ };
+ 
+ struct _GstV4l2ObjectClassHelper {
+@@ -365,6 +367,7 @@ gboolean     gst_v4l2_set_controls    (GstV4l2Object * v4l2object, GstStructure
+ gboolean     gst_v4l2_subscribe_event (GstV4l2Object * v4l2object, guint32 event, guint32 id);
+ gboolean     gst_v4l2_dequeue_event   (GstV4l2Object * v4l2object, struct v4l2_event *event);
+ 
++gboolean     gst_v4l2_object_set_extra_buffer(GstV4l2Object * v4l2object, guint32 extra_buffers);
+ G_END_DECLS
+ 
+ #endif /* __GST_V4L2_OBJECT_H__ */
+diff --git a/sys/v4l2/gstv4l2src.c b/sys/v4l2/gstv4l2src.c
+index 68d8f7f..be6a815 100644
+--- a/sys/v4l2/gstv4l2src.c
++++ b/sys/v4l2/gstv4l2src.c
+@@ -67,6 +67,7 @@ GST_DEBUG_CATEGORY (v4l2src_debug);
+ #define GST_CAT_DEFAULT v4l2src_debug
+ 
+ #define DEFAULT_PROP_DEVICE   "/dev/video0"
++#define DEFAULT_PROP_EXTRA_BUFFERS 5
+ 
+ enum
+ {
+@@ -77,6 +78,7 @@ enum
+   PROP_CROP_BOTTOM,
+   PROP_CROP_RIGHT,
+   PROP_CROP_BOUNDS,
++  PROP_EXTRA_BUFFERS,
+   PROP_LAST
+ };
+ 
+@@ -237,6 +239,13 @@ gst_v4l2src_class_init (GstV4l2SrcClass * klass)
+               G_PARAM_READABLE | G_PARAM_STATIC_STRINGS),
+           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+ 
++
++  g_object_class_install_property (gobject_class, PROP_EXTRA_BUFFERS,
++      g_param_spec_uint ("extra-buffers", "Extra buffers",
++          "add extra buffers for v4l2 capture buffer",
++          0, G_MAXUINT, DEFAULT_PROP_EXTRA_BUFFERS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++
+   /**
+    * GstV4l2Src::prepare-format:
+    * @v4l2src: the v4l2src instance
+@@ -292,7 +301,7 @@ gst_v4l2src_init (GstV4l2Src * v4l2src)
+ 
+   /* Avoid the slow probes */
+   v4l2src->v4l2object->skip_try_fmt_probes = TRUE;
+-
++  v4l2src->extra_buffers = DEFAULT_PROP_EXTRA_BUFFERS;
+   gst_base_src_set_format (GST_BASE_SRC (v4l2src), GST_FORMAT_TIME);
+   gst_base_src_set_live (GST_BASE_SRC (v4l2src), TRUE);
+ }
+@@ -328,6 +337,9 @@ gst_v4l2src_set_property (GObject * object,
+       case PROP_CROP_RIGHT:
+         v4l2src->crop_right = g_value_get_uint (value);
+         break;
++      case PROP_EXTRA_BUFFERS:
++        v4l2src->extra_buffers = g_value_get_uint(value);
++        break;
+       default:
+         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+         break;
+@@ -382,6 +394,9 @@ gst_v4l2src_get_property (GObject * object,
+       case PROP_CROP_BOUNDS:
+         gst_v4l2src_set_rect_value (value, &v4l2src->crop_bounds);
+         break;
++      case PROP_EXTRA_BUFFERS:
++        g_value_set_uint(value, v4l2src->extra_buffers);
++        break;
+       default:
+         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+         break;
+@@ -877,6 +892,8 @@ gst_v4l2src_decide_allocation (GstBaseSrc * bsrc, GstQuery * query)
+   GstBufferPool *bpool = gst_v4l2_object_get_buffer_pool (src->v4l2object);
+   gboolean ret = TRUE;
+ 
++  gst_v4l2_object_set_extra_buffers(src->v4l2object, src->extra_buffers);
++
+   if (src->pending_set_fmt) {
+     GstCaps *caps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (bsrc));
+     GstV4l2Error error = GST_V4L2_ERROR_INIT;
+diff --git a/sys/v4l2/gstv4l2src.h b/sys/v4l2/gstv4l2src.h
+index 15af430..a1d0902 100644
+--- a/sys/v4l2/gstv4l2src.h
++++ b/sys/v4l2/gstv4l2src.h
+@@ -81,6 +81,8 @@ struct _GstV4l2Src
+ 
+   /* maintain signal status, updated during negotiation */
+   gboolean no_signal;
++
++  guint32 extra_buffers;
+ };
+ 
+ struct _GstV4l2SrcClass
+-- 
+2.34.1
+

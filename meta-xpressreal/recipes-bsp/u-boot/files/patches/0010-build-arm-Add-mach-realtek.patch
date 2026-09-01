@@ -56,7 +56,7 @@ diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
 index 9d28a485be..e9327ce934 100644
 --- a/arch/arm/dts/Makefile
 +++ b/arch/arm/dts/Makefile
-@@ -1418,6 +1418,24 @@ dtb-$(CONFIG_SOC_K3_AM625) += k3-am625-sk.dtb \
+@@ -1418,6 +1418,29 @@ dtb-$(CONFIG_SOC_K3_AM625) += k3-am625-sk.dtb \
  dtb-$(CONFIG_SOC_K3_AM62A7) += k3-am62a7-sk.dtb \
  			      k3-am62a7-r5-sk.dtb
  
@@ -77,6 +77,11 @@ index 9d28a485be..e9327ce934 100644
 +	cipher.dtbo \
 +	rtd1501-tee.dtbo \
 +	rtd1501s-phantom.dtb
++
++dtb-$(CONFIG_TARGET_RTD1635) += \
++	cipher.dtbo \
++	rtd1501-tee.dtbo \
++	rtd1635-evb.dtb
 +
  dtb-$(CONFIG_ARCH_MEDIATEK) += \
  	mt7622-rfb.dtb \

@@ -1,0 +1,42 @@
+From dda52acdf83abb600cdd6abfeb17d0b1ac659261 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 21:45:26 +0800
+Subject: [PATCH 33/73] media: i2c: Add PIXELPLUS PR2000 V4L2 sub-device driver
+
+Change-Id: I46907fdd6653cf6f687b6839e90fd039966096d6
+---
+ drivers/media/i2c/Kconfig  | 8 ++++++++
+ drivers/media/i2c/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index 8ba096b8ebca2..3114dcde32057 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -1324,6 +1324,14 @@ config VIDEO_TW9910
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called tw9910.
+ 
++config VIDEO_PR2000
++	tristate "PIXELPLUS PR2000KA video receiver support"
++	depends on I2C
++	depends on OF_GPIO
++	select VIDEO_V4L2_SUBDEV_API
++	help
++	  This driver supports the PIXELPLUS PR2000KA Video receiver.
++
+ config VIDEO_VPX3220
+ 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"
+ 	depends on VIDEO_DEV && I2C
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+index fbb988bd067a1..20e547c73d507 100644
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -157,3 +157,4 @@ obj-$(CONFIG_VIDEO_VP27SMPX) += vp27smpx.o
+ obj-$(CONFIG_VIDEO_VPX3220) += vpx3220.o
+ obj-$(CONFIG_VIDEO_WM8739) += wm8739.o
+ obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
++obj-$(CONFIG_VIDEO_PR2000) += pr2000.o
+-- 
+2.47.0
+

@@ -1,0 +1,48 @@
+From d19a4f4b07f4ec94c28c20b91a55f0118a167e3f Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:44:55 +0800
+Subject: [PATCH 65/73] reset: add m2tmx reset controller for Realtek DHC SoCs
+
+Change-Id: I7e00c175defccb0e6f3b2d6fb0143f2637c1e26f
+---
+ drivers/reset/Kconfig  | 9 +++++++++
+ drivers/reset/Makefile | 1 +
+ 2 files changed, 10 insertions(+)
+
+diff --git a/drivers/reset/Kconfig b/drivers/reset/Kconfig
+index 5484a65f66b95..81ecc9e6a9d18 100644
+--- a/drivers/reset/Kconfig
++++ b/drivers/reset/Kconfig
+@@ -1,3 +1,4 @@
++
+ # SPDX-License-Identifier: GPL-2.0-only
+ config ARCH_HAS_RESET_CONTROLLER
+ 	bool
+@@ -356,6 +357,14 @@ config RESET_ZYNQMP
+ 	help
+ 	  This enables the reset controller driver for Xilinx ZynqMP SoCs.
+ 
++config RESET_RTK_M2TMX
++	tristate "Realtek M2TMX Reset Driver"
++	depends on OF && MFD_SYSCON
++	default n
++	select RTK_PM_TRACE
++	help
++	  This enable Realtek M2TMX Reset Driver
++
+ source "drivers/reset/starfive/Kconfig"
+ source "drivers/reset/sti/Kconfig"
+ source "drivers/reset/hisilicon/Kconfig"
+diff --git a/drivers/reset/Makefile b/drivers/reset/Makefile
+index 4411a2a124d7d..e414ea8d6b44a 100644
+--- a/drivers/reset/Makefile
++++ b/drivers/reset/Makefile
+@@ -44,3 +44,4 @@ obj-$(CONFIG_RESET_UNIPHIER) += reset-uniphier.o
+ obj-$(CONFIG_RESET_UNIPHIER_GLUE) += reset-uniphier-glue.o
+ obj-$(CONFIG_RESET_ZYNQ) += reset-zynq.o
+ obj-$(CONFIG_RESET_ZYNQMP) += reset-zynqmp.o
++obj-$(CONFIG_RESET_RTK_M2TMX) += reset-rtk-m2tmx.o
+\ No newline at end of file
+-- 
+2.47.0
+

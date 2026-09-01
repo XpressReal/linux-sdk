@@ -1,0 +1,68 @@
+From 93ef92f6f42275e3d6070b1c5020bfca0e614fff Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Thu, 27 Aug 2020 10:52:03 +0200
+Subject: [PATCH] mtd: nand: Use the new generic ECC object
+
+Embed a generic NAND ECC high-level object in the nand_device
+structure to carry all the ECC engine configuration/data.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20200827085208.16276-16-miquel.raynal@bootlin.com
+---
+ include/linux/mtd/nand.h | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/mtd/nand.h b/include/linux/mtd/nand.h
+index 348fb2ad4d901..697ea2474a7c7 100644
+--- a/include/linux/mtd/nand.h
++++ b/include/linux/mtd/nand.h
+@@ -301,7 +301,7 @@ struct nand_ecc {
+  * struct nand_device - NAND device
+  * @mtd: MTD instance attached to the NAND device
+  * @memorg: memory layout
+- * @eccreq: ECC requirements
++ * @ecc: NAND ECC object attached to the NAND device
+  * @rowconv: position to row address converter
+  * @bbt: bad block table info
+  * @ops: NAND operations attached to the NAND device
+@@ -309,8 +309,8 @@ struct nand_ecc {
+  * Generic NAND object. Specialized NAND layers (raw NAND, SPI NAND, OneNAND)
+  * should declare their own NAND object embedding a nand_device struct (that's
+  * how inheritance is done).
+- * struct_nand_device->memorg and struct_nand_device->eccreq should be filled
+- * at device detection time to reflect the NAND device
++ * struct_nand_device->memorg and struct_nand_device->ecc.requirements should
++ * be filled at device detection time to reflect the NAND device
+  * capabilities/requirements. Once this is done nanddev_init() can be called.
+  * It will take care of converting NAND information into MTD ones, which means
+  * the specialized NAND layers should never manually tweak
+@@ -319,7 +319,7 @@ struct nand_ecc {
+ struct nand_device {
+ 	struct mtd_info *mtd;
+ 	struct nand_memory_organization memorg;
+-	struct nand_ecc_props eccreq;
++	struct nand_ecc ecc;
+ 	struct nand_row_converter rowconv;
+ 	struct nand_bbt bbt;
+ 	const struct nand_ops *ops;
+@@ -530,7 +530,7 @@ nanddev_get_memorg(struct nand_device *nand)
+ static inline const struct nand_ecc_props *
+ nanddev_get_ecc_conf(struct nand_device *nand)
+ {
+-	return &nand->eccreq;
++	return &nand->ecc.ctx.conf;
+ }
+ 
+ /**
+@@ -554,7 +554,7 @@ static inline void
+ nanddev_set_ecc_requirements(struct nand_device *nand,
+ 			     const struct nand_ecc_props *reqs)
+ {
+-	nand->eccreq = *reqs;
++	nand->ecc.requirements = *reqs;
+ }
+ 
+ int nanddev_init(struct nand_device *nand, const struct nand_ops *ops,
+-- 
+2.47.0
+

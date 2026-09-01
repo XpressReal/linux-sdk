@@ -127,7 +127,7 @@ static unsigned long do_bdinfo_ddr_speed(void)
 				break;
 			default:	ddr_mt = 0;	break;
 		}
-		printf("DC%d DDR: %u MT/s\n", i, ddr_mt);
+		debug("DC%d DDR: %u MT/s\n", i, ddr_mt);
                 ddr_speed = (i == 0) ? ddr_mt : (ddr_mt < ddr_speed) ? ddr_mt : ddr_speed;
 	}
 
@@ -143,7 +143,11 @@ int set_cpu_clk_info(void)
 	divide_freg = get_scpu_divide_freq(((get_SYS_PLL_reg(SYS_PLL_DIV_reg) >> 6) & 0xFF));
 
 	gd->bd->bi_arm_freq = freq / divide_freg;
+#if defined(CONFIG_TARGET_RTD1319) || defined(CONFIG_TARGET_RTD1619B)
 	gd->bd->bi_ddr_freq = do_bdinfo_ddr_speed();
+#else
+	gd->bd->bi_ddr_freq = 0;
+#endif
 	gd->bd->bi_dsp_freq = 0;
 
 	return 0;

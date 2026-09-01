@@ -1,0 +1,87 @@
+From fa89c51064a9d99903435e82d146d36252769fdc Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 21 Oct 2025 10:50:42 +0800
+Subject: [PATCH 32/33] [FEATURE] usb: typec: tcpm: Implement rtk_rtd_pd driver
+ for RTD SoC
+
+Add USB Type-C Power Delivery (PD) driver for Realtek RTD SoC series,
+implementing TCPM (Type-C Port Manager) framework integration.
+
+Driver Implementation:
+- Full TCPM framework integration (struct tcpc_dev)
+- CC pin detection and role negotiation (Source/Sink, DFP/UFP)
+- PD message transmission and reception with interrupt handling
+- VBUS/Vconn GPIO control with proper polarity handling
+- Power role swap and data role swap support
+- Alt Mode VDM (Vendor Defined Message) handling
+- Debugfs interface for debugging
+
+Key Components:
+- rtk_rtd_pd.c: Main driver implementation
+  * TCPM callbacks implementation
+  * Interrupt handler for PD/Type-C events
+  * Hardware register configuration
+  * VDM protocol handling
+  * Debugfs interface
+- rtk_rtd_pd.h: Hardware register definitions
+  * Register offset definitions
+  * Register field manipulation macros
+
+Configuration:
+- Kconfig: CONFIG_TYPEC_RTK_RTD_PD
+- Depends on TYPEC_TCPM and REGULATOR
+- Optional debugfs support
+
+This driver enables Type-C PD functionality on RTD SoC platforms,
+supporting USB Power Delivery negotiation, role swaps, and DisplayPort
+Alt Mode for Type-C to HDMI/DP adapters.
+
+[PLATFORM] Prince
+[TEST] Prince
+[JIRA] SW-9676
+
+Change-Id: Idebb4e5fbaea5f082655e1cf7658159d6671ebe4
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/typec/tcpm/Kconfig  | 11 +++++++++++
+ drivers/usb/typec/tcpm/Makefile |  2 ++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/usb/typec/tcpm/Kconfig b/drivers/usb/typec/tcpm/Kconfig
+index 8cdd84ca5d6f7..9f2e1e273176e 100644
+--- a/drivers/usb/typec/tcpm/Kconfig
++++ b/drivers/usb/typec/tcpm/Kconfig
+@@ -63,6 +63,17 @@ config TYPEC_FUSB302
+ 	  Type-C Port Controller Manager to provide USB PD and USB
+ 	  Type-C functionalities.
+ 
++config TYPEC_RTK_RTD_PD
++	tristate "Realtek RTD SoC PD controller driver"
++	depends on ARCH_REALTEK
++	help
++	  This driver adds support for USB Type-C PD on Realtek SoC platforms
++	  that have Type-C PD controller. The driver works with USB Type-C
++	  Port Controller Manager to provide USB PD and Type-C functionalities.
++
++	  To compile this driver as module, choose M here: the module will be
++	  called typec_rtk_rtd_pd.ko
++
+ config TYPEC_WCOVE
+ 	tristate "Intel WhiskeyCove PMIC USB Type-C PHY driver"
+ 	depends on ACPI
+diff --git a/drivers/usb/typec/tcpm/Makefile b/drivers/usb/typec/tcpm/Makefile
+index 7a8cad0c0bdb4..e75bc538c0fde 100644
+--- a/drivers/usb/typec/tcpm/Makefile
++++ b/drivers/usb/typec/tcpm/Makefile
+@@ -1,6 +1,8 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_TYPEC_TCPM)		+= tcpm.o
+ obj-$(CONFIG_TYPEC_FUSB302)		+= fusb302.o
++obj-$(CONFIG_TYPEC_RTK_RTD_PD)		+= typec_rtk_rtd_pd.o
++typec_rtk_rtd_pd-y			:= rtk_rtd_pd.o
+ obj-$(CONFIG_TYPEC_WCOVE)		+= typec_wcove.o
+ typec_wcove-y				:= wcove.o
+ obj-$(CONFIG_TYPEC_TCPCI)		+= tcpci.o
+-- 
+2.47.0
+

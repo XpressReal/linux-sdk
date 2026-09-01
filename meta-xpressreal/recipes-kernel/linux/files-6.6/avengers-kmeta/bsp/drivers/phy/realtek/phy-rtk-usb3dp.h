@@ -38,6 +38,9 @@
 #define disable_cc 0x0
 #define enable_cc1 0x1
 #define enable_cc2 0x2
+#define REG_U3DP_0038			0x38 /* 0x9814f038 */
+#define REG_U3DP_0044                   0x44 /* 0x9814f044 */
+#define REG_U3DP_0048                   0x48 /* 0x9814f048 */
 #define REG_U3DP_004C                   0x4c /* 0x9814f04c */
 #define REG_U3DP_004C_usb_OOBS_REGSIG_L1_mask  0x8
 #define REG_U3DP_004C_usb_OOBS_REGSIG_L1(data) (0x8 & ((data) << 3))
@@ -55,6 +58,8 @@
 #define REG_U3DP_004C_usb_OOBS_L2(data) (0x200 & ((data) << 9))
 #define REG_U3DP_004C_dp_OOBS_L2_mask  0x400
 #define REG_U3DP_004C_dp_OOBS_L2(data) (0x400 & ((data) << 10))
+#define REG_U3DP_0050                   0x50 /* 0x9814f050 */
+#define REG_U3DP_0058                   0x58 /* 0x9814f058 */
 #define POWER_CUT_EN0                   0x5c /* 0x9814f05c */
 #define USB_AVDD09_TRX_CK_L2            (BIT(29) | BIT(30) | BIT(31))
 #define DP_AVDD09_TRX_CK_L1             (BIT(26) | BIT(27) | BIT(28))
@@ -123,7 +128,9 @@
 #define REG_U3DP_0084_usb_REG_RX_ENKOFFSET_L2(data)     (0x00000040 &((data) << 6))
 #define REG_U3DP_0084_dp_REG_RX_ENKOFFSET_L2_mask	(0x00000080)
 #define REG_U3DP_0084_dp_REG_RX_ENKOFFSET_L2(data)     (0x00000080 &((data) << 7))
+#define REG_U3DP_0080                     0x80 //0x9814f080
 #define REG_U3DP_0088                     0x88 //0x9814f088
+#define REG_U3DP_008C                     0x8c //0x9814f08c
 #define REG_U3DP_0090                     0x90 //0x9814f090
 #define REG_U3DP_0090_usb_REG_RX_PI_POW_SEL_L1_mask	(0x00100000)
 #define REG_U3DP_0090_usb_REG_RX_PI_POW_SEL_L1(data)	(0x00100000 &((data) << 20))
@@ -134,9 +141,13 @@
 #define REG_U3DP_0090_dp_REG_RX_PI_POW_SEL_L2_mask	(0x00800000)
 #define REG_U3DP_0090_dp_REG_RX_PI_POW_SEL_L2(data)     (0x00800000 &((data) << 23))
 #define RX_L1_DPHY1			0x400 /* 0x9814f400 */
+#define REG_U3DP_F41C			0x41c /* 0x9814f41C */
 #define TOP_AIF_11C			0x11C /* 0x9814f11C */
 #define TOP_AIF_0A0			0x0A0 /* 0x9814f0A0 */
+#define TOP_AIF_0D0                     0x0D0 /* 0x9814f0D0 */
 #define TOP_AIF_0FC			0x0FC /* 0x9814f0FC */
+#define REG_U3DP_0600			0x600 /* 0x9814F600 */
+#define REG_U3DP_061C			0x61C /*0x9814F61C */
 #define CMU_USB_DPHY5			0x810 /* 0x9814f810 */
 #define CMU_USB_DPHY6			0x84C /* 0x9814f84c */
 #define PCS_USB31_DP14_DPHY1            0xe00 /* 0x9814fe00 */
@@ -225,9 +236,11 @@ struct type_c_data {
 	struct extcon_dev *edev;
 	struct notifier_block edev_nb;
 	u32 pre_lane;
+	u32 pre_cc;
 	u32 state;
 	bool is_enable;
 	bool is_attach;
+	bool init_once;
 	bool ss; /* flag for super-speed */
 };
 
@@ -241,8 +254,13 @@ struct rtk_phy {
 	struct type_c_data type_c;
 	struct workqueue_struct *wq_typec_phy;
 	struct delayed_work delayed_work;
+#ifdef CONFIG_CHROME_PLATFORMS
 	struct typec_switch_dev *sw;
 	struct typec_mux_dev *mux;
+#else
+	struct typec_switch *sw;
+	struct typec_mux *mux;
+#endif
 	struct typec_mux_state state;
 	struct mutex mutex; /* mutex to protect access to individual PHYs */
 	u32 lane_mux_sel[4];

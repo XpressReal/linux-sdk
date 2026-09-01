@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1501S Phantom EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1501s-phantom.dtsi"
+
+/ {
+	compatible = "realtek,phantom", "realtek,rtd1501s";
+	model = "Realtek Phantom EVB (1GB)";
+
+	memory: memory@50000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x3ffb0000>;
+	};
+
+	aliases {
+		ethernet = &nic;
+	};
+};
+
+&rtk_soc {
+	status = "okay";
+};
+
+&rtk_sof {
+	status = "disabled";
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	realtek,audio-platform = <&rtk_soc>;
+	realtek,dai-link = "RDAI_DL0_FE", "RDAI_DL1_FE", "RDAI_DL2_FE",
+			   "RDAI_UL0_FE", "RDAI_UL1_FE",
+			   "RDAI_SOC_AO0", "RDAI_SOC_I2S", "RDAI_SOC_I2S0_LOOPBACK";
+	status = "okay";
+};
+
+&irda {
+	status = "okay";
+};
+
+&avcert_rproc {
+	status = "okay";
+};
+
+&hifi_rproc {
+	/delete-property/ is-booted;
+	/delete-property/ need-ext-fw;
+	status = "okay";
+};
+
+&hifi_rpmsg {
+	/delete-property/ skip-handshake;
+	rproc = <&hifi_rproc>;
+	status = "okay";
+};
+
+&kr4_rproc {
+	status = "disabled";
+};
+
+&kr4_rpmsg {
+	rproc = <&kr4_rproc>;
+	status = "disabled";
+};
+
+&display_subsystem {
+	status = "okay";
+	ports = <&vo0_out>;
+	krpc-second = <0>;
+};
+
+&edp {
+	status = "disabled";
+};
+
+&dp {
+	status = "disabled";
+};
+
+&vo0 {
+	status = "okay";
+};
+
+&vo1 {
+	status = "disabled";
+};
+
+&vo2 {
+	status = "disabled";
+};
+
+&gpu_cache {
+	status = "okay";
+};
+
+&ve4  {
+	status = "okay";
+};
+
+&jpeg {
+	status = "okay";
+};
+
+&vcpu_rproc {
+	status = "okay";
+};
+
+&vcpu_rpmsg {
+	status = "okay";
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&reserved_memory {
+	protected-mem@50000 {
+		status = "okay";
+	};
+
+	metadata@c40000 {
+		status = "disable";
+	};
+
+	cma_hifi_b1p5:hifi_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x01000000>;		    /* 16M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x14000000 0x0 0x01000000>;
+		reusable;
+	};
+
+	cma_reserved_0:linux,cma {
+		compatible = "shared-dma-pool";
+		alignment = <0x0 0x00400000>;
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x20000000 0x0 0x08000000>;
+		size = <0x0 0x08000000>; /* 128M */
+		linux,cma-default;
+		reusable;
+	};
+
+	cma_vo_dsc3:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x08000000>;		    /* 128M */
+		alignment = <0x0 0x00400000>;
+
+		/* Avoid crossing A/VCPU PA2VA per 512M boundary */
+		/* Avoid allocating 0x1fc00000 ~ 0x1fc00fff to LX CPU (A/VCPU/VE3) */
+		alloc-ranges=<0x0 0x28000000 0x0 0x08000000>;
+		reusable;
+	};
+
+	heap_b1p5: heap_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x10000000>;            /* 256M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges = <0x0 0x30000000 0x0 0x10000000>;
+		reusable;
+	};
+
+	/delete-node/linux,cma_1;
+	/delete-node/linux,cma_2;
+	/delete-node/buffer@2f700000;
+	/delete-node/riscv-fw@5000000;
+};
+
+&rtk_tee_mem {
+	status = "okay";
+};

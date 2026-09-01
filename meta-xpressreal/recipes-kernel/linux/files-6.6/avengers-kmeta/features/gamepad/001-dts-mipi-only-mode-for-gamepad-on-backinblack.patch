@@ -36,14 +36,16 @@ index 62ee19057f87..15992b5dcabf 100644
  	voext_out: port {
  		voext_out_dsi: endpoint {
  			remote-endpoint = <&dsi_in_voext>;
-@@ -101,6 +101,7 @@ panel_in_dsi: endpoint {
+@@ -101,5 +101,9 @@ panel_in_dsi: endpoint {
+ 		};
+ 	};
+ };
++
++&hdmi {
++	status = "disabled";
++};
  
  &hdmi {
- 	ext-flags = <0x0>;
-+	status = "disabled";
- };
- 
- &sound {
 -- 
 2.34.1
 

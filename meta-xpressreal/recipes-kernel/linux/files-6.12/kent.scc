@@ -1,0 +1,8 @@
+define KMACHINE phantom-rtd1625
+define KTYPE standard
+define KARCH arm64
+
+include features/android/ack.scc
+include avengers.scc
+include features/mtd/nand.scc
+kconf hardware kent.cfg

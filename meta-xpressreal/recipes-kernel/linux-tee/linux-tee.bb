@@ -20,6 +20,8 @@ SRC_URI:append:stark = " \
 	file://${SOC_MODEL}/df280208-346f-42e7-b1653bdd457c418d.ta \
 	file://${SOC_MODEL}/fa280208-346f-42e7-b1653bdd457c418d.ta \
 	file://${SOC_MODEL}/fd02c9da-306c-48c7-a49c-bbd827ae86ee.ta \
+        file://${SOC_MODEL}/87ef28e8-f581-4e3d-b2b2d7e3d48b2321.ta \
+        file://${SOC_MODEL}/8baaf200-2450-11e4-abe20002a5d5c51b.ta \
 "
 
 SRC_URI:append:kent = " \

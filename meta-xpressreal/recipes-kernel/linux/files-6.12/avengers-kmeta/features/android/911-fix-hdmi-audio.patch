@@ -1,0 +1,74 @@
+From 2b02fd515e74bfc045290eb2a2ca4d6f3d372510 Mon Sep 17 00:00:00 2001
+From: Tsai-Wei Wu <wu.tsaiwei@realtek.com>
+Date: Fri, 17 Apr 2026 14:50:59 +0800
+Subject: linux-6.6: android: fix no HDMI audio in some scenarios
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: I01d9bee7572bb60f0e62eaecaff1b03d2d9db21b
+---
+diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.c b/drivers/gpu/drm/realtek/rtk_hdmi.c
+index 49dfb8f712747..4d61a772f1f75 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdmi.c
++++ b/drivers/gpu/drm/realtek/rtk_hdmi.c
+@@ -1168,17 +1168,11 @@ static int rtk_hdmi_audio_output_ctrl(struct rtk_hdmi *hdmi,
+ 	}
+ 
+ 	rpc_data.version = AUDIO_CTRL_VERSION;
+-
+-	if (IS_ENABLED(CONFIG_CHROME_PLATFORMS) &&
+-		soc_device_match(rtk_soc_kent))
+-		rpc_data.hdmi_en_state = enable&hdmi->audio_startup ? 1:0;
+-	else
+-		rpc_data.hdmi_en_state = enable ? 1:0;
+-
+-	dev_info(hdmi->dev, "set audio output %s",  rpc_data.hdmi_en_state ? "on":"off");
++	rpc_data.hdmi_en_state = enable ? 1:0;
+ 
+ 	ret = rpc_set_hdmi_audio_onoff(hdmi->rpc_info_ao, &rpc_data);
+ 
++	dev_info(hdmi->dev, "set audio output %s, ret:%d\n",  rpc_data.hdmi_en_state ? "on":"off", ret);
+ 	return ret;
+ }
+ 
+@@ -2529,7 +2523,6 @@ static bool rtk_hdmi_update_hpd_state(struct rtk_hdmi *hdmi)
+ 		bool is_hdmi_audio;
+ 
+ 		is_hdmi_audio = is_connected && hdmi->edid_info.sink_has_audio;
+-
+ 		if ((is_connected != pre_state) && (is_connected == is_hdmi_audio)) {
+ 			if (hdmi->plugged_cb && hdmi->codec_dev)
+ 				hdmi->plugged_cb(hdmi->codec_dev, is_hdmi_audio);
+@@ -3253,6 +3246,7 @@ static void rtk_hdmi_audio_shutdown(struct device *dev, void *data)
+ 	dev_info(hdmi->dev, "audio shutdown");
+ 
+ 	hdmi->audio_startup = 0;
++	hdmi->hdmi_ops->audio_output_ctrl(hdmi, 0);
+ }
+ 
+ static int rtk_hdmi_audio_startup(struct device *dev, void *data)
+@@ -3263,6 +3257,7 @@ static int rtk_hdmi_audio_startup(struct device *dev, void *data)
+ 
+ 	hdmi->hifi_ready = 1;
+ 	hdmi->audio_startup = 1;
++	hdmi->hdmi_ops->audio_output_ctrl(hdmi, 1);
+ 
+ 	return 0;
+ }
+@@ -3274,7 +3269,6 @@ static int rtk_hdmi_audio_hook_plugged_cb(struct device *dev, void *data,
+ 	bool is_connected;
+ 	bool is_hdmi_audio;
+ 
+-	dev_info(hdmi->dev, "audio hook plugged cb");
+ 
+ 	hdmi->plugged_cb = fn;
+ 	hdmi->codec_dev = codec_dev;
+@@ -3282,6 +3276,8 @@ static int rtk_hdmi_audio_hook_plugged_cb(struct device *dev, void *data,
+ 	is_connected = extcon_get_state(hdmi->edev, EXTCON_DISP_HDMI);
+ 	is_hdmi_audio = is_connected && hdmi->edid_info.sink_has_audio;
+ 
++	dev_info(hdmi->dev, "audio hook plugged cb");
++
+ 	if (hdmi->plugged_cb && hdmi->codec_dev)
+ 		hdmi->plugged_cb(hdmi->codec_dev, is_hdmi_audio);
+ 	else

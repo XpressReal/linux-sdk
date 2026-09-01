@@ -1,0 +1,64 @@
+From d7498dad8726e165682cbcdb3de4051f525f79c8 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 23 Apr 2026 03:42:28 -0400
+Subject: [PATCH] adjust ui and tv mode select method
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/modes.c | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index ff306c8..605fbdd 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -970,6 +970,15 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 	struct drm_mode *tv_current = NULL;
+ 	struct drm_mode *drm_mode = NULL;
+ 
++	drmModeModeInfo force_2k_mode = { .hdisplay = 1920,
++	                                  .vdisplay = 1080,
++	                                  .flags = 0x100005,
++	                                  .clock = 148500,
++	                                  .htotal = 2200,
++	                                  .vtotal = 1125,
++	                                  .vscan = 0 };
++
++
+ 	if (tv_modeline == NULL)
+ 		return -1;
+ 
+@@ -980,10 +989,6 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 		return -1;
+ 
+ 	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
+-		if (drm_mode->base.width * drm_mode->base.height > 1920*1080) {
+-			continue;
+-		}
+-
+ 		if (current == NULL)
+ 			current = drm_mode;
+ 
+@@ -1002,12 +1007,16 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
+ 		}
+ 	}
+ 
++	printf("select avaiable drm_mode width:%d height:%d\n", current->base.width, current->base.height);
+ //	current = drm_output_choose_initial_mode(device, output, mode, modeline,
+ //						&head->inherited_mode);
+ 
+ 	tv_current = drm_output_choose_initial_mode(device, output, mode, tv_modeline,
+ 						&current->mode_info);
+ 
++	current = drm_output_force_add_mode(&force_2k_mode);
++	printf("force gpu drm_mode width:%d height:%d\n", current->base.width, current->base.height);
++
+ 	if (!current)
+ 		return -1;
+ 
+-- 
+2.34.1
+

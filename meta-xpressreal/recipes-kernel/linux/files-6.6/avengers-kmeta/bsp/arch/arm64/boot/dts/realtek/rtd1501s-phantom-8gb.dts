@@ -26,30 +26,6 @@
 	aliases {
 		ethernet = &nic;
 	};
-
-	vpu_legacy: vpu_legacy {
-		compatible = "realtek,kent-vpu-legacy";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	vpu_ve4: vcpu_ve4 {
-		compatible = "realtek,kent-vpu-ve4";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-
-	ve2: ve2 {
-		compatible = "realtek,kent-ve2-sl";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	rtk_ve2rpc: rtk_ve2rpc {
-		compatible = "realtek,ve2rpc";
-		realtek,krpc-agent = <&vcpu_kernel_agent>;
-	};
 };
 
 &rtk_soc {
@@ -126,14 +102,6 @@
 
 &gpu_cache {
 	status = "okay";
-};
-
-&vpu_legacy {
-	status = "okay";
-};
-
-&vpu_ve4  {
-        status = "okay";
 };
 
 &ve4  {

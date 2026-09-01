@@ -1,0 +1,22 @@
+config RTK_GPU_WRAP
+	tristate "Realtek GPU Wrapper Driver"
+	depends on ARCH_REALTEK
+	default y
+	help
+	  This enable Realtek GPU Wrapper Driver.
+
+config RTK_GPU_CACHE
+	tristate "Realtek GPU Cache Driver"
+	depends on ARCH_REALTEK
+	depends on RTK_GPU_WRAP
+	default n
+	help
+	  This enable Realtek GPU Caceh Driver for providing control of
+	  gpu cache.
+
+config RTK_GPU_CACHE_CONTROL
+	bool "Realtek GPU Cache Kernel API"
+	depends on RTK_GPU_CACHE
+	default n
+	help
+	  This enable GPU Cache Kernel API

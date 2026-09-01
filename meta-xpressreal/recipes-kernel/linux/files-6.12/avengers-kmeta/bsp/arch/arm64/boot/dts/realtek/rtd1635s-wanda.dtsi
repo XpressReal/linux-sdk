@@ -1,0 +1,370 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1635S Wanda EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include "rtd1635.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=2 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/";
+		stdout-path = "serial0:460800n8";
+	};
+};
+
+&rtk_pm {
+	wakeup-gpio-list = <120 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>,
+			   <129 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>;
+};
+
+&rtk_soc {
+	status = "okay";
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ao_i2s0_pins>,
+		    <&ao_spdif_pins>,
+		    <&pcm_pins>;
+	realtek,audio-platform = <&rtk_soc>;
+	realtek,dai-link = "RDAI_DL0_FE", "RDAI_DL1_FE", "RDAI_DL2_FE",
+			   "RDAI_UL0_FE", "RDAI_UL1_FE",
+			   "RDAI_SOC_AO0", "RDAI_SOC_I2S", "RDAI_SOC_I2S0_LOOPBACK";
+	status = "okay";
+};
+
+&rfkill {
+	rfkill-gpios = <&gpio 119 GPIO_ACTIVE_HIGH>;
+};
+
+&pcie0 {
+	device-power-gpios = <&gpio 136 GPIO_ACTIVE_HIGH>;
+};
+
+&hdmi {
+	hdcp = <2>;
+};
+
+&i2c_0 {
+	status = "disabled";
+};
+
+&i2c_4 {
+	status = "okay";
+
+	/* RRB86848 Buck-Boost Charger */
+	rrb86848: charger@12 {
+		compatible = "renesas,rrb86848";
+		reg = <0x9>;
+
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			vbus_reg: rrb86848-vbus@0 {
+				reg = <0>;
+				regulator-name = "usbc-vbus-output";
+				regulator-min-microvolt = <2400000>;
+				regulator-max-microvolt = <12000000>;
+				regulator-min-microamp = <0>;
+				regulator-max-microamp = <3000000>;    /* 3A */
+				regulator-allow-set-voltage-while-enabled;
+			};
+
+			otg_reg: rrb86848-otg@1 {
+				reg = <1>;
+				regulator-name = "usbc-otg-output";
+				regulator-min-microvolt =  <5000000>;
+				regulator-max-microvolt = <12000000>;
+				regulator-allow-set-voltage-while-enabled;
+			};
+		};
+	};
+};
+
+/* link regulators to extcon typec */
+&type_c {
+	vbus-supply = <&vbus_reg>;  /* rrb86848-vbus */
+	otg-supply = <&otg_reg>;   /* rrb86848-otg */
+
+	status = "disabled";
+};
+
+/* link regulators to tcpm/tcpc */
+&usb_tcpc {
+	vbus-supply = <&vbus_reg>;  /* rrb86848-vbus */
+	otg-supply = <&otg_reg>;   /* rrb86848-otg */
+
+	status = "okay";
+};
+
+&pwm {
+	status = "okay";
+
+	pwm-0 {
+		enable = <1>;
+		clkout_div = <0x6b>;
+		clksrc_div = <0x00>;
+		duty_rate = <30>;
+	};
+};
+
+
+&{/} {
+	cpu_supp: cpu-dvs {
+		compatible = "pwm-regulator";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm0_loc0_pins>;
+		pwms = <&pwm 0 8000>;
+		status = "okay";
+
+		regulator-name = "cpudvs";
+		regulator-min-microvolt = <750000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-ramp-delay = <400>;
+
+		voltage-table =
+			<1137500 6>,
+			<1125000 8>,
+			<1112500 11>,
+			<1100000 15>,
+			<1087500 19>,
+			<1075000 22>,
+			<1062500 26>,
+			<1050000 30>,
+			<1037500 32>,
+			<1025000 36>,
+			<1012500 40>,
+			<1000000 43>,
+			<987500 46>,
+			<975000 50>,
+			<962500 54>,
+			<950000 57>,
+			<937500 60>,
+			<925000 64>,
+			<912500 68>,
+			<900000 71>,
+			<887500 74>,
+			<875000 78>,
+			<862500 81>,
+			<850000 84>,
+			<837500 88>,
+			<825000 92>,
+			<812500 94>,
+			<800000 98>;
+	};
+
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1635-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <1>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <825000 825000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <900000 900000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <925000 925000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1300000000 {
+			opp-hz = /bits/ 64 <1300000000>;
+			opp-microvolt = <950000 950000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1400000000 {
+			opp-hz = /bits/ 64 <1400000000>;
+			opp-microvolt = <975000 975000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1500000000 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <1000000 1000000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+			opp-suspend;
+		};
+		opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <1025000 1025000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1700000000 {
+			opp-hz = /bits/ 64 <1700000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+
+	cpu3_opps: opp-table-cpu3 {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <825000 825000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <850000 850000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <875000 875000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1300000000 {
+			opp-hz = /bits/ 64 <1300000000>;
+			opp-microvolt = <900000 900000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1400000000 {
+			opp-hz = /bits/ 64 <1400000000>;
+			opp-microvolt = <925000 925000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1500000000 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <950000 950000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <975000 975000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1700000000 {
+			opp-hz = /bits/ 64 <1700000000>;
+			opp-microvolt = <1000000 1000000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+			opp-suspend;
+		};
+		opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1025000 1025000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+		opp-1900000000 {
+			opp-hz = /bits/ 64 <1900000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu 1>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu3_opps>;
+	#cooling-cells = <2>;
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-850500000 {
+			opp-hz = /bits/ 64 <850500000>;
+			opp-hz-real = /bits/ 64 <850500000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&reboot_mode {
+	status = "okay";
+};

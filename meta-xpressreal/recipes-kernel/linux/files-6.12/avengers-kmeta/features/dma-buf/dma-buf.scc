@@ -1,0 +1,4 @@
+patch 0001-dma-buf-heaps-realtek-an-option-to-use-Realtek-media.patch
+patch 0002-kernel-dma_heap-adjust-memory-layout-for-AIOT-projec.patch
+
+kconf non-hardware dma-buf.cfg

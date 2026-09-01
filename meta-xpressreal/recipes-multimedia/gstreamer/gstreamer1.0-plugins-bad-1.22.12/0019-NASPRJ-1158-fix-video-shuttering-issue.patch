@@ -2,6 +2,8 @@ From 8e047d16d13ee33198f559c498a18b7fd809c28d Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
 Date: Tue, 29 Jul 2025 23:08:51 -0400
 Subject: [PATCH] NASPRJ-1158: fix video shuttering issue
+Source: Realtek
+License: LGPL-2.1-or-later
 
 [Root Cause] Bad Streaming. The streaming have bad pcr info
 

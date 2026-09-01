@@ -34,7 +34,7 @@ index c8b3fd7814..e7ead610cc 100644
  obj-$(CONFIG_FTGPIO010)		+= ftgpio010.o
  obj-$(CONFIG_ADP5585_GPIO)	+= adp5585_gpio.o
  obj-$(CONFIG_RZG2L_GPIO)	+= rzg2l-gpio.o
-+ifdef CONFIG_TARGET_RTD1625
++ifneq ($(filter y,$(CONFIG_TARGET_RTD1625) $(CONFIG_TARGET_RTD1635)),)
 +obj-$(CONFIG_REALTEK_GPIO)	+= gpio-realtek-rtd1625.o
 +else
 +obj-$(CONFIG_REALTEK_GPIO)	+= gpio-realtek-rtd.o

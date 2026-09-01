@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761 SoC
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+#include "prince.dtsi"
+
+&emmc {
+	status = "okay";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&nic {
+	status = "okay";
+};
+
+&nor_flash {
+	status = "disabled";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&usb_manager {
+	status = "okay";
+};
+
+&usb_port0 {
+	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	dwc3@20000 {
+	phys = <&usb0_u2phy>;
+	phy-names = "usb2-phy";
+	maximum-speed = "high-speed";
+	};
+
+};
+
+&usb_port1 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&usb_port2 {
+	realtek,power-gpio = <&gpio 62 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+/delete-node/&type_c;

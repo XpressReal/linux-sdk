@@ -2,6 +2,8 @@ From 436542e3b4170024cf591e67bf07b9b01b85964e Mon Sep 17 00:00:00 2001
 From: hayward_ling <hayward_ling@realtek.com>
 Date: Tue, 30 Sep 2025 20:08:15 +0800
 Subject: [PATCH] interlaced mode drop old frame do not use g_warning
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

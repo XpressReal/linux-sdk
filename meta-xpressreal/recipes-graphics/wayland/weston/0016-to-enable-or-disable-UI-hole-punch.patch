@@ -1,22 +1,18 @@
-From 18b0e8606e50c0607d66964592acfbfa5e6ec0ae Mon Sep 17 00:00:00 2001
-From: "brian.shen" <brian.shen@realtek.com>
-Date: Tue, 25 Feb 2025 17:33:34 +0800
+From 50ea29bbf6f0474b9dbc2edbe2f726f455009759 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 14 Apr 2026 03:28:42 -0400
 Subject: [PATCH] to enable or disable UI hole punch
+
+Upstream-Status: Inappropriate [rtk specific]
+License: MIT
 Source: Realtek
-License: GPLV2
-Upstream-Status: Pending
-
-Reason for change: Disable UI hole punch to show UI when video is playing on the wayland platform
-Test Procedure: Start UI on the wayland paltform and play video in full screen, to check if UI is clipped.
-Risks: Low
-Signed-off-by: brian.shen <brian.shen@realtek.com>
-
 ---
- compositor/main.c                   |  1 +
- include/libweston/libweston.h       |  1 +
- libweston/compositor.c              | 18 ++++++++++++++++++
- libweston/renderer-gl/gl-renderer.c |  7 +++++++
- 4 files changed, 27 insertions(+)
+ compositor/main.c             |  1 +
+ desktop-shell/shell.c         | 11 ++++++++++-
+ desktop-shell/shell.h         |  1 +
+ include/libweston/libweston.h |  6 ++++++
+ libweston/compositor.c        | 22 ++++++++++++++++++++++
+ 5 files changed, 40 insertions(+), 1 deletion(-)
 
 diff --git a/compositor/main.c b/compositor/main.c
 index 8550a5f..6a6e0d4 100644
@@ -30,11 +26,69 @@ index 8550a5f..6a6e0d4 100644
  
  	if (without_input)
  		c->require_input = !without_input;
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index 184595d..b3fffcd 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -1679,7 +1679,12 @@ shell_surface_update_layer(struct shell_surface *shsurf)
+ 	new_layer_link = shell_surface_calculate_layer_link(shsurf);
+ 	assert(new_layer_link);
+ 
+-	weston_view_move_to_layer(shsurf->view, new_layer_link);
++	if ((shsurf->shell->compositor->ui_hole_punch == false && shsurf->view->surface->rtk_surface != WL_NOT_RTK_SURFACE) || shsurf->view->surface->rtk_layer > 0) {
++		weston_view_move_to_layer(shsurf->view, &shsurf->shell->rtk_layer.view_list);
++	} else {
++		weston_view_move_to_layer(shsurf->view, new_layer_link);
++	}
++
+ 	shell_surface_update_child_surface_layers(shsurf);
+ }
+ 
+@@ -4921,6 +4926,7 @@ wet_shell_init(struct weston_compositor *ec,
+ 	weston_layer_init(&shell->background_layer, ec);
+ 	weston_layer_init(&shell->lock_layer, ec);
+ 	weston_layer_init(&shell->input_panel_layer, ec);
++	weston_layer_init(&shell->rtk_layer, ec);
+ 
+ 	weston_layer_set_position(&shell->fullscreen_layer,
+ 				  WESTON_LAYER_POSITION_FULLSCREEN);
+@@ -4928,6 +4934,9 @@ wet_shell_init(struct weston_compositor *ec,
+ 				  WESTON_LAYER_POSITION_UI);
+ 	weston_layer_set_position(&shell->background_layer,
+ 				  WESTON_LAYER_POSITION_BACKGROUND);
++	weston_layer_set_position(&shell->rtk_layer,
++				  WESTON_LAYER_POSITION_RTK);
++
+ 
+ 	wl_list_init(&shell->seat_list);
+ 	wl_list_init(&shell->shsurf_list);
+diff --git a/desktop-shell/shell.h b/desktop-shell/shell.h
+index debb365..489053f 100644
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -96,6 +96,7 @@ struct desktop_shell {
+ 	struct weston_layer background_layer;
+ 	struct weston_layer lock_layer;
+ 	struct weston_layer input_panel_layer;
++	struct weston_layer rtk_layer;
+ 
+ 	struct wl_listener pointer_focus_listener;
+ 	struct weston_surface *grab_surface;
 diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
-index fee5f33..4a63e56 100644
+index bea2ba9..ca84f5a 100644
 --- a/include/libweston/libweston.h
 +++ b/include/libweston/libweston.h
-@@ -1525,6 +1525,7 @@ struct weston_compositor {
+@@ -1246,6 +1246,9 @@ enum weston_layer_position {
+ 	 */
+ 	WESTON_LAYER_POSITION_BACKGROUND = 0x00000002,
+ 
++	/* rtk specific layer */
++	WESTON_LAYER_POSITION_RTK        = 0x20000000,
++
+ 	/* For "desktop widgets" and applications like conky. */
+ 	WESTON_LAYER_POSITION_BOTTOM_UI  = 0x30000000,
+ 
+@@ -1526,6 +1529,7 @@ struct weston_compositor {
  	bool gbm_afbc;
  	bool found_drm_fd;
  	bool full_damage;
@@ -42,53 +96,62 @@ index fee5f33..4a63e56 100644
  };
  
  struct weston_solid_buffer_values {
+@@ -1961,6 +1965,8 @@ struct weston_surface {
+ 	int x;
+ 	int y;
+ 	enum wl_rtk_surface rtk_surface;
++	int rtk_layer;
++	int rtk_layer_order;
+ };
+ 
+ struct weston_subsurface {
 diff --git a/libweston/compositor.c b/libweston/compositor.c
-index f74b770..c0331dc 100644
+index f3d719e..6139a69 100644
 --- a/libweston/compositor.c
 +++ b/libweston/compositor.c
-@@ -3424,6 +3424,24 @@ weston_output_repaint(struct weston_output *output)
- 	if (output->destroying)
- 		return 0;
+@@ -871,6 +871,8 @@ weston_surface_create(struct weston_compositor *compositor)
+ 	surface->x = 0;
+ 	surface->y = 0;
+ 	surface->rtk_surface = WL_NOT_RTK_SURFACE;
++	surface->rtk_layer = 0;
++	surface->rtk_layer_order = -1;
+ 	return surface;
+ }
  
-+	if (ec->ui_hole_punch == false) {
-+		struct weston_layer *layer, *layer_bg = NULL;
-+		struct weston_view *view, *view_rtk_video = NULL;
-+		wl_list_for_each(layer, &ec->layer_list, link) {
-+			if (layer->position == WESTON_LAYER_POSITION_BACKGROUND)
-+				layer_bg = layer;
-+			wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
-+				if(layer->position != WESTON_LAYER_POSITION_BACKGROUND &&
-+					strncmp(view->surface->app_id, "rtk_video", 9) == 0)
-+					view_rtk_video = view;
-+			}
-+		}
-+		if (layer_bg != NULL && view_rtk_video != NULL) {
-+			// move rtk_video to layer WESTON_LAYER_POSITION_BACKGROUND in order to control UI
-+			weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
-+		}
-+	}
+@@ -4756,6 +4758,24 @@ surface_set_rtk_surface(struct wl_client *client,
+ 	surface->rtk_surface = (enum wl_rtk_surface)rtk_surface;
+ }
+ 
++static void
++surface_set_rtk_layer(struct wl_client *client,
++	       struct wl_resource *resource,
++	       int32_t rtk_layer)
++{
++	struct weston_surface *surface = wl_resource_get_user_data(resource);
++	surface->rtk_layer = rtk_layer;
++}
 +
- 	TL_POINT(ec, "core_repaint_begin", TLP_OUTPUT(output), TLP_END);
++static void
++surface_set_rtk_layer_order(struct wl_client *client,
++	       struct wl_resource *resource,
++	       int32_t rtk_layer_order)
++{
++	struct weston_surface *surface = wl_resource_get_user_data(resource);
++	surface->rtk_layer_order = rtk_layer_order;
++}
++
+ static const struct wl_surface_interface surface_interface = {
+ 	surface_destroy,
+ 	surface_attach,
+@@ -4770,6 +4790,8 @@ static const struct wl_surface_interface surface_interface = {
+ 	surface_offset,
+ 	surface_set_position,
+ 	surface_set_rtk_surface,
++	surface_set_rtk_layer,
++	surface_set_rtk_layer_order,
+ };
  
- 	/* Rebuild the surface list and update surface transforms up front. */
-diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
-index 4b40452..591c764 100644
---- a/libweston/renderer-gl/gl-renderer.c
-+++ b/libweston/renderer-gl/gl-renderer.c
-@@ -1405,6 +1405,13 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
- 		if (strncmp(pnode->view->surface->app_id, "rtk_video", 9) == 0) {
- 			need_paint = false;
- 		}
-+		else if (output->compositor->ui_hole_punch == false &&
-+				pnode->view->layer_link.layer != NULL)
-+		{
-+			if (pnode->view->layer_link.layer->position >= WESTON_LAYER_POSITION_BOTTOM_UI &&
-+				pnode->view->layer_link.layer->position <= WESTON_LAYER_POSITION_TOP_UI)
-+				pnode->view->need_scissor = false;
-+		}
- 
- 		if (need_paint == true && pnode->plane == &output->primary_plane)
- 			draw_paint_node(pnode, damage, &scissor_region);
+ static void
 -- 
-2.7.4
+2.34.1
 

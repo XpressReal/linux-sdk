@@ -121,11 +121,17 @@ unsigned int get_total_ddr_size(void)
 {
 	unsigned int size = 0;
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 	size = rtd_inl(DC_DRAM_DC_PHY_DDR_SIZE);
 #else
 	size = DC_INFO_DRAM_SIZE_GET(rtd_inl(DC_INFO)) + 1;
 #endif
+
+	/* Sanity check: register DC_DRAM_DC_PHY_DDR_SIZE may read 0 / 0xFFFFFFFF / non-power-of-2; fall back to 2 GB */
+	if (size == 0 || size == 0xFFFFFFFF || (size & (size - 1))) {
+		printf("get_total_ddr_size: value out of range (raw=%u Gb), falling back to 2GB\n", size);
+		size = 16; /* 16 Gb = 2 GB */
+	}
 
 	return size;
 }

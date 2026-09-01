@@ -1,0 +1,46 @@
+From a097c18caea326c98ec62c5393e601e7fbc0ab89 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 20 Dec 2023 13:56:37 +0800
+Subject: [PATCH] [BUG_FIX] arm64: dts: realtek: stark: usb: add the compatible
+ name for dw3-rtk
+
+Change-Id: Ie75050082c7ad1743e7fccfc46da2cc2a7aef8c3
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index 57759a53bd0db..4614ce2cf282e 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -74,7 +74,7 @@ usb_port0_usb2phy: usb-phy@13214 {
+ 	};
+ 
+ 	usb_port0: usb-port0@13200 {
+-		compatible = "realtek,rtd-dwc3";
++		compatible = "realtek,rtd1619b-dwc3", "realtek,rtd-dwc3";
+ 		reg = <0x13200 0x140>, <0x13364 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+@@ -109,7 +109,7 @@ usb_port1_usb2phy: usb-phy@13c14 {
+ 	};
+ 
+ 	usb_port1: usb-port1@13c00 {
+-		compatible = "realtek,rtd-dwc3";
++		compatible = "realtek,rtd1619b-dwc3", "realtek,rtd-dwc3";
+ 		reg = <0x13c00 0x140>, <0x13d60 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+@@ -151,7 +151,7 @@ usb_port2_usb3phy: usb-phy@13e10 {
+ 	};
+ 
+ 	usb_port2: usb-port2@13e00 {
+-		compatible = "realtek,rtd-dwc3";
++		compatible = "realtek,rtd1619b-dwc3", "realtek,rtd-dwc3";
+ 		reg = <0x13e00 0x140>, <0x13f60 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+-- 
+2.47.0
+

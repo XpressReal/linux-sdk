@@ -1,0 +1,150 @@
+From 59880dc24a143f49e19a612ceabf36dcde9ca96e Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 8 Apr 2026 18:34:49 +0800
+Subject: [PATCH 1/1] Add V4L2 device tree
+
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi             | 15 +++++++++++++++
+ arch/arm64/boot/dts/realtek/prince.dtsi           | 14 ++++++++++++++
+ .../boot/dts/realtek/rtd1501s-phantom-8gb.dts     |  8 ++++++++
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi         | 14 ++++++++++++--
+ .../boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts   |  8 ++++++++
+ 5 files changed, 57 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index d3282931e854..d25ee4e03b79 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -422,6 +422,21 @@ vcpu: vcpu {
+ 		status = "disabled";
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,kent-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
++	vpu_ve4: vcpu_ve4 {
++		compatible = "realtek,kent-vpu-ve4";
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
+ 	avcert_rproc: avcert-rproc {
+ 		compatible = "realtek,rtd-rproc-avcert";
+ 		firmware-name = "AFW_Certificate.bin";
+diff --git a/arch/arm64/boot/dts/realtek/prince.dtsi b/arch/arm64/boot/dts/realtek/prince.dtsi
+index c13f401b470d..4aa45cf6d2fe 100644
+--- a/arch/arm64/boot/dts/realtek/prince.dtsi
++++ b/arch/arm64/boot/dts/realtek/prince.dtsi
+@@ -460,6 +460,20 @@ vcpu: vcpu {
+ 		status = "disabled";
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,prince-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		status = "disabled";
++	};
++
++	ve3_enc: ve3_enc {
++		compatible = "realtek,prince-ve3";
++		realtek,krpc-agent = <&ve3_kernel_agent>;
++		status = "disabled";
++	};
++
+ 	avcert_rproc: avcert-rproc {
+ 		compatible = "realtek,rtd-rproc-avcert";
+ 		firmware-name = "AFW_Certificate.bin";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+index 22b786cd..ac1380f2 100755
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+@@ -103,6 +103,14 @@
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
+ &ve4  {
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+index 7d96d84510b2..b4192a4a9a6c 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+@@ -109,6 +109,14 @@ &gpu_cache {
+     status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
+ &ve4  {
+         status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index b6f97cc0cf8e..86ab84027d0a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -1154,9 +1154,19 @@ sound_compr: sound_compr {
+ 		status = "disabled";
+ 	};
+ 
+-	rtk_ve2rpc: rtk_ve2rpc {
+-		compatible = "realtek,ve2rpc";
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,rtd16xxb-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
+ 		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
++	ve3_enc: ve3_enc {
++		compatible = "realtek,rtd16xxb-ve3";
++		realtek,krpc-agent = <&ve3_kernel_agent>;
++		status = "disabled";
+ 	};
+ 
+ 	tee-mem {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts b/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
+index 77bc87ad7f1b..d766a52f827b 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
+@@ -116,6 +116,14 @@ &ve3_rpmsg {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&ve3_enc {
++	status = "okay";
++};
++
+ &reserved_memory {
+ 	/delete-node/default-cma;
+ 	/delete-node/tp_ssc2;
+-- 
+2.34.1
+

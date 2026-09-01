@@ -1,0 +1,42 @@
+From 22a6b59fffaae8ae7ea7d74ccb3753a5c3d475e3 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 30 May 2023 12:36:22 +0800
+Subject: [PATCH] [FEATURE] extcon: rtk: type_c driver: add the extcon rtk type
+ c driver
+
+[Information]
+Implement an extcon rtk type c driver to instead the dwc3-rtk-type_c driver
+
+Change-Id: Icf58fb28898088173077b7bddbf440ce7af410a3
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/extcon/Kconfig             |    6 +
+ drivers/extcon/Makefile            |    1 +
+
+diff --git a/drivers/extcon/Kconfig b/drivers/extcon/Kconfig
+index aac507bff135..ea4ffa4cd021 100644
+--- a/drivers/extcon/Kconfig
++++ b/drivers/extcon/Kconfig
+@@ -186,4 +186,10 @@ config EXTCON_USBC_CROS_EC
+ 	  Say Y here to enable USB Type C cable detection extcon support when
+ 	  using Chrome OS EC based USB Type-C ports.
+ 
++config EXTCON_RTK_TYPE_C
++	tristate "Realtek EXTCON Type C Driver"
++	help
++	  Say Y here to enable USB Type C cable detection extcon support when
++	  using Realtek USB Type-C ports
++
+ endif
+diff --git a/drivers/extcon/Makefile b/drivers/extcon/Makefile
+index 52096fd8a216..abdf26e25744 100644
+--- a/drivers/extcon/Makefile
++++ b/drivers/extcon/Makefile
+@@ -25,3 +25,4 @@ obj-$(CONFIG_EXTCON_RT8973A)	+= extcon-rt8973a.o
+ obj-$(CONFIG_EXTCON_SM5502)	+= extcon-sm5502.o
+ obj-$(CONFIG_EXTCON_USB_GPIO)	+= extcon-usb-gpio.o
+ obj-$(CONFIG_EXTCON_USBC_CROS_EC) += extcon-usbc-cros-ec.o
++obj-$(CONFIG_EXTCON_RTK_TYPE_C) += extcon-rtk-type-c.o
+-- 
+2.47.0
+

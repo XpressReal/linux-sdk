@@ -1,0 +1,44 @@
+From 0cdb62459775f6719db4df0a66b7abf91430d169 Mon Sep 17 00:00:00 2001
+From: TY Chang <tychang@realtek.com>
+Date: Thu, 24 Jul 2025 10:57:04 +0800
+Subject: [PATCH 3/3] gpio: realtek: Add gpio expander support
+
+Change-Id: Iff7d24ec25dd19d7518ac672251d06ade25fae13
+---
+ drivers/gpio/Kconfig  | 7 +++++++
+ drivers/gpio/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index aebe125d8089b..e932233a5d0cb 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -599,6 +599,13 @@ config GPIO_RTD1625
+ 	help
+ 	  Realtek RTD1625 GPIO support.
+ 
++config GPIO_EXPANDER_RTD
++	tristate "Realtek DHC RTD GPIO expander support"
++	depends on ARCH_REALTEK
++	select GPIOLIB_IRQCHIP
++	help
++	  Realtek RTD GPIO expander support.
++
+ config GPIO_REG
+ 	bool
+ 	help
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index 5bce5fd77a4b6..e7fa38c372ccf 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -141,6 +141,7 @@ obj-$(CONFIG_GPIO_RDA)			+= gpio-rda.o
+ obj-$(CONFIG_GPIO_RDC321X)		+= gpio-rdc321x.o
+ obj-$(CONFIG_GPIO_REALTEK_OTTO)		+= gpio-realtek-otto.o
+ obj-$(CONFIG_GPIO_RTD1625)		+= gpio-rtd1625.o
++obj-$(CONFIG_GPIO_EXPANDER_RTD)		+= gpio-expander-rtd.o
+ obj-$(CONFIG_GPIO_REG)			+= gpio-reg.o
+ obj-$(CONFIG_GPIO_ROCKCHIP)	+= gpio-rockchip.o
+ obj-$(CONFIG_GPIO_RTD)			+= gpio-rtd.o
+-- 
+2.47.0
+

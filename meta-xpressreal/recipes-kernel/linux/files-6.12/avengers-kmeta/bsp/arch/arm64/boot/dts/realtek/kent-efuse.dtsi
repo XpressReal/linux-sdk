@@ -1,0 +1,19 @@
+&efuse_nvmem_layout {
+	otp_bond_id: bond_id@3c8,0 {
+		reg = <0x3c8 0x4>;
+	};
+	etn_idac: etn_idac@500,0 {
+		reg = <0x500 0x2>;
+		bits = <0 10>;
+	};
+	etn_rc_cal: etn_rc_cal@500,16 {
+		reg = <0x500 0x3>;
+		bits = <16 7>;
+	};
+	otp_chip_revision: chip_revision@540,0 {
+		reg = <0x540 0x2>;
+	};
+	otp_pcie_cal: pcie_cal@fcc,0 {
+		reg = <0xfcc 0x1>;
+	};
+};

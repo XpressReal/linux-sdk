@@ -1,0 +1,9 @@
+patch 0001-Backport-k5.15-drm-related-codes.patch
+patch 0002-sync-drm-about-rpmsg.patch
+patch 0003-support-vowb.patch
+patch 0004-vowb-dts.patch
+patch 0005-Enable-HIFI-rpmsg-and-rproc.patch
+patch 0006-Use-V2-plane-as-default-display-plane.patch
+patch 0007-Fix-black-and-green-lines-will-appear-during-vo-writ.patch
+
+kconf hardware drm.cfg

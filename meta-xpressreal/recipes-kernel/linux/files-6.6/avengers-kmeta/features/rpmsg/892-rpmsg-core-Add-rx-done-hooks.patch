@@ -1,3 +1,12 @@
+From 3f0be448610c848749c4f835fe10c64531a6ed34 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Wed, 31 Jul 2024 18:00:23 +0800
+Subject: recipe-kernel: use kernel patches from 6.6.21 trunk
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: Iae1d6e12e6871f13c6e6cb5ed8befc4607bc9457
+---
 In order to reduce the amount of copies in the rpmsg framework, it is
 necessary for clients to take brief ownership of the receive buffer.
 

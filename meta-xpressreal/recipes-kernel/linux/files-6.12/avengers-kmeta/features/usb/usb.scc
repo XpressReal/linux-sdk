@@ -1,0 +1,12 @@
+define KFEATURE_DESCRIPTION "Realtek USB features based on DWC3"
+
+patch 001-usb-typec-tcpm-add-UFP_D-DP-Sink-mode-support.patch
+patch 002-usb-typec-altmodes-displayport-skip-UFP_D-only-ports.patch
+patch 003-Reapply-usb-dwc3-rtk-debugfs-support-the-debugfs-for.patch
+patch 004-FEATURE-usb-core-add-an-usb-port-run-test-mode-drive.patch
+patch 005-FEATURE-usb-gadget-function-implement-IAP2-function.patch
+patch 006-FEATURE-usb-gadget-function-implement-EAP-function.patch
+patch 007-FEATURE-usb-typec-tcpm-Implement-rtk_rtd_pd-driver-f.patch
+patch 008-FEATURE-usb-typec-altmodes-add-DisplayPort-RX-UFP_D-.patch
+
+kconf hardware usb.cfg

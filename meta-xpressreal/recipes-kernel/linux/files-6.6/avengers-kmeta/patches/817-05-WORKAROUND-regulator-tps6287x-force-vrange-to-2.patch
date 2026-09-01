@@ -1,0 +1,80 @@
+From 41067cf8bd95167b7cf5a21fa5e1aa85cdd6395e Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Wed, 9 Apr 2025 14:17:35 +0800
+Subject: [PATCH 1/2] WORKAROUND: regulator: tps6287x: force vrange to 2
+
+Change-Id: Ia5eba967f9a016c7871f651881840e8e7d353140
+---
+ drivers/regulator/tps6287x-regulator.c | 31 +++++++++-----------------
+ 1 file changed, 10 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/regulator/tps6287x-regulator.c b/drivers/regulator/tps6287x-regulator.c
+index 91da55c02f..b75f338d8d 100644
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -27,6 +27,10 @@
+ #define TPS6287X_CTRL3		0x03
+ #define TPS6287X_STATUS		0x04
+ 
++#define TPS6287X_VRANGE_2_MIN_UV         400000
++#define TPS6287X_VRANGE_2_MAX_UV         1675000
++#define TPS6287X_VRANGE_2_STEP_UV        5000
++
+ static const struct regmap_config tps6287x_regmap_config = {
+ 	.reg_bits = 8,
+ 	.val_bits = 8,
+@@ -34,17 +38,6 @@ static const struct regmap_config tps6287x_regmap_config = {
+ 	.cache_type = REGCACHE_RBTREE,
+ };
+ 
+-static const struct linear_range tps6287x_voltage_ranges[] = {
+-	LINEAR_RANGE(400000, 0, 0xFF, 1250),
+-	LINEAR_RANGE(400000, 0, 0xFF, 2500),
+-	LINEAR_RANGE(400000, 0, 0xFF, 5000),
+-	LINEAR_RANGE(800000, 0, 0xFF, 10000),
+-};
+-
+-static const unsigned int tps6287x_voltage_range_sel[] = {
+-	0x0, 0x1, 0x2, 0x3
+-};
+-
+ static const unsigned int tps6287x_ramp_table[] = {
+ 	10000, 5000, 1250, 500
+ };
+@@ -98,9 +91,9 @@ static const struct regulator_ops tps6287x_regulator_ops = {
+ 	.set_mode = tps6287x_set_mode,
+ 	.get_mode = tps6287x_get_mode,
+ 	.is_enabled = regulator_is_enabled_regmap,
+-	.get_voltage_sel = regulator_get_voltage_sel_pickable_regmap,
+-	.set_voltage_sel = regulator_set_voltage_sel_pickable_regmap,
+-	.list_voltage = regulator_list_voltage_pickable_linear_range,
++	.get_voltage_sel = regulator_get_voltage_sel_regmap,
++	.set_voltage_sel = regulator_set_voltage_sel_regmap,
++	.list_voltage = regulator_list_voltage_linear,
+ 	.set_ramp_delay = regulator_set_ramp_delay_regmap,
+ };
+ 
+@@ -114,17 +107,13 @@ static struct regulator_desc tps6287x_reg = {
+ 	.enable_mask = TPS6287X_CTRL1_SWEN,
+ 	.vsel_reg = TPS6287X_VSET,
+ 	.vsel_mask = 0xFF,
+-	.vsel_range_reg = TPS6287X_CTRL2,
+-	.vsel_range_mask = TPS6287X_CTRL2_VRANGE,
+-	.range_applied_by_vsel = true,
+ 	.ramp_reg = TPS6287X_CTRL1,
+ 	.ramp_mask = TPS6287X_CTRL1_VRAMP,
+ 	.ramp_delay_table = tps6287x_ramp_table,
+ 	.n_ramp_values = ARRAY_SIZE(tps6287x_ramp_table),
+-	.n_voltages = 256 * ARRAY_SIZE(tps6287x_voltage_ranges),
+-	.linear_ranges = tps6287x_voltage_ranges,
+-	.n_linear_ranges = ARRAY_SIZE(tps6287x_voltage_ranges),
+-	.linear_range_selectors_bitfield = tps6287x_voltage_range_sel,
++	.n_voltages = 256,
++	.min_uV = TPS6287X_VRANGE_2_MIN_UV,
++	.uV_step = TPS6287X_VRANGE_2_STEP_UV,
+ };
+ 
+ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+-- 
+2.34.1
+

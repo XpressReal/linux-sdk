@@ -1,0 +1,42 @@
+From aafc949891f6a286fecb6f499523e26de5cdb71f Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 23:06:06 +0800
+Subject: [PATCH 44/73] mfd: add raa271003 driver
+
+Change-Id: I7d452485e74a6031cd83d5faed5c6f0635e45774
+---
+ drivers/mfd/Kconfig  | 6 ++++++
+ drivers/mfd/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/mfd/Kconfig b/drivers/mfd/Kconfig
+index b3ad4ae8155d5..513b864d42aab 100644
+--- a/drivers/mfd/Kconfig
++++ b/drivers/mfd/Kconfig
+@@ -2420,5 +2420,11 @@ config MFD_RR320010_I2C
+ 	select MFD_CORE
+ 	select REGMAP_I2C
+ 
++config MFD_RAA271003_I2C
++	tristate "Support for Renesas RAA271003 PMIC"
++	depends on I2C
++	select MFD_CORE
++	select REGMAP_I2C
++
+ endmenu
+ endif
+diff --git a/drivers/mfd/Makefile b/drivers/mfd/Makefile
+index 39b5928443840..1106831009386 100644
+--- a/drivers/mfd/Makefile
++++ b/drivers/mfd/Makefile
+@@ -265,6 +265,7 @@ obj-$(CONFIG_MFD_SUN4I_GPADC)	+= sun4i-gpadc.o
+ obj-$(CONFIG_MFD_APW8889_I2C) += apw8889-i2c.o
+ obj-$(CONFIG_MFD_APW8886_I2C) += apw8886-i2c.o
+ obj-$(CONFIG_MFD_RR320010_I2C)	+= rr320010-i2c.o
++obj-$(CONFIG_MFD_RAA271003_I2C) += raa271003-i2c.o
+ obj-$(CONFIG_MFD_STM32_LPTIMER)	+= stm32-lptimer.o
+ obj-$(CONFIG_MFD_STM32_TIMERS) 	+= stm32-timers.o
+ obj-$(CONFIG_MFD_MXS_LRADC)     += mxs-lradc.o
+-- 
+2.47.0
+

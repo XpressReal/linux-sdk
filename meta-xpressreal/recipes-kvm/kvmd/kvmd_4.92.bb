@@ -13,6 +13,7 @@ SRC_URI += "\
 	file://0004-modify-index.html-to-switch-between-legacy-and-webrtc.patch \
 	file://0005-modify-javascript-to-select-legacy-or-webrtc.patch \
 	file://0007-nginx-config-add-an-option-to-enable-disable-https.patch \
+	file://0016-Add-OCR-to-WebRTC-mode.patch \
 	file://kvmd.service \
 	file://kvmd-otg.service \
 	file://kvmd-nginx.service \
@@ -24,6 +25,8 @@ SRC_URI += "\
 	file://kvmd-otgnet.service  \
 	file://kvmd-webterm.service \
 	file://kvmd-webrtc.service \
+	file://kvmd-webrtc-rose-rtd1635.service \
+	file://kvmd-webrtc-rose-capturecard.service \
 	file://kvmd-extend.service \
 	file://platform \
 	file://kvmd-tmpfiles.conf \
@@ -64,7 +67,8 @@ SRC_URI += "${@bb.utils.contains('PACKAGECONFIG', 'demo', ' \
                 file://0012-web-javascript-modify-for-Realtek-Demo-purpose.patch \
                 file://0013-web-modify-for-Realtek-KVM-UI.patch \
                 file://0014-Support-USB-drive-passthrough.patch \
-                file://0015-kvmd-Add-WoL-feature.patch ', '', d)}"
+                file://0015-kvmd-Add-WoL-feature.patch \
+                file://0017-Add-Automation-feature.patch ', '', d)}"
 
 S = "${WORKDIR}/git"
 
@@ -152,7 +156,15 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/kvmd-janus-static.service ${D}${systemd_system_unitdir}/kvmd-janus-static.service
     install -m 0644 ${WORKDIR}/kvmd-media.service ${D}${systemd_system_unitdir}/kvmd-media.service
     install -m 0644 ${WORKDIR}/kvmd-ustreamer.service ${D}${systemd_system_unitdir}/kvmd-ustreamer.service
-    install -m 0644 ${WORKDIR}/kvmd-webrtc.service ${D}${systemd_system_unitdir}/kvmd-webrtc.service
+    if [ "${@bb.utils.contains('MACHINE', 'rose-rtd1635', '1', '0', d)}" = "1" ]; then
+        if [ "${@bb.utils.contains('MACHINE_FEATURES', 'capturecard', '1', '0', d)}" = "1" ]; then
+            install -m 0644 ${WORKDIR}/kvmd-webrtc-rose-capturecard.service ${D}${systemd_system_unitdir}/kvmd-webrtc.service
+        else
+            install -m 0644 ${WORKDIR}/kvmd-webrtc-rose-rtd1635.service ${D}${systemd_system_unitdir}/kvmd-webrtc.service
+        fi
+    else
+        install -m 0644 ${WORKDIR}/kvmd-webrtc.service ${D}${systemd_system_unitdir}/kvmd-webrtc.service
+    fi
     #install -m 0644 ${WORKDIR}/kvmd-otgnet.service ${D}${systemd_system_unitdir}/kvmd-otgnet.service
     #install -m 0644 ${WORKDIR}/kvmd-webterm.service ${D}${systemd_system_unitdir}/kvmd-webterm.service
     install -m 0644 ${WORKDIR}/kvmd-extend.service ${D}${systemd_system_unitdir}/kvmd-extend.service
@@ -206,6 +218,7 @@ RDEPENDS:${PN} += "\
     python3-jinja2 \
     python3-logging \
     python3-mako \
+    python3-multiprocessing \
     python3-netifaces \
     python3-passlib \
     python3-pillow \
@@ -222,6 +235,10 @@ RDEPENDS:${PN} += "\
     python3-systemd \
     python3-xlib \
     python3-zstandard \
-    "
+    python3-pip \
+    python3-numpy \
+    python3-opencv \
+    python3-google-generativeai \
+"
 
 FILES:${PN} += "/usr/lib/systemd/system /usr/local/bin"

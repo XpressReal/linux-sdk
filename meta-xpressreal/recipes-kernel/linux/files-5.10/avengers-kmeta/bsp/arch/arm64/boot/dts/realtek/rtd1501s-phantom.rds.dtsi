@@ -1,0 +1,356 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include <dt-bindings/regulator/rr320010-regulator.h>
+#include <dt-bindings/regulator/ti,tps62860.h>
+
+&i2c_0 {
+	clock-frequency = <3400000>;
+	pinctrl-0 = <&i2c0_HS_pins>;
+	status = "okay";
+};
+
+&{/} {
+	runtime-devices {
+		compatible = "smallville-device-selector";
+		#size-cells = <0>;
+		#address-cells = <1>;
+		i2c-adapter = <&i2c_0>;
+
+		/* pmic */
+		devices@0 {
+			reg = <0>;
+
+			p0p1_i2c: i2c-bus {
+				#size-cells = <0>;
+				#address-cells = <1>;
+			};
+
+			p0p1_platform: platform-bus {
+			};
+		};
+
+		/* v0.1 discreate dcdc */
+		devices@1 {
+			reg = <1>;
+
+			d0p1_i2c: i2c-bus {
+				#size-cells = <0>;
+				#address-cells = <1>;
+			};
+
+			d0p1_platform: platform-bus {
+			};
+		};
+
+		/* v0.2 discreate dcdc */
+		devices@2 {
+			reg = <2>;
+
+			d0p2_i2c: i2c-bus {
+				#size-cells = <0>;
+				#address-cells = <1>;
+			};
+
+			d0p2_platform: platform-bus {
+			};
+		};
+	};
+};
+
+&p0p1_i2c {
+	rr320010@38 {
+		compatible = "renesas,rr320010";
+		reg = <0x38>;
+
+		rr320010_regulators: regulators {
+			compatible = "renesas,rr320010-regulator";
+
+			rr320010_buck1: buck1 {
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <3800000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			p0p1_wlan: buck2 {
+				regulator-name = "wlan";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <3800000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+			};
+
+			rr320010_buck3: buck3 {
+				regulator-min-microvolt = <1400000>;
+				regulator-max-microvolt = <2000000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			rr320010_buck4: buck4 {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			p0p1_cpusram: buck5 {
+				regulator-name = "cpusram";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-coupled-with = <&p0p1_cpudvs>;
+				regulator-coupled-max-spread = <20000>;
+				regulator-ramp-delay = <12500>;
+			};
+
+			rr320010_buck6: buck6 {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			rr320010_buck7: buck7 {
+				regulator-name = "ip";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			p0p1_cpudvs: buck8 {
+				regulator-name = "cpudvs";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <1100000>;
+				regulator-allowed-modes = <RR320010_MODE_AUTO>,
+							  <RR320010_MODE_FORCE_PWM>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-coupled-with = <&p0p1_cpusram>;
+				regulator-coupled-max-spread = <20000>;
+				regulator-ramp-delay = <25000>;
+			};
+
+			p0p1_hdmi: hdmi {
+				regulator-name = "hdmi5v";
+				regulator-min-microvolt = <5000000>;
+				regulator-max-microvolt = <5000000>;
+			};
+		};
+	};
+};
+
+&d0p1_i2c {
+	d01p_cpudvs: tps62872@43 {
+		compatible = "ti,tps62872";
+		reg = <0x43>;
+		regulator-name = "cpudvs";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <11000000>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&d0p1_cpuram>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <1250>;
+	};
+
+	d0p1_cpuram: tps628603@40 {
+		compatible = "ti,tps628603";
+		reg = <0x40>;
+		regulator-name = "cpusram";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1100000>;
+		regulator-allowed-modes = <TPS62860_MODE_NORMAL>, <TPS62860_MODE_FPWM>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&d01p_cpudvs>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <10000>;
+	};
+};
+
+&d0p1_platform {
+	d0p1_hdmi: hdmi-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "hdmi5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&gpio 23 GPIO_ACTIVE_HIGH>;
+	};
+
+	d0p1_wlan: wlan-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio 135 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&d0p2_i2c {
+	d02p_cpudvs: tps62872@43 {
+		compatible = "ti,tps62872";
+		reg = <0x43>;
+		regulator-name = "cpudvs";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <11000000>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&d0p2_cpusram>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <1250>;
+	};
+
+	d0p2_cpusram: tps628610@40 {
+		compatible = "ti,tps628610";
+		reg = <0x40>;
+		regulator-name = "cpusram";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1100000>;
+		regulator-allowed-modes = <TPS62860_MODE_NORMAL>, <TPS62860_MODE_FPWM>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&d02p_cpudvs>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <10000>;
+		tps62860,vsel-high;
+	};
+};
+
+&d0p2_platform {
+	d0p2_hdmi: hdmi-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "hdmi5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&gpio 23 GPIO_ACTIVE_HIGH>;
+	};
+
+	d0p2_wlan: wlan-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio 135 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+
+&{/} {
+	cpu_supp: cpudvs-supply-alias {
+		compatible = "regulator-supply-alias";
+
+		supply-0 {
+			compatible = "device-supply-alias-setter";
+			cpu-supply = <&p0p1_cpudvs>;
+			supply-name = "cpu";
+			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
+		};
+
+		supply-1 {
+			compatible = "device-supply-alias-setter";
+			cpu-supply = <&d01p_cpudvs>;
+			supply-name = "cpu";
+			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
+		};
+
+		supply-2 {
+			compatible = "device-supply-alias-setter";
+			cpu-supply = <&d02p_cpudvs>;
+			supply-name = "cpu";
+			consumer-devices = <&cpu0>, <&cpu1>, <&cpu2>, <&cpu3>;
+		};
+	};
+
+	hdmi_supp: hdmi-supply-alias {
+		compatible = "regulator-supply-alias";
+
+		supply-0 {
+			compatible = "device-supply-alias-setter";
+			supply-name = "hdmi";
+			consumer-dev = <&hdmi>;
+			hdmi-supply = <&p0p1_hdmi>;
+		};
+
+		supply-1 {
+			compatible = "device-supply-alias-setter";
+			supply-name = "hdmi";
+			consumer-dev = <&hdmi>;
+			hdmi-supply = <&d0p1_hdmi>;
+		};
+
+		supply-2 {
+			compatible = "device-supply-alias-setter";
+			supply-name = "hdmi";
+			consumer-dev = <&hdmi>;
+			hdmi-supply = <&d0p2_hdmi>;
+		};
+	};
+
+	wlan_supp: wlan-supply-alias {
+		compatible = "regulator-supply-alias";
+
+		supply-pcie1-0 {
+			supply-name = "device-power";
+			consumer-dev = <&pcie1>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&p0p1_wlan>;
+		};
+
+		supply-pcie1-1 {
+			supply-name = "device-power";
+			consumer-dev = <&pcie1>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&d0p1_wlan>;
+		};
+
+		supply-pcie1-2 {
+			supply-name = "device-power";
+			consumer-dev = <&pcie1>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&d0p2_wlan>;
+		};
+
+		supply-sdio-0 {
+			supply-name = "device-power";
+			consumer-dev = <&sdio>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&p0p1_wlan>;
+		};
+
+		supply-sdio-1 {
+			supply-name = "device-power";
+			consumer-dev = <&sdio>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&d0p1_wlan>;
+		};
+
+		supply-sdio-2 {
+			supply-name = "device-power";
+			consumer-dev = <&sdio>;
+			compatible = "device-supply-alias-setter";
+			device-power-supply = <&d0p2_wlan>;
+		};
+	};
+};

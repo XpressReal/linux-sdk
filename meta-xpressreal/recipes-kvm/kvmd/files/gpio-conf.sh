@@ -19,6 +19,11 @@ case "$BOARD" in
         NEW_PIN_CONST1=84
         NEW_PIN_LOCATOR=19
         ;;
+    rose-rtd1635)
+        NEW_PIN_USB_BREAKER=42
+        NEW_PIN_CONST1=84
+        NEW_PIN_LOCATOR=19
+        ;;
     *)
         echo "Unknown board $BOARD, using default pins"
         NEW_PIN_USB_BREAKER=22

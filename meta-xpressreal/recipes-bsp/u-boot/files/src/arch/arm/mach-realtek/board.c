@@ -53,7 +53,7 @@ void *board_fdt_blob_setup(int *err)
 }
 #endif
 
-#if defined(CONFIG_RTK_MMC_DRIVER)
+#if defined(CONFIG_RTK_MMC_DRIVER) || CONFIG_IS_ENABLED(SPI_RTK_NAND)
 int fdtdec_board_setup(const void *fdt_blob) {
 	int ret = 0;
 	const bool secure = rtk_is_secure_boot();
@@ -270,6 +270,17 @@ static const char *get_reboot_reason(void)
 int misc_init_r(void)
 {
 	const char *board_name = "";
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
+	if (rtk_get_bootmode() == 0x1) {
+		board_name = "#spinand";
+	}
+        else if (rtk_get_bootmode() == 0x2 && CONFIG_IS_ENABLED(SPI_RTK_NAND)) {
+		board_name = "#spinand";
+	}
+	else {
+		board_name = "#" CONFIG_BOARD_FIT_CONFIG_NAME;
+	}
+#else
 #if defined(CONFIG_SPI_RTK_SFC) && !defined(CONFIG_RTK_MMC_DRIVER)
 	board_name = "#spinor";
 #else
@@ -286,6 +297,7 @@ int misc_init_r(void)
 		board_name = "#" CONFIG_BOARD_FIT_CONFIG_NAME;
 	}
 #endif
+#endif // TARGET_RTD1625, TARGET_RTD1635
 	env_set("bootcfg", board_name);
 #if CONFIG_IS_ENABLED(USB_STORAGE)
 #if CONFIG_USB_BOOT_GPIO_NUM > 0
@@ -339,7 +351,7 @@ u32 get_board_rev(void)
 	return revision;
 }
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 enum env_location env_get_location(enum env_operation op, int prio)
 {
 	u32 bootmode = rtk_get_bootmode();
@@ -357,6 +369,12 @@ enum env_location env_get_location(enum env_operation op, int prio)
 	case 0x2:
 		if (CONFIG_IS_ENABLED(ENV_IS_IN_SPI_FLASH))
 			return ENVL_SPI_FLASH;
+		else
+			return ENVL_NOWHERE;
+
+	case 0x1:
+		if (CONFIG_IS_ENABLED(ENV_IS_IN_MTD))
+			return ENVL_MTD;
 		else
 			return ENVL_NOWHERE;
 
@@ -389,11 +407,13 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 		ret = run_command_list("pmic probe apw8886 0 0x12", -1, 0);
 	if (!ret)
 		run_command_list("pmic apw8886 dc2_volt set 812500", -1, 0);
+	/* ignore failure for backinblack */
+	else
+		ret = 0;
 
 	/* Setup fss scan */
 	//ret = run_command_list("bsv", -1, 0);
-	ret = bsv_opp_main(blob);
-	//if (ret)
+	bsv_opp_main(blob);
 #endif
 	//ret = run_command_list("fss_scan main", -1, 0);
 	if (ret)
@@ -401,33 +421,4 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 
 	return ret;
 }
-#endif
-
-#if defined(CONFIG_TARGET_RTD1619B)
-#define BOOT_AV_INFO_MAGICNO    0x2452544D
-#define BOOT_LOGO_ADDR          0x27700000
-#define BOOT_LOGO_SIZE          0x00900000
-#define BOOT_AUDIO_ADDR         0x26F00000
-#define BOOT_AUDIO_SIZE         0x00400000
-#define BOOT_DECAUDIO_ADDR      (BOOT_AUDIO_ADDR + BOOT_AUDIO_SIZE)
-#define BOOT_DECAUDIO_SIZE      0x00400000
-#define VO_SECURE_ADDR          BOOT_LOGO_ADDR + BOOT_LOGO_SIZE - 0x100000
-#define VO_SECURE_SIZE          0x00005a00
-static void bootlogo_image_process(ulong bootlogo_image, size_t bootlogo_size)
-{
-	boot_av_info_t *boot_av = (boot_av_info_t *)MIPS_BOOT_AV_INFO_ADDR;
-	if (((u32)bootlogo_image == BOOT_LOGO_ADDR) && (env_get_yesno("bootlogo") == 1)) {
-		boot_av->dwMagicNumber = __swap_32(BOOT_AV_INFO_MAGICNO);
-		memset((void *)(uintptr_t)VO_SECURE_ADDR, 0x0, VO_SECURE_SIZE);
-		boot_av->vo_secure_addr = __swap_32(VO_SECURE_ADDR);
-		boot_av->logo_enable = 1;
-		boot_av->logo_addr = __swap_32((u32)bootlogo_image);
-		boot_av->logo_addr_2 = __swap_32((u32)bootlogo_image);
-		boot_av->src_width = __swap_32((u32)env_get_ulong("src_width", 10, 1920));
-		boot_av->src_height = __swap_32((u32)env_get_ulong("src_height", 10, 1080));
-		boot_av->dst_width = __swap_32((u32)env_get_ulong("dst_width", 10, 1920));
-		boot_av->dst_height = __swap_32((u32)env_get_ulong("dst_height", 10, 1080));
-	}
-}
-U_BOOT_FIT_LOADABLE_HANDLER(IH_TYPE_FIRMWARE, bootlogo_image_process);
 #endif

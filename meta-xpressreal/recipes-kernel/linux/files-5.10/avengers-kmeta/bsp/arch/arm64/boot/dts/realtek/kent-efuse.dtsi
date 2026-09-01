@@ -1,0 +1,5 @@
+&efuse_nvmem_layout {
+	otp_bond_id: bond_id@3c8,0 {
+		reg = <0x3c8 0x4>;
+	};
+};

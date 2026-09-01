@@ -1,0 +1,56 @@
+From bc324c7222c811af308927ebcd02ec38e024126a Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 16:10:05 +0800
+Subject: [PATCH 21/73] crypto: add Realtek crypto hardware engine
+
+Support mode:
+1. aes ecb/cbc/ctr
+2. des ecb
+3. sha1/sha256/sha512
+
+Change-Id: I14a62fff07834cf3c534d3d6f6cf3fbdc70746e5
+---
+ drivers/crypto/Kconfig  | 17 +++++++++++++++++
+ drivers/crypto/Makefile |  1 +
+ 2 files changed, 18 insertions(+)
+
+diff --git a/drivers/crypto/Kconfig b/drivers/crypto/Kconfig
+index 08b1238bcd7b3..62fbebffc0914 100644
+--- a/drivers/crypto/Kconfig
++++ b/drivers/crypto/Kconfig
+@@ -13,6 +13,23 @@ if CRYPTO_HW
+ 
+ source "drivers/crypto/allwinner/Kconfig"
+ 
++config CRYPTO_DEV_RTK
++	tristate "Realtek's Cryptographic Engine driver"
++	select CRYPTO_AES
++	select CRYPTO_DES
++	select CRYPTO_ECB
++	select CRYPTO_CBC
++	select CRYPTO_CTR
++	select CRYPTO_SHA1
++	select CRYPTO_SHA256
++	select CRYPTO_SHA512
++	select CRYPTO_HASH
++	select CRYPTO_BLKCIPHER
++
++	help
++	  This driver interfaces with the hardware crypto accelerator.
++	  Supporting cbc/ecb/ctr, and aes/des/sha cipher mode.
++
+ config CRYPTO_DEV_PADLOCK
+ 	tristate "Support for VIA PadLock ACE"
+ 	depends on X86 && !UML
+diff --git a/drivers/crypto/Makefile b/drivers/crypto/Makefile
+index ad4ccef67d124..be2826f758fb7 100644
+--- a/drivers/crypto/Makefile
++++ b/drivers/crypto/Makefile
+@@ -52,3 +52,4 @@ obj-y += hisilicon/
+ obj-$(CONFIG_CRYPTO_DEV_AMLOGIC_GXL) += amlogic/
+ obj-y += intel/
+ obj-y += starfive/
++obj-$(CONFIG_CRYPTO_DEV_RTK) += rtk-mcp.o
+-- 
+2.47.0
+

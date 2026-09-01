@@ -1,0 +1,16 @@
+diff --git a/drivers/bluetooth/hci_h5.c b/drivers/bluetooth/hci_h5.c
+index 0c2080c09306..842fd7715d01 100644
+--- a/drivers/bluetooth/hci_h5.c
++++ b/drivers/bluetooth/hci_h5.c
+@@ -931,6 +931,11 @@ static int h5_btrtl_setup(struct h5 *h5)
+ 	if (err)
+ 		goto out_free;
+ 
++#ifdef CONFIG_ARCH_REALTEK
++	rtl_dev_info(h5->hu->hdev, "force disabling HW flow control");
++	flow_control = false;
++#endif
++
+ 	baudrate_data = cpu_to_le32(device_baudrate);
+ 	skb = __hci_cmd_sync(h5->hu->hdev, 0xfc17, sizeof(baudrate_data),
+ 			     &baudrate_data, HCI_INIT_TIMEOUT);

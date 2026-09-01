@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2022 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd13xxe-rescue.dtsi"
+
+/ {
+	model = "Realtek RTD1315E Rescue";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x3ffc0000>; /* 1 GiB */
+	};
+};
+

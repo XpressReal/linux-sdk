@@ -1,0 +1,44 @@
+From 0a4f66b8b79c4fc4723ea4db81df82900cfddc59 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 11:14:26 +0800
+Subject: [PATCH 51/73] net: ethernet: realtek: add r8168 nic driver (version
+ 8.052.01)
+
+Change-Id: Id822e9b5806a140a0b416d28bb7e6ebd851a8763
+---
+ drivers/net/ethernet/realtek/Kconfig  | 11 +++++++++++
+ drivers/net/ethernet/realtek/Makefile |  1 +
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/Kconfig b/drivers/net/ethernet/realtek/Kconfig
+index 120913525c727..6d2ff160f7399 100644
+--- a/drivers/net/ethernet/realtek/Kconfig
++++ b/drivers/net/ethernet/realtek/Kconfig
+@@ -159,4 +159,15 @@ config RTL_RX_NO_COPY
+ 	  Say Y here to impove performance and reduce CPU loading.
+ 	  Say N here to save memory for packet buffers.
+ 
++config R8168
++	tristate "Realtek 8168 gigabit ethernet support"
++	depends on PCI
++	select FW_LOADER
++	select CRC32
++	select MII
++	help
++	  Say Y here if you have a Realtek 8168 PCI Gigabit Ethernet adapter.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called r8168.  This is recommended.
+ endif # NET_VENDOR_REALTEK
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index cdb8fafb35fa5..194a5b655e6d5 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -12,3 +12,4 @@ obj-$(CONFIG_R8169) += r8169.o
+ obj-$(CONFIG_RTASE) += rtase/
+ r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
+ obj-$(CONFIG_R8169SOC) += r8169soc.o
++obj-$(CONFIG_R8168) += r8168/
+-- 
+2.47.0
+

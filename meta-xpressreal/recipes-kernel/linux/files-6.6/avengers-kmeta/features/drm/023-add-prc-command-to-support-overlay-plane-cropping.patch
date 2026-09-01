@@ -1,0 +1,194 @@
+From 0ffdfd3f2b4b3106ec2dba47cc035890ec31ef3a Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Wed, 15 Jul 2026 11:09:48 +0800
+Subject: [PATCH] gpu: drm: Add RPC command to support overlay plane cropping
+
+Introduce the ENUM_KERNEL_RPC_ConfigureDisplayWindowDispZoomWinRatio
+RPC command to handle cropping configurations for the overlay plane.
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 31 ++++++++++++-
+ drivers/gpu/drm/realtek/rtk_drm_rpc.c   | 62 +++++++++++++++++++++++++
+ drivers/gpu/drm/realtek/rtk_drm_rpc.h   | 24 ++++++++--
+ 3 files changed, 112 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index bf4630d5b970a..8e1cf736a1ad4 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -418,6 +418,9 @@ static int rtk_plane_update_scaling(struct drm_plane *plane)
+ 	struct rtk_rpc_info *rpc_info = rtk_plane->rpc_info;
+ 	struct vo_rectangle *old_disp_win;
+ 	struct vo_color blueBorder = {0, 0, 255, 1};
++	struct drm_crtc *crtc = plane->state->crtc;
++	struct drm_framebuffer *fb = plane->state->fb;
++	struct rpc_config_disp_win_ratio disp_win_ratio;
+ 
+ 	DRM_DEBUG_DRIVER("videoPlane : %s\n", plane_names[rtk_plane->info.videoPlane]);
+ 	DRM_DEBUG_DRIVER("[type] : %d] [new] crtc_x : %d, crtc_y : %d\n",
+@@ -462,12 +465,38 @@ static int rtk_plane_update_scaling(struct drm_plane *plane)
+ 				DRM_ERROR("rtk_plane_inband_config_disp_win fail\n");
+ 				return -1;
+ 			}
+-		} else {
++		} else if (plane->type == DRM_PLANE_TYPE_PRIMARY) {
+ 			DRM_DEBUG_DRIVER("[rpc_video_config_disp_win]\n");
+ 			if (rpc_video_config_disp_win(rpc_info, &rtk_plane->disp_win)) {
+ 				DRM_ERROR("rpc_video_config_disp_win RPC fail\n");
+ 				return -1;
+ 			}
++		} else if (plane->type == DRM_PLANE_TYPE_OVERLAY) {
++			/* FW derives the actual window/crop from ratio + base:
++ 			 *   real_width = (videoWin.width / videoWinRatioBase_width) * mixer_width */
++			disp_win_ratio.videoPlane = rtk_plane->info.videoPlane | (rtk_plane->mixer << 16);
++			disp_win_ratio.videoWin.x            = plane->state->crtc_x;
++			disp_win_ratio.videoWin.y            = plane->state->crtc_y;
++			disp_win_ratio.videoWin.width        = plane->state->crtc_w;
++			disp_win_ratio.videoWin.height       = plane->state->crtc_h;
++			disp_win_ratio.srcCropZoomWin.x      = plane->state->src_x >> 16;
++			disp_win_ratio.srcCropZoomWin.y      = plane->state->src_y >> 16;
++			disp_win_ratio.srcCropZoomWin.width  = plane->state->src_w >> 16;
++			disp_win_ratio.srcCropZoomWin.height = plane->state->src_h >> 16;
++			disp_win_ratio.borderWin.x           = plane->state->crtc_x;
++			disp_win_ratio.borderWin.y           = plane->state->crtc_y;
++			disp_win_ratio.borderWin.width       = plane->state->crtc_w;
++			disp_win_ratio.borderWin.height      = plane->state->crtc_h;
++			disp_win_ratio.borderColor           = blueBorder;
++			disp_win_ratio.enBorder              = 0;
++			disp_win_ratio.videoWinRatioBase_width        = crtc->state->adjusted_mode.hdisplay;
++			disp_win_ratio.videoWinRatioBase_height       = crtc->state->adjusted_mode.vdisplay;
++			disp_win_ratio.srcCropZoomWinRatioBase_width  = fb->width;
++			disp_win_ratio.srcCropZoomWinRatioBase_height = fb->height;
++			if (rpc_video_config_disp_win_disp_zoom_win_ratio(rpc_info, &disp_win_ratio)) {
++				DRM_ERROR("rpc_video_config_disp_win RPC fail\n");
++				return -1;
++			}
+ 		}
+ 	}
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.c b/drivers/gpu/drm/realtek/rtk_drm_rpc.c
+index 69a48f2906016..16d1c6fbdf499 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.c
+@@ -517,6 +517,68 @@ int rpc_video_config_disp_win(struct rtk_rpc_info *rpc_info,
+ 	return ret;
+ }
+ 
++int rpc_video_config_disp_win_disp_zoom_win_ratio(struct rtk_rpc_info *rpc_info,
++				      struct rpc_config_disp_win_ratio *argp)
++{
++	struct rpc_config_disp_win_ratio *rpc = NULL;
++	struct rpc_result *retval;
++	unsigned int offset, rpc_ret;
++	int ret = -1;
++	int opt;
++
++	mutex_lock(&rpc_info->lock);
++
++	rpc = (struct rpc_config_disp_win_ratio *)rpc_info->vaddr;
++	offset = ALIGN(sizeof(*argp), RPC_ALIGN_SZ);
++	retval = (struct rpc_result *)((unsigned char *)rpc + offset);
++
++	memset_io(rpc, 0, RPC_CMD_BUFFER_SIZE);
++
++	opt = rpc_info->krpc_vo_opt;
++
++	if (opt != RPC_AUDIO) {
++		memcpy(rpc, argp, sizeof(*argp));
++	} else {
++		rpc->videoPlane = htonl(argp->videoPlane);
++		rpc->videoWin.x = htons(argp->videoWin.x);
++		rpc->videoWin.y = htons(argp->videoWin.y);
++		rpc->videoWin.width = htons(argp->videoWin.width);
++		rpc->videoWin.height = htons(argp->videoWin.height);
++		rpc->srcCropZoomWin.x = htons(argp->srcCropZoomWin.x);
++		rpc->srcCropZoomWin.y = htons(argp->srcCropZoomWin.y);
++		rpc->srcCropZoomWin.width = htons(argp->srcCropZoomWin.width);
++		rpc->srcCropZoomWin.height = htons(argp->srcCropZoomWin.height);
++		rpc->borderWin.x = htons(argp->borderWin.x);
++		rpc->borderWin.y = htons(argp->borderWin.y);
++		rpc->borderWin.width = htons(argp->borderWin.width);
++		rpc->borderWin.height = htons(argp->borderWin.height);
++		rpc->borderColor.c1 = htons(argp->borderColor.c1);
++		rpc->borderColor.c2 = htons(argp->borderColor.c2);
++		rpc->borderColor.c3 = htons(argp->borderColor.c3);
++		rpc->borderColor.isRGB = htons(argp->borderColor.isRGB);
++		rpc->enBorder = argp->enBorder;
++		rpc->videoWinRatioBase_width = htons(argp->videoWinRatioBase_width);
++		rpc->videoWinRatioBase_height = htons(argp->videoWinRatioBase_height);
++		rpc->srcCropZoomWinRatioBase_width = htons(argp->srcCropZoomWinRatioBase_width);
++		rpc->srcCropZoomWinRatioBase_height = htons(argp->srcCropZoomWinRatioBase_height);
++	}
++	if (send_rpc(rpc_info,
++			     ENUM_KERNEL_RPC_ConfigureDisplayWindowDispZoomWinRatio,
++			     rpc_info->paddr, rpc_info->paddr + offset,
++			     &rpc_ret))
++		goto exit;
++
++	if (opt == RPC_AUDIO)
++		retval->result = ntohl(retval->result);
++
++	if (retval->result != S_OK || rpc_ret != S_OK)
++		goto exit;
++	ret = 0;
++exit:
++	mutex_unlock(&rpc_info->lock);
++	return ret;
++}
++
+ int rpc_video_query_dis_win(struct rtk_rpc_info *rpc_info,
+ 	struct rpc_query_disp_win_in *argp_in,
+ 	struct rpc_query_disp_win_out *argp_out)
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.h b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+index 74c0d48cfd8e8..f39caa5662aaa 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+@@ -905,10 +905,10 @@ struct vo_rectangle {
+ };
+ 
+ struct vo_color {
+-	unsigned short c1;
+-	unsigned short c2;
+-	unsigned short c3;
+-	unsigned short isRGB;
++	unsigned char c1;
++	unsigned char c2;
++	unsigned char c3;
++	unsigned char isRGB;
+ };
+ 
+ enum VO_OSD_COLOR_FORMAT {
+@@ -995,6 +995,20 @@ struct rpc_config_disp_win {
+ 	unsigned char enBorder;
+ };
+ 
++struct rpc_config_disp_win_ratio {
++	enum VO_VIDEO_PLANE videoPlane;
++	struct vo_rectangle videoWin;
++	struct vo_rectangle srcCropZoomWin;
++	struct vo_rectangle borderWin;
++	struct vo_color borderColor;
++	unsigned char enBorder;
++	short videoWinRatioBase_width;
++	short videoWinRatioBase_height;
++	short srcCropZoomWinRatioBase_width;
++	short srcCropZoomWinRatioBase_height;
++	unsigned int reserved[9];
++};
++
+ struct rpc_query_disp_win_in {
+ 	enum VO_VIDEO_PLANE plane;
+ };
+@@ -2082,6 +2096,8 @@ int rpc_video_display(struct rtk_rpc_info *rpc_info,
+ 		      struct rpc_vo_filter_display *argp);
+ int rpc_video_config_disp_win(struct rtk_rpc_info *rpc_info,
+ 			      struct rpc_config_disp_win *argp);
++int rpc_video_config_disp_win_disp_zoom_win_ratio(struct rtk_rpc_info *rpc_info,
++			      struct rpc_config_disp_win_ratio *argp);
+ int rpc_video_query_dis_win(struct rtk_rpc_info *rpc_info,
+ 	struct rpc_query_disp_win_in *argp_in,
+ 	struct rpc_query_disp_win_out* argp_out);
+-- 
+2.50.1
+

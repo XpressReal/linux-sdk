@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: "http://devicetree.org/schemas/media/realtek,rtk-dprx.yaml#"
+$schema: "http://devicetree.org/meta-schemas/core.yaml#"
+
+title: Realtek SoC DisplayPort RX driver
+
+maintainers:
+  - Chase Yen <chase.yen@realtek.com>
+
+description:
+  The embedded Realtek SoC DisplayPort RX drive.
+
+properties:
+  compatible:
+    enum:
+      - realtek,rtk-dprx
+
+  reg:
+    maxItems: 2
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: Module Clock
+
+  clock-names:
+    items:
+      - const: clk_en_dprx
+
+  resets:
+    items:
+      - description: Module Reset
+
+  reset-names:
+    items:
+      - const: rstn_dprx
+
+required:
+  - compatible
+  - interrupts
+  - clocks
+  - clock-names
+  - resets
+  - reset-names
+
+additionalProperties: true
+
+examples:
+  - |
+
+    dprx: dprx@165000 {
+      compatible = "realtek,rtk-dprx";
+      interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+      clocks = <&cc RTD1761_CRT_CLK_EN_DPRX>;
+      clock-names = "clk_en_dprx";
+      resets = <&cc RTD1761_CRT_RSTN_DPRX>;
+      reset-names = "rstn_dprx";
+    };

@@ -1,0 +1,178 @@
+From e644bb73dac9eef331978ca9a3e6046b5a24d62b Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 03:20:54 +0300
+Subject: [PATCH 21/38] mtd: spinand: Refactor ECC/OOB functions
+
+changes:
+ * Move spinand_check_ecc_status(), spinand_noecc_ooblayout_ecc(),
+   spinand_noecc_ooblayout_free() and spinand_noecc_ooblayout close
+   to each other.
+ * some code formatting
+ * remove comments not present in linux driver
+
+This aligns the code with Linux 6.10.
+
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 115 +++++++++++++++++-------------------
+ 1 file changed, 55 insertions(+), 60 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 9b48bcba496..ad699a0c6b1 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -222,6 +222,59 @@ static int spinand_ecc_enable(struct spinand_device *spinand,
+ 			       enable ? CFG_ECC_ENABLE : 0);
+ }
+ 
++static int spinand_check_ecc_status(struct spinand_device *spinand, u8 status)
++{
++	struct nand_device *nand = spinand_to_nand(spinand);
++
++	if (spinand->eccinfo.get_status)
++		return spinand->eccinfo.get_status(spinand, status);
++
++	switch (status & STATUS_ECC_MASK) {
++	case STATUS_ECC_NO_BITFLIPS:
++		return 0;
++
++	case STATUS_ECC_HAS_BITFLIPS:
++		/*
++		 * We have no way to know exactly how many bitflips have been
++		 * fixed, so let's return the maximum possible value so that
++		 * wear-leveling layers move the data immediately.
++		 */
++		return nand->eccreq.strength;
++
++	case STATUS_ECC_UNCOR_ERROR:
++		return -EBADMSG;
++
++	default:
++		break;
++	}
++
++	return -EINVAL;
++}
++
++static int spinand_noecc_ooblayout_ecc(struct mtd_info *mtd, int section,
++				       struct mtd_oob_region *region)
++{
++	return -ERANGE;
++}
++
++static int spinand_noecc_ooblayout_free(struct mtd_info *mtd, int section,
++					struct mtd_oob_region *region)
++{
++	if (section)
++		return -ERANGE;
++
++	/* Reserve 2 bytes for the BBM. */
++	region->offset = 2;
++	region->length = 62;
++
++	return 0;
++}
++
++static const struct mtd_ooblayout_ops spinand_noecc_ooblayout = {
++	.ecc = spinand_noecc_ooblayout_ecc,
++	.rfree = spinand_noecc_ooblayout_free,
++};
++
+ static int spinand_write_enable_op(struct spinand_device *spinand)
+ {
+ 	struct spi_mem_op op = SPINAND_WR_EN_DIS_OP(true);
+@@ -425,9 +478,8 @@ out:
+ static int spinand_read_id_op(struct spinand_device *spinand, u8 naddr,
+ 			      u8 ndummy, u8 *buf)
+ {
+-	struct spi_mem_op op = SPINAND_READID_OP(naddr, ndummy,
+-						 spinand->scratchbuf,
+-						 SPINAND_MAX_ID_LEN);
++	struct spi_mem_op op = SPINAND_READID_OP(
++		naddr, ndummy, spinand->scratchbuf, SPINAND_MAX_ID_LEN);
+ 	int ret;
+ 
+ 	ret = spi_mem_exec_op(spinand->slave, &op);
+@@ -457,35 +509,6 @@ static int spinand_lock_block(struct spinand_device *spinand, u8 lock)
+ 	return spinand_write_reg_op(spinand, REG_BLOCK_LOCK, lock);
+ }
+ 
+-static int spinand_check_ecc_status(struct spinand_device *spinand, u8 status)
+-{
+-	struct nand_device *nand = spinand_to_nand(spinand);
+-
+-	if (spinand->eccinfo.get_status)
+-		return spinand->eccinfo.get_status(spinand, status);
+-
+-	switch (status & STATUS_ECC_MASK) {
+-	case STATUS_ECC_NO_BITFLIPS:
+-		return 0;
+-
+-	case STATUS_ECC_HAS_BITFLIPS:
+-		/*
+-		 * We have no way to know exactly how many bitflips have been
+-		 * fixed, so let's return the maximum possible value so that
+-		 * wear-leveling layers move the data immediately.
+-		 */
+-		return nand->eccreq.strength;
+-
+-	case STATUS_ECC_UNCOR_ERROR:
+-		return -EBADMSG;
+-
+-	default:
+-		break;
+-	}
+-
+-	return -EINVAL;
+-}
+-
+ static int spinand_read_page(struct spinand_device *spinand,
+ 			     const struct nand_page_io_req *req,
+ 			     bool ecc_enabled)
+@@ -1086,30 +1109,6 @@ static int spinand_detect(struct spinand_device *spinand)
+ 	return 0;
+ }
+ 
+-static int spinand_noecc_ooblayout_ecc(struct mtd_info *mtd, int section,
+-				       struct mtd_oob_region *region)
+-{
+-	return -ERANGE;
+-}
+-
+-static int spinand_noecc_ooblayout_free(struct mtd_info *mtd, int section,
+-					struct mtd_oob_region *region)
+-{
+-	if (section)
+-		return -ERANGE;
+-
+-	/* Reserve 2 bytes for the BBM. */
+-	region->offset = 2;
+-	region->length = 62;
+-
+-	return 0;
+-}
+-
+-static const struct mtd_ooblayout_ops spinand_noecc_ooblayout = {
+-	.ecc = spinand_noecc_ooblayout_ecc,
+-	.rfree = spinand_noecc_ooblayout_free,
+-};
+-
+ static int spinand_init_flash(struct spinand_device *spinand)
+ {
+ 	struct udevice *dev = spinand->slave->dev;
+@@ -1199,10 +1198,6 @@ static int spinand_init(struct spinand_device *spinand)
+ 	if (ret)
+ 		goto err_manuf_cleanup;
+ 
+-	/*
+-	 * Right now, we don't support ECC, so let the whole oob
+-	 * area is available for user.
+-	 */
+ 	mtd->_read_oob = spinand_mtd_read;
+ 	mtd->_write_oob = spinand_mtd_write;
+ 	mtd->_block_isbad = spinand_mtd_block_isbad;
+-- 
+2.47.0
+

@@ -1,0 +1,26 @@
+From 196731515814596edf3b9fb2a93f8436886a3a8d Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Thu, 20 Nov 2025 10:43:03 +0800
+Subject: [PATCH 17/33] dma-buf: heaps: realtek: Change config type to tristate
+
+Change-Id: I4275757d0e1a034a729d6979f7d3f2c560974a25
+---
+ drivers/dma-buf/heaps/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/dma-buf/heaps/Kconfig b/drivers/dma-buf/heaps/Kconfig
+index 86ad150990800..082b11dfd560e 100644
+--- a/drivers/dma-buf/heaps/Kconfig
++++ b/drivers/dma-buf/heaps/Kconfig
+@@ -23,7 +23,7 @@ config DMABUF_HEAPS_REALTEK
+ 	  Platform.
+ 
+ config DMABUF_HEAPS_CMA_HIGHMEM
+-	bool "DMA-BUF CMA Highmem Heap"
++	tristate "DMA-BUF CMA Highmem Heap"
+ 	depends on DMABUF_HEAPS && DMA_CMA
+ 	help
+ 	  Enable CMA-backed DMA-BUF heaps for a dedicated high-memory CMA
+-- 
+2.47.0
+

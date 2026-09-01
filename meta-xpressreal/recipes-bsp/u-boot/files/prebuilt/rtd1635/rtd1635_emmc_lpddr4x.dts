@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "rtd1635_emmc.dtsi"
+#include "rtd1635_spi.dtsi"
+
+&binman {
+	multiple-images;
+};

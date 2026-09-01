@@ -5,6 +5,7 @@ DEFAULT_PREBUILT_DIR := "${PREBUILT_DIR_PREFIX}/${@d.getVar('UBOOT_CONFIG').spli
 SUFFIX = "'' '_4gb'"
 SUFFIX:realtekevb-rtd1619b = "''"
 SUFFIX:kent = "''"
+SUFFIX:prince = "''"
 SUFFIX:rtd16xx = "''"
 DDR_TYPE = "_ddr4"
 DDR_TYPE:backinblack-rtd1619b  = "_lpddr4"
@@ -12,6 +13,7 @@ DDR_TYPE:badassium-rtd1315c  = "_lpddr4"
 DDR_TYPE:xpressreal-rtd1619b  = "_lpddr4"
 DDR_TYPE:realtekevb-rtd1619b = "''"
 DDR_TYPE:kent = "_lpddr4x"
+DDR_TYPE:prince = "_lpddr4x"
 DDR_TYPE:rtd16xx = "''"
 
 DEV_KEY := "dev"
@@ -23,9 +25,12 @@ SECURE_BOOT_KEYS := "${PROD_KERNEL_KEY} ${PROD_UBOOT_KEY} ${DTE_FW_KEYS}"
 
 HASH_ALG = "sha256"
 HASH_ALG:kent = "sha512"
+HASH_ALG:prince = "sha512"
+HASH_ALG:rtd16xx = "sha512"
 IV_KEY := "2dc2df39420321d0cef1fe2374029d95"
 CIPHER_ALG = "aes-128-cbc"
 CIPHER_ALG:kent = "aes-256-cbc"
+CIPHER_ALG:prince = "aes-256-cbc"
 
 # External hwsettings selected by GPIO
 # - bit0: GPIO_74(0x4a), bit1: GPIO_72(0x48)
@@ -104,7 +109,9 @@ do_deploy:append() {
 		done
 		for keyname in ${DTE_FW_KEYS}; do
 		if [ -e ${B}/${config}/prebuilt/keys/${keyname}.key ]; then
-			openssl dgst -${HASH_ALG} -binary ${B}/${config}/prebuilt/$(basename ${SPL_BINARY}) > ${B}/${config}/prebuilt/u-boot-spl.sha
+			hash=${HASH_ALG}
+			[ "${board}" != "rtd1619b" ] || hash=sha256
+			openssl dgst -$hash -binary ${B}/${config}/prebuilt/$(basename ${SPL_BINARY}) > ${B}/${config}/prebuilt/u-boot-spl.sha
 			openssl rsautl -inkey ${B}/${config}/prebuilt/keys/${keyname}.key -sign -in ${B}/${config}/prebuilt/u-boot-spl.sha -out ${B}/${config}/prebuilt/u-boot-spl.sig
 			${OBJCOPY} -I binary -O binary --reverse-bytes=256 ${B}/${config}/prebuilt/u-boot-spl.sig ${B}/${config}/prebuilt/u-boot-spl.sig
 			break;
@@ -129,7 +136,6 @@ do_deploy:append() {
 						${B}/${config}/prebuilt/${type}${DDR_TYPE}${suffix}.dts
 					dtc -I dts -O dtb -o ${B}/${config}/prebuilt/${type}${suffix}.dtb ${B}/${config}/prebuilt/${type}${suffix}.pp
 					(cd ${B}/${config} && ${S}/tools/binman/binman build --update-fdt -I ./prebuilt --dt ./prebuilt/${type}${suffix}.dtb -O ./)
-					cp -af ${B}/${config}/bind${suffix}.bin ${type}_bind${suffix}.bin
 					cp -af ${B}/${config}/*bind${suffix}.bin .
 				done
 			fi

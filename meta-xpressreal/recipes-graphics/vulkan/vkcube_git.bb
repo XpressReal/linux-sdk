@@ -1,3 +1,4 @@
+FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 SUMMARY = "Spinning Vulkan Cube"
 DESCRIPTION = "Vulkan demo that illustrates minimum viable product for multi platform support."
 AUTHOR = "Kristian Hogsberg"
@@ -21,7 +22,11 @@ REQUIRED_DISTRO_FEATURES = "vulkan"
 
 SRC_URI = "git://github.com/krh/vkcube.git;protocol=https;branch=master"
 
-SRCREV = "f77395324a3297b2b6ffd7bce0383073e4670190"
+SRC_URI:append = " \
+	file://0001-Resolved-the-mali-vkcube-execution-issue.patch \
+	"
+
+SRCREV = "ffd566971fac916fc90d33a442369d5717ceb2a9"
 
 S = "${WORKDIR}/git"
 

@@ -1,0 +1,86 @@
+From 513f4462c5924a17b40e9d2318672449abff6d97 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 4 Aug 2026 03:28:06 -0400
+Subject: [PATCH] add rtk bg layer for application
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ desktop-shell/shell.c         | 11 ++++++++++-
+ desktop-shell/shell.h         |  1 +
+ include/libweston/libweston.h |  1 +
+ 3 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index b3fffcd..0939d22 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -1679,8 +1679,10 @@ shell_surface_update_layer(struct shell_surface *shsurf)
+ 	new_layer_link = shell_surface_calculate_layer_link(shsurf);
+ 	assert(new_layer_link);
+ 
+-	if ((shsurf->shell->compositor->ui_hole_punch == false && shsurf->view->surface->rtk_surface != WL_NOT_RTK_SURFACE) || shsurf->view->surface->rtk_layer > 0) {
++	if ((shsurf->shell->compositor->ui_hole_punch == false && shsurf->view->surface->rtk_surface != WL_NOT_RTK_SURFACE) || shsurf->view->surface->rtk_layer == 1) {
+ 		weston_view_move_to_layer(shsurf->view, &shsurf->shell->rtk_layer.view_list);
++	} else if (shsurf->view->surface->rtk_layer == 2) {
++		weston_view_move_to_layer(shsurf->view, &shsurf->shell->rtk_bg_layer.view_list);
+ 	} else {
+ 		weston_view_move_to_layer(shsurf->view, new_layer_link);
+ 	}
+@@ -3612,6 +3614,10 @@ activate(struct desktop_shell *shell, struct weston_view *view,
+ 	struct shell_surface *shsurf, *shsurf_child;
+ 	struct shell_seat *shseat = get_shell_seat(seat);
+ 
++	if (view->surface->rtk_layer == 1) {
++		return;
++	}
++
+ 	main_surface = weston_surface_get_main_surface(es);
+ 	shsurf = get_shell_surface(main_surface);
+ 	assert(shsurf);
+@@ -4927,6 +4933,7 @@ wet_shell_init(struct weston_compositor *ec,
+ 	weston_layer_init(&shell->lock_layer, ec);
+ 	weston_layer_init(&shell->input_panel_layer, ec);
+ 	weston_layer_init(&shell->rtk_layer, ec);
++	weston_layer_init(&shell->rtk_bg_layer, ec);
+ 
+ 	weston_layer_set_position(&shell->fullscreen_layer,
+ 				  WESTON_LAYER_POSITION_FULLSCREEN);
+@@ -4936,6 +4943,8 @@ wet_shell_init(struct weston_compositor *ec,
+ 				  WESTON_LAYER_POSITION_BACKGROUND);
+ 	weston_layer_set_position(&shell->rtk_layer,
+ 				  WESTON_LAYER_POSITION_RTK);
++	weston_layer_set_position(&shell->rtk_bg_layer,
++				  WESTON_LAYER_POSITION_RTK_BG);
+ 
+ 
+ 	wl_list_init(&shell->seat_list);
+diff --git a/desktop-shell/shell.h b/desktop-shell/shell.h
+index 489053f..34b049c 100644
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -97,6 +97,7 @@ struct desktop_shell {
+ 	struct weston_layer lock_layer;
+ 	struct weston_layer input_panel_layer;
+ 	struct weston_layer rtk_layer;
++	struct weston_layer rtk_bg_layer;
+ 
+ 	struct wl_listener pointer_focus_listener;
+ 	struct weston_surface *grab_surface;
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index f640f50..a65f1e7 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1247,6 +1247,7 @@ enum weston_layer_position {
+ 	WESTON_LAYER_POSITION_BACKGROUND = 0x00000002,
+ 
+ 	/* rtk specific layer */
++	WESTON_LAYER_POSITION_RTK_BG     = 0x10000000,
+ 	WESTON_LAYER_POSITION_RTK        = 0x20000000,
+ 
+ 	/* For "desktop widgets" and applications like conky. */
+-- 
+2.34.1
+

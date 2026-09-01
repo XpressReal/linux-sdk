@@ -1,0 +1,41 @@
+From 24970ef7f8497d00aae3cfcc85b59b3a38d9abae Mon Sep 17 00:00:00 2001
+From: Jyan Chou <jyanchou@realtek.com>
+Date: Thu, 24 Oct 2024 14:38:56 +0800
+Subject: [PATCH] mtd: nand: spi: Add spi nand ecc driver for kent
+
+Change-Id: Ibc6157e5459a795a0ef06d8e283576a5695fff03
+---
+ drivers/mtd/nand/Kconfig   |  7 +++++
+ drivers/mtd/nand/Makefile  |  1 +
+ 2 files changed, 71 insertions(+)
+
+diff --git a/drivers/mtd/nand/Kconfig b/drivers/mtd/nand/Kconfig
+index b40455234cbd..6b63475df42c 100644
+--- a/drivers/mtd/nand/Kconfig
++++ b/drivers/mtd/nand/Kconfig
+@@ -46,6 +46,13 @@ config MTD_NAND_ECC_SW_BCH
+ 	  ECC codes. They are used with NAND devices requiring more than 1 bit
+ 	  of error correction.
+ 
++
++config MTD_NAND_REALTEK_ECC
++	tristate "Realtek ECC DRIVER"
++	depends on HAS_IOMEM
++	select MTD_NAND_ECC
++	help
++	  This enables support for the hardware ECC engine from Realtek.
+ endmenu
+ 
+ endmenu
+diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
+index 1c0b46960eb1..b4e8ec879eb6 100644
+--- a/drivers/mtd/nand/Makefile
++++ b/drivers/mtd/nand/Makefile
+@@ -10,3 +10,4 @@ obj-y	+= raw/
+ obj-y	+= spi/
+ 
+ nandcore-$(CONFIG_MTD_NAND_ECC) += ecc.o
++nandcore-$(CONFIG_MTD_NAND_REALTEK_ECC) += ecc-rtk.o
+-- 
+2.47.0
+

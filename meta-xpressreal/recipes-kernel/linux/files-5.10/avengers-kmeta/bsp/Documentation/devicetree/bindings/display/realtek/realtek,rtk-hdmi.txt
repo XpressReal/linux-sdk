@@ -1,0 +1,38 @@
+Realtek hdmi output driver
+
+Required properties:
+  - compatible: should be "realtek,rtk-hdmi"
+  - syscon: phandle to syscon used to access hdmi registers
+  - clocks: phandle to crt clock enable
+  - clock-names: should be "clk_en_hdmi"
+  - resets: phandle to crt reset
+  - reset-names: should be "rstn_hdmi"
+  - hpd-gpios: hotplug gpio pin
+
+Optional properties:
+  - rxsense-mode:
+	- <0>: PASSIVE_MODE(default)
+	- <1>: TIMER_MODE
+	- <2>: INTERRUPT_MODE
+  - hdcp:
+	- <0>: No hdcp(default)
+	- <1>: hdcp 1.4
+	- <2>: hdcp 2.x
+
+Examples:
+	hdmi: hdmi@9800d000 {
+		compatible = "realtek,rtk-hdmi";
+		syscon = <&hdmi_tx>, <&crt>, <&hdmi_top>;
+		clocks = <&cc RTD1319D_CRT_CLK_EN_HDMI>;
+		clock-names = "clk_en_hdmi";
+		resets = <&cc RTD1319D_CRT_RSTN_HDMI>;
+		reset-names = "rstn_hdmi";
+		hpd-gpios = <&gpio 7 GPIO_PULL_DOWN>;
+		rxsense-mode = <0>;
+		hdcp = <0>;
+		hdmi_in: port {
+			hdmi_vo: endpoint {
+				remote-endpoint = <&vo_hdmi>;
+			};
+		};
+	};

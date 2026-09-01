@@ -1,0 +1,3 @@
+define KFEATURE_DESCRIPTION "Realtek SDCARD features based on kent SOC "
+
+kconf hardware sdcard.cfg

@@ -1,0 +1,1261 @@
+From 365f4e777f171148c18cd7ef2de98efb754da4b9 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 20 Jul 2026 20:49:03 -0400
+Subject: [PATCH] reintegrated weston KMS control architecture
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-internal.h |  41 +--
+ libweston/backend-drm/drm.c          | 155 +--------
+ libweston/backend-drm/fb.c           |   5 +
+ libweston/backend-drm/kms-ipc.c      | 497 +++++++++++++++++++++++++++
+ libweston/backend-drm/kms-ipc.h      |  94 +++++
+ libweston/backend-drm/kms.c          | 235 +------------
+ libweston/backend-drm/meson.build    |   1 +
+ 7 files changed, 636 insertions(+), 392 deletions(-)
+ create mode 100644 libweston/backend-drm/kms-ipc.c
+ create mode 100644 libweston/backend-drm/kms-ipc.h
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 542036d..22a25d0 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -55,6 +55,8 @@
+ #include <libweston/backend-drm.h>
+ #include <libweston/weston-log.h>
+ #include "output-capture.h"
++
++#include "kms-ipc.h"
+ #include "shared/helpers.h"
+ #include "shared/weston-drm-fourcc.h"
+ #include "libinput-seat.h"
+@@ -300,16 +302,7 @@ enum actions_needed_dmabuf_feedback {
+ 	ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE = (1 << 1),
+ };
+ 
+-enum drm_device_ipc_cmd_type {
+-	CONN_ACTIVE = 0,
+-	DRM_DEVICE_CMD_TYPE_COUNT,
+-};
+-
+-struct drm_device_ipc_info {
+-	enum drm_device_ipc_cmd_type cmd_type;
+-	char cmd_str[128];
+-	int cmd_value;
+-};
++/* IPC types defined in kms-ipc.h */
+ 
+ struct drm_device {
+ 	struct drm_backend *backend;
+@@ -362,12 +355,13 @@ struct drm_device {
+ 	/* drm_backend::kms_list */
+ 	struct wl_list link;
+ 
+-	pthread_t drm_device_ipc_thread;
+-	bool drm_device_ipc_run;
+-	int drm_device_ipc_socket;
+-	pthread_mutex_t drm_device_ipc_mutex;
+-	struct drm_device_ipc_info ipc_info;
+-	struct wl_event_source *drm_device_ipc_timer;
++	/* Unified IPC thread (kms_ipc_process) */
++	pthread_t kms_ipc_thread;
++	bool kms_ipc_run;
++	int kms_ipc_socket;
++	pthread_mutex_t kms_ipc_mutex;
++	struct kms_ipc_message kms_ipc_msg;  /* latest IPC_CONN message */
++	struct wl_event_source *kms_ipc_timer;
+ 	drmModeConnection prev_state;
+ 	struct wl_event_source *process_hotplug_source;
+ 	struct udev_device *udev_event;
+@@ -740,11 +734,8 @@ struct drm_output {
+ 
+ 	enum wdrm_content_type content_type;
+ 
+-	pthread_t kms_ipc_thread;
+-	bool kms_ipc_run;
+-	int kms_ipc_socket;
+-	bool is_disabled;
+-	pthread_mutex_t kms_ipc_mutex;
++	bool is_disabled;  /* set by IPC_CRTC / DPMS handler */
++	pthread_mutex_t kms_ipc_atomic_mutex;  /* protects atomic commit from IPC thread */
+ };
+ 
+ void
+@@ -827,6 +818,12 @@ drm_crtc_find(struct drm_device *device, uint32_t crtc_id);
+ struct drm_head *
+ drm_head_find_by_connector(struct drm_backend *backend, uint32_t connector_id);
+ 
++int
++drm_head_update_info(struct drm_head *head, drmModeConnector *conn);
++
++void
++drm_head_log_info(struct drm_head *head, const char *msg);
++
+ uint64_t
+ drm_rotation_from_output_transform(struct drm_plane *plane,
+ 				   enum wl_output_transform ot);
+@@ -1038,8 +1035,6 @@ int
+ parse_gbm_format(const char *s, const struct pixel_format_info *default_format,
+ 		 const struct pixel_format_info **format);
+ 
+-void *kms_ipc(void *data);
+-
+ #ifdef BUILD_DRM_VIRTUAL
+ extern int
+ drm_backend_init_virtual_output_api(struct weston_compositor *compositor);
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 435592a..77b5d50 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -52,6 +52,7 @@
+ #include <libweston/backend-drm.h>
+ #include <libweston/weston-log.h>
+ #include "drm-internal.h"
++#include "kms-ipc.h"
+ #include "shared/hash.h"
+ #include "shared/helpers.h"
+ #include "shared/timespec-util.h"
+@@ -102,7 +103,6 @@ struct server_info {
+ };
+ 
+ static const char default_seat[] = "seat0";
+-static int drm_device_ipc_connector_active(void *data);
+ 
+ static void
+ drm_backend_create_faked_zpos(struct drm_device *device)
+@@ -2135,7 +2135,6 @@ drm_output_deinit_planes(struct drm_output *output)
+ 		 */
+ 		if (output->scanout_plane) {
+ 			pthread_mutex_lock(&output->scanout_plane->gbm_lock_mutex);
+-			output->scanout_plane->gbm_locked_count = 0;
+ 			pthread_cond_broadcast(&output->scanout_plane->gbm_lock_cond);
+ 			pthread_mutex_unlock(&output->scanout_plane->gbm_lock_mutex);
+ 		}
+@@ -2348,9 +2347,7 @@ drm_output_enable(struct weston_output *base)
+ 		   output->base.name, output->crtc->crtc_id);
+ 	drm_output_print_modes(output);
+ 
+-	output->kms_ipc_run = true;
+-	pthread_mutex_init(&output->kms_ipc_mutex, NULL);
+-	pthread_create(&output->kms_ipc_thread, NULL, kms_ipc, output);
++	pthread_mutex_init(&output->kms_ipc_atomic_mutex, NULL); // shared mutex for IPC
+ 	device->output_finish = true;
+ 	return 0;
+ 
+@@ -2401,7 +2398,6 @@ drm_output_destroy(struct weston_output *base)
+ 
+ 	if (output->scanout_plane) {
+ 		pthread_mutex_lock(&output->scanout_plane->gbm_lock_mutex);
+-		output->scanout_plane->gbm_locked_count = 0;
+ 		pthread_cond_broadcast(&output->scanout_plane->gbm_lock_cond);
+ 		pthread_mutex_unlock(&output->scanout_plane->gbm_lock_mutex);
+ 	}
+@@ -2434,6 +2430,8 @@ drm_output_destroy(struct weston_output *base)
+ 
+ 	weston_output_release(&output->base);
+ 
++	pthread_mutex_destroy(&output->kms_ipc_atomic_mutex);
++
+ 	assert(!output->state_last);
+ 	drm_output_state_free(output->state_cur);
+ 
+@@ -2450,14 +2448,7 @@ drm_output_disable(struct weston_output *base)
+ 	assert(output);
+ 	assert(!output->virtual);
+ 
+-	output->kms_ipc_run = false;
+-	if (output->kms_ipc_socket >= 0) {
+-		shutdown(output->kms_ipc_socket, SHUT_RDWR);
+-		output->kms_ipc_socket = -1;
+-	}
+ 
+-	pthread_join(output->kms_ipc_thread, NULL);
+-	pthread_mutex_destroy(&output->kms_ipc_mutex);
+ 
+ 	if (output->page_flip_pending || output->atomic_complete_pending) {
+ 		output->disable_pending = true;
+@@ -2622,7 +2613,7 @@ drm_connector_fini(struct drm_connector *connector)
+ 	drm_property_info_free(connector->props, WDRM_CONNECTOR__COUNT);
+ }
+ 
+-static void
++void
+ drm_head_log_info(struct drm_head *head, const char *msg)
+ {
+ 	char *eotf_list;
+@@ -2657,7 +2648,7 @@ drm_head_log_info(struct drm_head *head, const char *msg)
+  *
+  * Takes ownership of @c connector on success, not on failure.
+  */
+-static int
++int
+ drm_head_update_info(struct drm_head *head, drmModeConnector *conn)
+ {
+ 	int ret;
+@@ -2847,8 +2838,6 @@ drm_output_create(struct weston_backend *backend, const char *name)
+ 
+ 	output->state_cur = drm_output_state_alloc(output, NULL);
+ 
+-	output->kms_ipc_socket = -1;
+-	output->kms_ipc_run = false;
+ 
+ 	weston_compositor_add_pending_output(&output->base, b->compositor);
+ 
+@@ -3610,17 +3599,17 @@ drm_destroy(struct weston_backend *backend)
+ 	weston_launcher_close(ec->launcher, device->drm.fd);
+ 	weston_launcher_destroy(ec->launcher);
+ 
+-	device->drm_device_ipc_run = false;
+-	if (device->drm_device_ipc_socket >= 0) {
+-		shutdown(device->drm_device_ipc_socket, SHUT_RDWR);
+-		device->drm_device_ipc_socket = -1;
++	device->kms_ipc_run = false;
++	if (device->kms_ipc_socket >= 0) {
++		shutdown(device->kms_ipc_socket, SHUT_RDWR);
++		device->kms_ipc_socket = -1;
+ 	}
+ 
+-	pthread_join(device->drm_device_ipc_thread, NULL);
+-	if (device->drm_device_ipc_timer)
+-		wl_event_source_remove(device->drm_device_ipc_timer);
++	pthread_join(device->kms_ipc_thread, NULL);
++	if (device->kms_ipc_timer)
++		wl_event_source_remove(device->kms_ipc_timer);
+ 
+-	pthread_mutex_destroy(&device->drm_device_ipc_mutex);
++	pthread_mutex_destroy(&device->kms_ipc_mutex);
+ 
+ 	if (device->process_hotplug_source)
+ 		wl_event_source_remove(device->process_hotplug_source);
+@@ -4202,114 +4191,6 @@ static const struct weston_drm_output_api api = {
+ 	drm_output_set_mode_with_tv_mode,
+ };
+ 
+-#define DRM_DEVICE_IPC_SOCKET_PATH "/tmp/drm_device.sock"
+-
+-static int drm_device_ipc_connector_active(void *data)
+-{
+-	struct drm_device *device = (struct drm_device *)data;
+-	struct drm_backend *b = device->backend;
+-	drmModeRes *resources;
+-	drmModeConnector *conn;
+-	struct drm_head *head;
+-	uint32_t connector_id;
+-	int i, ret;
+-
+-	pthread_mutex_lock(&device->drm_device_ipc_mutex);
+-	resources = drmModeGetResources(device->drm.fd);
+-	if (!resources) {
+-		weston_log("drmModeGetResources failed\n");
+-		pthread_mutex_unlock(&device->drm_device_ipc_mutex);
+-		return 0;
+-	}
+-
+-	/* collect new connectors that have appeared, e.g. MST */
+-	for (i = 0; i < resources->count_connectors; i++) {
+-		connector_id = resources->connectors[i];
+-		conn = drmModeGetConnector(device->drm.fd, connector_id);
+-
+-		if (!conn)
+-			continue;
+-
+-		if (connector_id != device->ipc_info.cmd_value)
+-			continue;
+-
+-		if (strcmp(device->ipc_info.cmd_str, "disable") == 0)
+-			conn->connection = DRM_MODE_DISCONNECTED;
+-		else
+-			conn->connection = DRM_MODE_CONNECTED;
+-
+-		head = drm_head_find_by_connector(b, connector_id);
+-
+-		assert(head != NULL);
+-
+-		if (head) {
+-			ret = drm_head_update_info(head, conn);
+-			if (head->base.device_changed)
+-				drm_head_log_info(head, "updated");
+-		}
+-
+-		if (ret < 0)
+-			drmModeFreeConnector(conn);
+-	}
+-
+-	drmModeFreeResources(resources);
+-	pthread_mutex_unlock(&device->drm_device_ipc_mutex);
+-	return 0;
+-}
+-
+-void *drm_device_ipc_process (void *data) {
+-	struct drm_device *device = (struct drm_device *)data;
+-	struct sockaddr_un addr;
+-	struct sockaddr_un clientaddr;
+-	socklen_t addrlen = sizeof(clientaddr);
+-	int ret = -1;
+-
+-	unlink(DRM_DEVICE_IPC_SOCKET_PATH);
+-	device->drm_device_ipc_socket = socket(AF_UNIX,SOCK_DGRAM, 0);
+-	if (device->drm_device_ipc_socket < 0) {
+-		weston_log("open socket fail\n");
+-		goto finish;
+-	}
+-
+-	memset(&addr,0,sizeof(addr));
+-	addr.sun_family = AF_UNIX;
+-	strcpy(addr.sun_path, DRM_DEVICE_IPC_SOCKET_PATH);
+-
+-	if (bind(device->drm_device_ipc_socket ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
+-		weston_log("bind socket fail\n");
+-		goto finish;
+-	}
+-
+-	while(device->drm_device_ipc_run)
+-	{
+-		struct drm_device_ipc_info info = {0};
+-		ret = recvfrom(device->drm_device_ipc_socket, &info, sizeof(struct drm_device_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
+-		if (ret < 0) {
+-			weston_log("recvfrom ret:%d\n", ret);
+-			continue;
+-		}
+-		switch (info.cmd_type) {
+-			case CONN_ACTIVE:
+-			{
+-				device->ipc_info = info;
+-				if (device->drm_device_ipc_timer)
+-					wl_event_source_timer_update(device->drm_device_ipc_timer, 5);
+-				break;
+-			}
+-			default:
+-				break;
+-		}
+-	}
+-
+-finish:
+-	if (device->drm_device_ipc_socket >= 0) {
+-		shutdown(device->drm_device_ipc_socket, SHUT_RDWR);
+-		device->drm_device_ipc_socket = -1;
+-	}
+-
+-	pthread_exit(NULL);
+-}
+-
+ static struct drm_backend *
+ drm_backend_create(struct weston_compositor *compositor,
+ 		   struct weston_drm_backend_config *config)
+@@ -4557,10 +4438,10 @@ drm_backend_create(struct weston_compositor *compositor,
+ 		goto err_udev_monitor;
+ 	}
+ 
+-	device->drm_device_ipc_timer = wl_event_loop_add_timer(loop, drm_device_ipc_connector_active, device);
+-	device->drm_device_ipc_run = true;
+-	pthread_mutex_init(&device->drm_device_ipc_mutex, NULL);
+-	pthread_create(&device->drm_device_ipc_thread, NULL, drm_device_ipc_process, device);
++	device->kms_ipc_timer = wl_event_loop_add_timer(loop, kms_ipc_connector_active, device);
++	device->kms_ipc_run = true;
++	pthread_mutex_init(&device->kms_ipc_mutex, NULL);
++	pthread_create(&device->kms_ipc_thread, NULL, kms_ipc_process, device);
+ 	device->process_hotplug_source = wl_event_loop_add_timer(loop, drm_backend_update_connectors2, device);
+ 	device->prev_state = DRM_MODE_CONNECTED;
+ 	device->output_finish = true;
+diff --git a/libweston/backend-drm/fb.c b/libweston/backend-drm/fb.c
+index 26679a2..c890fe3 100644
+--- a/libweston/backend-drm/fb.c
++++ b/libweston/backend-drm/fb.c
+@@ -584,6 +584,11 @@ drm_fb_unref_by_fence(struct drm_fb *fb)
+ 	{
+ 		if (fb->scanout_plane) {
+ 			pthread_mutex_lock(&fb->scanout_plane->gbm_lock_mutex);
++			if (fb->scanout_plane->gbm_locked_count == 0)
++			{
++				pthread_mutex_unlock(&fb->scanout_plane->gbm_lock_mutex);
++				return;
++			}
+ 			gbm_surface_release_buffer(fb->gbm_surface, fb->bo);
+ 			fb->scanout_plane->gbm_locked_count--;
+ 			pthread_cond_broadcast(&fb->scanout_plane->gbm_lock_cond);
+diff --git a/libweston/backend-drm/kms-ipc.c b/libweston/backend-drm/kms-ipc.c
+new file mode 100644
+index 0000000..3d4a845
+--- /dev/null
++++ b/libweston/backend-drm/kms-ipc.c
+@@ -0,0 +1,497 @@
++/*
++ * Copyright © 2008-2011 Kristian Høgsberg
++ * Copyright © 2011 Intel Corporation
++ * Copyright © 2017, 2018 Collabora, Ltd.
++ * Copyright © 2017, 2018 General Electric Company
++ * Copyright (c) 2018 DisplayLink (UK) Ltd.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining
++ * a copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sublicense, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial
++ * portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#include "config.h"
++
++#include <stdint.h>
++#include <string.h>
++#include <unistd.h>
++#include <assert.h>
++#include <pthread.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++
++#include <xf86drm.h>
++#include <xf86drmMode.h>
++
++#include <libweston/libweston.h>
++#include "drm-internal.h"
++#include "kms-ipc.h"
++
++/* ================================================================
++ *  Atomic property helpers
++ * ================================================================ */
++
++/**
++ * Add a CRTC property to an atomic request
++ */
++static int
++crtc_add_prop(drmModeAtomicReq *req, struct drm_crtc *crtc,
++	      enum wdrm_crtc_property prop, uint64_t val)
++{
++	struct drm_device *device = crtc->device;
++	struct drm_backend *b = device->backend;
++	struct drm_property_info *info = &crtc->props_crtc[prop];
++	int ret;
++
++	drm_debug(b, "\t\t\t[CRTC:%lu] %lu (%s) -> %llu (0x%llx)\n",
++		  (unsigned long) crtc->crtc_id,
++		  (unsigned long) info->prop_id, info->name,
++		  (unsigned long long) val, (unsigned long long) val);
++
++	if (info->prop_id == 0)
++		return -1;
++
++	ret = drmModeAtomicAddProperty(req, crtc->crtc_id, info->prop_id,
++				       val);
++	return (ret <= 0) ? -1 : 0;
++}
++
++/**
++ * Set a CRTC property, allowing zero value for non-existing property
++ */
++static int
++crtc_add_prop_zero_ok(drmModeAtomicReq *req, struct drm_crtc *crtc,
++		      enum wdrm_crtc_property prop, uint64_t val)
++{
++	struct drm_property_info *info = &crtc->props_crtc[prop];
++
++	if (info->prop_id == 0 && val == 0)
++		return 0;
++
++	return crtc_add_prop(req, crtc, prop, val);
++}
++
++/**
++ * Add a connector property to an atomic request
++ */
++static int
++connector_add_prop(drmModeAtomicReq *req, struct drm_connector *connector,
++		   enum wdrm_connector_property prop, uint64_t val)
++{
++	struct drm_device *device = connector->device;
++	struct drm_backend *b = device->backend;
++	struct drm_property_info *info = &connector->props[prop];
++	uint32_t connector_id = connector->connector_id;
++	int ret;
++
++	drm_debug(b, "\t\t\t[CONN:%lu] %lu (%s) -> %llu (0x%llx)\n",
++		  (unsigned long) connector_id,
++		  (unsigned long) info->prop_id, info->name,
++		  (unsigned long long) val, (unsigned long long) val);
++
++	if (info->prop_id == 0)
++		return -1;
++
++	ret = drmModeAtomicAddProperty(req, connector_id, info->prop_id, val);
++	return (ret <= 0) ? -1 : 0;
++}
++
++/**
++ * Add a plane property to an atomic request
++ */
++static int
++plane_add_prop(drmModeAtomicReq *req, struct drm_plane *plane,
++	       enum wdrm_plane_property prop, uint64_t val)
++{
++	struct drm_device *device = plane->device;
++	struct drm_backend *b = device->backend;
++	struct drm_property_info *info = &plane->props[prop];
++	int ret;
++
++	drm_debug(b, "\t\t\t[PLANE:%lu] %lu (%s) -> %llu (0x%llx)\n",
++		  (unsigned long) plane->plane_id,
++		  (unsigned long) info->prop_id, info->name,
++		  (unsigned long long) val, (unsigned long long) val);
++
++	if (info->prop_id == 0)
++		return -1;
++
++	ret = drmModeAtomicAddProperty(req, plane->plane_id, info->prop_id,
++				       val);
++	return (ret <= 0) ? -1 : 0;
++}
++
++/* ================================================================
++ *  IPC_CONN handler — connector active/inactive
++ * ================================================================ */
++
++int
++kms_ipc_connector_active(void *data)
++{
++	struct drm_device *device = (struct drm_device *)data;
++	struct drm_backend *b = device->backend;
++	drmModeRes *resources;
++	drmModeConnector *conn;
++	struct drm_head *head;
++	uint32_t connector_id;
++	int i, ret;
++
++	pthread_mutex_lock(&device->kms_ipc_mutex);
++	resources = drmModeGetResources(device->drm.fd);
++	if (!resources) {
++		weston_log("drmModeGetResources failed\n");
++		pthread_mutex_unlock(&device->kms_ipc_mutex);
++		return 0;
++	}
++
++	/* collect new connectors that have appeared, e.g. MST */
++	for (i = 0; i < resources->count_connectors; i++) {
++		connector_id = resources->connectors[i];
++		conn = drmModeGetConnector(device->drm.fd, connector_id);
++
++		if (!conn)
++			continue;
++
++		if (connector_id != device->kms_ipc_msg.cmd_value)
++			continue;
++
++		if (strcmp(device->kms_ipc_msg.cmd_str, "disable") == 0)
++			conn->connection = DRM_MODE_DISCONNECTED;
++		else
++			conn->connection = DRM_MODE_CONNECTED;
++
++		head = drm_head_find_by_connector(b, connector_id);
++
++		assert(head != NULL);
++
++		if (head) {
++			ret = drm_head_update_info(head, conn);
++			if (head->base.device_changed)
++				drm_head_log_info(head, "updated");
++		}
++
++		if (ret < 0)
++			drmModeFreeConnector(conn);
++	}
++
++	drmModeFreeResources(resources);
++	pthread_mutex_unlock(&device->kms_ipc_mutex);
++	return 0;
++}
++
++/* ================================================================
++ *  IPC_CRTC helpers — per-output kms control
++ * ================================================================ */
++
++static int
++kms_ipc_crtc_set_tv_mode(struct drm_output *output,
++			 struct kms_ipc_message *msg)
++{
++	struct drm_device *device = output->device;
++	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
++	struct drm_mode *tv_current = NULL;
++	struct drm_crtc *crtc = output->crtc;
++	struct drm_plane *plane = NULL;
++	drmModeModeInfo dummy_mode;
++	float w_ratio = 1;
++	float h_ratio = 1;
++	int ret = 0;
++	int crtc_id = msg->cmd_value;
++	drmModeAtomicReq *req = NULL;
++
++	if (crtc_id != crtc->crtc_id) {
++		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		return -1;
++	}
++
++	tv_current = drm_output_choose_initial_mode(device, output,
++					WESTON_DRM_BACKEND_OUTPUT_PREFERRED,
++					msg->cmd_str, &dummy_mode);
++	output->base.tv_current_mode = &tv_current->base;
++	ret = drm_mode_ensure_blob(device, tv_current);
++	if (ret != 0) {
++		weston_log("%s:drm_mode_ensure_blob error\n", __func__);
++		return -1;
++	}
++
++	w_ratio = (float)tv_current->base.width /
++		  (float)current_mode->base.width;
++	h_ratio = (float)tv_current->base.height /
++		  (float)current_mode->base.height;
++
++	pthread_mutex_lock(&output->kms_ipc_atomic_mutex);
++	req = drmModeAtomicAlloc();
++
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID,
++			     tv_current->blob_id);
++
++	plane = output->scanout_plane;
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X,
++			      plane->dest_x * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y,
++			      plane->dest_y * h_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W,
++			      plane->dest_w * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H,
++			      plane->dest_h * h_ratio);
++
++	if (ret != 0) {
++		weston_log("%s:add property fail\n", __func__);
++		goto finish;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req,
++			    DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++finish:
++	pthread_mutex_unlock(&output->kms_ipc_atomic_mutex);
++	drmModeAtomicFree(req);
++	return ret;
++}
++
++static int
++kms_ipc_crtc_set_dpms_mode(struct drm_output *output,
++			   struct kms_ipc_message *msg)
++{
++	struct drm_device *device = output->device;
++	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
++	struct drm_mode *tv_current = NULL;
++	float w_ratio = 1;
++	float h_ratio = 1;
++	int ret = 0;
++	struct drm_plane *plane = NULL;
++	drmModeAtomicReq *req = NULL;
++
++	if (output->base.tv_current_mode != NULL) {
++		tv_current = to_drm_mode(output->base.tv_current_mode);
++		w_ratio = (float)tv_current->base.width /
++			  (float)current_mode->base.width;
++		h_ratio = (float)tv_current->base.height /
++			  (float)current_mode->base.height;
++	}
++
++	plane = output->scanout_plane;
++	if (strcmp(msg->cmd_str, "disable") == 0) {
++		output->is_disabled = true;
++		w_ratio = 0;
++		h_ratio = 0;
++	} else {
++		output->is_disabled = false;
++	}
++
++	pthread_mutex_lock(&output->kms_ipc_atomic_mutex);
++	req = drmModeAtomicAlloc();
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X,
++			      plane->dest_x * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y,
++			      plane->dest_y * h_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W,
++			      plane->dest_w * w_ratio);
++	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H,
++			      plane->dest_h * h_ratio);
++
++	if (ret != 0) {
++		weston_log("%s:add property fail\n", __func__);
++		goto finish;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req,
++			    DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++finish:
++	pthread_mutex_unlock(&output->kms_ipc_atomic_mutex);
++	drmModeAtomicFree(req);
++	return ret;
++}
++
++static int
++kms_ipc_crtc_active_reset(struct drm_output *output,
++			  struct kms_ipc_message *msg)
++{
++	struct drm_device *device = output->device;
++	struct drm_crtc *crtc = output->crtc;
++	int ret = 0;
++	int crtc_id = msg->cmd_value;
++	drmModeAtomicReq *req = NULL;
++
++	if (crtc_id != crtc->crtc_id) {
++		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
++		return -1;
++	}
++
++	pthread_mutex_lock(&output->kms_ipc_atomic_mutex);
++	req = drmModeAtomicAlloc();
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 0);
++	if (ret != 0) {
++		weston_log("%s:active 0 fail\n", __func__);
++		goto finish;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req,
++			    DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++	drmModeAtomicFree(req);
++
++	req = drmModeAtomicAlloc();
++	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
++	if (ret != 0) {
++		weston_log("%s:active 1 fail\n", __func__);
++		goto finish;
++	}
++
++	drmModeAtomicCommit(device->drm.fd, req,
++			    DRM_MODE_ATOMIC_ALLOW_MODESET, device);
++finish:
++	pthread_mutex_unlock(&output->kms_ipc_atomic_mutex);
++	drmModeAtomicFree(req);
++	return ret;
++}
++
++static void
++kms_ipc_crtc_control(struct drm_output *output, struct kms_ipc_message *msg)
++{
++	switch (msg->sub_cmd) {
++	case CRTC_TV_MODE:
++		kms_ipc_crtc_set_tv_mode(output, msg);
++		break;
++	case CRTC_DPMS_MODE:
++		kms_ipc_crtc_set_dpms_mode(output, msg);
++		break;
++	case CRTC_ACTIVE_RESET:
++		kms_ipc_crtc_active_reset(output, msg);
++		break;
++	default:
++		weston_log("IPC_CRTC: unknown sub_cmd %d\n", msg->sub_cmd);
++		break;
++	}
++}
++
++/**
++ * Route an IPC_CONN message — store the message and trigger the
++ * timer callback so drm_device_ipc_connector_active runs in the
++ * main event-loop thread.
++ */
++static void
++ipc_conn_route(struct drm_device *device, struct kms_ipc_message *msg)
++{
++	switch (msg->sub_cmd) {
++	case CONN_ACTIVE:
++		pthread_mutex_lock(&device->kms_ipc_mutex);
++		device->kms_ipc_msg = *msg;
++		pthread_mutex_unlock(&device->kms_ipc_mutex);
++
++		if (device->kms_ipc_timer)
++			wl_event_source_timer_update(device->kms_ipc_timer, 5);
++		break;
++
++	default:
++		weston_log("IPC_CONN: unknown sub_cmd %d\n", msg->sub_cmd);
++		break;
++	}
++}
++
++/**
++ * Route an IPC_CRTC message to the correct drm_output by crtc_id.
++ * Walk drm_device->crtc_list → drm_crtc → crtc->output.
++ */
++static void
++ipc_crtc_route(struct drm_device *device, struct kms_ipc_message *msg)
++{
++	struct drm_crtc *crtc;
++	struct drm_output *output;
++
++	wl_list_for_each(crtc, &device->crtc_list, link) {
++		if (crtc->crtc_id == msg->cmd_value) {
++			output = crtc->output;
++			if (output) {
++				kms_ipc_crtc_control(output, msg);
++			} else {
++				weston_log("IPC_CRTC: crtc %d has no output\n",
++					   msg->cmd_value);
++			}
++			return;
++		}
++	}
++
++	weston_log("IPC_CRTC: no crtc found for id %d\n", msg->cmd_value);
++}
++
++/* ================================================================
++ *  Unified IPC thread — single socket, single pthread
++ * ================================================================ */
++
++void *
++kms_ipc_process(void *data)
++{
++	struct drm_device *device = (struct drm_device *)data;
++	struct sockaddr_un addr;
++	struct sockaddr_un clientaddr;
++	socklen_t addrlen = sizeof(clientaddr);
++	int ret = -1;
++
++	unlink(DRM_IPC_SOCKET_PATH);
++	device->kms_ipc_socket = socket(AF_UNIX, SOCK_DGRAM, 0);
++	if (device->kms_ipc_socket < 0) {
++		weston_log("open socket fail\n");
++		goto finish;
++	}
++
++	memset(&addr, 0, sizeof(addr));
++	addr.sun_family = AF_UNIX;
++	strcpy(addr.sun_path, DRM_IPC_SOCKET_PATH);
++
++	if (bind(device->kms_ipc_socket,
++		 (struct sockaddr *)&addr, sizeof(addr)) < 0) {
++		weston_log("bind socket fail\n");
++		goto finish;
++	}
++
++	while (device->kms_ipc_run) {
++		struct kms_ipc_message msg = { 0 };
++
++		ret = recvfrom(device->kms_ipc_socket, &msg,
++			       sizeof(struct kms_ipc_message), 0,
++			       (struct sockaddr *)&clientaddr, &addrlen);
++		if (ret < 0) {
++			weston_log("recvfrom ret:%d\n", ret);
++			continue;
++		}
++
++		switch (msg.type) {
++		case IPC_CONN:
++			ipc_conn_route(device, &msg);
++			break;
++
++		case IPC_CRTC:
++			ipc_crtc_route(device, &msg);
++			break;
++
++		default:
++			weston_log("unknown ipc type %d\n", msg.type);
++			break;
++		}
++	}
++
++finish:
++	if (device->kms_ipc_socket >= 0) {
++		shutdown(device->kms_ipc_socket, SHUT_RDWR);
++		device->kms_ipc_socket = -1;
++	}
++
++	pthread_exit(NULL);
++}
+diff --git a/libweston/backend-drm/kms-ipc.h b/libweston/backend-drm/kms-ipc.h
+new file mode 100644
+index 0000000..76cb47b
+--- /dev/null
++++ b/libweston/backend-drm/kms-ipc.h
+@@ -0,0 +1,94 @@
++/*
++ * Copyright © 2008-2011 Kristian Høgsberg
++ * Copyright © 2011 Intel Corporation
++ * Copyright © 2017, 2018 Collabora, Ltd.
++ * Copyright © 2017, 2018 General Electric Company
++ * Copyright (c) 2018 DisplayLink (UK) Ltd.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining
++ * a copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sublicense, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial
++ * portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#ifndef WESTON_KMS_IPC_H
++#define WESTON_KMS_IPC_H
++
++#include <stdint.h>
++#include <xf86drmMode.h>
++
++struct drm_crtc;
++struct drm_connector;
++struct drm_plane;
++struct drm_output;
++struct drm_device;
++
++/*
++ * Unified IPC message (drm_ipc_message) sent over a single socket.
++ *   IPC_CONN  → connector active/inactive (routes by connector_id)
++ *   IPC_CRTC  → crtc-level control (routes by crtc_id → drm_output)
++ */
++
++enum drm_ipc_type {
++	IPC_CONN  = 0,
++	IPC_CRTC  = 1,
++	IPC_COUNT,
++};
++
++enum drm_ipc_sub_cmd {
++	/* IPC_CONN sub-commands */
++	CONN_ACTIVE = 0,
++
++	/* IPC_CRTC sub-commands */
++	CRTC_TV_MODE      = 100,
++	CRTC_DPMS_MODE    = 101,
++	CRTC_ACTIVE_RESET = 102,
++
++	UNKNOWN_CMD_TYPE  = 300,
++};
++
++struct kms_ipc_message {
++	enum drm_ipc_type type;
++	enum drm_ipc_sub_cmd sub_cmd;
++	char cmd_str[128];
++	int  cmd_value;  /* connector_id (IPC_CONN) or crtc_id (IPC_CRTC) */
++};
++
++/* ── Single unified socket path ── */
++#define DRM_IPC_SOCKET_PATH "/tmp/drm_device.sock"
++
++/* ── Unified thread entry point ── */
++
++void *
++kms_ipc_process(void *data);  /* data = struct drm_device * */
++
++/*
++ * kms_ipc_process:
++ *   1. Binds a single UNIX DGRAM socket at DRM_IPC_SOCKET_PATH
++ *   2. IPC_CONN  → timer → drm_device_ipc_connector_active
++ *   3. IPC_CRTC  → find drm_output by crtc_id (crtc_list → crtc->output)
++ *                  → kms_ipc_crtc_control(output, &msg)
++ */
++
++/* ── Timer callback for conn_active (declared here, used by drm.c) ── */
++
++int
++kms_ipc_connector_active(void *data);
++
++#endif /* WESTON_DRM_IPC_H */
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 3538781..73289a5 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -41,10 +41,8 @@
+ #include "drm-internal.h"
+ #include "pixel-formats.h"
+ #include "presentation-time-server-protocol.h"
++#include "kms-ipc.h"
+ #include <pthread.h>
+-#include <sys/types.h>
+-#include <sys/socket.h>
+-#include <sys/un.h>
+ #include <poll.h>
+ 
+ struct drm_property_enum_info plane_type_enums[] = {
+@@ -1620,7 +1618,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 			assert(output_state->dpms == WESTON_DPMS_OFF);
+ 
+ 		if (output_state->output)
+-			pthread_mutex_lock(&output_state->output->kms_ipc_mutex);
++			pthread_mutex_lock(&output_state->output->kms_ipc_atomic_mutex);
+ 
+ 		may_tear &= output_state->tear;
+ 		ret |= drm_output_apply_state_atomic(output_state, req, &flags);
+@@ -1662,7 +1660,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
+ 			assert(output_state->dpms == WESTON_DPMS_OFF);
+ 
+ 		if (output_state->output)
+-			pthread_mutex_unlock(&output_state->output->kms_ipc_mutex);
++			pthread_mutex_unlock(&output_state->output->kms_ipc_atomic_mutex);
+     }
+ 
+ 	/* Test commits do not take ownership of the state; return
+@@ -2078,230 +2076,3 @@ init_kms_caps(struct drm_device *device)
+ 
+ 	return 0;
+ }
+-
+-enum kms_type {
+-	CONNECTOR_TYPE = 0,
+-	CRTC_TYPE,
+-	PLANE_TYPE,
+-	UNKNOWN_TYPE,
+-	KMS_TYPE_COUNT,
+-};
+-
+-enum kms_cmd_type {
+-	CRTC_TV_MODE = 0,
+-	CRTC_DPMS_MODE = 1,
+-	CRTC_ACTIVE_RESET = 2,
+-	UNKNOWN_CMD_TYPE = 300,
+-	KMS_CMD_TYPE_COUNT,
+-};
+-
+-struct kms_ipc_info {
+-	enum kms_type type;
+-	enum kms_cmd_type cmd_type;
+-	char cmd_str[128];
+-	int cmd_value;
+-};
+-
+-#define KMS_IPC_SOCKET_PATH "/tmp/kms_ipc.sock"
+-
+-static int kms_ipc_crtc_set_tv_mode(struct drm_output *output, struct kms_ipc_info *info) {
+-	struct drm_device *device = output->device;
+-	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
+-	struct drm_mode *tv_current = NULL;
+-	struct drm_crtc *crtc = output->crtc;
+-	struct drm_plane *plane = NULL;
+-	drmModeModeInfo dummy_mode;
+-	float w_ratio = 1;
+-	float h_ratio = 1;
+-	int ret = 0;
+-	int crtc_id = info->cmd_value;
+-	drmModeAtomicReq *req = NULL;
+-
+-	if (crtc_id != crtc->crtc_id) {
+-		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
+-		return -1;
+-	}
+-
+-	tv_current = drm_output_choose_initial_mode(device, output, WESTON_DRM_BACKEND_OUTPUT_PREFERRED, info->cmd_str, &dummy_mode);
+-	output->base.tv_current_mode = &tv_current->base;
+-	ret = drm_mode_ensure_blob(device, tv_current);
+-	if (ret != 0) {
+-		weston_log("%s:drm_mode_ensure_blob error\n", __func__);
+-		return -1;
+-	}
+-
+-	w_ratio = (float)tv_current->base.width / (float)current_mode->base.width;
+-	h_ratio = (float)tv_current->base.height / (float)current_mode->base.height;
+-	pthread_mutex_lock(&output->kms_ipc_mutex);
+-	req = drmModeAtomicAlloc();
+-
+-	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, tv_current->blob_id);
+-
+-	plane = output->scanout_plane;
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X, plane->dest_x * w_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y, plane->dest_y * h_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W, plane->dest_w * w_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
+-
+-	if (ret != 0) {
+-		weston_log("%s:add property fail\n", __func__);
+-		goto finish;
+-	}
+-
+-	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
+-finish:
+-	pthread_mutex_unlock(&output->kms_ipc_mutex);
+-	drmModeAtomicFree(req);
+-	return ret;
+-}
+-
+-static int kms_ipc_crtc_set_dpms_mode(struct drm_output *output, struct kms_ipc_info *info) {
+-	struct drm_device *device = output->device;
+-	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
+-	struct drm_mode *tv_current = NULL;
+-	float w_ratio = 1;
+-	float h_ratio = 1;
+-	int ret = 0;
+-	struct drm_plane *plane = NULL;
+-	drmModeAtomicReq *req = NULL;
+-
+-	if (output->base.tv_current_mode != NULL) {
+-		tv_current = to_drm_mode(output->base.tv_current_mode);
+-		w_ratio = (float)tv_current->base.width / (float)current_mode->base.width;
+-		h_ratio = (float)tv_current->base.height / (float)current_mode->base.height;
+-	}
+-
+-	plane = output->scanout_plane;
+-	if (strcmp(info->cmd_str, "disable") == 0) {
+-		output->is_disabled = true;
+-		w_ratio = 0;
+-		h_ratio = 0;
+-	} else
+-		output->is_disabled = false;
+-
+-	pthread_mutex_lock(&output->kms_ipc_mutex);
+-	req = drmModeAtomicAlloc();
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_X, plane->dest_x * w_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_Y, plane->dest_y * h_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_W, plane->dest_w * w_ratio);
+-	ret |= plane_add_prop(req, plane, WDRM_PLANE_CRTC_H, plane->dest_h * h_ratio);
+-
+-	if (ret != 0) {
+-		weston_log("%s:add property fail\n", __func__);
+-		goto finish;
+-	}
+-
+-	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
+-finish:
+-	pthread_mutex_unlock(&output->kms_ipc_mutex);
+-	drmModeAtomicFree(req);
+-	return ret;
+-}
+-
+-static int kms_ipc_crtc_active_reset(struct drm_output *output, struct kms_ipc_info *info) {
+-	struct drm_device *device = output->device;
+-	struct drm_crtc *crtc = output->crtc;
+-	int ret = 0;
+-	int crtc_id = info->cmd_value;
+-	drmModeAtomicReq *req = NULL;
+-
+-	if (crtc_id != crtc->crtc_id) {
+-		weston_log("%s:wrong crtc_id:%d\n", __func__, crtc_id);
+-		return -1;
+-	}
+-
+-	pthread_mutex_lock(&output->kms_ipc_mutex);
+-	req = drmModeAtomicAlloc();
+-	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 0);
+-	if (ret != 0) {
+-		weston_log("%s:active 0 fail\n", __func__);
+-		goto finish;
+-	}
+-
+-	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
+-	drmModeAtomicFree(req);
+-
+-	req = drmModeAtomicAlloc();
+-	ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
+-	if (ret != 0) {
+-		weston_log("%s:active 1 fail\n", __func__);
+-		goto finish;
+-	}
+-
+-	drmModeAtomicCommit(device->drm.fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, device);
+-finish:
+-	pthread_mutex_unlock(&output->kms_ipc_mutex);
+-	drmModeAtomicFree(req);
+-	return ret;
+-}
+-
+-
+-static int kms_ipc_crtc_control(struct drm_output *output, struct kms_ipc_info *info) {
+-	int ret = -1;
+-	switch (info->cmd_type) {
+-		case CRTC_TV_MODE:
+-			ret = kms_ipc_crtc_set_tv_mode(output, info);
+-			break;
+-		case CRTC_DPMS_MODE:
+-			ret = kms_ipc_crtc_set_dpms_mode(output, info);
+-			break;
+-		case CRTC_ACTIVE_RESET:
+-			ret = kms_ipc_crtc_active_reset(output, info);
+-			break;
+-		default:
+-			break;
+-	}
+-
+-	return ret;
+-}
+-
+-void *kms_ipc(void *data) {
+-	struct drm_output *output = (struct drm_output *)data;
+-	struct sockaddr_un addr;
+-	struct sockaddr_un clientaddr;
+-	socklen_t addrlen = sizeof(clientaddr);
+-	int ret = -1;
+-
+-	unlink(KMS_IPC_SOCKET_PATH);
+-	output->kms_ipc_socket = socket(AF_UNIX,SOCK_DGRAM, 0);
+-	if (output->kms_ipc_socket < 0) {
+-		weston_log("open socket fail\n");
+-		goto finish;
+-	}
+-
+-	memset(&addr,0,sizeof(addr));
+-	addr.sun_family = AF_UNIX;
+-	strcpy(addr.sun_path, KMS_IPC_SOCKET_PATH);
+-
+-	if (bind(output->kms_ipc_socket ,(struct sockaddr*)&addr, sizeof(addr)) < 0) {
+-		weston_log("bind socket fail\n");
+-		goto finish;
+-	}
+-
+-	while(output->kms_ipc_run)
+-	{
+-		struct kms_ipc_info info = {0};
+-		ret = recvfrom(output->kms_ipc_socket, &info, sizeof(struct kms_ipc_info), 0, (struct sockaddr*)&clientaddr, &addrlen);
+-		if (ret < 0) {
+-			weston_log("recvfrom ret:%d\n", ret);
+-			continue;
+-		}
+-
+-		switch (info.type) {
+-			case CRTC_TYPE:
+-				ret = kms_ipc_crtc_control(output, &info);
+-				break;
+-			default:
+-				break;
+-		}
+-	}
+-
+-finish:
+-	if (output->kms_ipc_socket >= 0) {
+-		shutdown(output->kms_ipc_socket, SHUT_RDWR);
+-		output->kms_ipc_socket = -1;
+-	}
+-
+-	pthread_exit(NULL);
+-}
+-
+diff --git a/libweston/backend-drm/meson.build b/libweston/backend-drm/meson.build
+index e048789..05cc142 100644
+--- a/libweston/backend-drm/meson.build
++++ b/libweston/backend-drm/meson.build
+@@ -35,6 +35,7 @@ srcs_drm = [
+ 	'fb.c',
+ 	'modes.c',
+ 	'kms.c',
++	'kms-ipc.c',
+ 	'kms-color.c',
+ 	'state-helpers.c',
+ 	'state-propose.c',
+-- 
+2.34.1
+

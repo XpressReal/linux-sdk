@@ -1,0 +1,48 @@
+From e9655b3da1405bb979c2828cd2a80eb2c8be3fac Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Fri, 13 Dec 2024 12:17:28 +0800
+Subject: [PATCH] BACKPORT: tps6286x-regulator from kernel-6.12
+
+Change-Id: I941af50b1131add4bb9dfe2b02e0225fa0400ae9
+---
+ drivers/regulator/Kconfig              |   9 ++
+ drivers/regulator/Makefile             |   1 +
+ drivers/regulator/tps6286x-regulator.c | 160 +++++++++++++++++++++++++
+ 3 files changed, 170 insertions(+)
+ create mode 100644 drivers/regulator/tps6286x-regulator.c
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 5e07de2f8143..732e0da01a19 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1261,6 +1261,15 @@ config REGULATOR_TPS62860
+ 	help
+ 	  This driver supports TPS6286x voltage regulator chip.
+ 
++config REGULATOR_TPS6286X
++	tristate "TI TPS6286x Power Regulator"
++	depends on I2C && OF
++	select REGMAP_I2C
++	help
++	  This driver supports TPS6236x voltage regulator chips. These are
++	  high-frequency synchronous step-down converters with an I2C
++	  interface.
++
+ config REGULATOR_TPS6287X
+ 	tristate "TI TPS6287x Power Regulator"
+ 	depends on I2C && OF
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index d08899612318..aa186405021f 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -149,6 +149,7 @@ obj-$(CONFIG_REGULATOR_TI_ABB) += ti-abb-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6105X) += tps6105x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS62360) += tps62360-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS62860) += tps62860-regulator.o
++obj-$(CONFIG_REGULATOR_TPS6286X) += tps6286x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6287X) += tps6287x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS65023) += tps65023-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6507X) += tps6507x-regulator.o
+-- 
+2.47.0
+

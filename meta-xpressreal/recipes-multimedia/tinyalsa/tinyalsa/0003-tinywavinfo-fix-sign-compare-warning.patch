@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] tinywavinfo: fix sign-compare warning
+
+Variable i is compared with size_t expression. Change from int to
+unsigned int to fix -Werror=sign-compare.
+
+---
+ utils/tinywavinfo.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/tinywavinfo.c b/utils/tinywavinfo.c
+--- a/utils/tinywavinfo.c
++++ b/utils/tinywavinfo.c
+@@ -149,7 +149,7 @@
+     void *buffer;
+     int size;
+     int num_read;
+-    int i;
++    unsigned int i;
+     unsigned int ch;
+     int frame_size = 1024;
+     unsigned int bytes_per_sample = 0;

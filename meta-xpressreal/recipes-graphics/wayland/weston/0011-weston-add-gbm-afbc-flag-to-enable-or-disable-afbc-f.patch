@@ -4,6 +4,8 @@ Date: Mon, 25 Nov 2024 17:56:35 +0800
 Subject: [PATCH] weston: add gbm-afbc flag to enable or disable afbc feature
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  compositor/main.c               |  1 +
  include/libweston/libweston.h   |  1 +

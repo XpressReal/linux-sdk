@@ -1,0 +1,161 @@
+From 64b7865c72b8b3bc3c08e095888d6c7dce7c7c27 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 03:20:50 +0300
+Subject: [PATCH 17/38] mtd: spinand: Extend spinand_wait() to match Linux
+ kernel implementation
+
+This aligns spinand_wait() with the linux kernel. Instead of calling into
+spi_mem_poll_status() which is not implemented in U-Boot, we code the
+polling logic and make sure that schedule() is called periodically.
+
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 47 +++++++++++++++++++++++++++++++------
+ include/linux/mtd/spinand.h | 22 +++++++++++++++++
+ 2 files changed, 62 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 34e5ac33c63..3b612bec274 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -32,6 +32,7 @@
+ #include <linux/bug.h>
+ #include <linux/mtd/spinand.h>
+ #include <linux/printk.h>
++#include <linux/delay.h>
+ #endif
+ 
+ struct spinand_plat {
+@@ -362,21 +363,41 @@ static int spinand_erase_op(struct spinand_device *spinand,
+ 	return spi_mem_exec_op(spinand->slave, &op);
+ }
+ 
+-static int spinand_wait(struct spinand_device *spinand, u8 *s)
++/**
++ * spinand_wait() - Poll memory device status
++ * @spinand: the spinand device
++ * @initial_delay_us: delay in us before starting to poll
++ * @poll_delay_us: time to sleep between reads in us
++ * @s: the pointer to variable to store the value of REG_STATUS
++ *
++ * This function polls a status register (REG_STATUS) and returns when
++ * the STATUS_READY bit is 0 or when the timeout has expired.
++ *
++ * Return: 0 on success, a negative error code otherwise.
++ */
++static int spinand_wait(struct spinand_device *spinand,
++			unsigned long initial_delay_us,
++			unsigned long poll_delay_us,
++			u8 *s)
+ {
+ 	unsigned long start, stop;
+ 	u8 status;
+ 	int ret;
+ 
++	udelay(initial_delay_us);
+ 	start = get_timer(0);
+-	stop = 400;
++	stop = SPINAND_WAITRDY_TIMEOUT_MS;
+ 	do {
++		schedule();
++
+ 		ret = spinand_read_status(spinand, &status);
+ 		if (ret)
+ 			return ret;
+ 
+ 		if (!(status & STATUS_BUSY))
+ 			goto out;
++
++		udelay(poll_delay_us);
+ 	} while (get_timer(start) < stop);
+ 
+ 	/*
+@@ -418,7 +439,10 @@ static int spinand_reset_op(struct spinand_device *spinand)
+ 	if (ret)
+ 		return ret;
+ 
+-	return spinand_wait(spinand, NULL);
++	return spinand_wait(spinand,
++			    SPINAND_RESET_INITIAL_DELAY_US,
++			    SPINAND_RESET_POLL_DELAY_US,
++			    NULL);
+ }
+ 
+ static int spinand_lock_block(struct spinand_device *spinand, u8 lock)
+@@ -466,7 +490,10 @@ static int spinand_read_page(struct spinand_device *spinand,
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = spinand_wait(spinand, &status);
++	ret = spinand_wait(spinand,
++			   SPINAND_READ_INITIAL_DELAY_US,
++			   SPINAND_READ_POLL_DELAY_US,
++			   &status);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -498,9 +525,12 @@ static int spinand_write_page(struct spinand_device *spinand,
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = spinand_wait(spinand, &status);
++	ret = spinand_wait(spinand,
++			   SPINAND_WRITE_INITIAL_DELAY_US,
++			   SPINAND_WRITE_POLL_DELAY_US,
++			   &status);
+ 	if (!ret && (status & STATUS_PROG_FAILED))
+-		ret = -EIO;
++		return -EIO;
+ 
+ 	return ret;
+ }
+@@ -702,7 +732,10 @@ static int spinand_erase(struct nand_device *nand, const struct nand_pos *pos)
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = spinand_wait(spinand, &status);
++	ret = spinand_wait(spinand,
++			   SPINAND_ERASE_INITIAL_DELAY_US,
++			   SPINAND_ERASE_POLL_DELAY_US,
++			   &status);
+ 	if (!ret && (status & STATUS_ERASE_FAILED))
+ 		ret = -EIO;
+ 
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index 163269313f6..ba6c2ba149d 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -176,6 +176,28 @@ struct spinand_op;
+ struct spinand_device;
+ 
+ #define SPINAND_MAX_ID_LEN	4
++/*
++ * For erase, write and read operation, we got the following timings :
++ * tBERS (erase) 1ms to 4ms
++ * tPROG 300us to 400us
++ * tREAD 25us to 100us
++ * In order to minimize latency, the min value is divided by 4 for the
++ * initial delay, and dividing by 20 for the poll delay.
++ * For reset, 5us/10us/500us if the device is respectively
++ * reading/programming/erasing when the RESET occurs. Since we always
++ * issue a RESET when the device is IDLE, 5us is selected for both initial
++ * and poll delay.
++ */
++#define SPINAND_READ_INITIAL_DELAY_US	6
++#define SPINAND_READ_POLL_DELAY_US	5
++#define SPINAND_RESET_INITIAL_DELAY_US	5
++#define SPINAND_RESET_POLL_DELAY_US	5
++#define SPINAND_WRITE_INITIAL_DELAY_US	75
++#define SPINAND_WRITE_POLL_DELAY_US	15
++#define SPINAND_ERASE_INITIAL_DELAY_US	250
++#define SPINAND_ERASE_POLL_DELAY_US	50
++
++#define SPINAND_WAITRDY_TIMEOUT_MS	400
+ 
+ /**
+  * struct spinand_id - SPI NAND id structure
+-- 
+2.47.0
+

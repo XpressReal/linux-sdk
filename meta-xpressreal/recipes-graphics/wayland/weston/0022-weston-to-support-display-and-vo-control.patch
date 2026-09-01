@@ -1,9 +1,11 @@
-From 0dc6ba7eb1bdf89f3481951672afc92dfcabe29a Mon Sep 17 00:00:00 2001
+From 8f323f576a0f57cf36616520f30a9a79026148f6 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Tue, 24 Jun 2025 05:39:34 -0400
+Date: Tue, 14 Apr 2026 04:24:58 -0400
 Subject: [PATCH] weston: to support display and vo control
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/drm-internal.h |  18 ++++
  libweston/backend-drm/drm.c          | 125 +++++++++++++++++++++++++++
@@ -11,7 +13,7 @@ Upstream-Status: Inappropriate [rtk specific]
  3 files changed, 159 insertions(+), 15 deletions(-)
 
 diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
-index 86ea9b2..adc45e8 100644
+index cac18f8..7172905 100644
 --- a/libweston/backend-drm/drm-internal.h
 +++ b/libweston/backend-drm/drm-internal.h
 @@ -299,6 +299,17 @@ enum actions_needed_dmabuf_feedback {

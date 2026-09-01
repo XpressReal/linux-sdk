@@ -1,0 +1,45 @@
+From e02737099e7b65ffd98338feb9432ba03d243fd5 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 11:17:11 +0800
+Subject: [PATCH 53/73] net: ethernet: realtek: r8126: add NIC R8126 driver
+ (version 10.014.01)
+
+Change-Id: I3fabdc49b694c025e54e87f01c4473bd6dafd8fe
+---
+ drivers/net/ethernet/realtek/Kconfig  | 12 ++++++++++++
+ drivers/net/ethernet/realtek/Makefile |  1 +
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/Kconfig b/drivers/net/ethernet/realtek/Kconfig
+index b863c15d800c1..687bae596a31b 100644
+--- a/drivers/net/ethernet/realtek/Kconfig
++++ b/drivers/net/ethernet/realtek/Kconfig
+@@ -182,4 +182,16 @@ config R8125
+ 
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called r8125.  This is recommended.
++
++config R8126
++	tristate "Realtek 8126 5 gigabit ethernet support"
++	depends on PCI
++	select FW_LOADER
++	select CRC32
++	select MII
++	help
++	  Say Y here if you have a Realtek 8126 PCI 5 Gigabit Ethernet adapter.
++
++	  To compile this driver as a module, choose M here: the module
++
+ endif # NET_VENDOR_REALTEK
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index 4661bd6657681..04e8a52a8b08f 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -14,3 +14,4 @@ r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
+ obj-$(CONFIG_R8169SOC) += r8169soc.o
+ obj-$(CONFIG_R8168) += r8168/
+ obj-$(CONFIG_R8125) += r8125/
++obj-$(CONFIG_R8125) += r8126/
+-- 
+2.47.0
+

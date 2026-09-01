@@ -483,6 +483,10 @@
 &usb_port0 {
 	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
 	status = "okay";
+
+	dwc3@20000 {
+		role-switch-default-mode = "peripheral"; /* host, peripheral*/
+	};
 };
 
 &usb_port1 {
@@ -506,6 +510,7 @@
 };
 
 &type_c {
+	realtek,usb-port = <&usb_port0>;
 	realtek,plug-side-switch-gpio = <&gpio 143 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };

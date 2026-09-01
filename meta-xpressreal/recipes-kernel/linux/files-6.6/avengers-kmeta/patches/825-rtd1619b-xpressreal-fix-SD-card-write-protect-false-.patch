@@ -1,0 +1,106 @@
+From: chihlung.chang@realtek.com
+Date: Mon, 6 Jul 2026 00:00:00 +0800
+Subject: [PATCH] rtd1619b: xpressreal: fix SD card write-protect false
+ detection
+
+- Disable write-protect if no sd-wp-gpios property in sd node of kernel dts
+---
+ .../dts/realtek/rtd1619b-xpressreal-2gb.dts   |  4 ++
+ drivers/mmc/host/rtk-sdmmc.c                  | 37 +++++++++++--------
+ 2 files changed, 26 insertions(+), 15 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-xpressreal-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-xpressreal-2gb.dts
+index 677933533cf9..220e64f6b0ee 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-xpressreal-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-xpressreal-2gb.dts
+@@ -244,3 +244,7 @@ &cpu3 {
+ &pm_hifi {
+         hifi-supply = <&cpu_supp_alt>;
+ };
++
++&sd {
++	/delete-property/ sd-wp-gpios;
++};
+diff --git a/drivers/mmc/host/rtk-sdmmc.c b/drivers/mmc/host/rtk-sdmmc.c
+index 986a349ea820..8286872013a5 100644
+--- a/drivers/mmc/host/rtk-sdmmc.c
++++ b/drivers/mmc/host/rtk-sdmmc.c
+@@ -2569,7 +2569,12 @@ static int rtk_sdmmc_get_cd(struct mmc_host *host)
+ static int rtk_sdmmc_get_ro(struct mmc_host *host)
+ {
+ 	struct rtk_sdmmc_host *rtk_host = mmc_priv(host);
+-	int sd_wp = readl(rtk_host->gpiodir+GPDATI1);
++	int sd_wp;
++
++	if (!rtk_host->sdmmc_wp_gpio)
++		return 0;
++
++	sd_wp = readl(rtk_host->gpiodir+GPDATI1);
+ 	if (sd_wp & 0x4) {
+ 		pr_err("%s: SD card is write protect\n", __func__);
+ 		return 1;
+@@ -2709,7 +2714,8 @@ static void rtk_sdmmc_hw_initial(struct rtk_sdmmc_host *rtk_host)
+ 
+ 	rtk_sdmmc_speed(rtk_host, SDMMC_CLOCK_400KHZ);
+ 
+-	gpiod_set_debounce(rtk_host->sdmmc_wp_gpio, 1000);
++	if (rtk_host->sdmmc_wp_gpio)
++		gpiod_set_debounce(rtk_host->sdmmc_wp_gpio, 1000);
+ 	gpiod_set_debounce(rtk_host->sdmmc_cd_gpio, 1000);
+ 
+ 	if (chip_id == CHIP_ID_RTD1619B) {
+@@ -3301,11 +3307,11 @@ static int rtk_sdmmc_probe(struct platform_device *pdev)
+ 		return -EPROBE_DEFER;
+ 	}
+ 
+-	sd_wp_gpio_tmp = devm_gpiod_get(&pdev->dev, "sd-wp", GPIOD_IN);
++	sd_wp_gpio_tmp = devm_gpiod_get_optional(&pdev->dev, "sd-wp", GPIOD_IN);
+ 	if (IS_ERR(sd_wp_gpio_tmp)) {
+ 		dev_err(&pdev->dev, "can't request sd-wp gpio\n");
+ 		devm_gpiod_put(&pdev->dev, sd_power_gpio_tmp);
+-		return -EPROBE_DEFER;
++		return PTR_ERR(sd_wp_gpio_tmp);
+ 	}
+ 
+ 	sd_cd_gpio_tmp = devm_gpiod_get(&pdev->dev, "sd-cd", GPIOD_IN);
+@@ -3453,12 +3459,6 @@ static int rtk_sdmmc_probe(struct platform_device *pdev)
+ 	else
+ 		pr_info("SD CD irq=%d\n",rtk_host->cd_irq);
+ 	
+-	rtk_host->wp_irq = gpiod_to_irq(rtk_host->sdmmc_wp_gpio);
+-	if(!rtk_host->wp_irq)
+-		pr_err("Cannot get the SD WP irq...\n");
+-	else
+-		pr_info("SD WP irq=%d\n",rtk_host->wp_irq);
+-
+ 	irq_set_irq_type(rtk_host->cd_irq, IRQ_TYPE_EDGE_BOTH);
+ 	ret = request_irq(rtk_host->cd_irq, rtk_sdmmc_cd_irq, IRQF_SHARED, DRIVER_NAME, rtk_host);
+ 	if (ret) {
+@@ -3466,12 +3466,19 @@ static int rtk_sdmmc_probe(struct platform_device *pdev)
+ 		goto out;
+ 	}
+ 
+-	irq_set_irq_type(rtk_host->wp_irq, IRQ_TYPE_EDGE_BOTH);
++	if (rtk_host->sdmmc_wp_gpio) {
++		rtk_host->wp_irq = gpiod_to_irq(rtk_host->sdmmc_wp_gpio);
++		if (!rtk_host->wp_irq)
++			pr_err("Cannot get the SD WP irq...\n");
++		else
++			pr_info("SD WP irq=%d\n", rtk_host->wp_irq);
+ 
+-	ret = request_irq(rtk_host->wp_irq, rtk_sdmmc_wp_irq, IRQF_SHARED, DRIVER_NAME, rtk_host);
+-	if (ret) {
+-		pr_err("%s: cannot assign irq %d\n", __func__, irq);
+-		goto out;
++		irq_set_irq_type(rtk_host->wp_irq, IRQ_TYPE_EDGE_BOTH);
++		ret = request_irq(rtk_host->wp_irq, rtk_sdmmc_wp_irq, IRQF_SHARED, DRIVER_NAME, rtk_host);
++		if (ret) {
++			pr_err("%s: cannot assign irq %d\n", __func__, irq);
++			goto out;
++		}
+ 	}
+ 
+ 	timer_setup(&rtk_host->timer, rtk_sdmmc_timeout, 0);
+-- 
+2.47.0
+

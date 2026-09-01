@@ -1,0 +1,27 @@
+From 29c6fc77e0c10f3c4e0ce45e5c82983768835935 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 5 May 2026 13:39:01 +0800
+Subject: [PATCH] spi: nand: rtk-sn: skip timeout on SPINAND_GET_FEATURE
+
+---
+ drivers/spi/spi-rtk-sn.c    | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spi/spi-rtk-sn.c b/drivers/spi/spi-rtk-sn.c
+index e6e90798..10be95d2 100644
+--- a/drivers/spi/spi-rtk-sn.c
++++ b/drivers/spi/spi-rtk-sn.c
+@@ -1351,7 +1351,9 @@ static int rtk_snand_io_op(struct rtk_snand *snf, const struct spi_mem_op *op)
+ 		ret = wait_done(base + REG_SPI_CTRL0, 0x10, 0);
+ 		if (ret) {
+ 			pr_err("SPINAND_GET_FEATURE timeout...\n");
+-			return -ETIMEDOUT;
++			//return -ETIMEDOUT;
++			pr_err("skip timeout\n");
++			ret = 0;
+ 		}
+                 break;
+ 	case SPINAND_RESET:
+-- 
+2.47.0
+

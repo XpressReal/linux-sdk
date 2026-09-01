@@ -1,0 +1,50 @@
+From 5faba88f982fc933fecb975fc44fdacfafafbb40 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 03:20:51 +0300
+Subject: [PATCH 18/38] mtd: spinand: Make use of spinand_to_[mtd/nand]()
+ helpers
+
+Use spinand_to_nand() and spinand_to_mtd() helpers instead of
+nanddev_to_mtd() and direct access to spinand structure fields.
+
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 3b612bec274..4e8d7444bd6 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -236,7 +236,7 @@ static int spinand_read_from_cache_op(struct spinand_device *spinand,
+ 				      const struct nand_page_io_req *req)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
+-	struct mtd_info *mtd = nanddev_to_mtd(nand);
++	struct mtd_info *mtd = spinand_to_mtd(spinand);
+ 	struct spi_mem_dirmap_desc *rdesc;
+ 	unsigned int nbytes = 0;
+ 	void *buf = NULL;
+@@ -294,7 +294,7 @@ static int spinand_write_to_cache_op(struct spinand_device *spinand,
+ 				     const struct nand_page_io_req *req)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
+-	struct mtd_info *mtd = nanddev_to_mtd(nand);
++	struct mtd_info *mtd = spinand_to_mtd(spinand);
+ 	struct spi_mem_dirmap_desc *wdesc;
+ 	unsigned int nbytes, column = 0;
+ 	void *buf = spinand->databuf;
+@@ -356,7 +356,7 @@ static int spinand_program_op(struct spinand_device *spinand,
+ static int spinand_erase_op(struct spinand_device *spinand,
+ 			    const struct nand_pos *pos)
+ {
+-	struct nand_device *nand = &spinand->base;
++	struct nand_device *nand = spinand_to_nand(spinand);
+ 	unsigned int row = nanddev_pos_to_row(nand, pos);
+ 	struct spi_mem_op op = SPINAND_BLK_ERASE_OP(row);
+ 
+-- 
+2.47.0
+

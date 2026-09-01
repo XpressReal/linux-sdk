@@ -60,6 +60,28 @@
                 algo = "sha256";
             };
         };
+        fdt-dsi-7inch-td1{
+            description = "Raspberry Pi Touch Display 1";
+            data = /incbin/("./overlays/dsi-7inch-td1.dtbo");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x030F0000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+        fdt-dsi-ili9881-7inch{
+            description = "Raspberry Pi Touch Display 2";
+            data = /incbin/("./overlays/dsi-ili9881-7inch.dtbo");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x030F0000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
         ramdisk-1 {
             description = "Rescue initrd";
             data = /incbin/("./rescue.root.cpio.xz");
@@ -69,17 +91,6 @@
             compression = "none";
             load = <0x03100000>;
             entry = <0x03100000>;
-            hash-1 {
-                algo = "sha256";
-            };
-        };
-        bootlogo {
-            description = "Boot logo image";
-            data = /incbin/("./bootfile.image.lzo");
-            type = "firmware";
-            arch = "arm64";
-            compression = "lzo";
-            load = <0x2F700000>;
             hash-1 {
                 algo = "sha256";
             };
@@ -129,8 +140,7 @@
         rtd1619b-xpressreal {
             description = "rtd1619b-xpressreal";
             kernel = "kernel-1";
-            fdt = "fdt-xpressreal";
-            loadables = "bootlogo";
+            fdt = "fdt-xpressreal"; //, "fdt-dsi-ili9881-7inch";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";
@@ -141,6 +151,14 @@
                 key-name-hint = "dev";
                 sign-images = "fdt", "kernel";
             };
+        };
+        dsi-7inch-td1 {
+            description = "dsi-7inch-td1";
+            fdt = "fdt-dsi-7inch-td1";
+        };
+        dsi-ili9881-7inch {
+            description = "dsi-ili9881-7inch";
+            fdt = "fdt-dsi-ili9881-7inch";
         };
     };
 };

@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2023 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1625.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:460800n8";
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 nr_cpus=1 firmware_class.path=/vendor/firmware/ clk_ignore_unused pd_ignore_unused";
+	};
+};
+
+&{/clocks} {
+	clk-sys {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "clk_sys";
+	};
+	clk_sysh {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "clk_sysh";
+	};
+	pll-vo {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "pll_vo";
+	};
+	pll-ve1 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "pll_ve1";
+	};
+	pll-ve2 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "pll_ve2";
+	};
+	pll-gpu {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "pll_gpu";
+	};
+};
+
+&{/} {
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2",
+			     "operating-points-v2-mali";
+
+		opp-27000000 {
+			opp-hz = /bits/ 64 <27000000>;
+			opp-hz-real = /bits/ 64 <27000000>;
+			opp-microvolt = <800000>;
+			opp-suspend;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&nic {
+	output-mode = <2>; /* 2:RGMII_TO_PHY (FPGA) */
+	status = "okay";
+};
+
+&gpu {
+        operating-points-v2 = <&gpu_opps>;
+        status = "okay";
+};

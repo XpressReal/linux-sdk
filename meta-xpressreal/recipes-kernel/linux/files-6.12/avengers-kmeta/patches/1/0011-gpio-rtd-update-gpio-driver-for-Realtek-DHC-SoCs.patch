@@ -1,0 +1,52 @@
+From f471fd1118e8196c6434889e505db6d9ce26df6e Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 15:09:39 +0800
+Subject: [PATCH 11/73] gpio: rtd: update gpio driver for Realtek DHC SoCs
+
+Change-Id: I75cc535d8064df3a1804616d44b4af9b85ae91af
+---
+ drivers/gpio/Kconfig  | 15 +++++++++++++++
+ drivers/gpio/Makefile |  1 +
+ 2 files changed, 16 insertions(+)
+
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index d93cd4f722b40..aebe125d8089b 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -584,6 +584,21 @@ config GPIO_REALTEK_OTTO
+ 
+ 	  When built as a module, the module will be called realtek_otto_gpio.
+ 
++config GPIO_RTD
++	tristate "Realtek DHC GPIO support"
++	depends on ARCH_REALTEK
++	default y
++	select GPIOLIB_IRQCHIP
++	help
++	  Realtek RTD GPIO support.
++
++config GPIO_RTD1625
++	tristate "Realtek DHC RTD1625 GPIO support"
++	depends on ARCH_REALTEK
++	select GPIOLIB_IRQCHIP
++	help
++	  Realtek RTD1625 GPIO support.
++
+ config GPIO_REG
+ 	bool
+ 	help
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index 1429e8c0229b9..5bce5fd77a4b6 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -140,6 +140,7 @@ obj-$(CONFIG_GPIO_RCAR)			+= gpio-rcar.o
+ obj-$(CONFIG_GPIO_RDA)			+= gpio-rda.o
+ obj-$(CONFIG_GPIO_RDC321X)		+= gpio-rdc321x.o
+ obj-$(CONFIG_GPIO_REALTEK_OTTO)		+= gpio-realtek-otto.o
++obj-$(CONFIG_GPIO_RTD1625)		+= gpio-rtd1625.o
+ obj-$(CONFIG_GPIO_REG)			+= gpio-reg.o
+ obj-$(CONFIG_GPIO_ROCKCHIP)	+= gpio-rockchip.o
+ obj-$(CONFIG_GPIO_RTD)			+= gpio-rtd.o
+-- 
+2.47.0
+

@@ -1,0 +1,34 @@
+From c6bbbbcc60a9e09fb7e6d53bcd49a4285085cc24 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:05:35 +0800
+Subject: [PATCH 54/73] perf: realtek: add PMU driver for Realtek DHC SoCs
+
+Change-Id: I120de1888da98d3275226c200ad4b33e64758d18
+---
+ drivers/perf/Kconfig  | 2 ++
+ drivers/perf/Makefile | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/perf/Kconfig b/drivers/perf/Kconfig
+index bab8ba64162ff..2d2eff971b9ce 100644
+--- a/drivers/perf/Kconfig
++++ b/drivers/perf/Kconfig
+@@ -284,4 +284,6 @@ config CXL_PMU
+ 
+ 	  If unsure say 'm'.
+ 
++source "drivers/perf/realtek/Kconfig"
++
+ endmenu
+diff --git a/drivers/perf/Makefile b/drivers/perf/Makefile
+index 8268f38e42c5a..a6a14fcfb4138 100644
+--- a/drivers/perf/Makefile
++++ b/drivers/perf/Makefile
+@@ -32,3 +32,4 @@ obj-$(CONFIG_DWC_PCIE_PMU) += dwc_pcie_pmu.o
+ obj-$(CONFIG_ARM_CORESIGHT_PMU_ARCH_SYSTEM_PMU) += arm_cspmu/
+ obj-$(CONFIG_MESON_DDR_PMU) += amlogic/
+ obj-$(CONFIG_CXL_PMU) += cxl_pmu.o
++obj-$(CONFIG_ARCH_REALTEK) += realtek/
+-- 
+2.47.0
+

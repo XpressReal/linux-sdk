@@ -1,0 +1,261 @@
+From ba3251680b867f8f2462d9c62fd609fb32a1db29 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 17 Oct 2023 18:02:05 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: modify the
+ rtk_usb_manager
+
+1. move usb power gpio to usb node
+2. add usb device mode auto switch
+
+Change-Id: I6d97e9ff84cf60940654e18925b7a648292e7bd8
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ .../boot/dts/realtek/rtd1315c-arcreactor.dtsi | 10 +-----
+ .../boot/dts/realtek/rtd1315c-morgan.dtsi     | 12 ++-----
+ .../boot/dts/realtek/rtd1315c-repulsor.dtsi   | 11 ++-----
+ .../dts/realtek/rtd1619b-bleedingedge.dtsi    | 13 ++------
+ .../boot/dts/realtek/rtd16xxb-rescue.dtsi     | 13 ++------
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 31 -------------------
+ 6 files changed, 12 insertions(+), 78 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+index f86fadd8adb6a..8f0367ccd0457 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+@@ -415,6 +415,7 @@ &usb_port0_usb2phy {
+ };
+ 
+ &usb_port0 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -467,15 +468,6 @@ &uart2 {
+ 
+ &usb_manager {
+ 	status = "okay";
+-
+-	gpio0 {
+-		realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-	port2 {
+-		disable_usb3;
+-	};
+-
+ };
+ 
+ &vcpu {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+index 5d52e83f6807c..b2812120c20b0 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+@@ -412,6 +412,7 @@ &usb_port0_usb2phy {
+ };
+ 
+ &usb_port0 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -420,6 +421,7 @@ &usb_port1_usb2phy {
+ };
+ 
+ &usb_port1 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -464,15 +466,7 @@ &uart2 {
+ 
+ &usb_manager {
+ 	status = "okay";
+-
+-	gpio0 {
+-		realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+-	port2 {
+-		disable_usb3;
+-	};
++	realetk,auto-switch-role-time = <30>; /* second */
+ 
+ 	rtk_usb {
+ 		type_c {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+index 89a09755460a6..67e411eaa9ce2 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+@@ -382,6 +382,7 @@ &usb_port0_usb2phy {
+ };
+ 
+ &usb_port0 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -390,6 +391,7 @@ &usb_port1_usb2phy {
+ };
+ 
+ &usb_port1 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -434,15 +436,6 @@ &uart2 {
+ 
+ &usb_manager {
+ 	status = "okay";
+-
+-	gpio0 {
+-		realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-	port2 {
+-		disable_usb3;
+-	};
+-
+ };
+ 
+ &vcpu {
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+index 5c80f7d9f20c9..30fc797b534d8 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge.dtsi
+@@ -514,6 +514,7 @@ &usb_port0_usb2phy {
+ };
+ 
+ &usb_port0 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -522,6 +523,7 @@ &usb_port1_usb2phy {
+ };
+ 
+ &usb_port1 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -534,6 +536,7 @@ &usb_port2_usb3phy {
+ };
+ 
+ &usb_port2 {
++	realtek,power-gpio = <&gpio 49 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -558,16 +561,6 @@ &uart2 {
+ &usb_manager {
+ 	status = "okay";
+ 
+-	gpio0 {
+-		realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+-	gpio1 {
+-		realtek,power-gpio = <&gpio 49 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+ 	rtk_usb {
+ 		type_c {
+ 			realtek,plug_side_switch-gpio = <&gpio 53 GPIO_ACTIVE_HIGH>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
+index 403f63d13af34..28e85eca0ecb9 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-rescue.dtsi
+@@ -37,16 +37,6 @@ &gpio {
+ &usb_manager {
+ 	status = "okay";
+ 
+-	gpio0 {
+-		realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+-	gpio1 {
+-		realtek,power-gpio = <&gpio 49 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+ 	rtk_usb {
+ 		type_c {
+ 			realtek,plug_side_switch-gpio = <&gpio 53 GPIO_ACTIVE_HIGH>;
+@@ -59,6 +49,7 @@ &usb_port0_usb2phy {
+ };
+ 
+ &usb_port0 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -67,6 +58,7 @@ &usb_port1_usb2phy {
+ };
+ 
+ &usb_port1 {
++	realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+@@ -79,6 +71,7 @@ &usb_port2_usb3phy {
+ };
+ 
+ &usb_port2 {
++	realtek,power-gpio = <&gpio 49 GPIO_ACTIVE_LOW>;
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index 089f19b9af3f4..e344eb3680e9b 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -6,42 +6,11 @@
+  */
+ 
+ &usb_manager {
+-	//usb_iso_mode;  /* ISO mode is only port suspend (Default disable) */
+-	//en_usb_storage_reprobe; /* To enable usb storage re-probe*/
+-	//rescue_usb; /* For rescue dtb use */
+ 	realtek,usb-ctrl = <&usb_ctrl>;
+ 	realtek,ldo-enable;
+ 
+ 	status = "disabled";
+ 
+-	/* set type c node */
+-	type_c = <&type_c>;
+-
+-	gpio0: gpio0 {
+-		//realtek,power-gpio = <&gpio 48 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+-	gpio1: gpio1 {
+-		//realtek,power-gpio = <&gpio 49 GPIO_ACTIVE_HIGH>;
+-		power_low_active;
+-	};
+-
+-	port0 {
+-		usb = <&usb_port0>;
+-		usb_gpio = <&gpio0>;
+-	};
+-
+-	port1 {
+-		usb = <&usb_port1>;
+-		usb_gpio = <&gpio0>;
+-	};
+-
+-	port2 {
+-		usb = <&usb_port2>;
+-		usb_gpio = <&gpio1>;
+-	};
+-
+ 	rtk_usb {
+ 		TP1CK_MEM_TEST1_register = <0x9804ef14>;
+ 
+-- 
+2.47.0
+

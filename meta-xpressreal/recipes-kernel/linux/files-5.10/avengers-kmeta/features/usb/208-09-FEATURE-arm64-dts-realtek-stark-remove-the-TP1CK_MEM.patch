@@ -1,0 +1,33 @@
+From c6e0367352dc8b1a28d69e0ff535dbb507a2ceb9 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 27 Dec 2023 13:50:36 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: remove the
+ TP1CK_MEM_TEST1 property
+
+Change-Id: I08de9341727967aba0cd1d7d8b706673585734ac
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index e9223351a5e88..596e48864ccdf 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -16,13 +16,6 @@ &usb_manager {
+ 
+ 	status = "disabled";
+ 
+-	rtk_usb {
+-		TP1CK_MEM_TEST1_register = <0x9804ef14>;
+-
+-	};
+-};
+-
+-&usb_manager {
+ 	usb_port0_usb2phy: usb-phy@13214 {
+ 		compatible = "realtek,rtd1619b-usb2phy";
+ 		reg = <0x13214 0x4>, <0x28280 0x4>;
+-- 
+2.47.0
+

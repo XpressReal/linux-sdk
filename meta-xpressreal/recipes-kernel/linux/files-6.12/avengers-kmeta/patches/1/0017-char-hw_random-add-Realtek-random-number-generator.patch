@@ -1,0 +1,41 @@
+From 6c5564d3fd10efa15d105421b8c9d85e3fe3612f Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 15:48:44 +0800
+Subject: [PATCH 17/73] char: hw_random: add Realtek random number generator
+
+Change-Id: Id9232a761ec1bbb055d66f41291374cf6f9b06c4
+---
+ drivers/char/hw_random/Kconfig  | 7 +++++++
+ drivers/char/hw_random/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/char/hw_random/Kconfig b/drivers/char/hw_random/Kconfig
+index b51d9e243f351..d1eadf64d7086 100644
+--- a/drivers/char/hw_random/Kconfig
++++ b/drivers/char/hw_random/Kconfig
+@@ -587,6 +587,13 @@ config HW_RANDOM_ROCKCHIP
+ 
+ 	  If unsure, say Y.
+ 
++config HW_RANDOM_REALTEK
++	tristate "Realtek Random Number Generator support"
++	depends on ARCH_REALTEK
++	default HW_RANDOM
++	help
++	  Say Y, if you want to enable random number generator on Realtek platform.
++
+ endif # HW_RANDOM
+ 
+ config UML_RANDOM
+diff --git a/drivers/char/hw_random/Makefile b/drivers/char/hw_random/Makefile
+index 01f012eab4400..44e94474a093a 100644
+--- a/drivers/char/hw_random/Makefile
++++ b/drivers/char/hw_random/Makefile
+@@ -50,3 +50,4 @@ obj-$(CONFIG_HW_RANDOM_CN10K) += cn10k-rng.o
+ obj-$(CONFIG_HW_RANDOM_POLARFIRE_SOC) += mpfs-rng.o
+ obj-$(CONFIG_HW_RANDOM_ROCKCHIP) += rockchip-rng.o
+ obj-$(CONFIG_HW_RANDOM_JH7110) += jh7110-trng.o
++obj-$(CONFIG_HW_RANDOM_REALTEK) += rtd-rng.o
+-- 
+2.47.0
+

@@ -1,0 +1,46 @@
+#include "rtd1319-pymparticles.dtsi"
+
+&{/}{
+	rtc-sw {
+		compatible = "realtek,emulated-rtc";
+		realtek,ptime-reg = <&iso 0x64c>;
+		status = "okay";
+	};
+};
+
+&rtc {
+	status = "disabled";
+};
+
+&cpu_opps {
+	opp-1350mhz {
+		opp-hz = /bits/ 64 <1350000000>;
+		opp-microvolt = <0>;
+		opp-microvolt-fss = <0>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+};
+
+&opp1300 {
+	status = "disabled";
+};
+
+&opp1400 {
+	status = "disabled";
+};
+
+&cpu_thermal {
+	cooling-maps {
+		cpu-map0 {
+			trip = <&cpu_alert0>;
+			cooling-device = <&cpu0 THERMAL_NO_LIMIT 2>;
+			contribution = <70>;
+		};
+		cpu-map1 {
+			trip = <&cpu_alert1>;
+			cooling-device = <&cpu0 3 THERMAL_NO_LIMIT>;
+			contribution = <70>;
+		};
+	};
+};

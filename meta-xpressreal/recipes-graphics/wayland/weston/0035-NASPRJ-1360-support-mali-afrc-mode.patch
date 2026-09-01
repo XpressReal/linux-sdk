@@ -1,0 +1,135 @@
+From f158ea15db3ec701f27e87e55223098eddd09f89 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 21 Apr 2026 06:09:27 -0400
+Subject: [PATCH] NASPRJ-1360: support mali afrc mode
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ compositor/main.c               |  1 +
+ include/libweston/libweston.h   |  1 +
+ libweston/backend-drm/drm-gbm.c | 66 ++++++++++++++++++++++++++-------
+ 3 files changed, 54 insertions(+), 14 deletions(-)
+
+diff --git a/compositor/main.c b/compositor/main.c
+index c5e5ab8..bddd477 100644
+--- a/compositor/main.c
++++ b/compositor/main.c
+@@ -3084,6 +3084,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+ 	weston_config_section_get_bool(section, "full-damage", &c->full_damage, false);
+ 	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
+ 	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
++	weston_config_section_get_int(section, "gbm-afrc", &c->gbm_afrc, 0);
+ 	weston_config_section_get_bool(section, "ui-hole-punch", &c->ui_hole_punch, true);
+ 	weston_config_section_get_bool(section, "sw-cursor", &c->use_sw_cursor, true);
+ 
+diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
+index f03c305..f640f50 100644
+--- a/include/libweston/libweston.h
++++ b/include/libweston/libweston.h
+@@ -1527,6 +1527,7 @@ struct weston_compositor {
+ 	bool has_video_overlay;
+ 	bool transparent_fade_layer;
+ 	bool gbm_afbc;
++	int gbm_afrc;
+ 	bool found_drm_fd;
+ 	bool full_damage;
+ 	bool ui_hole_punch;
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index ff58945..d532937 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -44,6 +44,10 @@
+ #include "linux-dmabuf.h"
+ #include "linux-explicit-synchronization.h"
+ 
++#define MODIFIER_MASK 0x0ff0000000000000
++#define RTK_AFBC_MASK DRM_FORMAT_MOD_ARM_AFBC(0)
++#define RTK_AFRC_MASK DRM_FORMAT_MOD_ARM_AFRC(0)
++
+ static struct gbm_device *
+ create_gbm_device(int fd)
+ {
+@@ -188,8 +192,8 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
+ 	const uint64_t *modifiers;
+ 	unsigned int num_modifiers;
+ 	struct drm_backend *b = output->backend;
+-	unsigned int linear_num_modifiers = 1;
+-	const uint64_t linear_modifiers = DRM_FORMAT_MOD_LINEAR;
++	unsigned int rtk_num_modifiers = 1;
++	uint64_t rtk_modifiers = DRM_FORMAT_MOD_LINEAR;
+ 
+ 	fmt = weston_drm_format_array_find_format(&plane->formats,
+ 						  output->format->format);
+@@ -203,20 +207,54 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
+ 	if (!weston_drm_format_has_modifier(fmt, DRM_FORMAT_MOD_INVALID)) {
+ 		modifiers = weston_drm_format_get_modifiers(fmt, &num_modifiers);
+ 		if (b->compositor->gbm_afbc == true) {
+-			weston_log("choose best modifier support\n");
+-			output->gbm_surface =
+-				gbm_surface_create_with_modifiers(gbm,
+-								  mode->width, mode->height,
+-								  output->format->format,
+-								  modifiers, num_modifiers);
++			for (int i = 0; i < num_modifiers; i++) {
++				if ((modifiers[i] & MODIFIER_MASK) == RTK_AFBC_MASK) {
++					rtk_modifiers = modifiers[i];
++					break;
++				}
++			}
++		} else if (b->compositor->gbm_afrc > 0) {
++			uint64_t afrc_mode = AFRC_FORMAT_MOD_CU_SIZE_32;
++			if (b->compositor->gbm_afrc == 1) {
++				afrc_mode = AFRC_FORMAT_MOD_CU_SIZE_16;
++			} else if (b->compositor->gbm_afrc == 2) {
++				afrc_mode = AFRC_FORMAT_MOD_CU_SIZE_24;
++			} else {
++				afrc_mode = AFRC_FORMAT_MOD_CU_SIZE_32;
++			}
++
++			for (int i = 0; i < num_modifiers; i++) {
++				if ((modifiers[i] & MODIFIER_MASK) == RTK_AFRC_MASK) {
++					if ((modifiers[i] & AFRC_FORMAT_MOD_CU_SIZE_MASK) == afrc_mode) {
++						rtk_modifiers = modifiers[i];
++						break;
++					}
++				}
++			}
++		}
++
++		printf("rtk_modifier:%llx\n", rtk_modifiers);
++
++		if ((rtk_modifiers & MODIFIER_MASK) == RTK_AFBC_MASK) {
++			printf("choose AFBC mode\n");
++		} else if ((rtk_modifiers & MODIFIER_MASK) == RTK_AFRC_MASK) {
++			if ((rtk_modifiers & AFRC_FORMAT_MOD_CU_SIZE_MASK) == AFRC_FORMAT_MOD_CU_SIZE_16)
++				printf("choose AFRC CU_SIZE_16 mode\n");
++			else if ((rtk_modifiers & AFRC_FORMAT_MOD_CU_SIZE_MASK) == AFRC_FORMAT_MOD_CU_SIZE_24)
++				printf("choose AFRC CU_SIZE_24 mode\n");
++			else if ((rtk_modifiers & AFRC_FORMAT_MOD_CU_SIZE_MASK) == AFRC_FORMAT_MOD_CU_SIZE_32)
++				printf("choose AFRC CU_SIZE_32 mode\n");
++			else
++				printf("unknown AFRC CU_SIZE mode\n");
+ 		} else {
+-			weston_log("force linear mode support\n");
+-			output->gbm_surface =
+-				gbm_surface_create_with_modifiers(gbm,
+-						mode->width, mode->height,
+-						output->format->format,
+-						&linear_modifiers, linear_num_modifiers);
++			printf("choose linear mode\n");
+ 		}
++
++		output->gbm_surface =
++			gbm_surface_create_with_modifiers(gbm,
++					mode->width, mode->height,
++					output->format->format,
++					&rtk_modifiers, rtk_num_modifiers);
+ 	}
+ 
+ 	/*
+-- 
+2.34.1
+

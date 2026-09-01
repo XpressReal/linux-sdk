@@ -1,0 +1,41 @@
+From 026691ac2b3b74710c2268c3fc852e1e969c6e46 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 16:07:16 +0800
+Subject: [PATCH 20/73] cpufreq: add rtk-cpufreq-dt for rtd1319d with
+ get/target_intermediate
+
+Change-Id: Id77c65e3ab8a8b701e3ab3a12cae969db35bfe3c
+---
+ drivers/cpufreq/Kconfig.arm | 6 ++++++
+ drivers/cpufreq/Makefile    | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/cpufreq/Kconfig.arm b/drivers/cpufreq/Kconfig.arm
+index 5f7e13e60c802..3a94c48b902eb 100644
+--- a/drivers/cpufreq/Kconfig.arm
++++ b/drivers/cpufreq/Kconfig.arm
+@@ -270,3 +270,9 @@ config ARM_PXA2xx_CPUFREQ
+ 	  This add the CPUFreq driver support for Intel PXA2xx SOCs.
+ 
+ 	  If in doubt, say N.
++
++config ARM_RTK_CPUFREQ_DT
++	tristate "Realtek cpufreq support"
++	depends on ARCH_REALTEK
++	help
++	  This adds cpufreq driver support for Realtek SoCs based on cpufreq-dt.
+diff --git a/drivers/cpufreq/Makefile b/drivers/cpufreq/Makefile
+index 0f184031dd123..f4586c05275ba 100644
+--- a/drivers/cpufreq/Makefile
++++ b/drivers/cpufreq/Makefile
+@@ -85,6 +85,7 @@ obj-$(CONFIG_ARM_TEGRA186_CPUFREQ)	+= tegra186-cpufreq.o
+ obj-$(CONFIG_ARM_TEGRA194_CPUFREQ)	+= tegra194-cpufreq.o
+ obj-$(CONFIG_ARM_TI_CPUFREQ)		+= ti-cpufreq.o
+ obj-$(CONFIG_ARM_VEXPRESS_SPC_CPUFREQ)	+= vexpress-spc-cpufreq.o
++obj-$(CONFIG_ARM_RTK_CPUFREQ_DT)	+= rtk-cpufreq-dt.o
+ 
+ 
+ ##################################################################################
+-- 
+2.47.0
+

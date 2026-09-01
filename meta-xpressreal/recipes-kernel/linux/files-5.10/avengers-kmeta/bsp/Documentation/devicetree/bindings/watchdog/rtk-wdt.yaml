@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/watchdog/rtk-wdt.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Realtek Watchdog Bindings
+
+maintainers:
+  - Cheng Yu Lee <cylee12@realtek.com>
+
+allOf:
+  - $ref: watchdog.yaml#
+
+properties:
+  compatible:
+    enum:
+      - realtek,watchdog
+
+  reg:
+    minItems: 1
+    maxItems: 2
+
+  realtek,ov-rstb-oe:
+    enum: [0, 1]
+
+  realtek,ov-rstb-oe-init:
+    enum: [0, 1]
+
+  realtek,ignore-restart:
+    $ref: /schemas/types.yaml#/definitions/boolean
+
+  interrupts:
+     maxItems: 1
+
+  timeout-sec:
+    description:
+      Contains the watchdog timeout in seconds.
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    // watchdog
+    watchdog@2a0 {
+      compatible = "realtek,watchdog";
+      reg = <0xa20 0x10>, <0xa30 0x8>;
+      timeout-sec = <20>;
+      interrupts-extended = <&iso_irq_mux 4>;
+      realtek,ov-rstb-oe-init = <1>;
+      realtek,ov-rstb-oe = <0>;
+    };
+
+  - |
+    // watchdog without ov-rstb ctrl
+    watchdog@5b0 {
+      compatible = "realtek,watchdog";
+      reg = <0x5b0 0x20>;
+      interrupts-extended = <&misc_irq_mux 2>;
+      timeout-sec = <20>;
+      realtek,ignore-restart;
+    };
+
+  - |
+    // watchdog without pretimeout
+    watchdog@680 {
+      compatible = "realtek,reboot";
+      reg = <0x680 0x10>, <0x690 0x8>;
+      realtek,ov-rstb-oe-init = <1>;
+      realtek,ov-rstb-oe = <0>;
+    };

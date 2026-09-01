@@ -1,0 +1,50 @@
+From 70a5d1a53a4f92198bfe44c7e34bb219b965270e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Lindahl?= <marten.lindahl@axis.com>
+Date: Mon, 8 May 2023 15:14:08 +0200
+Subject: [PATCH] BACKPORT: tps6287x-regulator from kernel-6.12
+
+Change-Id: Ib13531c2f00cc502ea5ee657f826fc7a9d0faea5
+---
+ drivers/regulator/Kconfig              |  11 ++
+ drivers/regulator/Makefile             |   1 +
+ drivers/regulator/tps6287x-regulator.c | 189 +++++++++++++++++++++++++
+ 3 files changed, 201 insertions(+)
+ create mode 100644 drivers/regulator/tps6287x-regulator.c
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 88c4eb9ab7b9..d2ab150798cd 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1254,6 +1254,17 @@ config REGULATOR_TPS62360
+ 	  high-frequency synchronous step down dc-dc converter optimized
+ 	  for battery-powered portable applications.
+ 
++config REGULATOR_TPS6287X
++	tristate "TI TPS6287x Power Regulator"
++	depends on I2C && OF
++	select REGMAP_I2C
++	help
++	  This driver supports TPS6287x voltage regulator chips. These are
++	  pin-to-pin high-frequency synchronous step-down dc-dc converters
++	  with an I2C interface.
++
++	  If built as a module it will be called tps6287x-regulator.
++
+ config REGULATOR_TPS65023
+ 	tristate "TI TPS65023 Power regulators"
+ 	depends on I2C
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 50ed3da8bb11..bfa7bb02660b 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -148,6 +148,7 @@ obj-$(CONFIG_REGULATOR_SY8827N) += sy8827n.o
+ obj-$(CONFIG_REGULATOR_TI_ABB) += ti-abb-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6105X) += tps6105x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS62360) += tps62360-regulator.o
++obj-$(CONFIG_REGULATOR_TPS6287X) += tps6287x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS65023) += tps65023-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6507X) += tps6507x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS65086) += tps65086-regulator.o
+-- 
+2.47.0
+

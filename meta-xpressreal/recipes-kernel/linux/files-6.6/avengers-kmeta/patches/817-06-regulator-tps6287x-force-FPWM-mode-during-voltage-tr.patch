@@ -1,0 +1,91 @@
+From 8986e825549f5a5532dce6c52a760d2dd80a43df Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Thu, 20 Nov 2025 10:20:50 +0800
+Subject: [PATCH 2/2] regulator: tps6287x: force FPWM mode during voltage
+ transitions
+
+The previous workaround utilizing PGBLNKDVS proved insufficient to
+maintain the "Power Good" signal, particularly during voltage
+ramp-down in Power Save Mode (PSM).
+
+According to the datasheet, in PSM, PG can go low on the ramp down
+if there is insufficient load to pull down the output voltage fast
+enough. However, in Forced PWM (FPWM) mode, the device actively
+drives the output voltage up or down to follow the DVS ramp [1].
+
+1. Switch to FPWM (Fast) mode before updating the voltage.
+2. Update the voltage selector (VSET).
+3. Wait for the calculated ramp delay (synchronous udelay).
+   Note: The delay calculation assumes the device is configured in
+   Voltage Range 2 (5mV steps) and uses the ramp delay from
+   constraints.
+4. Restore the original operating mode (PSM).
+
+Additionally, override set_voltage_time to return 1, as the driver
+now handles the wait time internally.
+
+[1] TPS6287x Datasheet, Section 7.3.14.1 "Power-Good"
+
+Change-Id: I4d95a75b0daec9eeb02425ca2c693546de96b2e4
+---
+ drivers/regulator/tps6287x-regulator.c | 35 +++++++++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/regulator/tps6287x-regulator.c b/drivers/regulator/tps6287x-regulator.c
+index b75f338d8d..0247ee4a64 100644
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -85,6 +85,38 @@ static unsigned int tps6287x_of_map_mode(unsigned int mode)
+ 	}
+ }
+ 
++static int tps6287x_set_voltage_sel_regmap(struct regulator_dev *rdev, unsigned sel)
++{
++	int ret;
++	u32 mode = tps6287x_get_mode(rdev);
++	u32 cur = regulator_get_voltage_sel_regmap(rdev);
++
++	ret = tps6287x_set_mode(rdev, REGULATOR_MODE_FAST);
++	if (ret) {
++		dev_err(&rdev->dev, "failed to set fast mode: %d\n", ret);
++		return ret;
++	}
++
++	ret = regulator_set_voltage_sel_regmap(rdev, sel);
++
++	if (!ret && rdev->constraints->ramp_delay) {
++		u32 delay = DIV_ROUND_UP(abs(sel - cur) * TPS6287X_VRANGE_2_STEP_UV,
++					 rdev->constraints->ramp_delay);
++
++		if (delay)
++			udelay(delay);
++	}
++
++	tps6287x_set_mode(rdev, mode);
++	return ret;
++}
++
++static int tps6287x_set_voltage_time(struct regulator_dev *rdev,
++				     int old_uV, int new_uV)
++{
++	return 1;
++}
++
+ static const struct regulator_ops tps6287x_regulator_ops = {
+ 	.enable = regulator_enable_regmap,
+ 	.disable = regulator_disable_regmap,
+@@ -92,9 +124,10 @@ static const struct regulator_ops tps6287x_regulator_ops = {
+ 	.get_mode = tps6287x_get_mode,
+ 	.is_enabled = regulator_is_enabled_regmap,
+ 	.get_voltage_sel = regulator_get_voltage_sel_regmap,
+-	.set_voltage_sel = regulator_set_voltage_sel_regmap,
++	.set_voltage_sel = tps6287x_set_voltage_sel_regmap,
+ 	.list_voltage = regulator_list_voltage_linear,
+ 	.set_ramp_delay = regulator_set_ramp_delay_regmap,
++	.set_voltage_time = tps6287x_set_voltage_time,
+ };
+ 
+ static struct regulator_desc tps6287x_reg = {
+-- 
+2.34.1
+

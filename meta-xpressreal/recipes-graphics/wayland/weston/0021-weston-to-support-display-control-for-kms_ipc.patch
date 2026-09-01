@@ -1,9 +1,11 @@
-From ef87bf29231eec0bf1b9332c3322a7e054412266 Mon Sep 17 00:00:00 2001
+From 70da5db178f2e16d3fd3f95c300b57648a9dc508 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Fri, 20 Jun 2025 02:09:44 -0400
+Date: Tue, 14 Apr 2026 04:20:40 -0400
 Subject: [PATCH] weston: to support display control for kms_ipc
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/drm-internal.h |   2 +
  libweston/backend-drm/drm.c          |   3 +-
@@ -11,10 +13,10 @@ Upstream-Status: Inappropriate [rtk specific]
  3 files changed, 124 insertions(+), 14 deletions(-)
 
 diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
-index e26f6bd..86ea9b2 100644
+index ee2e88c..cac18f8 100644
 --- a/libweston/backend-drm/drm-internal.h
 +++ b/libweston/backend-drm/drm-internal.h
-@@ -715,6 +715,8 @@ struct drm_output {
+@@ -710,6 +710,8 @@ struct drm_output {
  	pthread_t kms_ipc_thread;
  	bool kms_ipc_run;
  	int kms_ipc_socket;

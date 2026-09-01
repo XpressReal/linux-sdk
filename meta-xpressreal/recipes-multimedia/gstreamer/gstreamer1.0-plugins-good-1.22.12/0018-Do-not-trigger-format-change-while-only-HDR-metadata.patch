@@ -2,6 +2,8 @@ From e3006dbae168a45c0bf76d21c146176f14280dd3 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Tue, 27 May 2025 22:02:41 +0800
 Subject: [PATCH 18/18] Do not trigger format change while only HDR metadata
+Source: Realtek
+License: LGPL-2.1-or-later
  change
 Upstream-Status: Inappropriate [rtk specific]
 ---

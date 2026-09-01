@@ -1,0 +1,74 @@
+From d12689af6c6d12f1c49d988e6c418afbbd9b82c5 Mon Sep 17 00:00:00 2001
+From: Alexey Romanov <avromanov@salutedevices.com>
+Date: Thu, 18 Jul 2024 08:46:06 +0300
+Subject: [PATCH 3/9] spinand: bind mtdblock
+
+Bind SPI-NAND driver to MTD block driver.
+
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Alexey Romanov <avromanov@salutedevices.com>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index ef50237f10e..54a90ff295c 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -33,6 +33,10 @@
+ #include <linux/printk.h>
+ #endif
+ 
++struct spinand_plat {
++	struct mtd_info *mtd;
++};
++
+ /* SPI NAND index visible in MTD names */
+ static int spi_nand_idx;
+ 
+@@ -1172,12 +1176,25 @@ static void spinand_cleanup(struct spinand_device *spinand)
+ 	kfree(spinand->scratchbuf);
+ }
+ 
++static int spinand_bind(struct udevice *dev)
++{
++	if (blk_enabled()) {
++		struct spinand_plat *plat = dev_get_plat(dev);
++
++		if (CONFIG_IS_ENABLED(MTD_BLOCK))
++			return mtd_bind(dev, &plat->mtd);
++	}
++
++	return 0;
++}
++
+ static int spinand_probe(struct udevice *dev)
+ {
+ 	struct spinand_device *spinand = dev_get_priv(dev);
+ 	struct spi_slave *slave = dev_get_parent_priv(dev);
+ 	struct mtd_info *mtd = dev_get_uclass_priv(dev);
+ 	struct nand_device *nand = spinand_to_nand(spinand);
++	struct spinand_plat *plat = dev_get_plat(dev);
+ 	int ret;
+ 
+ #ifndef __UBOOT__
+@@ -1217,6 +1234,8 @@ static int spinand_probe(struct udevice *dev)
+ 	if (ret)
+ 		goto err_spinand_cleanup;
+ 
++	plat->mtd = mtd;
++
+ 	return 0;
+ 
+ err_spinand_cleanup:
+@@ -1286,4 +1305,6 @@ U_BOOT_DRIVER(spinand) = {
+ 	.of_match = spinand_ids,
+ 	.priv_auto	= sizeof(struct spinand_device),
+ 	.probe = spinand_probe,
++	.bind = spinand_bind,
++	.plat_auto = sizeof(struct spinand_plat),
+ };
+-- 
+2.47.0
+

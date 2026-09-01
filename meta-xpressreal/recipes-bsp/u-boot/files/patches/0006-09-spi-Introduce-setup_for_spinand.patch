@@ -1,0 +1,51 @@
+From ef45b9c395f92d9239d6c363b1f5a89f6a53f2e6 Mon Sep 17 00:00:00 2001
+From: Christian Marangi <ansuelsmth@gmail.com>
+Date: Mon, 7 Apr 2025 22:01:54 +0200
+Subject: [PATCH] spi: Introduce setup_for_spinand()
+
+A common device attached to SPI are SPI NAND and some device might
+require to have info on the attached NAND to know the flash page size
+and spare size.
+
+To support this, introduce setup_for_spinand() that pass the attached
+spinand info from manufacturer.
+
+Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
+[trini: Switch to forward declaration of struct spinand_info]
+Signed-off-by: Tom Rini <trini@konsulko.com>
+---
+ include/spi.h | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/include/spi.h b/include/spi.h
+index 6944773b596..2783200d663 100644
+--- a/include/spi.h
++++ b/include/spi.h
+@@ -11,5 +11,7 @@
+ #include <linux/bitops.h>
+ 
++struct spinand_info;
++
+ /* SPI mode flags */
+ #define SPI_CPHA	BIT(0)	/* clock phase (1 = SPI_CLOCK_PHASE_SECOND) */
+ #define SPI_CPOL	BIT(1)	/* clock polarity (1 = SPI_POLARITY_HIGH) */
+@@ -537,6 +539,16 @@ struct dm_spi_ops {
+ 	 */
+ 	int (*get_mmap)(struct udevice *dev, ulong *map_basep,
+ 			uint *map_sizep, uint *offsetp);
++
++	/**
++	 * setup_for_spinand() - Setup the SPI for attached SPI NAND
++	 *
++	 * @dev:	The SPI flash slave device
++	 * @spinand_info: The SPI NAND info to configure for
++	 * @return 0 if OK, -ve value on error
++	 */
++	int (*setup_for_spinand)(struct spi_slave *slave,
++				 const struct spinand_info *spinand_info);
+ };
+ 
+ struct dm_spi_emul_ops {
+-- 
+2.47.0
+

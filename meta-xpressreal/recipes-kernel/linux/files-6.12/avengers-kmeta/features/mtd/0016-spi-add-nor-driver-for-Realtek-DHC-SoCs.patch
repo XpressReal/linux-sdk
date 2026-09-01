@@ -1,0 +1,43 @@
+From 12a54d19212f899c75e35962d403ed54688405aa Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 15:41:34 +0800
+Subject: [PATCH 16/73] spi: add nor driver for Realtek DHC SoCs
+
+Change-Id: I427b84b603d01a74ef9f476ae6f8f4aa890d0278
+---
+ drivers/spi/Kconfig  | 6 ++++++
+ drivers/spi/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index cdad60e8779d2..cde85459fe1a4 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -1150,6 +1150,12 @@ config SPI_TOPCLIFF_PCH
+ 	  This driver also supports the ML7213/ML7223/ML7831, a companion chip
+ 	  for the Atom E6xx series and compatible with the Intel EG20T PCH.
+ 
++config SPI_RTKNOR
++	tristate "SPI device driver support for RTK NOR"
++	depends on SPI_MASTER
++	help
++	  Enables SPI Nor controller driver for RTK SoC.
++
+ config SPI_UNIPHIER
+ 	tristate "Socionext UniPhier SPI Controller"
+ 	depends on (ARCH_UNIPHIER || COMPILE_TEST) && OF
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index b4392851b5429..2875911daa9c0 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -52,6 +52,7 @@ obj-$(CONFIG_SPI_DW_BT1)		+= spi-dw-bt1.o
+ obj-$(CONFIG_SPI_DW_MMIO)		+= spi-dw-mmio.o
+ obj-$(CONFIG_SPI_DW_PCI)		+= spi-dw-pci.o
+ obj-$(CONFIG_SPI_DW_RTK)		+= spi-dw-rtk.o
++obj-$(CONFIG_SPI_RTKNOR)                += spi-rtknor.o
+ obj-$(CONFIG_SPI_EP93XX)		+= spi-ep93xx.o
+ obj-$(CONFIG_SPI_FALCON)		+= spi-falcon.o
+ obj-$(CONFIG_SPI_FSI)			+= spi-fsi.o
+-- 
+2.47.0
+

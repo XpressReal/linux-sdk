@@ -1,0 +1,7 @@
+#Copyright (C) 2017 Realtek Semiconductor Corporation
+
+config RTK_TEEAPI
+        tristate "Realtek TEE API Client"
+        depends on TEE
+        help
+                Realtek TEE API Client

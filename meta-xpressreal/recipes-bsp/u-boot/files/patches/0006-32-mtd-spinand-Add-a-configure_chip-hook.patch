@@ -1,0 +1,105 @@
+From 1e103284a51fae91e73bb2014221f53c53435341 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 30 Sep 2025 03:21:05 +0300
+Subject: [PATCH 32/38] mtd: spinand: Add a ->configure_chip() hook
+
+There is already a manufacturer hook, which is manufacturer specific but
+not chip specific. We no longer have access to the actual NAND identity
+at this stage so let's add a per-chip configuration hook to align the
+chip configuration (if any) with the core's setting.
+
+This is a port of linux commit
+da55809ebb45 ("mtd: spinand: Add a ->configure_chip() hook")
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 16 ++++++++++++++--
+ include/linux/mtd/spinand.h |  7 +++++++
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 3e21a06dd0f..25e7a38a874 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1251,8 +1251,19 @@ static int spinand_id_detect(struct spinand_device *spinand)
+ 
+ static int spinand_manufacturer_init(struct spinand_device *spinand)
+ {
+-	if (spinand->manufacturer->ops->init)
+-		return spinand->manufacturer->ops->init(spinand);
++	int ret;
++
++	if (spinand->manufacturer->ops->init) {
++		ret = spinand->manufacturer->ops->init(spinand);
++		if (ret)
++			return ret;
++	}
++
++	if (spinand->configure_chip) {
++		ret = spinand->configure_chip(spinand);
++		if (ret)
++			return ret;
++	}
+ 
+ 	return 0;
+ }
+@@ -1363,6 +1374,7 @@ int spinand_match_and_init(struct spinand_device *spinand,
+ 		spinand->flags = table[i].flags;
+ 		spinand->id.len = 1 + table[i].devid.len;
+ 		spinand->select_target = table[i].select_target;
++		spinand->configure_chip = table[i].configure_chip;
+ 		spinand->set_cont_read = table[i].set_cont_read;
+ 		spinand->fact_otp = &table[i].fact_otp;
+ 		spinand->user_otp = &table[i].user_otp;
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index adfb5f3ffbc..94f324741e0 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -398,6 +398,7 @@ struct spinand_user_otp {
+  * @op_variants.update_cache: variants of the update-cache operation
+  * @select_target: function used to select a target/die. Required only for
+  *		   multi-die chips
++ * @configure_chip: Align the chip configuration with the core settings
+  * @set_cont_read: enable/disable continuous cached reads
+  * @fact_otp: SPI NAND factory OTP info.
+  * @user_otp: SPI NAND user OTP info.
+@@ -421,6 +422,7 @@ struct spinand_info {
+ 	} op_variants;
+ 	int (*select_target)(struct spinand_device *spinand,
+ 			     unsigned int target);
++	int (*configure_chip)(struct spinand_device *spinand);
+ 	int (*set_cont_read)(struct spinand_device *spinand,
+ 			     bool enable);
+ 	struct spinand_fact_otp fact_otp;
+@@ -453,6 +455,9 @@ struct spinand_info {
+ #define SPINAND_SELECT_TARGET(__func)					\
+ 	.select_target = __func,
+ 
++#define SPINAND_CONFIGURE_CHIP(__configure_chip)			\
++	.configure_chip = __configure_chip
++
+ #define SPINAND_CONT_READ(__set_cont_read)				\
+ 	.set_cont_read = __set_cont_read,
+ 
+@@ -521,6 +526,7 @@ struct spinand_dirmap {
+  *		passed in spi_mem_op be DMA-able, so we can't based the bufs on
+  *		the stack
+  * @manufacturer: SPI NAND manufacturer information
++ * @configure_chip: Align the chip configuration with the core settings
+  * @cont_read_possible: Field filled by the core once the whole system
+  *		configuration is known to tell whether continuous reads are
+  *		suitable to use or not in general with this chip/configuration.
+@@ -569,6 +575,7 @@ struct spinand_device {
+ 
+ 	u8 last_wait_status;
+ 
++	int (*configure_chip)(struct spinand_device *spinand);
+ 	bool cont_read_possible;
+ 	int (*set_cont_read)(struct spinand_device *spinand,
+ 			     bool enable);
+-- 
+2.47.0
+

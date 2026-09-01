@@ -12,7 +12,7 @@ rtk_drm-y := rtk_drm_rpc.o \
 	     rtk_drm_drv.o \
 	     rtk_hdmi.o \
 	     rtk_hdmi_edid.o \
-             rtk_cvbs.o \
+         rtk_cvbs.o \
          rtk_dptx.o \
 		 rtk_dptx_phy.o \
          rtk_edp.o \
@@ -29,5 +29,7 @@ endif
 rtk_drm-y += rtk_drm_vowb.o \
 	     rtk_drm_ringbuffer.o
 
-obj-$(CONFIG_DRM_RTK) += rtk_drm.o
+rtk_drm-$(CONFIG_RTK_DRM_SPLASH_LOGO) += rtk_drm_splash.o
 
+obj-$(CONFIG_DRM_RTK) += rtk_drm.o
+obj-$(CONFIG_DRM_VGA_RTK) += rtk_vga_drm.o

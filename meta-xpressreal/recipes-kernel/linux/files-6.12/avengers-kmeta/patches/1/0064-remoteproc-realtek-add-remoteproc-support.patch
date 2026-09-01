@@ -1,0 +1,45 @@
+From 7fdf3b0d210052b9e775def363dd3f8b29ecbca3 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:36:01 +0800
+Subject: [PATCH 64/73] remoteproc: realtek: add remoteproc support
+
+Change-Id: I37c728e35f63d56dbc616c90b40e661eda9925d7
+---
+ drivers/remoteproc/Kconfig  | 7 +++++++
+ drivers/remoteproc/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/remoteproc/Kconfig b/drivers/remoteproc/Kconfig
+index 62f8548fb46a5..23ebf82e931bd 100644
+--- a/drivers/remoteproc/Kconfig
++++ b/drivers/remoteproc/Kconfig
+@@ -1,3 +1,4 @@
++
+ # SPDX-License-Identifier: GPL-2.0-only
+ menu "Remoteproc drivers"
+ 
+@@ -299,6 +300,12 @@ config RCAR_REMOTEPROC
+ 	  This can be either built-in or a loadable module.
+ 	  If compiled as module (M), the module name is rcar_rproc.
+ 
++config RTK_FW_REMOTEPROC
++	tristate "Realtek DHC remoteproc support"
++	depends on ARCH_REALTEK
++	help
++	  Say y here to support remote processors on Realtek DHC SoCs.
++
+ config ST_REMOTEPROC
+ 	tristate "ST remoteproc support"
+ 	depends on ARCH_STI
+diff --git a/drivers/remoteproc/Makefile b/drivers/remoteproc/Makefile
+index 5ff4e2fee4abd..4cea78c63ea37 100644
+--- a/drivers/remoteproc/Makefile
++++ b/drivers/remoteproc/Makefile
+@@ -40,3 +40,4 @@ obj-$(CONFIG_TI_K3_DSP_REMOTEPROC)	+= ti_k3_dsp_remoteproc.o
+ obj-$(CONFIG_TI_K3_M4_REMOTEPROC)	+= ti_k3_m4_remoteproc.o
+ obj-$(CONFIG_TI_K3_R5_REMOTEPROC)	+= ti_k3_r5_remoteproc.o
+ obj-$(CONFIG_XLNX_R5_REMOTEPROC)	+= xlnx_r5_remoteproc.o
++obj-$(CONFIG_RTK_FW_REMOTEPROC)		+= rtk_fw_remoteproc.o
+-- 
+2.47.0
+

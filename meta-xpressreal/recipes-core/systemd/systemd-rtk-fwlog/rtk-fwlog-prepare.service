@@ -1,0 +1,9 @@
+[Unit]
+Description=Prepare Realtek firmware logs for current boot
+Requires=rtk-fwlog-path.service
+After=rtk-fwlog-path.service
+
+[Service]
+Type=oneshot
+ExecStart=@LIBEXECDIR@/rtk-fwlog-prepare
+RemainAfterExit=yes

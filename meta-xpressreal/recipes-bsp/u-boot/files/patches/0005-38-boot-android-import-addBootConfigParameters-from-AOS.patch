@@ -1,0 +1,79 @@
+From 6b0f079ba260b37a5b3577e6429ba721070ee2bf Mon Sep 17 00:00:00 2001
+From: "Mattijs Korpershoek (TI.com)" <mkorpershoek@kernel.org>
+Date: Mon, 12 Jan 2026 11:55:37 +0100
+Subject: [PATCH] boot: android: import addBootConfigParameters() from AOSP
+
+To properly implement Android boot image v4, U-Boot must be able to
+add additional entries to the bootconfig.
+
+Add `add_bootconfig_parameters()` to do so.
+
+This has been imported from Google's U-Boot source[1]
+The variables/function names have been reworked to be
+compliant with U-Boot's coding style.
+
+[1] https://android.googlesource.com/platform/external/u-boot/+/7af0a0506d4de6f5ea147d10fb0664a8af07d326
+
+Signed-off-by: Mattijs Korpershoek (TI.com) <mkorpershoek@kernel.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Signed-off-by: Guillaume La Roque (TI.com) <glaroque@baylibre.com>
+Link: https://lore.kernel.org/r/20260112-bootconfig-v5-1-79b242159ac7@baylibre.com
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ boot/image-android.c | 40 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 40 insertions(+)
+
+diff --git a/boot/image-android.c b/boot/image-android.c
+index ea47869a64c..5407390ef36 100644
+--- a/boot/image-android.c
++++ b/boot/image-android.c
+@@ -57,6 +57,46 @@ static ulong add_trailer(ulong bootconfig_start_addr, ulong bootconfig_size)
+ 	return BOOTCONFIG_TRAILER_SIZE;
+ }
+ 
++/*
++ * Add a string of boot config parameters to memory appended by the trailer.
++ * NOTE: This function expects bootconfig_start_addr to be already mapped.
++ *       It works directly with the mapped pointer, not a physical address.
++ */
++static long add_bootconfig_parameters(char *params, long params_len,
++				      ulong bootconfig_start_addr, u32 bootconfig_size)
++{
++	long applied_bytes = 0;
++	long new_size = 0;
++	ulong end;
++
++	if (!params || !bootconfig_start_addr)
++		return -EINVAL;
++
++	if (params_len == 0)
++		return 0;
++
++	end = bootconfig_start_addr + bootconfig_size;
++
++	if (is_trailer_present(end)) {
++		end -= BOOTCONFIG_TRAILER_SIZE;
++		applied_bytes -= BOOTCONFIG_TRAILER_SIZE;
++		memcpy(&new_size, (void *)end, BOOTCONFIG_SIZE_SIZE);
++	} else {
++		/*
++		 * When no trailer is present, the bootconfig_size includes the actual content.
++		 * We should write new parameters right after the existing content.
++		 */
++		end = bootconfig_start_addr + bootconfig_size;
++		new_size = bootconfig_size;
++	}
++
++	memcpy((void *)end, params, params_len);
++	applied_bytes += params_len;
++	applied_bytes += add_trailer(bootconfig_start_addr,
++				     bootconfig_size + applied_bytes);
++	return applied_bytes;
++}
++
+ __weak ulong get_avendor_bootimg_addr(void)
+ {
+ 	return -1;
+-- 
+2.47.0
+

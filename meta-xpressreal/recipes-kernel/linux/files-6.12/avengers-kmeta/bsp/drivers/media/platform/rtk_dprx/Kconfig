@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "Realtek DisplayPort receiver driver"
+
+config RTK_DP_RX
+	tristate "RTK DP RX Support"
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  This is a v4l2 driver for Realtek DisplayPort receiver interface.
+
+	  To compile this driver as a module, choose M here. The module
+	  will be called rtk_dprx.

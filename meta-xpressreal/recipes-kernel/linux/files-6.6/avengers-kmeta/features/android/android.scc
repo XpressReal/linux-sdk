@@ -8,8 +8,10 @@ patch 305-ANDROID-soc-realtek-common-drm-driver-bind-CMA-memor.patch
 patch 306-dma-buf-heaps-add-all-cma-areas-into-cma-heaps.patch
 patch 307-arm64-dts-realtek-rename-cma_2-to-vo5-for-cmaheap-pu.patch
 patch 308-ASoC-SOF-realtek-modify-contraint-of-period-size-and.patch
+patch 309-soc-realtek-ve1-increase-MAX_NUM_INSTANCE-for-Androi.patch
 
 patch 801-rtk_npp-no-npp_capture-if-SOF-HIFI-is-used.patch
+patch 802-arm64-kvm-Makefile.nvhe-Use-O2-for-128bit-shift-in-c.patch
 
 patch 901-sound-soc-realtek-add-compatible-for-rtd1920s-and-se.patch
 patch 902-sound-soc-realtek-change-dailink-RDAI_I2S-to-RDAI_I2.patch
@@ -21,8 +23,16 @@ patch 907-gpu-drm-realtek-Add-startup-shutdown-callback-for-ke.patch
 patch 908-sound-soc-realtek-refine-SOF-driver-and-machine-rt56.patch
 patch 909-sound-soc-realtek-refine-machine-driver-without-code.patch
 patch 910-modify-for-stark-SOF-driver-with-codec-rt5650.patch
+patch 911-fix-hdmi-audio.patch
+patch 912-disable-pcie-phy0.patch
 
-patch tmp/0059-fix-hdmi-audio.patch
+# for features/usb
+patch  834-revert-USB-xhci-plat-fix-legacy-PHY-double-init.patch
+
+# for features/drm-mesa
+patch 0002-01-drm-sched-memset-job-in-drm_sched_job_init.patch
+patch 0002-02-drm-sched-Remove-optimization-that-causes-hang-when-.patch
+patch 0002-03-drm-amdgpu-csa-unmap-use-uninterruptible-lock.patch
 
 kconf non-hardware android-arm64_defconfig
 kconf non-hardware chromiumos-realtek.flavour.config

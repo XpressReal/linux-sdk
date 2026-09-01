@@ -1,0 +1,5 @@
+patch 841-Back-port-v4l2-related-codes.patch
+patch 842-Add-V4L2-config-for-Realtek-DHC-SoCs.patch
+patch 843-V4L2-support-av1-and-sync-up.patch
+
+kconf hardware v4l2.cfg

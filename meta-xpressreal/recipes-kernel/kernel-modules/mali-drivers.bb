@@ -37,6 +37,13 @@ module_do_install:kent(){
 	install -m 644 ${S}/CSF/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
 }
 
+module_do_install:prince(){
+	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
+	install -d $MODULE_DIR
+	install -m 644 ${S}/CSF/${MODULES_MALI_BASE_LOCATION}/mali_kbase.ko $MODULE_DIR/mali_kbase.ko
+	install -m 644 ${S}/CSF/${MODULES_DMA_BUF_LOCATION}/dma-buf-test-exporter.ko $MODULE_DIR/dmabuf-exporter.ko
+}
+
 module_do_install:stark(){
 	MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/gpu/arm
 	install -d $MODULE_DIR

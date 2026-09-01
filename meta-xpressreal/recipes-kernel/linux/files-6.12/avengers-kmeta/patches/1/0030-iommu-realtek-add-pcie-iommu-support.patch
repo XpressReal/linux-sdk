@@ -1,0 +1,39 @@
+From 57adc4c4093dcb26dbc57aab216e64bbbc18d5c4 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 17:24:47 +0800
+Subject: [PATCH 30/73] iommu: realtek: add pcie iommu support
+
+Change-Id: Id6079546d510f7a5ad4e1923a2133b7f9efe48be
+---
+ drivers/iommu/Kconfig  | 7 +++++++
+ drivers/iommu/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/iommu/Kconfig b/drivers/iommu/Kconfig
+index b3aa1f5d53218..b22856f758910 100644
+--- a/drivers/iommu/Kconfig
++++ b/drivers/iommu/Kconfig
+@@ -519,4 +519,11 @@ config SPRD_IOMMU
+ 
+ 	  Say Y here if you want to use the multimedia devices listed above.
+ 
++config RTD_PCIE_IOMMU
++    tristate "Realtek DHC PCIe IOMMU driver"
++	depends on PCIE_RTD || COMPILE_TEST
++        select IOMMU_API
++        help
++          Realtek PCIe IOMMU driver
++
+ endif # IOMMU_SUPPORT
+diff --git a/drivers/iommu/Makefile b/drivers/iommu/Makefile
+index 542760d963ec7..20ea6e2b94c3e 100644
+--- a/drivers/iommu/Makefile
++++ b/drivers/iommu/Makefile
+@@ -30,3 +30,4 @@ obj-$(CONFIG_IOMMU_SVA) += iommu-sva.o
+ obj-$(CONFIG_IOMMU_IOPF) += io-pgfault.o
+ obj-$(CONFIG_SPRD_IOMMU) += sprd-iommu.o
+ obj-$(CONFIG_APPLE_DART) += apple-dart.o
++obj-$(CONFIG_RTD_PCIE_IOMMU) += rtd-iommu-pcie.o
+-- 
+2.47.0
+

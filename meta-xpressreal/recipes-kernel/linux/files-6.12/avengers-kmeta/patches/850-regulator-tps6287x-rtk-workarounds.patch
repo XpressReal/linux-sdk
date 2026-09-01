@@ -1,0 +1,271 @@
+From: Realtek <realtek@realtek.com>
+Date: Tue, 19 Aug 2026 00:00:00 +0800
+Subject: [PATCH] regulator: tps6287x: apply Realtek platform workarounds
+
+Summary of changes:
+1. Force fixed vrange=2 (400~1675mV, 5mV/step) - hardware always boots
+   with vrange=2; pickable ranges caused incorrect voltage reads.
+2. Enable regmap RBTREE cache to reduce redundant I2C traffic.
+3. Force FPWM mode during voltage transitions to prevent overshoot in PFM.
+4. Set PGBLNKDVS=1 (CTRL3[0]) to blank PGOOD during DVS transitions.
+5. Save/restore boot VSET on probe/shutdown to ensure known-good voltage
+   after soft reboot.
+
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -27,21 +27,22 @@
+ #define TPS6287X_CTRL3		0x03
+ #define TPS6287X_STATUS		0x04
+ 
++/*
++ * WORKAROUND: force vrange=2 (400mV~1675mV, 5mV/step).
++ * Hardware on this platform always boots with vrange=2; using pickable
++ * ranges caused incorrect voltage reads when the boot selection differed
++ * from what the driver expected.  Fix to a single range avoids the mismatch.
++ */
++#define TPS6287X_VRANGE_2_MIN_UV         400000
++#define TPS6287X_VRANGE_2_MAX_UV         1675000
++#define TPS6287X_VRANGE_2_STEP_UV        5000
++
+ static const struct regmap_config tps6287x_regmap_config = {
+ 	.reg_bits = 8,
+ 	.val_bits = 8,
+ 	.max_register = TPS6287X_STATUS,
+-};
+-
+-static const struct linear_range tps6287x_voltage_ranges[] = {
+-	LINEAR_RANGE(400000, 0, 0xFF, 1250),
+-	LINEAR_RANGE(400000, 0, 0xFF, 2500),
+-	LINEAR_RANGE(400000, 0, 0xFF, 5000),
+-	LINEAR_RANGE(800000, 0, 0xFF, 10000),
+-};
+-
+-static const unsigned int tps6287x_voltage_range_sel[] = {
+-	0x0, 0x1, 0x2, 0x3
++	/* enable cache to avoid redundant I2C reads during voltage queries */
++	.cache_type = REGCACHE_RBTREE,
+ };
+ 
+ static const unsigned int tps6287x_ramp_table[] = {
+@@ -51,6 +52,7 @@
+ static int tps6287x_set_mode(struct regulator_dev *rdev, unsigned int mode)
+ {
+ 	unsigned int val;
++	int ret = 0;
+ 
+ 	switch (mode) {
+ 	case REGULATOR_MODE_NORMAL:
+@@ -60,9 +62,13 @@
+ 		val = TPS6287X_CTRL1_FPWMEN;
+ 		break;
+ 	default:
+-		return -EINVAL;
++		ret = -EINVAL;
++		break;
+ 	}
+ 
++	if (ret)
++		return ret;
++
+ 	return regmap_update_bits(rdev->regmap, TPS6287X_CTRL1,
+ 				  TPS6287X_CTRL1_FPWMEN, val);
+ }
+@@ -82,13 +88,62 @@
+ 
+ static unsigned int tps6287x_of_map_mode(unsigned int mode)
+ {
++	unsigned int map_mode = REGULATOR_MODE_INVALID;
++
+ 	switch (mode) {
+ 	case REGULATOR_MODE_NORMAL:
+ 	case REGULATOR_MODE_FAST:
+-		return mode;
++		map_mode = mode;
++		break;
+ 	default:
+-		return REGULATOR_MODE_INVALID;
++		/* R 16.1 */ /* R 16.3 */ /* R 16.6 */
++		/* empty */
++		break;
++	}
++
++	return map_mode;
++}
++
++/*
++ * WORKAROUND: force FPWM mode during voltage transition.
++ * In AUTO mode the converter may enter PFM mid-transition, causing voltage
++ * overshoot on some boards.  Switch to FPWM before writing VSEL, then
++ * restore the original mode after the settling delay.
++ */
++static int tps6287x_set_voltage_sel_regmap(struct regulator_dev *rdev, unsigned sel)
++{
++	int ret;
++	u32 mode = tps6287x_get_mode(rdev);
++	u32 cur = regulator_get_voltage_sel_regmap(rdev);
++
++	ret = tps6287x_set_mode(rdev, REGULATOR_MODE_FAST);
++	if (ret) {
++		dev_err(&rdev->dev, "failed to set fast mode: %d\n", ret);
++		return ret;
++	}
++
++	ret = regulator_set_voltage_sel_regmap(rdev, sel);
++
++	if (!ret && rdev->constraints->ramp_delay) {
++		u32 delay = DIV_ROUND_UP(abs(sel - cur) * TPS6287X_VRANGE_2_STEP_UV,
++					 rdev->constraints->ramp_delay);
++
++		if (delay)
++			udelay(delay);
+ 	}
++
++	tps6287x_set_mode(rdev, mode);
++	return ret;
++}
++
++/*
++ * Return a non-zero settling time so the regulator core does not attempt
++ * its own delay calculation (which would be incorrect for the fixed range).
++ */
++static int tps6287x_set_voltage_time(struct regulator_dev *rdev,
++				     int old_uV, int new_uV)
++{
++	return 1;
+ }
+ 
+ static const struct regulator_ops tps6287x_regulator_ops = {
+@@ -97,13 +152,14 @@
+ 	.set_mode = tps6287x_set_mode,
+ 	.get_mode = tps6287x_get_mode,
+ 	.is_enabled = regulator_is_enabled_regmap,
+-	.get_voltage_sel = regulator_get_voltage_sel_pickable_regmap,
+-	.set_voltage_sel = regulator_set_voltage_sel_pickable_regmap,
+-	.list_voltage = regulator_list_voltage_pickable_linear_range,
++	.get_voltage_sel = regulator_get_voltage_sel_regmap,
++	.set_voltage_sel = tps6287x_set_voltage_sel_regmap,
++	.list_voltage = regulator_list_voltage_linear,
+ 	.set_ramp_delay = regulator_set_ramp_delay_regmap,
++	.set_voltage_time = tps6287x_set_voltage_time,
+ };
+ 
+-static const struct regulator_desc tps6287x_reg = {
++static struct regulator_desc tps6287x_reg = {
+ 	.name = "tps6287x",
+ 	.owner = THIS_MODULE,
+ 	.ops = &tps6287x_regulator_ops,
+@@ -113,24 +169,32 @@
+ 	.enable_mask = TPS6287X_CTRL1_SWEN,
+ 	.vsel_reg = TPS6287X_VSET,
+ 	.vsel_mask = 0xFF,
+-	.vsel_range_reg = TPS6287X_CTRL2,
+-	.vsel_range_mask = TPS6287X_CTRL2_VRANGE,
+-	.range_applied_by_vsel = true,
+ 	.ramp_reg = TPS6287X_CTRL1,
+ 	.ramp_mask = TPS6287X_CTRL1_VRAMP,
+ 	.ramp_delay_table = tps6287x_ramp_table,
+ 	.n_ramp_values = ARRAY_SIZE(tps6287x_ramp_table),
+-	.n_voltages = 256 * ARRAY_SIZE(tps6287x_voltage_ranges),
+-	.linear_ranges = tps6287x_voltage_ranges,
+-	.n_linear_ranges = ARRAY_SIZE(tps6287x_voltage_ranges),
+-	.linear_range_selectors_bitfield = tps6287x_voltage_range_sel,
++	.n_voltages = 256,
++	.min_uV = TPS6287X_VRANGE_2_MIN_UV,
++	.uV_step = TPS6287X_VRANGE_2_STEP_UV,
++};
++
++struct tps6287x_data {
++	struct regmap *regmap;
++	/* boot VSET value saved for restore on shutdown */
++	unsigned int saved_vset;
+ };
+ 
+ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+ {
+ 	struct device *dev = &i2c->dev;
+ 	struct regulator_config config = {};
++	struct tps6287x_data *data;
+ 	struct regulator_dev *rdev;
++	int ret;
++
++	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
+ 
+ 	config.regmap = devm_regmap_init_i2c(i2c, &tps6287x_regmap_config);
+ 	if (IS_ERR(config.regmap)) {
+@@ -138,6 +202,14 @@
+ 		return PTR_ERR(config.regmap);
+ 	}
+ 
++	data->regmap = config.regmap;
++
++	ret = regmap_read(config.regmap, TPS6287X_VSET, &data->saved_vset);
++	if (ret)
++		dev_warn(dev, "Failed to read boot VSET: %d\n", ret);
++
++	i2c_set_clientdata(i2c, data);
++
+ 	config.dev = dev;
+ 	config.of_node = dev->of_node;
+ 	config.init_data = of_get_regulator_init_data(dev, dev->of_node,
+@@ -149,11 +221,33 @@
+ 		return PTR_ERR(rdev);
+ 	}
+ 
+-	dev_dbg(dev, "Probed regulator\n");
++	/*
++	 * WORKAROUND: set PGBLNKDVS=1 (CTRL3[0]) to blank the power-good
++	 * signal during DVS transitions, preventing spurious resets on boards
++	 * that monitor PGOOD.
++	 */
++	regmap_write(config.regmap, TPS6287X_CTRL3, 1);
++
++	dev_dbg(dev, "Probed regulator (boot VSET=0x%02x)\n", data->saved_vset);
+ 
+ 	return 0;
+ }
+ 
++/*
++ * Restore the boot voltage on shutdown so the next boot sees a known-good
++ * VSET value.  Without this, a soft reboot after a voltage change may start
++ * the CPU at the wrong voltage.
++ */
++static void tps6287x_shutdown(struct i2c_client *i2c)
++{
++	struct tps6287x_data *data = i2c_get_clientdata(i2c);
++
++	if (!data->saved_vset)
++		return;
++
++	regmap_write(data->regmap, TPS6287X_VSET, data->saved_vset);
++}
++
+ static const struct of_device_id tps6287x_dt_ids[] = {
+ 	{ .compatible = "ti,tps62870", },
+ 	{ .compatible = "ti,tps62871", },
+@@ -165,11 +259,11 @@
+ MODULE_DEVICE_TABLE(of, tps6287x_dt_ids);
+ 
+ static const struct i2c_device_id tps6287x_i2c_id[] = {
+-	{ "tps62870" },
+-	{ "tps62871" },
+-	{ "tps62872" },
+-	{ "tps62873" },
+-	{}
++	{ "tps62870", 0 },
++	{ "tps62871", 0 },
++	{ "tps62872", 0 },
++	{ "tps62873", 0 },
++	{},
+ };
+ 
+ MODULE_DEVICE_TABLE(i2c, tps6287x_i2c_id);
+@@ -180,6 +274,7 @@
+ 		.of_match_table = tps6287x_dt_ids,
+ 	},
+ 	.probe = tps6287x_i2c_probe,
++	.shutdown = tps6287x_shutdown,
+ 	.id_table = tps6287x_i2c_id,
+ };
+ 

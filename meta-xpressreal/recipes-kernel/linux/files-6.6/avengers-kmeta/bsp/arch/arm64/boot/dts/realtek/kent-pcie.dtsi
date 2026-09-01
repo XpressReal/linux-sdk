@@ -16,6 +16,11 @@
 		interrupt-controller;
 		#interrupt-cells = <1>;
 		interrupts = <0 61 4>;
+		interrupt-map-mask = <0x0 0 0 7>;
+		interrupt-map = <0 0 0 1 &pcie0_intc 0
+				 0 0 0 2 &pcie0_intc 1
+				 0 0 0 3 &pcie0_intc 2
+				 0 0 0 4 &pcie0_intc 3>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pcie0_clkreq_pins>;
 		bus-range = <0x00 0xff>;
@@ -45,6 +50,11 @@
 			"stitch";
 		clocks = <&cc RTD1625_CRT_CLK_EN_PCIE0>;
 		status = "disabled";
+		pcie0_intc: interrupt-controller {
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			#address-cells = <0>;
+		};
 	};
 
 	pcie1: pcie@a0000 {
@@ -57,6 +67,11 @@
 		interrupt-controller;
 		#interrupt-cells = <1>;
 		interrupts = <0 62 4>;
+		interrupt-map-mask = <0x0 0 0 7>;
+		interrupt-map = <0 0 0 1 &pcie1_intc 0
+				 0 0 0 2 &pcie1_intc 1
+				 0 0 0 3 &pcie1_intc 2
+				 0 0 0 4 &pcie1_intc 3>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pcie1_clkreq_pins>;
 		bus-range = <0x00 0xff>;
@@ -89,6 +104,11 @@
 		//iommu-map-mask = <0x0>;
 		//dma-ranges = <0x03000000 0x0 0x40000000 0x40000000 0x0 0x1400000>;
 		status = "disabled";
+		pcie1_intc: interrupt-controller {
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			#address-cells = <0>;
+		};
 	};
 };
 

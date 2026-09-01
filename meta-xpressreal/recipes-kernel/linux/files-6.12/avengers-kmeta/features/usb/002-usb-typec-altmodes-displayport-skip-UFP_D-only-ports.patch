@@ -1,0 +1,39 @@
+From 8f954d1ef008ef338f3e6edf046c544af90939e2 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 7 Apr 2026 23:02:09 -0400
+Subject: [PATCH] usb: typec: altmodes: displayport: skip UFP_D only ports
+
+---
+ drivers/usb/typec/altmodes/displayport.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/usb/typec/altmodes/displayport.c b/drivers/usb/typec/altmodes/displayport.c
+index 6964f403a2d5..d271b833f9fe 100644
+--- a/drivers/usb/typec/altmodes/displayport.c
++++ b/drivers/usb/typec/altmodes/displayport.c
+@@ -730,7 +730,21 @@ int dp_altmode_probe(struct typec_altmode *alt)
+ 	struct fwnode_handle *fwnode;
+ 	struct dp_altmode *dp;
+ 
+-	/* FIXME: Port can only be DFP_U. */
++	dev_info(&alt->dev, "[DP] probe: SVID=0x%04x, mode=%d, vdo=0x%08x\n",
++		 alt->svid, alt->mode, alt->vdo);
++	dev_info(&alt->dev, "[DP] port vdo=0x%08x, capability=0x%x\n",
++		 port->vdo, DP_CAP_CAPABILITY(port->vdo));
++
++	/*
++	 * This driver is for DFP_D (DisplayPort Source) role.
++	 * If the port is UFP_D only (Sink), let displayport_rx.c handle it.
++	 */
++	if (DP_CAP_CAPABILITY(port->vdo) == DP_CAP_UFP_D) {
++		dev_info(&alt->dev, "[DP] Port is UFP_D only - skipping DFP_D driver\n");
++		dev_info(&alt->dev, "[DP] Reason: This port acts as DP Sink, not Source\n");
++		dev_info(&alt->dev, "[DP] Solution: Let displayport_rx.c (UFP_D driver) handle this\n");
++		return -ENODEV;
++	}
+ 
+ 	/* Make sure we have compatiple pin configurations */
+ 	if (!(DP_CAP_PIN_ASSIGN_DFP_D(port->vdo) &
+-- 
+2.34.1
+

@@ -4,7 +4,8 @@ require recipes-devtools/e2fsprogs/e2fsprogs.inc
 
 BBCLASSEXTEND=""
 
-SRCREV = "f4c9cc4bedacde8408edda3520a32d3842290112"
+# 1.47.3
+SRCREV = "da631e117dcf8797bfda0f48bdaa05ac0fbcf7af"
 UPSTREAM_CHECK_GITTAGREGEX = "v(?P<pver>\d+\.\d+(\.\d+)*)$"
 
 LDFLAGS:append = " -static"

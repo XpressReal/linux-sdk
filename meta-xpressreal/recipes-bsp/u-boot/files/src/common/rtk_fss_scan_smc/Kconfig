@@ -1,0 +1,5 @@
+config RTK_FSS_SCAN_SMC
+	bool "Realtek FSS Scan via SMC"
+	select RTK_OPP
+	help
+	  Enable Realtek FSS scan via SMC call to update CPU OPP voltage table.

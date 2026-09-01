@@ -79,6 +79,27 @@ config RTK_KENT_VE4
 	help
 	  The encoder driver for Realtek Kent SoCs. If unsure, say N.
 
+menuconfig RTK_CODEC
+	tristate "Realtek Codec"
+	select RTK_RESERVE_MEMORY
+	default n
+	help
+	  Realtek codec support.
+
+	  If unsure, say N.
+
+config RTK_VE1
+	tristate "RTK Video Engine 1 Codec"
+	depends on RTK_CODEC
+	default n
+
+config RTK_VE1_V4L2_BEHAVIOR
+	bool "RTK VE1 V4L2 stateful behavior"
+	depends on RTK_VE1
+	default n
+	help
+	  Enable V4L2 stateful decoder behavior for RTK Video Engine 1.
+
 source "drivers/soc/realtek/common/Kconfig"
 source "drivers/soc/realtek/cpudvfs/Kconfig"
 source "drivers/soc/realtek/cpuhp/Kconfig"

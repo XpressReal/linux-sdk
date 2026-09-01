@@ -29,30 +29,6 @@
 	aliases {
 		ethernet = &nic;
 	};
-
-	vpu_legacy: vpu_legacy {
-		compatible = "realtek,kent-vpu-legacy";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	vpu_ve4: vcpu_ve4 {
-		compatible = "realtek,kent-vpu-ve4";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-
-	ve2: ve2 {
-		compatible = "realtek,kent-ve2-sl";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	rtk_ve2rpc: rtk_ve2rpc {
-		compatible = "realtek,ve2rpc";
-		realtek,krpc-agent = <&vcpu_kernel_agent>;
-	};
 };
 
 &sdio {
@@ -115,16 +91,6 @@
 &vo0 {
 	status = "okay";
 	memory-region = <&cma_reserved_2>;
-
-	vo0_out: port {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		vo0_out_dp: endpoint@1 {
-			reg = <1>;
-			remote-endpoint = <&dp_in_vo0>;
-		};
-	};
 };
 
 &vo1 {
@@ -133,7 +99,7 @@
 };
 
 &vo2 {
-	status = "disabled";
+	status = "okay";
 	memory-region = <&cma_reserved_2>;
 };
 
@@ -143,28 +109,33 @@
 	ext-flags = <0x8>;
 };
 
-/delete-node/ &vo2_out_dp;
-/delete-node/ &dp_in_vo2;
-
 &dp {
 	status = "okay";
 	memory-region = <&cma_reserved_2>;
-	check-connector-limit;
 	realtek,iso = <&iso>;
 	extcon = <&usb1_u3phy>;
-	ports {
-		port@0 {
-			dp_in_vo0: endpoint {
-				remote-endpoint = <&vo0_out_dp>;
-			};
-		};
-	};
 };
 
 &edp {
 	status = "okay";
 	assr-en = <1>;
 	memory-region = <&cma_reserved_2>;
+};
+
+&i2c_4 {
+	status = "okay";
+	rts5452@68 {
+		compatible = "rtk-rts5452";
+		reg = <0x68>;
+		notify-gpios = <&gpio 53 GPIO_PULL_UP>;
+
+		orientation-switch = <&usb1_u3phy>;
+		mode-switch = <&usb1_u3phy>;
+	};
+};
+
+&usb1_u3phy {
+	svid = <0xff01>;
 };
 
 &reserved_memory {
@@ -185,20 +156,8 @@
 	};
 };
 
-&vpu_legacy {
-	status = "okay";
-};
-
-&vpu_ve4  {
-        status = "okay";
-};
-
 &rtk_avcpu {
 	status = "okay";
-};
-
-&rtk_pm {
-	wakeup-timer = <15>;
 };
 
 &rtk_sof {

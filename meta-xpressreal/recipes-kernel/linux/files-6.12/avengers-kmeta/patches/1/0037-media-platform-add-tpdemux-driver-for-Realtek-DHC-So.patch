@@ -1,0 +1,37 @@
+From 6cbae4efefbcb9508517a49cf0774c614a14d341 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 22:22:49 +0800
+Subject: [PATCH 37/73] media: platform: add tpdemux driver for Realtek DHC
+ SoCs
+
+Change-Id: I3dc503cc070a1b06d4120a3deb151dc22d61731a
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index e44c4f59b386d..57fb0dfd644c0 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -90,4 +90,5 @@ source "drivers/media/platform/verisilicon/Kconfig"
+ source "drivers/media/platform/via/Kconfig"
+ source "drivers/media/platform/xilinx/Kconfig"
+ source "drivers/media/platform/rtk_dsi/Kconfig"
++source "drivers/media/platform/rtk_tpdemux/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index b25c02b803aac..0842005e9388b 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -33,6 +33,7 @@ obj-y += verisilicon/
+ obj-y += via/
+ obj-y += xilinx/
+ obj-y += rtk_dsi/
++obj-y += rtk_tpdemux/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

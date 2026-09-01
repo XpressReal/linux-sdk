@@ -1,0 +1,151 @@
+diff --git a/drivers/bluetooth/rtk_rfkill.c b/drivers/bluetooth/rtk_rfkill.c
+index 4169c5293406..56398a00e7d4 100644
+--- a/drivers/bluetooth/rtk_rfkill.c
++++ b/drivers/bluetooth/rtk_rfkill.c
+@@ -18,6 +18,7 @@
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/rfkill.h>
++#include <linux/device.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/pinctrl/consumer.h>
+ #include <linux/ioport.h>
+@@ -58,26 +59,64 @@ static struct pinctrl_state *pins_default = NULL;
+ static struct pinctrl_state *pins_1v8 = NULL;
+ static struct pinctrl_state *pins_3v3 = NULL;
+ 
+-static int bluetooth_set_power(void *data, bool blocked)
++static struct class *rtk_rfkill_class;
++static struct device *rtk_rfkill_dev;
++
++static int bluetooth_set_block(void *data, bool blocked)
++{
++	pr_info("%s: block=%d (no hw action)\n", __func__, blocked);
++
++	return 0;
++}
++
++static struct rfkill_ops rfkill_bluetooth_ops = {
++	.set_block = bluetooth_set_block,
++};
++
++static int bluetooth_set_power(bool on)
+ {
+-	int err = 0;
++	int err;
+ 
+-	pr_info("%s: block=%d\n", __func__, blocked);
++	if (!bt_reset)
++		return -ENODEV;
+ 
+-	if (!blocked)
+-		err = gpiod_direction_output(bt_reset, 1);
+-	else
+-		err = gpiod_direction_output(bt_reset, 0);
++	pr_info("set bt power: on=%d\n", on);
+ 
++	err = gpiod_direction_output(bt_reset, on ? 1 : 0);
+ 	if (err)
+-		pr_err("%s set bt power fail\n", __func__);
++		return err;
+ 
+ 	return 0;
+ }
+ 
+-static struct rfkill_ops rfkill_bluetooth_ops = {
+-	.set_block = bluetooth_set_power,
+-};
++static ssize_t state_show(struct device *dev,
++                         struct device_attribute *attr, char *buf)
++{
++	int value = 0;
++
++	if (bt_reset)
++		value = gpiod_get_value(bt_reset);
++
++	return sprintf(buf, "%d\n", !!value);
++}
++
++static ssize_t state_store(struct device *dev,
++                          struct device_attribute *attr,
++                          const char *buf, size_t count)
++{
++	bool state;
++	int err;
++
++	err = kstrtobool(buf, &state);
++	if (err)
++		return err;
++
++	if (bluetooth_set_power(state ? true : false))
++		return err;
++
++	return count;
++}
++static DEVICE_ATTR_RW(state);
+ 
+ static int rfkill_gpio_init(struct device *dev)
+ {
+@@ -133,7 +172,6 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+ {
+ 	struct device_node *node = pdev->dev.of_node;
+ 	struct device *dev = &pdev->dev;
+-	bool default_state = true;
+ 	const u32 *prop;
+         int size;
+ 	int rc = 0;
+@@ -193,12 +231,36 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+ 	if (rc)
+ 		goto err_rfkill_reg;
+ 
+-	rfkill_set_sw_state(bt_rfk, true);
+-	bluetooth_set_power(NULL, default_state);
++	rtk_rfkill_class = class_create("rtk-rfkill");
++	if (IS_ERR(rtk_rfkill_class)) {
++		rc = PTR_ERR(rtk_rfkill_class);
++		goto err_class_create;
++	}
++
++	rtk_rfkill_dev = device_create(rtk_rfkill_class, NULL, 0, NULL, "bt-power");
++	if (IS_ERR(rtk_rfkill_dev)) {
++		rc = PTR_ERR(rtk_rfkill_dev);
++		goto err_device_create;
++	}
++
++	rc = device_create_file(rtk_rfkill_dev, &dev_attr_state);
++	if (rc)
++		goto err_device_file;
++
++	//rfkill_set_sw_state(bt_rfk, true);
++	bluetooth_set_power(false);
+ 
+ 	pr_info("<--%s\n", __func__);
+ 	return 0;
+ 
++err_device_file:
++	device_destroy(rtk_rfkill_class, 0);
++	rtk_rfkill_dev = NULL;
++err_device_create:
++	class_destroy(rtk_rfkill_class);
++	rtk_rfkill_class = NULL;
++err_class_create:
++	rfkill_unregister(bt_rfk);
+ err_rfkill_reg:
+ 	rfkill_destroy(bt_rfk);
+ err_rfkill_alloc:
+@@ -210,6 +272,15 @@ static int rfkill_bluetooth_probe(struct platform_device *pdev)
+ static void rfkill_bluetooth_remove(struct platform_device *dev)
+ {
+ 	pr_info("-->%s\n", __func__);
++	if (rtk_rfkill_dev) {
++		device_remove_file(rtk_rfkill_dev, &dev_attr_state);
++		device_destroy(rtk_rfkill_class, 0);
++		rtk_rfkill_dev = NULL;
++	}
++	if (rtk_rfkill_class) {
++		class_destroy(rtk_rfkill_class);
++		rtk_rfkill_class = NULL;
++	}
+ 	rfkill_gpio_deinit();
+ 	rfkill_unregister(bt_rfk);
+ 	rfkill_destroy(bt_rfk);

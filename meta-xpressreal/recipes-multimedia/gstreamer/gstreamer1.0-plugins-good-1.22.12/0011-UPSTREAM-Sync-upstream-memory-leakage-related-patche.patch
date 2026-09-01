@@ -2,6 +2,8 @@ From da0ef458aca4700e64ebf5d070eb040ada0a7892 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Fri, 18 Apr 2025 11:25:04 +0800
 Subject: [PATCH 1/1] Sync upstream memory leakage related patches
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Backport
 
 ---

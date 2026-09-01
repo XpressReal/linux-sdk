@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+RUNTIME_DIR=/run/rtk-fwlog
+LOG_LINK="${RUNTIME_DIR}/log"
+
+case "${RTK_FWLOG_DIR}" in
+    /*) ;;
+    *)
+        echo "RTK_FWLOG_DIR must be an absolute path: ${RTK_FWLOG_DIR}" >&2
+        exit 1
+        ;;
+esac
+
+case "${RTK_FWLOG_DIR}" in
+    "${RUNTIME_DIR}"|"${RUNTIME_DIR}"/*)
+        echo "RTK_FWLOG_DIR must not point into ${RUNTIME_DIR}" >&2
+        exit 1
+        ;;
+esac
+
+if [ ! -e "${RTK_FWLOG_DIR}" ]; then
+    PARENT_DIR=${RTK_FWLOG_DIR%/*}
+    [ -n "${PARENT_DIR}" ] || PARENT_DIR=/
+
+    if [ ! -d "${PARENT_DIR}" ]; then
+        echo "Parent directory does not exist: ${PARENT_DIR}" >&2
+        exit 1
+    fi
+
+    mkdir -m 0750 "${RTK_FWLOG_DIR}"
+elif [ ! -d "${RTK_FWLOG_DIR}" ]; then
+    echo "RTK_FWLOG_DIR is not a directory: ${RTK_FWLOG_DIR}" >&2
+    exit 1
+fi
+
+if [ ! -d "${RUNTIME_DIR}" ]; then
+    echo "${RUNTIME_DIR} does not exist" >&2
+    exit 1
+fi
+
+if [ -e "${LOG_LINK}" ] && [ ! -L "${LOG_LINK}" ]; then
+    echo "${LOG_LINK} exists and is not a symbolic link" >&2
+    exit 1
+fi
+
+rm -f "${LOG_LINK}"
+ln -s "${RTK_FWLOG_DIR}" "${LOG_LINK}"

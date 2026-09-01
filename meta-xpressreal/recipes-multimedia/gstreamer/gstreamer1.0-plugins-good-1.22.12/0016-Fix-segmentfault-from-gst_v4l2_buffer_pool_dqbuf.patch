@@ -2,6 +2,8 @@ From 5f4149c4d66837fbb6d3d84935d97b17101ff948 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Tue, 13 May 2025 12:35:57 +0800
 Subject: [PATCH 1/1] Fix segmentfault from gst_v4l2_buffer_pool_dqbuf
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

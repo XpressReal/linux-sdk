@@ -1,0 +1,54 @@
+From be4ac2232c5076a7b9b4e3964752096be64a5426 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 11:12:12 +0800
+Subject: [PATCH 50/73] net: ethernet: realtek: add r8169soc ethernet driver
+ for Realtek DHC SoCs
+
+Change-Id: I363f38f77e6ff5a4474ba82c8b143045a7aee513
+---
+ drivers/net/ethernet/realtek/Kconfig  | 20 ++++++++++++++++++++
+ drivers/net/ethernet/realtek/Makefile |  2 ++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/Kconfig b/drivers/net/ethernet/realtek/Kconfig
+index 8a8ea51c639e9..120913525c727 100644
+--- a/drivers/net/ethernet/realtek/Kconfig
++++ b/drivers/net/ethernet/realtek/Kconfig
+@@ -139,4 +139,24 @@ config RTASE
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called rtase. This is recommended.
+ 
++config R8169SOC
++	tristate "Realtek STB SoC 8169soc ethernet support"
++	depends on ARCH_REALTEK
++	select CRC32
++	select PHYLIB
++	help
++	  Say Y here if you have a embedded Realtek STB SoC Ethernet interface.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called r8169soc.  This is recommended.
++
++config RTL_RX_NO_COPY
++	bool "Support to receive packets without memory copy"
++	default n
++	depends on R8169SOC
++	help
++	  This is a feature of embedded Realtek Ethernet driver.
++	  Say Y here to impove performance and reduce CPU loading.
++	  Say N here to save memory for packet buffers.
++
+ endif # NET_VENDOR_REALTEK
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index 046adf503ff49..cdb8fafb35fa5 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -10,3 +10,5 @@ r8169-y += r8169_main.o r8169_firmware.o r8169_phy_config.o
+ r8169-$(CONFIG_R8169_LEDS) += r8169_leds.o
+ obj-$(CONFIG_R8169) += r8169.o
+ obj-$(CONFIG_RTASE) += rtase/
++r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
++obj-$(CONFIG_R8169SOC) += r8169soc.o
+-- 
+2.47.0
+

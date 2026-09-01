@@ -1,0 +1,3 @@
+# Storage directory for Realtek firmware logs.
+# Restart rtk-fwlog.target after changing this value.
+RTK_FWLOG_DIR=/var/log/rtk-fwlog

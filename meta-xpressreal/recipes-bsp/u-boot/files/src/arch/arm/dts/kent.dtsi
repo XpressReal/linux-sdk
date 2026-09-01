@@ -67,6 +67,11 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+
+		protected_mem: protected-mem@50000 {
+			reg = <0x00050000 0x00bf0000>;
+			no-map;
+		};
 	};
 
 	soc: soc@0 {
@@ -153,6 +158,25 @@
 				#address-cells = <1>;
 				#size-cells = <1>;
 				status = "disabled";
+			};
+
+			nand_flash: nand@10000 {
+				compatible = "realtek,rtd1625-snf";
+				reg = <0x10000 0x400>, /* NWC */
+				      <0x001f0 0x020>; /* PLL */
+				clock-names = "nand";
+				clocks = <&cc RTD1625_CRT_CLK_EN_NF>;
+				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
+				pinctrl-0 = <&nf_pins>;
+				pinctrl-names = "default";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+				spi_nand_flash: flash@0 {
+					nand-ecc-engine = <&nand_flash>;
+					compatible = "spi-nand";
+					reg = <0>;
+				};
 			};
 
 			nic: r8169soc@16000 {
@@ -293,7 +317,7 @@
 			};
 
 			emmc: emmc@14c000 {
-				compatible = "rtd161xb-dw-cqe-emmc";
+				compatible = "realtek,rtd-dw-cqe-emmc";
 				reg = <0x0014c000 0x00600>,
 				      <0x0014d000 0x00060>;
 				reg-names = "emmc","cqhci";

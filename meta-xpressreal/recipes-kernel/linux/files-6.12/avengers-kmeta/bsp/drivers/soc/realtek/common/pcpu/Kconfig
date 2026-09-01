@@ -1,0 +1,25 @@
+config RTK_DDR_DFS
+	tristate "Support DDR DFS control"
+	default n
+	help
+	  DDR DFS is automatically controlled by the hardware and firmware.
+	  However some parameters can be configured from kernel.
+
+config RTK_DDR_DYNIF
+	tristate "Support DDR dynamic calibration/refresh control"
+	default n
+	help
+	  DDR dynamic calibration and refresh-rate update are controled by PCPU.
+	  The sysfs can used to enable/disable the functions and change parameters.
+
+config RTK_PCPU_DEVOPT
+	tristate "Support PCPU developer options"
+	default n
+
+config RTK_NSB2_TRASH
+	tristate "Support NSB2 trash"
+	default n
+	help
+	  A new SB2 for FuSa can not be set and controlled from the kernel.
+	  This driver provides a path for passing from the mailbox to the PCPU for
+	  usage of developement debug.

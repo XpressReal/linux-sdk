@@ -1,0 +1,10 @@
+patch 001-01-reset-make-shared-pulsed-reset-controls-re-triggerab.patch
+patch 001-02-reset-Add-reset_control_bulk-API.patch
+patch 002-Revert-crypto-api-Disallow-identical-driver-names.patch
+patch 003-Add-configfs-attribuite-for-contribute.patch
+patch 004-usb-gadget-storage-add-support-for-media-larger-than.patch
+patch 005-01-regulator-virtual-use-dev_err_probe.patch
+patch 005-02-regulator-virtual-warn-against-production-use.patch
+patch 005-03-regulator-virtual-add-devicetree-support.patch
+patch 005-04-regulator-Set-PROBE_PREFER_ASYNCHRONOUS-for-drivers-.patch
+patch 005-05-regulator-Add-bindings-for-TPS62864x.patch

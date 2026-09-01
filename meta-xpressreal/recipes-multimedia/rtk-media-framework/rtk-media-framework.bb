@@ -31,10 +31,16 @@ do_install() {
 	install -D -p -m0755 ${S}/RTK_display_ctrl/kms_ipc ${D}${bindir}/kms_ipc
 	cp ${S}/RTK_display_ctrl/*.so ${D}/${libdir}
 	cp ${S}/RTK_display_ctrl/rtk_display_ctrl.h ${D}/${includedir}
+
+	install -D -p -m0755 ${S}/RTK_media_player/rtk_media_player ${D}${bindir}/rtk_media_player
+	install -D -p -m0755 ${S}/RTK_media_player/rtk_media_player_ctrl ${D}${bindir}/rtk_media_player_ctrl
+	cp ${S}/RTK_media_player/*.so ${D}/${libdir}
+	cp ${S}/RTK_media_player/rtk_media_playback.h ${D}/${includedir}
 }
 
-do_install:append:stark() {
+do_install:append() {
 	mkdir -p ${D}/${sysconfdir}
+	# take stark as default
 	install -D -p -m0755 ${S}/soc_cap_conf/rtk_video_cap_stark.json ${D}${sysconfdir}/rtk_video_cap.json
 	install -D -p -m0755 ${S}/soc_cap_conf/rtk_subtitle_cap_stark.json ${D}${sysconfdir}/rtk_subtitle_cap.json
 }

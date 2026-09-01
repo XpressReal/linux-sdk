@@ -1,0 +1,90 @@
+From 2f8192c8f3e5a76a358321448436740a6436880d Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Tue, 14 Jul 2026 13:34:51 +0800
+Subject: [PATCH 2/2] regulator: tps6287x: restore boot voltage on shutdown
+
+Save VSET register at probe time and restore it in a .shutdown callback,
+so the CPU DVS rail returns to its initial voltage before poweroff.
+
+Change-Id: Ie46ab2b242c7a0a326f477fc72101c6725edf4d6
+Co-Authored-By: Claude Sonnet 4.6 (1M context) <noreply@anthropic.com>
+---
+ drivers/regulator/tps6287x-regulator.c | 32 +++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/regulator/tps6287x-regulator.c b/drivers/regulator/tps6287x-regulator.c
+index 0247ee4a64ef..34624d347e02 100644
+--- a/drivers/regulator/tps6287x-regulator.c
++++ b/drivers/regulator/tps6287x-regulator.c
+@@ -149,11 +149,22 @@ static struct regulator_desc tps6287x_reg = {
+ 	.uV_step = TPS6287X_VRANGE_2_STEP_UV,
+ };
+ 
++struct tps6287x_data {
++	struct regmap *regmap;
++	unsigned int saved_vset;
++};
++
+ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+ {
+ 	struct device *dev = &i2c->dev;
+ 	struct regulator_config config = {};
++	struct tps6287x_data *data;
+ 	struct regulator_dev *rdev;
++	int ret;
++
++	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
+ 
+ 	config.regmap = devm_regmap_init_i2c(i2c, &tps6287x_regmap_config);
+ 	if (IS_ERR(config.regmap)) {
+@@ -161,6 +172,14 @@ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+ 		return PTR_ERR(config.regmap);
+ 	}
+ 
++	data->regmap = config.regmap;
++
++	ret = regmap_read(config.regmap, TPS6287X_VSET, &data->saved_vset);
++	if (ret)
++		dev_warn(dev, "Failed to read boot VSET: %d\n", ret);
++
++	i2c_set_clientdata(i2c, data);
++
+ 	config.dev = dev;
+ 	config.of_node = dev->of_node;
+ 	config.init_data = of_get_regulator_init_data(dev, dev->of_node,
+@@ -174,11 +193,21 @@ static int tps6287x_i2c_probe(struct i2c_client *i2c)
+ 
+ 	regmap_write(config.regmap, TPS6287X_CTRL3, 1);
+ 
+-	dev_dbg(dev, "Probed regulator\n");
++	dev_dbg(dev, "Probed regulator (boot VSET=0x%02x)\n", data->saved_vset);
+ 
+ 	return 0;
+ }
+ 
++static void tps6287x_shutdown(struct i2c_client *i2c)
++{
++	struct tps6287x_data *data = i2c_get_clientdata(i2c);
++
++	if (!data->saved_vset)
++		return;
++
++	regmap_write(data->regmap, TPS6287X_VSET, data->saved_vset);
++}
++
+ static const struct of_device_id tps6287x_dt_ids[] = {
+ 	{ .compatible = "ti,tps62870", },
+ 	{ .compatible = "ti,tps62871", },
+@@ -205,6 +234,7 @@ static struct i2c_driver tps6287x_regulator_driver = {
+ 		.of_match_table = tps6287x_dt_ids,
+ 	},
+ 	.probe = tps6287x_i2c_probe,
++	.shutdown = tps6287x_shutdown,
+ 	.id_table = tps6287x_i2c_id,
+ };
+ 
+-- 
+2.34.1
+

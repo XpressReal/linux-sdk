@@ -1,0 +1,116 @@
+From 52e2f125cf375af284b6dcb5721fd15b86911a37 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 22 Apr 2026 18:07:19 +0800
+Subject: [PATCH 2/2] vowb dts
+
+---
+ arch/arm64/boot/dts/realtek/kent-drm.dtsi            | 10 +++++++++-
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts |  6 +++++-
+ arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi        | 10 +++++++++-
+ 3 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent-drm.dtsi b/arch/arm64/boot/dts/realtek/kent-drm.dtsi
+index 9042297f2b97..2fa3d5b5a42b 100644
+--- a/arch/arm64/boot/dts/realtek/kent-drm.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent-drm.dtsi
+@@ -7,7 +7,7 @@
+ / {
+ 	display_subsystem: display-subsystem {
+ 		compatible = "realtek,display-subsystem";
+-		ports = <&vo0_out>;
++		ports = <&vo0_out>, <&vowb_io>;
+ 		syscon = <&sb2>;
+ 		hwlocks = <&sb2_lock5 1>;
+ 		krpc-vo-opt = <4>, <3>;
+@@ -151,6 +151,14 @@ dsi_out: port@1 {
+ 		};
+ 	};
+ 
++	vowb: vowb {
++		compatible = "realtek,kent-vo-writeback";
++		status = "disabled";
++
++		vowb_io: port {
++		};
++	};
++
+ 	lvds1: lvds1 {
+ 		compatible = "realtek,rtk-lvds1";
+ 		clock-names = "clk_en_lvds1";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+index afddb9b2..022d4b5c 100755
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+@@ -69,7 +69,7 @@
+ 
+ &display_subsystem {
+ 	status = "okay";
+-	ports = <&vo0_out>, <&vo2_out>, <&vo1_out>;
++	ports = <&vo0_out>, <&vo2_out>, <&vo1_out>, <&vowb_io>;
+ };
+ 
+ &vo0 {
+@@ -94,6 +94,10 @@
+ 	assr-en = <1>;
+ };
+ 
++&vowb {
++	status = "okay";
++};
++
+ &reserved_memory {
+ 	protected-mem@50000 {
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+index 949d23285ffb..9c084d8237e7 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+@@ -71,7 +71,7 @@ &kr4_rpmsg {
+ 
+ &display_subsystem {
+ 	status = "okay";
+-	ports = <&vo0_out>, <&vo2_out>, <&vo1_out>;
++	ports = <&vo0_out>, <&vo2_out>, <&vo1_out>, <&vowb_io>;
+ };
+ 
+ &vo0 {
+@@ -116,6 +116,10 @@ &hse {
+ 	status = "okay";
+ };
+ 
++&vowb {
++	status = "okay";
++};
++
+ &reserved_memory {
+ 	protected-mem@50000 {
+ 		status = "okay";
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
+index bd297d3bb238..3f80f2f8aa39 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-drm.dtsi
+@@ -2,7 +2,7 @@
+ / {
+ 	display_subsystem: display-subsystem {
+ 		compatible = "realtek,display-subsystem";
+-		ports = <&vo_out>; //change this to <&vo_out_legacy> for legacy
++		ports = <&vo_out>, <&vowb_io>; //change this to <&vo_out_legacy> for legacy
+ 		status = "disabled";
+ 	};
+ 
+@@ -53,4 +53,12 @@ hdmi_vo_legacy: endpoint {
+ 			};
+ 		};
+ 	};
++
++	vowb: vowb {
++		compatible = "realtek,rtd1619b-vo-writeback";
++		status = "disabled";
++
++		vowb_io: port {
++		};
++	};
+ };
+-- 
+2.34.1
+

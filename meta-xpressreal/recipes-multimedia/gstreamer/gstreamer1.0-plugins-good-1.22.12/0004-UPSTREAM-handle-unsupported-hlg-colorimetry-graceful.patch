@@ -2,8 +2,33 @@ From 61b3b482d3b28d5d43401df4abae0c379102de1d Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 18 Dec 2024 19:54:54 +0800
 Subject: [PATCH 3/3] UPSTREAM:handle unsupported hlg colorimetry gracefully
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Backport
 
+This patch addresses the issue where GStreamer would throw an error when
+attempting to use bt2100-hlg colorimetry with V4L2, which is not
+supported by the current V4L2 kernel. When bt2100-hlg colorimetry is set
+from caps, the check for transfer (GST_VIDEO_TRANSFER_ARIB_STD_B67) is
+bypassed.
+
+The main improvement is to avoid checking the transfer value in
+gst_v4l2_video_colorimetry_matches when it is
+GST_VIDEO_TRANSFER_ARIB_STD_B67. This is because the transfer value in
+the cinfo parameter comes from gst_v4l2_object_get_colorspace, which
+converts the transfer to another value, causing a mismatch.
+
+Since the kernel does not support GST_VIDEO_TRANSFER_ARIB_STD_B67,
+gst_v4l2_object_get_colorspace cannot map it correctly from V4L2 to
+GStreamer. Therefore, we ignore this check to prevent errors.
+
+changes:
+- Added a condition in gst_v4l2_video_colorimetry_matches to bypass the
+  transfer check when the transfer is GST_VIDEO_TRANSFER_ARIB_STD_B67.
+- Ensured that the pipeline does not throw errors due to unsupported
+  bt2100-hlg colorimetry in V4L2.
+
+Part-of: <https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/7212>
 ---
  sys/v4l2/gstv4l2object.c | 12 ++++++++++++
  1 file changed, 12 insertions(+)

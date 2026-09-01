@@ -1,0 +1,107 @@
+From c1ed1a3a7023eda77f6db369de01f64d291ccdf6 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 2 Jun 2026 16:12:53 +0800
+Subject: [PATCH] common/hash.c: ensure sha256 ctx align with ARMV8_CE
+
+- lib/sha256.c: ensure sha256 ctx align in sha256_csum_wd()
+
+CONFIG_ARMV8_CE_SHA256: arch/arm/cpu/armv8/sha256_ce_core.S
+- sha256_armv8_ce_process: ldp inst requires 16-byte align addr
+-- address of sha256_context.state must be 16-byte aligned
+
+---
+ common/hash.c           |  4 ++++
+ include/u-boot/sha256.h |  6 ++++++
+ lib/sha256.c            | 16 ++++++++++++----
+ 3 files changed, 22 insertions(+), 4 deletions(-)
+
+diff --git a/common/hash.c b/common/hash.c
+index e837c56d44..0287aab154 100644
+--- a/common/hash.c
++++ b/common/hash.c
+@@ -65,7 +65,11 @@ static int __maybe_unused hash_finish_sha1(struct hash_algo *algo, void *ctx,
+ 
+ static int __maybe_unused hash_init_sha256(struct hash_algo *algo, void **ctxp)
+ {
++#ifdef CONFIG_ARMV8_CE_SHA256
++	sha256_context *ctx = memalign(16, sizeof(sha256_context));
++#else
+ 	sha256_context *ctx = malloc(sizeof(sha256_context));
++#endif
+ 	sha256_starts(ctx);
+ 	*ctxp = ctx;
+ 	return 0;
+diff --git a/include/u-boot/sha256.h b/include/u-boot/sha256.h
+index 9aa1251789..2686bbdae6 100644
+--- a/include/u-boot/sha256.h
++++ b/include/u-boot/sha256.h
+@@ -10,8 +10,14 @@ extern const uint8_t sha256_der_prefix[];
+ #define CHUNKSZ_SHA256	(64 * 1024)
+ 
+ typedef struct {
++/* ctx->state must be 16-byte aligned for ldp */
++#ifdef CONFIG_ARMV8_CE_SHA256
++	uint32_t state[8];
++	uint32_t total[2];
++#else
+ 	uint32_t total[2];
+ 	uint32_t state[8];
++#endif
+ 	uint8_t buffer[64];
+ } sha256_context;
+ 
+diff --git a/lib/sha256.c b/lib/sha256.c
+index 4d26aea1c8..303c813272 100644
+--- a/lib/sha256.c
++++ b/lib/sha256.c
+@@ -13,6 +13,9 @@
+ #endif /* USE_HOSTCC */
+ #include <watchdog.h>
+ #include <u-boot/sha256.h>
++#ifdef CONFIG_ARMV8_CE_SHA256
++#include <memalign.h>
++#endif
+ 
+ #include <linux/compiler_attributes.h>
+ 
+@@ -275,14 +278,19 @@ void sha256_finish(sha256_context * ctx, uint8_t digest[32])
+ void sha256_csum_wd(const unsigned char *input, unsigned int ilen,
+ 		unsigned char *output, unsigned int chunk_sz)
+ {
++#ifdef CONFIG_ARMV8_CE_SHA256
++	ALLOC_ALIGN_BUFFER(sha256_context, ctxp, 1, 16);
++#else
+ 	sha256_context ctx;
++	sha256_context *ctxp = &ctx;
++#endif
+ #if defined(CONFIG_HW_WATCHDOG) || defined(CONFIG_WATCHDOG)
+ 	const unsigned char *end;
+ 	unsigned char *curr;
+ 	int chunk;
+ #endif
+ 
+-	sha256_starts(&ctx);
++	sha256_starts(ctxp);
+ 
+ #if defined(CONFIG_HW_WATCHDOG) || defined(CONFIG_WATCHDOG)
+ 	curr = (unsigned char *)input;
+@@ -291,13 +299,13 @@ void sha256_csum_wd(const unsigned char *input, unsigned int ilen,
+ 		chunk = end - curr;
+ 		if (chunk > chunk_sz)
+ 			chunk = chunk_sz;
+-		sha256_update(&ctx, curr, chunk);
++		sha256_update(ctxp, curr, chunk);
+ 		curr += chunk;
+ 		schedule();
+ 	}
+ #else
+-	sha256_update(&ctx, input, ilen);
++	sha256_update(ctxp, input, ilen);
+ #endif
+ 
+-	sha256_finish(&ctx, output);
++	sha256_finish(ctxp, output);
+ }
+-- 
+2.47.0
+

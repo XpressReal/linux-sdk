@@ -7,6 +7,7 @@ SRC_URI += " \
 	file://profile \
 	file://52-drm.rules \
 	file://start-weston.sh \
+	file://weston.service \
 	"
 
 do_install:append() {
@@ -17,6 +18,11 @@ do_install:append() {
 	install -D -p -m0644 ${WORKDIR}/52-drm.rules  ${D}${sysconfdir}/udev/rules.d/52-drm.rules
 	install -D -p -m0755 ${WORKDIR}/start-weston.sh  ${D}${bindir}/start-weston.sh
 	install -D -p -m0644 ${WORKDIR}/profile ${D}${base_prefix}/home/root/.profile
+	install -D -p -m0644 ${WORKDIR}/weston.service ${D}${systemd_system_unitdir}/weston.service
+
+	if [ "${@bb.utils.contains('PACKAGECONFIG', 'xwayland', 'yes', 'no', d)}" = "yes" ]; then
+		sed -i -e "/^\[core\]/a xwayland=true" ${D}${sysconfdir}/xdg/weston/weston.ini
+	fi
 
 	if ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui', 'true', 'false',d )}; then
 		sed -i 's/ui-hole-punch=true/ui-hole-punch=false/' ${D}${sysconfdir}/xdg/weston/weston.ini

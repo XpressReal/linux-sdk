@@ -117,17 +117,6 @@
                 algo = "sha256";
             };
         };
-        bootlogo {
-            description = "Boot logo image";
-            data = /incbin/("./bootfile.image.lzo");
-            type = "firmware";
-            arch = "arm64";
-            compression = "lzo";
-            load = <0x27700000>;
-            hash-1 {
-                algo = "sha256";
-            };
-        };
     };
     configurations {
         default = "normal";
@@ -174,7 +163,6 @@
             description = "Normal boot with SPI-NOR";
             kernel = "kernel-1";
             fdt = "fdt-spi";
-            loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";
@@ -190,7 +178,6 @@
             description = "rtd1619b-bleedingedge-emmc";
             kernel = "kernel-1";
             fdt = "fdt-bleedingedge";
-            loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";
@@ -206,7 +193,6 @@
             description = "rtd1619b-hulkbuster-emmc";
             kernel = "kernel-1";
             fdt = "fdt-hulkbuster";
-            loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";
@@ -222,7 +208,6 @@
             description = "rtd1619b-backinblack";
             kernel = "kernel-1";
             fdt = "fdt-backinblack";
-            loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";
@@ -238,7 +223,6 @@
             description = "rtd1315c-badassium";
             kernel = "kernel-1";
             fdt = "fdt-badassium";
-            loadables = "bootlogo";
             signature-1 {
                 algo = "sha256,rsa2048";
                 key-name-hint = "kernel";

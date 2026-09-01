@@ -32,6 +32,8 @@
 #define PHY_IO_TIMEOUT_USEC		(50000)
 #define PHY_IO_DELAY_US			(100)
 
+static void rtk_type_c_dp_setting(struct type_c_data *type_c);
+
 static const unsigned int usb_type_c_cable[] = {
 	EXTCON_USB,
 	EXTCON_USB_HOST,
@@ -61,66 +63,80 @@ static void rtk_u3dp_phy_initial_status(struct type_c_data *type_c)
 	void __iomem *base = type_c->base;
 	void __iomem *iso_base = type_c->iso_base;
 	u32 value = 0;
+	u32 mask = 0;
 	u32 power_cut_0, power_cut_1, power_cut_2;
 	int i = 0, pc0_default = 0;
-	int lanes = 2, polarity = 0;
+	const struct soc_device_attribute rtk_soc_kent_a00[] = {
+                { .family = "Realtek Kent", .revision = "A00",},
+                { /* empty */ } };
 
-	type_c->pre_lane = 2;
 	type_c->ss = true;
-#if 0
-	writel(readl(base + REG_U3DP_0088) | BIT(12) | BIT(14), (base + REG_U3DP_0088));
-	writel(readl(base + PCS_USB31_DP14_DPHY1) | 0x1, (base + PCS_USB31_DP14_DPHY1));
-	writel(0x0, iso_base);
-	mdelay(100);
-	writel(readl(base + PCS_USB31_DP14_DPHY4) &~ 0x1, (base + PCS_USB31_DP14_DPHY4));
-#endif
 
-	value = readl(base + PCS_USB31_DP14_DPHY1) & ~(0x3);
-        writel(value | USB_LAN0_1_SELECT, (base + PCS_USB31_DP14_DPHY1));
+	if (type_c->init_once) {
+		type_c->init_once = 0;
+		return;
+	}
 
-	writel(0x0, iso_base);
-        mdelay(100);
+	type_c->pre_cc = 1;
+	if (soc_device_match(rtk_soc_kent_a00)) {
+two_dp_case:
+		type_c->pre_lane = 2;
+		type_c->state = USB_DP;
 
-        value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(1) | SPD_CTRL3(1) | RST_DLY(3);
-        writel(value , (base + PCS_USB31_DP14_DPHY2));
+		value = readl(base + PCS_USB31_DP14_DPHY1) & ~(0x3);
+		writel(value | USB_LAN0_1_SELECT, (base + PCS_USB31_DP14_DPHY1));
 
-        value = DP_TX_EN_L3(1) | DP_TX_EN_L2(1) | DP_TX_EN_L1(0) | DP_TX_EN_L0(0);
-        writel(value , (base + PCS_USB31_DP14_DPHY3));
+		writel(0x0, iso_base);
+		mdelay(100);
 
-	/*clean pwr_cut reg first */
-	pc0_default = readl(base + POWER_CUT_EN0) & 0x7fff;
-	for (i = 0; i < 5; i ++)
-		writel(0, (base + POWER_CUT_EN0 + i * 4));
+		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(1) | SPD_CTRL3(1) | RST_DLY(3);
+		writel(value , (base + PCS_USB31_DP14_DPHY2));
 
-	/* power cut */
-	power_cut_0 = DP_AVDD09_TRX_CK_L1 | USB_AVDD09_TRX_CK_L1 |
-		DP_AVDD09_RX_OOBS_IN_L2 | USB_AVDD09_RX_OOBS_IN_L2;
-	writel(power_cut_0 | pc0_default, (base + POWER_CUT_EN0));
+		value = DP_TX_EN_L3(1) | DP_TX_EN_L2(1) | DP_TX_EN_L1(0) | DP_TX_EN_L0(0);
+		writel(value , (base + PCS_USB31_DP14_DPHY3));
 
-	power_cut_1 = DP_AVDD09_TRX_RX_L2 | USB_AVDD09_TRX_RX_L2;
-	writel(power_cut_1, (base + POWER_CUT_EN1));
+		/*clean pwr_cut reg first */
+		pc0_default = readl(base + POWER_CUT_EN0) & 0x7fff;
+		for (i = 0; i < 5; i ++)
+			writel(0, (base + POWER_CUT_EN0 + i * 4));
 
-	power_cut_2 = DP_AVDD18_CMU_RX_L2 | DP_AVDD18_RX_OOBS_IN_L2 |
-		USB_AVDD18_CMU_RX_L2 | USB_AVDD18_RX_OOBS_IN_L2;
-	writel(power_cut_2, (base + POWER_CUT_EN2));
+		/* power cut */
+		power_cut_0 = DP_AVDD09_TRX_CK_L1 | USB_AVDD09_TRX_CK_L1 |
+			DP_AVDD09_RX_OOBS_IN_L2 | USB_AVDD09_RX_OOBS_IN_L2;
+		writel(power_cut_0 | pc0_default, (base + POWER_CUT_EN0));
+
+		power_cut_1 = DP_AVDD09_TRX_RX_L2 | USB_AVDD09_TRX_RX_L2;
+			writel(power_cut_1, (base + POWER_CUT_EN1));
+
+		power_cut_2 = DP_AVDD18_CMU_RX_L2 | DP_AVDD18_RX_OOBS_IN_L2 |
+			USB_AVDD18_CMU_RX_L2 | USB_AVDD18_RX_OOBS_IN_L2;
+		writel(power_cut_2, (base + POWER_CUT_EN2));
+	} else {
+		type_c->pre_lane = 4;
+		type_c->state = DP_4;
+
+		writel(BIT(9), iso_base);
+		mdelay(100);
+
+		value = readl(base + REG_U3DP_0088);
+		value |= BIT(12) | BIT(13) | BIT(14) | BIT(15);
+		writel(value, base + REG_U3DP_0088);
+
+		value = readl(base + PCS_USB31_DP14_DPHY2);
+		mask = SPD_CTRL3_MASK | SPD_CTRL2_MASK | SPD_CTRL1_MASK | SPD_CTRL0_MASK;
+		if ((value & mask) == (BIT(16) | BIT(19) | BIT(22) | BIT(25))) {
+			rtk_type_c_dp_setting(type_c);
+			return;
+		} else {
+			goto two_dp_case;
+		}
+	}
 
 	pr_debug("0x9800773c = 0x%x\n", readl(iso_base));
 	pr_debug("0x9814fe00 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY1));
 	pr_debug("0x9814fe04 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY2));
 	pr_debug("0x9814fe08 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY3));
 	pr_debug("0x9814fe0c = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY4));
-	type_c->state = USB_NON_FLIP;
-
-	extcon_set_state(type_c->edev, EXTCON_DISP_DP, 1);
-
-        extcon_set_property(type_c->edev, EXTCON_DISP_DP,
-                            EXTCON_PROP_USB_SS,
-                            (union extcon_property_value)(int)lanes);
-        extcon_set_property(type_c->edev, EXTCON_DISP_DP,
-                            EXTCON_PROP_USB_TYPEC_POLARITY,
-                            (union extcon_property_value)(int)polarity);
-
-        extcon_sync(type_c->edev, EXTCON_DISP_DP);
 }
 
 static int do_rtk_phy_init(struct rtk_phy *rtk_phy, int index)
@@ -134,11 +150,80 @@ static int do_rtk_phy_init(struct rtk_phy *rtk_phy, int index)
 	rtk_u3dp_phy_initial_status(type_c);
 
 	rtk_phy_write(base + RX_L1_DPHY1, 22, 3, 0x1);
-	rtk_phy_write(base + TOP_AIF_11C, 22, 2, 0x1);
-	rtk_phy_write(base + TOP_AIF_0A0, 4, 3, 0x1);
-	rtk_phy_write(base + TOP_AIF_0FC, 8, 3, 0x0);
+	rtk_phy_write(base + RX_L1_DPHY1, 16, 6, 0xa);
+
+	rtk_phy_write(base + TOP_AIF_11C, 28, 4, 0x8);
+	rtk_phy_write(base + TOP_AIF_11C, 24, 4, 0x8);
+	rtk_phy_write(base + TOP_AIF_11C, 22, 2, 0x2);
+
+	rtk_phy_write(base + TOP_AIF_0FC, 28, 4, 0x0);
+	rtk_phy_write(base + TOP_AIF_0FC, 24, 2, 0x8);
+	rtk_phy_write(base + TOP_AIF_0FC, 16, 4, 0x0);
+	rtk_phy_write(base + TOP_AIF_0FC, 12, 2, 0x2);
+	rtk_phy_write(base + TOP_AIF_0FC, 8, 4, 0x0);
+
 	rtk_phy_write(base + CMU_USB_DPHY6, 16, 13, 0x1fe);
 	rtk_phy_write(base + CMU_USB_DPHY5, 4, 12, 0x357); 
+
+	rtk_phy_write(base + REG_U3DP_0038, 16, 4, 0x9);
+	rtk_phy_write(base + REG_U3DP_0038, 12, 4, 0x9);
+	rtk_phy_write(base + REG_U3DP_0038, 8, 4, 0x0);
+
+	rtk_phy_write(base + REG_U3DP_0044, 28, 4, 0x9);
+	rtk_phy_write(base + REG_U3DP_0044, 26, 2, 0);
+	rtk_phy_write(base + REG_U3DP_0044, 24, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0044, 22, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0044, 6, 1, 0x1);
+
+	rtk_phy_write(base + REG_U3DP_0048, 28, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0048, 22, 3, 0x7);
+	rtk_phy_write(base + REG_U3DP_0048, 10, 2, 0x2);
+
+	rtk_phy_write(base + REG_U3DP_004C, 3, 1, 0);
+	rtk_phy_write(base + REG_U3DP_004C, 5, 1, 0);
+
+	rtk_phy_write(base + REG_U3DP_0050, 26, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 24, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 22, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 20, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 18, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 16, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 5, 1, 0x0);
+	rtk_phy_write(base + REG_U3DP_0050, 0, 2, 0x1);
+
+	rtk_phy_write(base + REG_U3DP_0058, 19, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0058, 13, 2, 0x2);
+
+	rtk_phy_write(base + REG_U3DP_0080, 24, 8, 0xf0);
+	rtk_phy_write(base + REG_U3DP_0080, 20, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0080, 16, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0080, 12, 1, 0x1);
+	rtk_phy_write(base + REG_U3DP_0080, 8, 1, 0x1);
+
+	rtk_phy_write(base + REG_U3DP_0084, 16, 2, 0x3);
+	rtk_phy_write(base + REG_U3DP_0084, 12, 2, 0x3);
+
+	rtk_phy_write(base + REG_U3DP_008C, 28, 2, 0x1);
+	rtk_phy_write(base + REG_U3DP_008C, 24, 2, 0x1);
+	rtk_phy_write(base + REG_U3DP_008C, 4, 2, 0x3);
+
+	rtk_phy_write(base + REG_U3DP_0090, 20, 4, 0xf);
+
+	rtk_phy_write(base + TOP_AIF_0A0, 24, 4, 0x7);
+	rtk_phy_write(base + TOP_AIF_0A0, 20, 4, 0xd);
+	rtk_phy_write(base + TOP_AIF_0A0, 16, 4, 0xf);
+	rtk_phy_write(base + TOP_AIF_0A0, 12, 4, 0x7);
+	rtk_phy_write(base + TOP_AIF_0A0, 8, 4, 0xd);
+	rtk_phy_write(base + TOP_AIF_0A0, 4, 4, 0xf);
+
+	rtk_phy_write(base + TOP_AIF_0D0, 24, 4, 0xc);
+	rtk_phy_write(base + TOP_AIF_0D0, 16, 5, 0x3);
+
+	rtk_phy_write(base + PCS_USB31_DP14_DPHY2, 7, 2, 0x3);
+	rtk_phy_write(base + REG_U3DP_F41C, 24, 7, 0xf);
+	rtk_phy_write(base + REG_U3DP_0600, 16, 6, 0xa);
+	rtk_phy_write(base + REG_U3DP_0600, 22, 3, 0x1);
+	rtk_phy_write(base + REG_U3DP_061C, 24, 7, 0xf);
 
 	return 0;
 }
@@ -220,7 +305,7 @@ static void rtk_type_c_dp_setting(struct type_c_data *type_c)
 
 	writel(readl(base + PCS_USB31_DP14_DPHY4) | 0x1, (base + PCS_USB31_DP14_DPHY4));
 
-        value = SPD_CTRL0(1) | SPD_CTRL1(1) | SPD_CTRL2(1) | SPD_CTRL3(1);
+        value = SPD_CTRL0(1) | SPD_CTRL1(1) | SPD_CTRL2(1) | SPD_CTRL3(1) | RST_DLY(3);
 	writel(value , (base + PCS_USB31_DP14_DPHY2));
 
 	value =	DP_TX_EN_L3(1) | DP_TX_EN_L2(1) | DP_TX_EN_L1(1) | DP_TX_EN_L0(1);
@@ -267,7 +352,7 @@ static void rtk_type_c_usb_dp_setting(struct type_c_data *type_c, int cc)
 		value = readl(base + PCS_USB31_DP14_DPHY1) & ~(0x3);
 		writel(value | USB_LAN0_1_SELECT, (base + PCS_USB31_DP14_DPHY1));
 
-		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(1) | SPD_CTRL3(1);
+		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(1) | SPD_CTRL3(1) | RST_DLY(3);
 		writel(value , (base + PCS_USB31_DP14_DPHY2));
 
 		value = DP_TX_EN_L3(1) | DP_TX_EN_L2(1) | DP_TX_EN_L1(0) | DP_TX_EN_L0(0);
@@ -289,7 +374,7 @@ static void rtk_type_c_usb_dp_setting(struct type_c_data *type_c, int cc)
 		value = readl(base + PCS_USB31_DP14_DPHY1) & ~(0x3);
                 writel(value | USB_LAN2_3_SELECT, (base + PCS_USB31_DP14_DPHY1));
 
-                value = SPD_CTRL0(1) | SPD_CTRL1(1) | SPD_CTRL2(0) | SPD_CTRL3(0);
+                value = SPD_CTRL0(1) | SPD_CTRL1(1) | SPD_CTRL2(0) | SPD_CTRL3(0) | RST_DLY(3);
                 writel(value , (base + PCS_USB31_DP14_DPHY2));
 
                 value = DP_TX_EN_L3(0) | DP_TX_EN_L2(0) | DP_TX_EN_L1(1) | DP_TX_EN_L0(1);
@@ -327,7 +412,7 @@ static void rtk_type_c_usb_setting(struct type_c_data *type_c, int cc)
         if (cc == enable_cc1) {
 		/* usb lan0,1 */
 		writel(USB_LAN0_1_SELECT, (base + PCS_USB31_DP14_DPHY1));
-		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(0) | SPD_CTRL3(0);
+		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(0) | SPD_CTRL3(0) | RST_DLY(3);
 		writel(value , (base + PCS_USB31_DP14_DPHY2));
 		value = DP_TX_EN_L3(0) | DP_TX_EN_L2(0) | DP_TX_EN_L1(0) | DP_TX_EN_L0(0);
 		writel(value , (base + PCS_USB31_DP14_DPHY3));
@@ -359,7 +444,7 @@ static void rtk_type_c_usb_setting(struct type_c_data *type_c, int cc)
 	} else if (cc == enable_cc2) {
 		/* usb lan2,3 */
 		writel(USB_LAN2_3_SELECT, (base + PCS_USB31_DP14_DPHY1));
-		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(0) | SPD_CTRL3(0);
+		value = SPD_CTRL0(0) | SPD_CTRL1(0) | SPD_CTRL2(0) | SPD_CTRL3(0) | RST_DLY(3);
 		writel(value , (base + PCS_USB31_DP14_DPHY2));
 		value = DP_TX_EN_L3(0) | DP_TX_EN_L2(0) | DP_TX_EN_L1(0) | DP_TX_EN_L0(0);
 		writel(value , (base + PCS_USB31_DP14_DPHY3));
@@ -565,21 +650,26 @@ static int rtk_usb_type_c_plug_config(struct type_c_data *type_c, int cc, int la
 	void __iomem *iso_base = type_c->iso_base;
 	void __iomem *base = type_c->base;
 	int ret = 0;
+	const struct soc_device_attribute rtk_soc_kent_a00[] = {
+                { .family = "Realtek Kent", .revision = "A00",},
+                { /* empty */ } };
 
-	pr_info("cc = %d, pre_lane = %d, pre_state = %d, chg_to_lane = %d\n",
-		cc, type_c->pre_lane, type_c->state, lanes);
+	pr_info("cc = %d, pre_cc = %d, pre_lane = %d, pre_state = %d, chg_to_lane = %d\n",
+		cc, type_c->pre_cc, type_c->pre_lane, type_c->state, lanes);
 
-	if (cc == disable_cc)
+	if (cc == disable_cc) {
+		type_c->pre_cc = cc;
 		return ret;
+	}
 
 	if (lanes == type_c->pre_lane) {
 combo:
 		if (lanes == 4) {
-			writel(0x71C70000 , (base + POWER_CUT_EN3));
-			writel(0x38 , (base + POWER_CUT_EN4));
-			mdelay(1000);
-		//	writel(0x7E, iso_base);
-		//	mdelay(100);
+			if (soc_device_match(rtk_soc_kent_a00)) {
+				writel(0x71C70000 , (base + POWER_CUT_EN3));
+				writel(0x38 , (base + POWER_CUT_EN4));
+				mdelay(1000);
+			}
 			rtk_type_c_dp_setting(type_c);
 		} else if (lanes == 2) {
 			rtk_type_c_usb_dp_setting(type_c, cc);
@@ -590,24 +680,26 @@ combo:
 		switch(type_c->state)
 		{
 		case DP_4:
-			writel(0x0, iso_base);
-			mdelay(1000);
+			if (soc_device_match(rtk_soc_kent_a00)) {
+				writel(0x0, iso_base);
+				mdelay(1000);
+			}
 			rtk_dp0123_chgto(type_c, cc, lanes);
 			break;
 		case USB_NON_FLIP:
-			writel(0x71C70000 , (base + POWER_CUT_EN3));
-			writel(0x38 , (base + POWER_CUT_EN4));
-			mdelay(1000);
-		//	writel(0x7E, iso_base);
-		//	mdelay(100);
+			if (soc_device_match(rtk_soc_kent_a00)) {
+				writel(0x71C70000 , (base + POWER_CUT_EN3));
+				writel(0x38 , (base + POWER_CUT_EN4));
+				mdelay(1000);
+			}
 			rtk_usb01_chgto_dp(type_c, cc, lanes);
 			break;
 		case USB_FLIP:
-			writel(0x71C70000 , (base + POWER_CUT_EN3));
-			writel(0x38 , (base + POWER_CUT_EN4));
-			mdelay(1000);
-		//	writel(0x7E, iso_base);
-		//	mdelay(100);
+			if (soc_device_match(rtk_soc_kent_a00)) {
+				writel(0x71C70000 , (base + POWER_CUT_EN3));
+				writel(0x38 , (base + POWER_CUT_EN4));
+				mdelay(1000);
+			}
 			rtk_usb23_chgto_dp(type_c, cc, lanes);
 			break;
 		case USB_DP:
@@ -617,7 +709,8 @@ combo:
 		}
 	}
 
-        return ret;
+	type_c->pre_cc = cc;
+	return ret;
 }
 
 static int rtk_dp_get_port_lanes(struct type_c_data *type_c)
@@ -669,7 +762,8 @@ static ssize_t state_change_store(struct device *dev,
 {
 	struct rtk_phy *rtk_phy = dev_get_drvdata(dev);
 	struct type_c_data *type_c = &rtk_phy->type_c;
-	int cc_stat = 0;
+	u8 ext_lanes = 0, dp = 0;
+	bool polarity = false;
 
 	if (sysfs_streq(buf, "u1")) {
 		dev_info(dev, "%s curret status: USB, cc1 host connect\n", __func__);
@@ -679,26 +773,39 @@ static ssize_t state_change_store(struct device *dev,
 		dev_info(dev, "%s curret status: USB, cc2 host connect\n", __func__);
 		rtk_usb_type_c_plug_config(type_c, 2, 0);
 		type_c->state = USB_FLIP;
+		polarity = true;
 	} else if (sysfs_streq(buf, "d")) {
-		if (type_c->state == USB_NON_FLIP)
-			cc_stat = 2;
-		else if (type_c->state == USB_FLIP)
-			cc_stat = 1;
 		dev_info(dev, "%s curret status: DP\n", __func__);
-		rtk_usb_type_c_plug_config(type_c, type_c->state, 4);
+		rtk_usb_type_c_plug_config(type_c, 1, 4);
 		type_c->state = DP_4;
+		dp = 1;
 	} else if (sysfs_streq(buf, "c1")) {
 		dev_info(dev, "%s curret status: USB_DP\n", __func__);
 		rtk_usb_type_c_plug_config(type_c, 1, 2);
 		type_c->state = USB_DP;
+		ext_lanes = 1;
+		dp = 1;
 	} else if (sysfs_streq(buf, "c2")) {
 		dev_info(dev, "%s curret status: DP_USB\n", __func__);
 		rtk_usb_type_c_plug_config(type_c, 2, 2);
-		type_c->state = USB_DP;
+		type_c->state = DP_USB;
+		polarity = true;
+		ext_lanes = 1;
+		dp = 1;
 	} else {
 		dev_info(dev, "%s ERROR INPUT\n", __func__);
 		type_c->state = -1;
 	}
+
+	extcon_set_state(type_c->edev, EXTCON_DISP_DP, dp);
+
+	extcon_set_property(type_c->edev, EXTCON_DISP_DP,
+				EXTCON_PROP_USB_SS,
+				(union extcon_property_value)(int)ext_lanes);
+	extcon_set_property(type_c->edev, EXTCON_DISP_DP,
+				EXTCON_PROP_USB_TYPEC_POLARITY,
+				(union extcon_property_value)(int)polarity);
+	extcon_sync(type_c->edev, EXTCON_DISP_DP);
 
 	return count;
 }
@@ -747,7 +854,7 @@ static int __rtk_usb_type_c_update(struct type_c_data *type_c)
 	if (!host_state)
 		cc = TYPEC_ORIENTATION_NONE;
 
-        pr_info("%s polarity=%d cc=%d mux=%d lanes=%d, host_state=%d\n",
+        pr_debug("%s polarity=%d cc=%d mux=%d lanes=%d, host_state=%d\n",
                     __func__, polarity, cc, mux, lanes, host_state);
 
         rtk_usb_type_c_plug_config(type_c, cc, lanes);
@@ -765,8 +872,35 @@ static int __rtk_usb_type_c_dp_notifier(struct notifier_block *nb,
         return NOTIFY_DONE;
 }
 
+static int rtk_usb_type_c_check_mux(struct type_c_data *type_c, int cc, int lanes)
+{
+	void __iomem *base = type_c->base;
+	int ret;
+
+	pr_debug("0x9814fe00 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY1));
+	pr_debug("0x9814fe04 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY2));
+	pr_debug("0x9814fe08 = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY3));
+	pr_debug("0x9814fe0c = 0x%x\n", readl(base + PCS_USB31_DP14_DPHY4));
+
+	if (lanes) {
+		ret = lanes;
+	} else if (!lanes && !readl(base + PCS_USB31_DP14_DPHY2)) {
+		ret = lanes;
+	} else {
+		pr_info("need to set mux to TYPEC_STATE_USB before attached\n");
+		ret = 2;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_CHROME_PLATFORMS
 static int rtk_udphy_orien_sw_set(struct typec_switch_dev *sw,
 				 enum typec_orientation orien)
+#else
+static int rtk_udphy_orien_sw_set(struct typec_switch *sw,
+                                 enum typec_orientation orien)
+#endif
 {
 	struct rtk_phy *rtk_phy = typec_switch_get_drvdata(sw);
 	int cc = 0;
@@ -779,7 +913,7 @@ static int rtk_udphy_orien_sw_set(struct typec_switch_dev *sw,
                 cc = disable_cc;
 
 	rtk_phy->flip = cc;
-	pr_info("rtk_udphy_orien_sw_set, orien = %d, cc = %d\n", orien, cc);
+	pr_debug("rtk_udphy_orien_sw_set, orien = %d, cc = %d\n", orien, cc);
 
 	return 0;
 }
@@ -812,15 +946,23 @@ static int rtk_typec_switch_register(struct rtk_phy *rtk_phy)
 					rtk_udphy_orien_switch_unregister, rtk_phy);
 }
 
+#ifdef CONFIG_CHROME_PLATFORMS
 static int rtk_udphy_typec_mux_set(struct typec_mux_dev *mux,
                                  struct typec_mux_state *state)
+#else
+static int rtk_udphy_typec_mux_set(struct typec_mux *mux,
+                                 struct typec_mux_state *state)
+#endif
 {
         struct rtk_phy *rtk_phy = typec_mux_get_drvdata(mux);
 	struct type_c_data *type_c = &rtk_phy->type_c;
-	int cc = 0;
-	u8 lanes;
+	int cc = 0, ret = 0;
+	u8 lanes, ext_lanes = 0;
 	bool polarity = false;
 	bool dp = false;
+	const struct soc_device_attribute rtk_soc_kent_big_pkg[] = {
+		{ .family = "Realtek Kent", .soc_id = "RTD1861B",},
+		{ /* empty */ } };
 
 	switch (state->mode) {
 	case TYPEC_STATE_USB:
@@ -838,6 +980,7 @@ static int rtk_udphy_typec_mux_set(struct typec_mux_dev *mux,
 		rtk_phy->lane_mux_sel[2] = PHY_LANE_MUX_DP;
 		rtk_phy->lane_mux_sel[3] = PHY_LANE_MUX_DP;
 		lanes = 4;
+		ext_lanes = 0;
 		break;
 
 	case TYPEC_DP_STATE_D:
@@ -854,12 +997,23 @@ static int rtk_udphy_typec_mux_set(struct typec_mux_dev *mux,
 			rtk_phy->lane_mux_sel[3] = PHY_LANE_MUX_DP;
 		}
 		lanes = 2;
+		ext_lanes = 1;
 		break;
 	}
 
 	cc = rtk_phy->flip;
-	pr_info("%s, state = %lu\n", __func__, state->mode);
-	rtk_usb_type_c_plug_config(type_c, cc, lanes);
+	pr_debug("%s, state = %lu\n", __func__, state->mode);
+
+	if (!cc || (type_c->pre_lane == 0 && lanes == 0))
+		rtk_usb_type_c_plug_config(type_c, cc, lanes);
+
+	if (cc && type_c->pre_lane != lanes) {
+		if (soc_device_match(rtk_soc_kent_big_pkg) && !type_c->pre_cc) {
+			ret = rtk_usb_type_c_check_mux(type_c, cc, lanes);
+			lanes = ret;
+		}
+		rtk_usb_type_c_plug_config(type_c, cc, lanes);
+	}
 
 	polarity = (rtk_phy->flip == enable_cc2) ? 1 : 0;
 
@@ -870,7 +1024,7 @@ static int rtk_udphy_typec_mux_set(struct typec_mux_dev *mux,
 
 	extcon_set_property(type_c->edev, EXTCON_DISP_DP,
                             EXTCON_PROP_USB_SS,
-                            (union extcon_property_value)(int)lanes);
+                            (union extcon_property_value)(int)ext_lanes);
 	extcon_set_property(type_c->edev, EXTCON_DISP_DP,
                             EXTCON_PROP_USB_TYPEC_POLARITY,
                             (union extcon_property_value)(int)polarity);
@@ -931,7 +1085,7 @@ static int u3dp_phy_setup_type_c_device(struct rtk_phy *rtk_phy)
 		} else {
 			pr_info("success to register edev\n");
 			type_c->edev_nb.notifier_call = __rtk_usb_type_c_dp_notifier;
-			ret = extcon_register_notifier(type_c->edev, EXTCON_USB, &type_c->edev_nb);
+			ret = extcon_register_notifier(type_c->edev, EXTCON_USB_HOST, &type_c->edev_nb);
 			if (ret < 0) {
 				pr_err("couldn't register cable notifier\n");
 				return ret;
@@ -981,7 +1135,7 @@ static void rtk_usb_typec_sub_probe_work(struct work_struct *work)
         ret = u3dp_phy_setup_type_c_device(rtk_phy);
         if (ret == -EPROBE_DEFER)
                 queue_delayed_work(rtk_phy->wq_typec_phy, &rtk_phy->delayed_work,
-                        msecs_to_jiffies(1000));
+                        msecs_to_jiffies(100));
 
         dev_info(dev, "%s ... End (take %d ms)\n", __func__,
                     jiffies_to_msecs(jiffies - probe_time));
@@ -1035,7 +1189,8 @@ static int rtk_usb3phy_probe(struct platform_device *pdev)
 	if (IS_ERR(type_c->base))
 		return PTR_ERR(type_c->base);
 
-	type_c->pre_lane = -1;
+	type_c->pre_lane = 0;
+	type_c->pre_cc = 0;
 	platform_set_drvdata(pdev, rtk_phy);
 
 	generic_phy = devm_phy_create(rtk_phy->dev, NULL, &ops);
@@ -1113,27 +1268,43 @@ static int rtk_usb3phy_suspend(struct device *dev)
 	dev_info(dev, "%s enter u3dp suspend\n", __func__);
 	type_c = &rtk_phy->type_c;
 
-	writel(0x1fe, type_c->iso_base);
-
 	for (i = 0; i < 5; i ++)
-                writel(0xfffffff, (type_c->base + POWER_CUT_EN0 + i * 4));
+                writel(0xffffffff, (type_c->base + POWER_CUT_EN0 + i * 4));
 
+	type_c->init_once = 1;
 	return 0;
 }
 
+#define U3_PHY_STA_BASE 0x98013884
 static int rtk_usb3phy_resume(struct device *dev)
 {
 	struct rtk_phy *rtk_phy  = dev_get_drvdata(dev);
 	struct type_c_data *type_c;
-	int i;
+	int i, value;
+	void __iomem *regbase;
 
-	type_c = &rtk_phy->type_c;
 	dev_info(dev, "%s enter u3dp resume\n", __func__);
+	type_c = &rtk_phy->type_c;
 
-	for (i = 0; i < 5; i ++)
-                writel(0x0, (type_c->base + POWER_CUT_EN0 + i * 4));
-	rtk_u3dp_phy_initial_status(type_c);
+	regbase = ioremap(U3_PHY_STA_BASE, 0x4);
+	pr_info("check u3_clk_rdy_bit while resume: 0x%x\n", readl(regbase));
+	if (type_c->ss && (readl(regbase) & BIT(19))) {
+		pr_debug(" 4dp case after resume\n");
+		writel(BIT(9), type_c->iso_base);
+		mdelay(10);
 
+		value = readl(type_c->base + REG_U3DP_0088);
+		value |= BIT(12) | BIT(13) | BIT(14) | BIT(15);
+		writel(value, type_c->base + REG_U3DP_0088);
+	} else if (type_c->ss) {
+		pr_debug("u3 clk not enable by dp, set 2 dp case after resume\n");
+		rtk_type_c_usb_dp_setting(type_c, 1);
+	} else {
+		for (i = 0; i < 5; i ++)
+			writel(0x0, (type_c->base + POWER_CUT_EN0 + i * 4));
+	}
+
+	iounmap(regbase);
 	return 0;
 }
 #else

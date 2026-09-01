@@ -1648,11 +1648,14 @@ static const struct phy_cfg rtd1315e_phy_cfg = {
 static const struct phy_cfg rtd1625_phy_cfg = {
 	.page0_size = MAX_USB_PHY_PAGE0_DATA_SIZE,
 	.page0 = {
+		   [0] = {0xe0, 0xe5},
 		   [4] = {0xe4, 0x88},
+		   [5] = {0xe5, 0x5a},
 		   [6] = {0xe6, 0x02},
 		 },
 	.page1_size = MAX_USB_PHY_PAGE1_DATA_SIZE,
 	.page1 = {
+		   [3] = {0xe3, 0x7f},
 		   [13] = {0xf5, 0x02}, },
 	.page2_size = MAX_USB_PHY_PAGE2_DATA_SIZE,
 	.page2 = { [7] = {0xe7, 0x31}, },

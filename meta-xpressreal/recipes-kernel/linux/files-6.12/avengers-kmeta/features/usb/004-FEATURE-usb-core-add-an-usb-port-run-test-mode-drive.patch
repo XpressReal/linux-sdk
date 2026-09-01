@@ -1,0 +1,43 @@
+From 4bbe3ab434b72d7bda2bacef1186309d0598041d Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 7 Jun 2023 16:56:19 +0800
+Subject: [PATCH 08/33] [FEATURE] usb: core: add an usb port run test mode
+ driver
+
+[Information]
+Implement an usb port run test mode driver to run usb 2.0 host CTS
+
+Change-Id: Icc77ba38eaf4fe2a325d54871b3a689a460a3e18
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/core/Kconfig  | 6 ++++++
+ drivers/usb/core/Makefile | 2 ++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/usb/core/Kconfig b/drivers/usb/core/Kconfig
+index 58e3ca7e47939..a4005ca12d1bc 100644
+--- a/drivers/usb/core/Kconfig
++++ b/drivers/usb/core/Kconfig
+@@ -143,3 +143,9 @@ config USB_DEFAULT_AUTHORIZATION_MODE
+ 	  ACPI selecting value 2 is analogous to selecting value 0.
+ 
+ 	  If unsure, keep the default value.
++
++config USB_HOST_TEST_MODE
++	tristate "USB Host CTS test mode"
++	depends on USB
++	help
++	  Enable USB Host CTS testing mode.
+diff --git a/drivers/usb/core/Makefile b/drivers/usb/core/Makefile
+index ac006abd13b3a..5cd86f0010c33 100644
+--- a/drivers/usb/core/Makefile
++++ b/drivers/usb/core/Makefile
+@@ -19,3 +19,5 @@ endif
+ obj-$(CONFIG_USB)		+= usbcore.o
+ 
+ obj-$(CONFIG_USB_LEDS_TRIGGER_USBPORT)	+= ledtrig-usbport.o
++obj-$(CONFIG_USB_MONITOR_USBPORT)	+= monitor-usbport.o
++obj-$(CONFIG_USB_HOST_TEST_MODE)	+= test-usbport.o
+-- 
+2.47.0
+

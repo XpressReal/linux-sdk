@@ -1,0 +1,42 @@
+From 173e3673fffccb23c06f88fc8de763e88a55214e Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 23:03:50 +0800
+Subject: [PATCH 43/73] mfd: add rr320010-i2c driver
+
+Change-Id: Idf0459cb41ec9f9631cbce9c478eac7ccc3f7594
+---
+ drivers/mfd/Kconfig  | 6 ++++++
+ drivers/mfd/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/mfd/Kconfig b/drivers/mfd/Kconfig
+index 988574a5175e5..b3ad4ae8155d5 100644
+--- a/drivers/mfd/Kconfig
++++ b/drivers/mfd/Kconfig
+@@ -2414,5 +2414,11 @@ config MFD_APW8886_I2C
+ 	select MFD_CORE
+ 	select REGMAP_I2C
+ 
++config MFD_RR320010_I2C
++	tristate "Support for Renesas RR320010 PMIC"
++	depends on I2C
++	select MFD_CORE
++	select REGMAP_I2C
++
+ endmenu
+ endif
+diff --git a/drivers/mfd/Makefile b/drivers/mfd/Makefile
+index a1c5e4002fcb1..39b5928443840 100644
+--- a/drivers/mfd/Makefile
++++ b/drivers/mfd/Makefile
+@@ -264,6 +264,7 @@ obj-$(CONFIG_MFD_SUN4I_GPADC)	+= sun4i-gpadc.o
+ 
+ obj-$(CONFIG_MFD_APW8889_I2C) += apw8889-i2c.o
+ obj-$(CONFIG_MFD_APW8886_I2C) += apw8886-i2c.o
++obj-$(CONFIG_MFD_RR320010_I2C)	+= rr320010-i2c.o
+ obj-$(CONFIG_MFD_STM32_LPTIMER)	+= stm32-lptimer.o
+ obj-$(CONFIG_MFD_STM32_TIMERS) 	+= stm32-timers.o
+ obj-$(CONFIG_MFD_MXS_LRADC)     += mxs-lradc.o
+-- 
+2.47.0
+

@@ -1,0 +1,75 @@
+From d3805cfd50fa8cdaa204afeded8a2c7e27549369 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 13 Apr 2026 23:02:19 -0400
+Subject: [PATCH] wayland: add wl_surface wayland protocol 	1. surface
+ position api 	2. rtk surface enum api 	3. join rtk layer api 	4.
+ surface order in rtk layer api
+
+License: MIT
+Source: realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ protocol/wayland.xml | 27 +++++++++++++++++++++++++++
+ src/wayland-util.h   |  7 +++++++
+ 2 files changed, 34 insertions(+)
+
+diff --git a/protocol/wayland.xml b/protocol/wayland.xml
+index 10e039d..f3e3ad7 100644
+--- a/protocol/wayland.xml
++++ b/protocol/wayland.xml
+@@ -1795,6 +1795,33 @@
+       <arg name="y" type="int" summary="surface-local y coordinate"/>
+     </request>
+ 
++
++    <!-- RTK specific API -->
++    <request name="set_position">
++      <description summary="reposition the surface">
++      </description>
++      <arg name="x" type="int" summary="x coordinate in the global surface"/>
++      <arg name="y" type="int" summary="y coordinate in the global surface"/>
++    </request>
++
++    <request name="set_rtk_surface">
++      <description summary="set rtk surface">
++      </description>
++      <arg name="rtk_surface" type="int" summary="rtk_surface for indicate specific surface"/>
++    </request>
++
++    <request name="set_rtk_layer">
++      <description summary="set rtk layer">
++      </description>
++      <arg name="join" type="int" summary="set the surface to rtk specific layer"/>
++    </request>
++
++    <request name="set_rtk_layer_order">
++      <description summary="set rtk order">
++      </description>
++      <arg name="oroder" type="int" summary="set surface order in rtk layer"/>
++    </request>
++
+     <!-- Version 6 additions -->
+ 
+     <event name="preferred_buffer_scale" since="6">
+diff --git a/src/wayland-util.h b/src/wayland-util.h
+index b4cdcfa..71acd00 100644
+--- a/src/wayland-util.h
++++ b/src/wayland-util.h
+@@ -758,6 +758,13 @@ enum wl_iterator_result {
+ 	WL_ITERATOR_CONTINUE
+ };
+ 
++enum wl_rtk_surface {
++	WL_NOT_RTK_SURFACE,
++	WL_RTK_TOPLEVEL_SURFACE,
++	WL_RTK_VIDEO_SURFACE,
++	WL_RTK_SUBTITLE_SURFACE,
++};
++
+ #ifdef  __cplusplus
+ }
+ #endif
+-- 
+2.34.1
+

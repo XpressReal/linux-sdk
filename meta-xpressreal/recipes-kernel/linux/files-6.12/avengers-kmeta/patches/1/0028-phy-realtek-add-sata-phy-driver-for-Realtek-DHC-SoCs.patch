@@ -1,0 +1,42 @@
+From cea45901c1bd1aa2ec3570d2fd1e1b7d83e7df99 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 16:52:25 +0800
+Subject: [PATCH 28/73] phy: realtek: add sata phy driver for Realtek DHC SoCs
+
+Change-Id: I39e8acaadcd851fe6d5a36aa653ddf8d3927b470
+---
+ drivers/phy/realtek/Kconfig  | 7 +++++++
+ drivers/phy/realtek/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/phy/realtek/Kconfig b/drivers/phy/realtek/Kconfig
+index 320dde1a8e784..cc03c97e5474b 100644
+--- a/drivers/phy/realtek/Kconfig
++++ b/drivers/phy/realtek/Kconfig
+@@ -12,6 +12,13 @@ config PHY_RTD_PCIE
+ 	help
+ 	  Support for PCIe PHY on realtek chipsets.
+ 
++config PHY_RTK_SATA
++	tristate "Realtek SATA PHY driver"
++	depends on OF
++	select GENERIC_PHY
++	help
++	  Support for SATA GEN3 PHY on realtek chipsets.
++
+ config PHY_RTK_RTD_USB2PHY
+ 	tristate "Realtek RTD USB2 PHY Transceiver Driver"
+ 	depends on USB_SUPPORT
+diff --git a/drivers/phy/realtek/Makefile b/drivers/phy/realtek/Makefile
+index 496c4bd4a22df..e55e545f393b6 100644
+--- a/drivers/phy/realtek/Makefile
++++ b/drivers/phy/realtek/Makefile
+@@ -1,4 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_PHY_RTD_PCIE)		+= phy-rtk-pcie.o
++obj-$(CONFIG_PHY_RTK_SATA)		+= phy-rtk-sata.o
+ obj-$(CONFIG_PHY_RTK_RTD_USB2PHY)	+= phy-rtk-usb2.o
+ obj-$(CONFIG_PHY_RTK_RTD_USB3PHY)	+= phy-rtk-usb3.o
+-- 
+2.47.0
+

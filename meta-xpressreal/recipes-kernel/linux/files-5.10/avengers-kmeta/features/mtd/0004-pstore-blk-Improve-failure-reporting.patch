@@ -1,0 +1,44 @@
+From 6eed261f48d5a53f369c88d4296621f2d8647493 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 15 Jun 2021 08:40:04 -0700
+Subject: [PATCH] pstore/blk: Improve failure reporting
+
+There was no feedback on bad registration attempts. Add details on the
+failure cause.
+
+Cc: Anton Vorontsov <anton@enomsg.org>
+Cc: Colin Cross <ccross@android.com>
+Cc: Tony Luck <tony.luck@intel.com>
+Signed-off-by: Kees Cook <keescook@chromium.org>
+
+diff --git a/fs/pstore/blk.c b/fs/pstore/blk.c
+index 4bb8a344957a..eca83820fb5d 100644
+--- a/fs/pstore/blk.c
++++ b/fs/pstore/blk.c
+@@ -114,8 +114,22 @@ static int __register_pstore_device(struct pstore_device_info *dev)
+ 
+ 	lockdep_assert_held(&pstore_blk_lock);
+ 
+-	if (!dev || !dev->total_size || !dev->read || !dev->write)
++	if (!dev) {
++		pr_err("NULL device info\n");
+ 		return -EINVAL;
++	}
++	if (!dev->total_size) {
++		pr_err("zero sized device\n");
++		return -EINVAL;
++	}
++	if (!dev->read) {
++		pr_err("no read handler for device\n");
++		return -EINVAL;
++	}
++	if (!dev->write) {
++		pr_err("no write handler for device\n");
++		return -EINVAL;
++	}
+ 
+ 	/* someone already registered before */
+ 	if (pstore_zone_info)
+-- 
+2.47.0
+

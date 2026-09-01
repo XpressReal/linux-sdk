@@ -1,0 +1,25 @@
+From 6c9e7db031171a98e75b5c48fed1fbaff7d1834c Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Wed, 12 Mar 2025 19:30:22 +0800
+Subject: [PATCH 48/48] panthor: add model g310
+
+Change-Id: I8183591417350e26760f47abb1845e302cdc4176
+---
+ drivers/gpu/drm/panthor/panthor_gpu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/panthor/panthor_gpu.c b/drivers/gpu/drm/panthor/panthor_gpu.c
+index 5251d8764e7d..156d72249202 100644
+--- a/drivers/gpu/drm/panthor/panthor_gpu.c
++++ b/drivers/gpu/drm/panthor/panthor_gpu.c
+@@ -67,6 +67,7 @@ struct panthor_model {
+ }
+ 
+ static const struct panthor_model gpu_models[] = {
++	GPU_MODEL(g310, 10, 4),
+ 	GPU_MODEL(g610, 10, 7),
+ 	{},
+ };
+-- 
+2.45.2
+

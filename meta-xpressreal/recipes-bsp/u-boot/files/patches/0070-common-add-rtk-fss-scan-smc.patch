@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: cylee12 <cylee12@realtek.com>
+Subject: [PATCH] common: add rtk_fss_scan_smc to Kconfig and Makefile
+
+Register rtk_fss_scan_smc in the Realtek freq and volt control menu
+and wire up its build target.
+
+---
+ common/Kconfig  | 1 +
+ common/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/common/Kconfig b/common/Kconfig
+--- a/common/Kconfig
++++ b/common/Kconfig
+@@ -1146,2 +1146,3 @@ menu "Realtek freq and volt control"
+ source "common/rtk_opp/Kconfig"
++source "common/rtk_fss_scan_smc/Kconfig"
+ endmenu
+diff --git a/common/Makefile b/common/Makefile
+--- a/common/Makefile
++++ b/common/Makefile
+@@ -113,3 +113,4 @@ obj-y += rtk_bsv/
+ obj-y += rtk_opp/
++obj-$(CONFIG_RTK_FSS_SCAN_SMC) += rtk_fss_scan_smc/
+ obj-$(CONFIG_TARGET_RTD1619B) += cmd_s5.o
+ endif

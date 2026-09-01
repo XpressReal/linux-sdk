@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "prince-fpga.dtsi"
+
+/ {
+	compatible = "realtek,prince_fpga", "realtek,Rtd1761";
+	model = "Realtek Prince FPGA (4GB)";
+
+	memory@50000 {
+		device_type = "memory";
+		reg = <0x0 0x00050000 0x0 0x7ffb0000>,
+		      <0x0 0x8a100000 0x0 0x0def0000>,
+		      <0x0 0x98700000 0x0 0x07900000>,
+		      <0x0 0xa1000000 0x0 0x5e000000>;
+	};
+};

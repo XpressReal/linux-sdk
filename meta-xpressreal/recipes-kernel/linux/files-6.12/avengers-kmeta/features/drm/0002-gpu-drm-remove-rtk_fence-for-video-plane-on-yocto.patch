@@ -1,0 +1,36 @@
+From 933b5dc917b2875ffb4e860aad04c19eae9a7313 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 9 Apr 2026 04:34:16 -0400
+Subject: [PATCH] gpu: drm: remove rtk_fence for video plane on yocto
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index b46d120ea4bc..cc477d23e200 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -754,7 +754,7 @@ static int rtk_plane_update_cursor(struct drm_plane *plane)
+ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ {
+ 	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
+-	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
++//	struct rtk_drm_fence *rtk_fence = rtk_plane->rtk_fence;
+ 	struct drm_framebuffer *fb = plane->state->fb;
+ 	struct drm_gem_object *gem[4];
+ 	struct rtk_gem_object *rtk_gem[4];
+@@ -846,8 +846,8 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 
+ 		index = s->display_idx;
+ 		obj->context = index;
+-		obj->pLock = rtk_fence->pLock_paddr+index;
+-		obj->pReceived = rtk_fence->pReceived_paddr+index;
++//		obj->pLock = rtk_fence->pLock_paddr+index;
++//		obj->pReceived = rtk_fence->pReceived_paddr+index;
+ 		obj->PTSH = decObj->PTSH;
+ 		obj->PTSL = decObj->PTSL;
+ 		obj->RPTSH = decObj->RPTSH;
+-- 
+2.34.1
+

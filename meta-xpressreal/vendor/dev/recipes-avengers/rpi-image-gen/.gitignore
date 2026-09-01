@@ -1,0 +1,5 @@
+# The sudo password used by rpi-image-gen is machine-local. Never commit it.
+.rpigen_sudo_pass
+
+#
+__pycache__

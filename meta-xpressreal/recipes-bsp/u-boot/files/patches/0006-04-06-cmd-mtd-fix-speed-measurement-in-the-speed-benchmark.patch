@@ -1,0 +1,63 @@
+From e700a84292ba3a38c32d4ac51179863ca8ebc499 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 14:03:01 +0300
+Subject: [PATCH 5/6] cmd: mtd: fix speed measurement in the speed benchmark
+
+The shown speed is inversely proportional to the data size.
+See the output:
+
+  spi-nand: spi_nand nand@0: Micron SPI NAND was found.
+  spi-nand: spi_nand nand@0: 256 MiB, block size: 128 KiB, page size: 2048, OOB size: 128
+  ...
+  => mtd read.benchmark spi-nand0 $loadaddr 0 0x40000
+  Reading 262144 byte(s) (128 page(s)) at offset 0x00000000
+  Read speed: 63kiB/s
+  => mtd read.benchmark spi-nand0 $loadaddr 0 0x20000
+  Reading 131072 byte(s) (64 page(s)) at offset 0x00000000
+  Read speed: 127kiB/s
+  => mtd read.benchmark spi-nand0 $loadaddr 0 0x10000
+  Reading 65536 byte(s) (32 page(s)) at offset 0x00000000
+  Read speed: 254kiB/s
+
+In the spi-nand case 'io_op.len' is not always the same as 'len', thus
+we are using the wrong amount of data to derive the speed.
+
+Also make sure we are using 64-bit calculation to get a more precise
+results.
+
+Fixes: d246e70cf81d0 ("cmd: mtd: Enable speed benchmarking")
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ cmd/mtd.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/cmd/mtd.c b/cmd/mtd.c
+index 689d8d11655..e415a2d7f02 100644
+--- a/cmd/mtd.c
++++ b/cmd/mtd.c
+@@ -469,7 +469,7 @@ static int do_mtd_io(struct cmd_tbl *cmdtp, int flag, int argc,
+ 		     char *const argv[])
+ {
+ 	bool dump, read, raw, woob, benchmark, write_empty_pages, has_pages = false;
+-	u64 start_off, off, len, remaining, default_len;
++	u64 start_off, off, len, remaining, default_len, speed;
+ 	unsigned long bench_start, bench_end;
+ 	struct mtd_oob_ops io_op = {};
+ 	uint user_addr = 0, npages;
+@@ -595,9 +595,10 @@ static int do_mtd_io(struct cmd_tbl *cmdtp, int flag, int argc,
+ 
+ 	if (benchmark && bench_start) {
+ 		bench_end = timer_get_us();
++		speed = (len * 1000000) / (bench_end - bench_start);
+ 		printf("%s speed: %lukiB/s\n",
+ 		       read ? "Read" : "Write",
+-		       ((io_op.len * 1000000) / (bench_end - bench_start)) / 1024);
++		       (unsigned long)(speed / 1024));
+ 	}
+ 
+ 	if (!ret && dump)
+-- 
+2.47.0
+

@@ -1,0 +1,90 @@
+From b1c6c3de05454ff946bf759d0fe5f4b5d9e7bf3d Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Wed, 10 Jun 2026 14:45:49 +0800
+Subject: [PATCH] bootm: RTK_FSS_SCAN_SMC: add fssscan subcmd after fdt
+
+- set BOOTM_STATE_FDT and BOOTM_STATE_FSS_SCAN in default bootm
+- call fsmc_set_fdt_addr() to setup relocated fdt addr
+- call fss_scan_smc_main()
+---
+ boot/bootm.c    | 10 ++++++++++
+ cmd/bootm.c     |  8 ++++++++
+ include/image.h |  1 +
+ 3 files changed, 19 insertions(+)
+
+diff --git a/boot/bootm.c b/boot/bootm.c
+index cb61485c22..61bbb60e99 100644
+--- a/boot/bootm.c
++++ b/boot/bootm.c
+@@ -34,6 +34,10 @@
+ #include <bootm.h>
+ #include <image.h>
+ 
++#ifdef CONFIG_RTK_FSS_SCAN_SMC
++#include <fss_scan_smc.h>
++#endif
++
+ #define MAX_CMDLINE_SIZE	SZ_4K
+ 
+ #define IH_INITRD_ARCH IH_ARCH_DEFAULT
+@@ -828,6 +832,12 @@ int do_bootm_states(struct cmd_tbl *cmdtp, int flag, int argc,
+ 	}
+ #endif
+ 
++#ifdef CONFIG_RTK_FSS_SCAN_SMC
++	if (!ret && (states & BOOTM_STATE_FSS_SCAN) && (env_get_yesno("fss_scan") == 1)) {
++		fsmc_set_fdt_addr(images->ft_addr);
++		fss_scan_smc_main();
++	}
++#endif
+ 	/* From now on, we need the OS boot function */
+ 	if (ret)
+ 		return ret;
+diff --git a/cmd/bootm.c b/cmd/bootm.c
+index 6ded091dd5..13cb33283c 100644
+--- a/cmd/bootm.c
++++ b/cmd/bootm.c
+@@ -51,6 +51,9 @@ static struct cmd_tbl cmd_bootm_sub[] = {
+ #endif
+ #ifdef CONFIG_OF_LIBFDT
+ 	U_BOOT_CMD_MKENT(fdt, 0, 1, (void *)BOOTM_STATE_FDT, "", ""),
++#endif
++#ifdef CONFIG_RTK_FSS_SCAN_SMC
++	U_BOOT_CMD_MKENT(fssscan, 0, 1, (void *)BOOTM_STATE_FSS_SCAN, "", ""),
+ #endif
+ 	U_BOOT_CMD_MKENT(cmdline, 0, 1, (void *)BOOTM_STATE_OS_CMDLINE, "", ""),
+ 	U_BOOT_CMD_MKENT(bdt, 0, 1, (void *)BOOTM_STATE_OS_BD_T, "", ""),
+@@ -147,6 +150,8 @@ int do_bootm(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+ 		BOOTM_STATE_OS_GO;
+ 	if (IS_ENABLED(CONFIG_SYS_BOOT_RAMDISK_HIGH))
+ 		states |= BOOTM_STATE_RAMDISK;
++	if (IS_ENABLED(CONFIG_RTK_FSS_SCAN_SMC))
++		states |= BOOTM_STATE_FDT | BOOTM_STATE_FSS_SCAN;
+ 	if (IS_ENABLED(CONFIG_MEASURED_BOOT))
+ 		states |= BOOTM_STATE_MEASURE;
+ 	if (IS_ENABLED(CONFIG_PPC) || IS_ENABLED(CONFIG_MIPS))
+@@ -202,6 +207,9 @@ U_BOOT_LONGHELP(bootm,
+ #endif
+ #if defined(CONFIG_OF_LIBFDT)
+ 	"\tfdt     - relocate flat device tree\n"
++#endif
++#if defined(CONFIG_RTK_FSS_SCAN_SMC)
++	"\tfssscan - do rtk_fss_scan_smc and update result to fdt\n"
+ #endif
+ 	"\tcmdline - OS specific command line processing/setup\n"
+ 	"\tbdt     - OS specific bd_info processing\n"
+diff --git a/include/image.h b/include/image.h
+index 9e48992d79..dbb0129ff6 100644
+--- a/include/image.h
++++ b/include/image.h
+@@ -403,6 +403,7 @@ struct bootm_headers {
+ #define BOOTM_STATE_LOADOS	0x00000008
+ #define BOOTM_STATE_RAMDISK	0x00000010
+ #define BOOTM_STATE_FDT		0x00000020
++#define BOOTM_STATE_FSS_SCAN	0x10000000
+ #define BOOTM_STATE_OS_CMDLINE	0x00000040
+ #define BOOTM_STATE_OS_BD_T	0x00000080
+ #define BOOTM_STATE_OS_PREP	0x00000100
+-- 
+2.47.0
+

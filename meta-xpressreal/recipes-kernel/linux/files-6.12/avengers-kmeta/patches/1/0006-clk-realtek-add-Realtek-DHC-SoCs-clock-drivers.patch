@@ -1,0 +1,38 @@
+From 91c96deb431e94a896b3b14b30d29da5560d5641 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 14:33:40 +0800
+Subject: [PATCH 06/73] clk: realtek: add Realtek DHC SoCs clock drivers
+
+Change-Id: I5e8863e58b1b9c34afc6904a75cd571d4efa56b4
+---
+ drivers/clk/Kconfig  | 1 +
+ drivers/clk/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
+index 0fe07a594b4e1..ebb5c726cbfca 100644
+--- a/drivers/clk/Kconfig
++++ b/drivers/clk/Kconfig
+@@ -492,6 +492,7 @@ source "drivers/clk/nuvoton/Kconfig"
+ source "drivers/clk/pistachio/Kconfig"
+ source "drivers/clk/qcom/Kconfig"
+ source "drivers/clk/ralink/Kconfig"
++source "drivers/clk/realtek/Kconfig"
+ source "drivers/clk/renesas/Kconfig"
+ source "drivers/clk/rockchip/Kconfig"
+ source "drivers/clk/samsung/Kconfig"
+diff --git a/drivers/clk/Makefile b/drivers/clk/Makefile
+index fb8878a5d7d93..a24782bdb3231 100644
+--- a/drivers/clk/Makefile
++++ b/drivers/clk/Makefile
+@@ -123,6 +123,7 @@ obj-$(CONFIG_COMMON_CLK_PISTACHIO)	+= pistachio/
+ obj-$(CONFIG_COMMON_CLK_PXA)		+= pxa/
+ obj-$(CONFIG_COMMON_CLK_QCOM)		+= qcom/
+ obj-y					+= ralink/
++obj-$(CONFIG_COMMON_CLK_REALTEK)	+= realtek/
+ obj-y					+= renesas/
+ obj-$(CONFIG_ARCH_ROCKCHIP)		+= rockchip/
+ obj-$(CONFIG_COMMON_CLK_SAMSUNG)	+= samsung/
+-- 
+2.47.0
+

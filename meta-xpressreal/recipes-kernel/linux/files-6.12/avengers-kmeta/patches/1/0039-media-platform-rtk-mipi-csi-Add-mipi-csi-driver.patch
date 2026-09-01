@@ -1,0 +1,36 @@
+From c24797ae769af8dc8d37552e1f35cd47dd3ef52a Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 22:43:03 +0800
+Subject: [PATCH 39/73] media: platform: rtk-mipi-csi: Add mipi csi driver
+
+Change-Id: I5e4f037c58922f8f3e2295fdd64a68b3b6ab666a
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 6c7b1970ce0bf..0ce2db593f1c2 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -92,4 +92,5 @@ source "drivers/media/platform/xilinx/Kconfig"
+ source "drivers/media/platform/rtk_dsi/Kconfig"
+ source "drivers/media/platform/rtk_tpdemux/Kconfig"
+ source "drivers/media/platform/rtk-vi/Kconfig"
++source "drivers/media/platform/rtk-mipi-csi/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index b30d248a018cb..b8df4a41900c6 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -35,6 +35,7 @@ obj-y += xilinx/
+ obj-y += rtk_dsi/
+ obj-y += rtk_tpdemux/
+ obj-y += rtk-vi/
++obj-y += rtk-mipi-csi/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

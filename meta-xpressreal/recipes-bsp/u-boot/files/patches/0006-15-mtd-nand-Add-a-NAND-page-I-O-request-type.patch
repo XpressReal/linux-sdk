@@ -1,0 +1,104 @@
+From 9ce01e0ada33962f41f725a4ae9c2a39c87e95b4 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 30 Sep 2025 03:20:48 +0300
+Subject: [PATCH 15/38] mtd: nand: Add a NAND page I/O request type
+
+Use an enum to differentiate the type of I/O (reading or writing a
+page). Also update the request iterator.
+
+This is a port of linux commit
+701981cab016 ("mtd: nand: Add a NAND page I/O request type")
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Reviewed-by: Boris Brezillon <boris.brezillon@collabora.com>
+Link: https://lore.kernel.org/linux-mtd/20200827085208.16276-5-miquel.raynal@bootlin.com
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c |  4 ++--
+ include/linux/mtd/nand.h    | 18 ++++++++++++++++--
+ 2 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index c1b8b9627f2..d8abd03e919 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -523,7 +523,7 @@ static int spinand_mtd_read(struct mtd_info *mtd, loff_t from,
+ 	mutex_lock(&spinand->lock);
+ #endif
+ 
+-	nanddev_io_for_each_page(nand, from, ops, &iter) {
++	nanddev_io_for_each_page(nand, NAND_PAGE_READ, from, ops, &iter) {
+ 		schedule();
+ 		ret = spinand_select_target(spinand, iter.req.pos.target);
+ 		if (ret)
+@@ -575,7 +575,7 @@ static int spinand_mtd_write(struct mtd_info *mtd, loff_t to,
+ 	mutex_lock(&spinand->lock);
+ #endif
+ 
+-	nanddev_io_for_each_page(nand, to, ops, &iter) {
++	nanddev_io_for_each_page(nand, NAND_PAGE_WRITE, to, ops, &iter) {
+ 		schedule();
+ 		ret = spinand_select_target(spinand, iter.req.pos.target);
+ 		if (ret)
+diff --git a/include/linux/mtd/nand.h b/include/linux/mtd/nand.h
+index 651f8706df5..0afdaed5715 100644
+--- a/include/linux/mtd/nand.h
++++ b/include/linux/mtd/nand.h
+@@ -80,8 +80,19 @@ struct nand_pos {
+ 	unsigned int page;
+ };
+ 
++/**
++ * enum nand_page_io_req_type - Direction of an I/O request
++ * @NAND_PAGE_READ: from the chip, to the controller
++ * @NAND_PAGE_WRITE: from the controller, to the chip
++ */
++enum nand_page_io_req_type {
++	NAND_PAGE_READ = 0,
++	NAND_PAGE_WRITE,
++};
++
+ /**
+  * struct nand_page_io_req - NAND I/O request object
++ * @type: the type of page I/O: read or write
+  * @pos: the position this I/O request is targeting
+  * @dataoffs: the offset within the page
+  * @datalen: number of data bytes to read from/write to this page
+@@ -97,6 +108,7 @@ struct nand_pos {
+  * specific commands/operations.
+  */
+ struct nand_page_io_req {
++	enum nand_page_io_req_type type;
+ 	struct nand_pos pos;
+ 	unsigned int dataoffs;
+ 	unsigned int datalen;
+@@ -613,11 +625,13 @@ static inline void nanddev_pos_next_page(struct nand_device *nand,
+  * layer.
+  */
+ static inline void nanddev_io_iter_init(struct nand_device *nand,
++					enum nand_page_io_req_type reqtype,
+ 					loff_t offs, struct mtd_oob_ops *req,
+ 					struct nand_io_iter *iter)
+ {
+ 	struct mtd_info *mtd = nanddev_to_mtd(nand);
+ 
++	iter->req.type = reqtype;
+ 	iter->req.mode = req->mode;
+ 	iter->req.dataoffs = nanddev_offs_to_pos(nand, offs, &iter->req.pos);
+ 	iter->req.ooboffs = req->ooboffs;
+@@ -687,8 +701,8 @@ static inline bool nanddev_io_iter_end(struct nand_device *nand,
+  *
+  * Should be used for iterate over pages that are contained in an MTD request.
+  */
+-#define nanddev_io_for_each_page(nand, start, req, iter)		\
+-	for (nanddev_io_iter_init(nand, start, req, iter);		\
++#define nanddev_io_for_each_page(nand, type, start, req, iter)		\
++	for (nanddev_io_iter_init(nand, type, start, req, iter);	\
+ 	     !nanddev_io_iter_end(nand, iter);				\
+ 	     nanddev_io_iter_next_page(nand, iter))
+ 
+-- 
+2.47.0
+

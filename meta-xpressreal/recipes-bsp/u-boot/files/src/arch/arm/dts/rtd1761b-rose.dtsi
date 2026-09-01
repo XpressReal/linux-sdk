@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761B Rose EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+//#include <dt-bindings/thermal/thermal.h>
+//#include <dt-bindings/regulator/anpec,apw888x.h>
+#include "rtd1761.dtsi"
+
+/ {
+	chosen {
+		stdout-path = "serial0:460800n8";
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+};

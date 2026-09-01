@@ -1,0 +1,329 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1861B Krypton EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include "rtd1861.dtsi"
+#include "rtd1861b-krypton.rds.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=11 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+		stdout-path = "serial0:460800n8";
+	};
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+};
+
+
+&i2c_1 {
+	status = "okay";
+
+	synaptics_tcm@2c{
+		compatible = "synaptics,tcm-i2c";
+		reg = <0x2c>;
+
+		synaptics,avdd-name = "avdd";
+		synaptics,vdd-name = "vdd";
+		synaptics,power-delay-ms = <200>;
+		synaptics,irq-gpio = <&gpio 133 IRQ_TYPE_EDGE_FALLING>;
+		synaptics,irq-on-state = <0>;
+		synaptics,reset-gpio = <&gpio 134 0x0>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+	};
+};
+
+&i2c_3 {
+	status = "okay";
+
+	pr2000a: pr2000@5c {
+		compatible = "pixelplus,pr2k";
+		reg = <0x5c>;
+		reset-gpios = <&gpio 162 GPIO_ACTIVE_LOW>;
+		camera-fmt = <0x100>;
+		bt-mode = <0>;
+		cascade-mode = <0>;
+	};
+
+	rts5452@68 {
+		compatible = "rtk-rts5452";
+		reg = <0x68>;
+		notify-gpios = <&gpio 128 GPIO_PULL_UP>;
+
+		orientation-switch = <&usb1_u3phy>;
+		mode-switch = <&usb1_u3phy>;
+	};
+};
+
+&i2c_4 {
+	status = "okay";
+
+	goodix@14{
+		compatible = "goodix,gt928";
+		reg = <0x14>;
+		edge-falling-trigger;
+		interrupt-parent = <&gpio>;
+		interrupts = <136 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio 136 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio 135 GPIO_ACTIVE_HIGH>;
+		//touchscreen-size-x = <1024>;
+		//touchscreen-size-y = <600>;
+		touchscreen-inverted-x;
+		status = "okay";
+	};
+
+	focaltech@38{
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		interrupt-parent = <&gpio>;
+		interrupts = <136 IRQ_TYPE_EDGE_FALLING>;
+		focaltech,reset-gpio = <&gpio 135 GPIO_ACTIVE_HIGH>;
+		focaltech,irq-gpio = <&gpio 136 IRQ_TYPE_EDGE_FALLING>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords =  <0 0 1920 720>;
+	};
+
+	jadard@68{
+		compatible = "jadard,jdcommon";
+		reg = <0x68>;
+
+		jadard,panel-max-points = <10>;
+		jadard,int-is-edge = <1>;
+		jadard,stylus = <0>;
+		jadard,panel-sense-nums = <1 1>;
+		jadard,panel-coords = <0 1920 0 1200>;
+		jadard,irq-gpio = <&gpio 136 GPIO_ACTIVE_HIGH>;
+		jadard,rst-gpio = <&gpio 135 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	mcu_touch@1a{
+		compatible = "mcu,mcu_touch";
+		reg = <0x1a>;
+
+		mcu,irq-gpio = <&gpio 136 IRQ_TYPE_EDGE_FALLING>;
+		status = "okay";
+	};
+};
+
+&i2c_6 {
+	status = "okay";
+
+	tp2815a: tp2815@44 {
+		compatible = "techpoint,tp2815";
+		reg = <0x44>;
+		reset-gpios = <&gpio 139 GPIO_ACTIVE_LOW>;
+		camera-std = <0x100>;
+		detect-mode = <0>;
+	};
+
+	tp2815b: tp2815@45 {
+		compatible = "techpoint,tp2815";
+		reg = <0x45>;
+		reset-gpios = <&gpio 142 GPIO_ACTIVE_LOW>;
+		camera-std = <0x100>;
+		detect-mode = <0>;
+	};
+};
+
+&irda {
+	status = "okay";
+};
+
+&mipicsi_0 {
+	status = "okay";
+};
+
+&mipicsi_4 {
+	status = "okay";
+};
+
+&sdio {
+	wifi-rst-gpios = <&gpio 51 GPIO_ACTIVE_HIGH>;
+};
+
+&usb1_u3phy {
+	svid = <0xff01>;
+};
+
+&vi_0 {
+	status = "okay";
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-810000000 {
+			opp-hz = /bits/ 64 <810000000>;
+			opp-hz-real = /bits/ 64 <810000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&{/} {
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1625-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <0>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp1200: opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <900000>;
+			opp-microvolt-fss = <0>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1600: opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <1000000>;
+			opp-microvolt-fss = <0>;
+			clock-latency-ns = <150000>;
+			opp-suspend;
+			status = "okay";
+		};
+
+		opp1800: opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1050000>;
+			opp-microvolt-fss = <0>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&rtk_vad {
+	status = "okay";
+};
+
+&rtk_soc {
+	status = "okay";
+	/* On AEC/NR startup, the module begins its adaptation phase, during
+	 * which residual echo or background noise artifacts may be present.
+	 * To prevent initial residual echo/noise artifacts from being
+	 * heard, a two-phase output protection sequence is used:
+	 * Mute phase: The processed audio output is fully muted for a short
+	 * duration after startup. This suppresses the worst initial
+	 * artifacts.
+	 * Fade-in phase: After the mute period, the output gain is
+	 * gradually increased from 0 to full level over the specified fade
+	 * duration. This provides a smooth transition to normal output and
+	 * prevents abrupt noise or gain jumps. */
+	/* Duration (in ms) of the initial mute period after startup */
+	aec_mute_duration = <400>;
+
+	/* Duration (in ms) of the fade-in period following the mute phase */
+	aec_fade_duration = <1600>;
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ao_i2s0_pins>,
+		    <&ao_i2s0_loc0_pins>,
+		    <&pcm_pins>,
+		    <&ao_spdif_pins>;
+	realtek,audio-platform = <&rtk_soc>;
+	realtek,dai-link = "RDAI_DL0_FE", "RDAI_DL1_FE", "RDAI_DL2_FE",
+			   "RDAI_UL0_FE", "RDAI_UL1_FE",
+			   "RDAI_SOC_AO0", "RDAI_SOC_I2S", "RDAI_SOC_I2S0_LOOPBACK";
+	status = "okay";
+};
+
+&reboot_mode {
+	status = "okay";
+};
+
+&pwr_ur_top {
+	realtek,always-on;
+};
+
+&pwr_iso_main2_1 {
+	realtek,always-on;
+};
+
+&{/} {
+	cpu-dvfs {
+		fss-opp-updated = <0>;
+		fss-volt-correct = <100000>;
+		fss-volt-step = <10000>;
+		fss-volt-min = <750000>;
+		fss-volt-max = <1100000>;
+	};
+};

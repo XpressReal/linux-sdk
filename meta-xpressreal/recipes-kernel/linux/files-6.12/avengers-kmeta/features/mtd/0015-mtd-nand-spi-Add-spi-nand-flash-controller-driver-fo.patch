@@ -1,0 +1,45 @@
+From 64ad57dbe2cfec51d1aeea0f2cc04970ab9358b8 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 15:39:31 +0800
+Subject: [PATCH 15/73] mtd: nand: spi: Add spi nand flash controller driver
+ for kent
+
+Change-Id: I4a5a53624c6ca758ef05ac80505aea71e8752521
+---
+ drivers/spi/Kconfig  | 6 ++++++
+ drivers/spi/Makefile | 2 +-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 75a186d655407..cdad60e8779d2 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -1150,6 +1150,12 @@ config SPI_UNIPHIER
+ 
+ 	  If your SoC supports SCSSI, say Y here.
+ 
++config SPI_RTK_NAND
++	tristate "RTK SPI NAND controller"
++	depends on SPI_MASTER
++	help
++	  Enables SPI Nand controller driver for RTK SoC.
++
+ config SPI_XCOMM
+ 	tristate "Analog Devices AD-FMCOMMS1-EBZ SPI-I2C-bridge driver"
+ 	depends on I2C
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index 080c35d5a36de..b4392851b5429 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -157,7 +157,7 @@ obj-$(CONFIG_SPI_XTENSA_XTFPGA)		+= spi-xtensa-xtfpga.o
+ obj-$(CONFIG_SPI_ZYNQ_QSPI)		+= spi-zynq-qspi.o
+ obj-$(CONFIG_SPI_ZYNQMP_GQSPI)		+= spi-zynqmp-gqspi.o
+ obj-$(CONFIG_SPI_AMD)			+= spi-amd.o
+-
++obj-$(CONFIG_SPI_RTK_NAND)              += spi-rtk-sn.o
+ # SPI slave protocol handlers
+ obj-$(CONFIG_SPI_SLAVE_TIME)		+= spi-slave-time.o
+ obj-$(CONFIG_SPI_SLAVE_SYSTEM_CONTROL)	+= spi-slave-system-control.o
+-- 
+2.47.0
+

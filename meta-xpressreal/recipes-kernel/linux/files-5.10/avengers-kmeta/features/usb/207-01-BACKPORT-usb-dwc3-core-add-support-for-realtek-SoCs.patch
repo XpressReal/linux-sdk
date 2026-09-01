@@ -1,0 +1,63 @@
+From d9764e6a4b463289bd7e6d0dceb2ea731b40f593 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Fri, 5 May 2023 10:50:54 +0800
+Subject: [PATCH] usb: dwc3: core: add support for realtek SoCs custom's global
+ register start address
+
+[ Upstream commit ec5eb43813a4c775b5abf20f50461037bca7c4e5 ]
+
+The Realtek RTD SoCs were designed with the global register address
+offset at 0x8100. The default address offset is constant at
+DWC3_GLOBALS_REGS_START (0xc100). Therefore, add a check if the
+compatible name of the parent is realtek,rtd-dwc3, then global
+register start address will remap to 0x8100.
+
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+Acked-by: Thinh Nguyen <Thinh.Nguyen@synopsys.com>
+Link: https://lore.kernel.org/r/20230505025104.18321-1-stanley_chang@realtek.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+Change-Id: I32d65056d09ccced69e3ddc23f10580287081f4b
+---
+ drivers/usb/dwc3/core.c | 11 +++++++++++
+ drivers/usb/dwc3/core.h |  2 ++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
+index f2e841bc05c7..5e0bba8e6e79 100644
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -1571,6 +1571,17 @@ static int dwc3_probe(struct platform_device *pdev)
+ 	dwc_res = *res;
+ 	dwc_res.start += DWC3_GLOBALS_REGS_START;
+ 
++	if (dev->of_node) {
++		struct device_node *parent = of_get_parent(dev->of_node);
++
++		if (of_device_is_compatible(parent, "realtek,rtd-dwc3")) {
++			dwc_res.start -= DWC3_GLOBALS_REGS_START;
++			dwc_res.start += DWC3_RTK_RTD_GLOBALS_REGS_START;
++		}
++
++		of_node_put(parent);
++	}
++ 
+ 	regs = devm_ioremap_resource(dev, &dwc_res);
+ 	if (IS_ERR(regs))
+ 		return PTR_ERR(regs);
+diff --git a/drivers/usb/dwc3/core.h b/drivers/usb/dwc3/core.h
+index 3dcb5b744f7c..ec5c925414e8 100644
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -84,6 +84,8 @@
+ #define DWC3_OTG_REGS_START		0xcc00
+ #define DWC3_OTG_REGS_END		0xccff
+ 
++#define DWC3_RTK_RTD_GLOBALS_REGS_START	0x8100
++
+ /* Global Registers */
+ #define DWC3_GSBUSCFG0		0xc100
+ #define DWC3_GSBUSCFG1		0xc104
+-- 
+2.42.0
+

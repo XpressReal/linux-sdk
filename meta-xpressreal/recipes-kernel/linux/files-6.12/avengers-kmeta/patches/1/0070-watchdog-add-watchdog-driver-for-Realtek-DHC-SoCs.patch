@@ -1,0 +1,44 @@
+From 2109069e93e4f189a778cca947748cdb620b6bbf Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:58:20 +0800
+Subject: [PATCH 70/73] watchdog: add watchdog driver for Realtek DHC SoCs
+
+Change-Id: I000964057e0846144bd74beb4fc1116e004464d8
+---
+ drivers/watchdog/Kconfig  | 7 +++++++
+ drivers/watchdog/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
+index 0b59c669c26d3..5fd43f2734d93 100644
+--- a/drivers/watchdog/Kconfig
++++ b/drivers/watchdog/Kconfig
+@@ -976,6 +976,13 @@ config ASPEED_WATCHDOG
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called aspeed_wdt.
+ 
++config RTK_WATCHDOG
++	tristate "Realtek watchdog support"
++	depends on ARCH_REALTEK
++	select WATCHDOG_CORE
++	help
++	  Realtek  watchdog support
++
+ config STM32_WATCHDOG
+ 	tristate "STM32 Independent WatchDoG (IWDG) support"
+ 	depends on ARCH_STM32 || COMPILE_TEST
+diff --git a/drivers/watchdog/Makefile b/drivers/watchdog/Makefile
+index ab6f2b41e38e6..33e803340b28c 100644
+--- a/drivers/watchdog/Makefile
++++ b/drivers/watchdog/Makefile
+@@ -91,6 +91,7 @@ obj-$(CONFIG_ASPEED_WATCHDOG) += aspeed_wdt.o
+ obj-$(CONFIG_STM32_WATCHDOG) += stm32_iwdg.o
+ obj-$(CONFIG_UNIPHIER_WATCHDOG) += uniphier_wdt.o
+ obj-$(CONFIG_RTD119X_WATCHDOG) += rtd119x_wdt.o
++obj-$(CONFIG_RTK_WATCHDOG) += rtk_wdt.o
+ obj-$(CONFIG_SPRD_WATCHDOG) += sprd_wdt.o
+ obj-$(CONFIG_PM8916_WATCHDOG) += pm8916_wdt.o
+ obj-$(CONFIG_ARM_SMC_WATCHDOG) += arm_smc_wdt.o
+-- 
+2.47.0
+

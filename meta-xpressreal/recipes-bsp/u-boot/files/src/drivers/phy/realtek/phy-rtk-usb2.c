@@ -1210,6 +1210,36 @@ static const struct phy_cfg rtd1625_phy_cfg = {
 	.is_double_sensitivity_mode = true,
 };
 
+static const struct phy_cfg rtd1635_phy_cfg = {
+	.page0_size = MAX_USB_PHY_PAGE0_DATA_SIZE,
+	.page0 = {
+		   [0] = {0xe0, 0x9f},
+		   [2] = {0xe2, 0xd8},
+		   [5] = {0xe5, 0x49},
+		   [6] = {0xe6, 0x02}, },
+	.page1_size = MAX_USB_PHY_PAGE1_DATA_SIZE,
+	.page1 = {
+		  [0] = {0xe0, 0x24},
+		  [3] = {0xe3, 0x64},
+		  [13] = {0xf5, 0x02}, },
+	.page2_size = MAX_USB_PHY_PAGE2_DATA_SIZE,
+	.page2 = {
+		  [6] = {0xe6, 0x33},
+		  [7] = {0xe7, 0x42}, },
+	.check_efuse = true,
+	.check_efuse_version = CHECK_EFUSE_V2,
+	.efuse_dc_driving_rate = EFUS_USB_DC_CAL_RATE,
+	.dc_driving_mask = 0x1f,
+	.efuse_dc_disconnect_rate = EFUS_USB_DC_DIS_RATE,
+	.dc_disconnect_mask = 0xf,
+	.usb_dc_disconnect_at_page0 = false,
+	.do_toggle = true,
+	.do_toggle_driving = false,
+	.driving_updated_for_dev_dis = 0x8,
+	.use_default_parameter = false,
+	.is_double_sensitivity_mode = true,
+};
+
 static const struct udevice_id usbphy_rtk_dt_match[] = {
 #if 0
 	{ .compatible = "realtek,rtd1295-usb2phy", .data = &rtd1295_phy_cfg },
@@ -1225,6 +1255,9 @@ static const struct udevice_id usbphy_rtk_dt_match[] = {
 #endif
 #if defined(CONFIG_TARGET_RTD1625)
 	{ .compatible = "realtek,rtd1625-usb2phy", .data = &rtd1625_phy_cfg },
+#endif
+#if defined(CONFIG_TARGET_RTD1635)
+	{ .compatible = "realtek,rtd1625-usb2phy", .data = &rtd1635_phy_cfg },
 #endif
 	{},
 };

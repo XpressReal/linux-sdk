@@ -1,0 +1,9 @@
+patch 0001-gpu-drm-add-video-plane-for-Yocto-platform.patch
+patch 0002-gpu-drm-remove-rtk_fence-for-video-plane-on-yocto.patch
+patch 0003-OPC-26-add-drm-ioctl-to-set-dlsr-enable-disable.patch
+patch 0004-Enable-vowb-in-device-tree.patch
+patch 0005-drm-add-ARGB8888-to-afrc-list.patch
+patch 0006-gpu-drm-Integrate-RTK-modifier-for-compress-mode.patch
+patch 0010-OPC-52-provide-pq-control.patch
+
+kconf hardware drm.cfg

@@ -1,0 +1,140 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1635S Wanda EVB (2GHz)
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1635s-wanda-4gb.dts"
+
+&{/} {
+	model = "Realtek Wanda EVB (4GB) 2GHz";
+};
+
+&cpu_opps {
+	opp-1000000000 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <812500 812500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1100000000 {
+		opp-hz = /bits/ 64 <1100000000>;
+		opp-microvolt = <887500 887500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1200000000 {
+		opp-hz = /bits/ 64 <1200000000>;
+		opp-microvolt = <912500 912500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1300000000 {
+		opp-hz = /bits/ 64 <1300000000>;
+		opp-microvolt = <937500 937500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1400000000 {
+		opp-hz = /bits/ 64 <1400000000>;
+		opp-microvolt = <962500 962500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1500000000 {
+		opp-hz = /bits/ 64 <1500000000>;
+		opp-microvolt = <987500 987500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1600000000 {
+		opp-hz = /bits/ 64 <1600000000>;
+		opp-microvolt = <1012500 1012500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1700000000 {
+		opp-hz = /bits/ 64 <1700000000>;
+		opp-microvolt = <1037500 1037500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1800000000 {
+		opp-hz = /bits/ 64 <1800000000>;
+		opp-microvolt = <1087500 1087500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+};
+
+&cpu3_opps {
+	opp-1000000000 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <812500 812500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1100000000 {
+		opp-hz = /bits/ 64 <1100000000>;
+		opp-microvolt = <837500 837500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1200000000 {
+		opp-hz = /bits/ 64 <1200000000>;
+		opp-microvolt = <862500 862500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1300000000 {
+		opp-hz = /bits/ 64 <1300000000>;
+		opp-microvolt = <887500 887500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1400000000 {
+		opp-hz = /bits/ 64 <1400000000>;
+		opp-microvolt = <912500 912500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1500000000 {
+		opp-hz = /bits/ 64 <1500000000>;
+		opp-microvolt = <937500 937500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1600000000 {
+		opp-hz = /bits/ 64 <1600000000>;
+		opp-microvolt = <962500 962500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1700000000 {
+		opp-hz = /bits/ 64 <1700000000>;
+		opp-microvolt = <987500 987500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1800000000 {
+		opp-hz = /bits/ 64 <1800000000>;
+		opp-microvolt = <1012500 1012500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-1900000000 {
+		opp-hz = /bits/ 64 <1900000000>;
+		opp-microvolt = <1037500 1037500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+	opp-2000000000 {
+		opp-hz = /bits/ 64 <2000000000>;
+		opp-microvolt = <1087500 1087500 1100000>;
+		clock-latency-ns = <150000>;
+		status = "okay";
+	};
+};

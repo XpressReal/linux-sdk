@@ -1,0 +1,49 @@
+From a777abf0b4bc84b887a20d08d9b828946c1a5842 Mon Sep 17 00:00:00 2001
+From: Hao-Wen Ting <haowen.ting@realtek.com>
+Date: Wed, 31 Dec 2025 10:35:17 +0800
+Subject: [PATCH 29/33] Revert "clocksource: Add realtek systimer driver for
+ 4-core power-cut."
+
+This reverts commit 8a014617272eb90cb101ad075f0b03b29b19af57.
+
+Change-Id: I4977f570f4cc216346150722395c7660ca881313
+---
+ drivers/clocksource/Kconfig  | 12 ------------
+ drivers/clocksource/Makefile |  3 ---
+ 2 files changed, 15 deletions(-)
+
+diff --git a/drivers/clocksource/Kconfig b/drivers/clocksource/Kconfig
+index f3c6abf2041b2..d546903dba4f3 100644
+--- a/drivers/clocksource/Kconfig
++++ b/drivers/clocksource/Kconfig
+@@ -754,16 +754,4 @@ config EP93XX_TIMER
+ 	  Enables support for the Cirrus Logic timer block
+ 	  EP93XX.
+ 
+-config RTK_SYSTIMER
+-	bool "Realtek SYSDBG timer support"
+-	help
+-	  This enable the SYSDBG counter to be registered as global timer
+-	  on Realtek platform.
+-
+-config RTK_SYSTIMER_TEST
+-	tristate "Realtek SYSDBG timer test"
+-	depends on RTK_SYSTIMER
+-	help
+-	  This test the SYSDBG timer.
+-
+ endmenu
+diff --git a/drivers/clocksource/Makefile b/drivers/clocksource/Makefile
+index 2973a33900146..22743785299ed 100644
+--- a/drivers/clocksource/Makefile
++++ b/drivers/clocksource/Makefile
+@@ -91,6 +91,3 @@ obj-$(CONFIG_GOLDFISH_TIMER)		+= timer-goldfish.o
+ obj-$(CONFIG_GXP_TIMER)			+= timer-gxp.o
+ obj-$(CONFIG_CLKSRC_LOONGSON1_PWM)	+= timer-loongson1-pwm.o
+ obj-$(CONFIG_EP93XX_TIMER)		+= timer-ep93xx.o
+-obj-$(CONFIG_RTK_SYSTIMER)		+= timer-realtek.o
+-obj-$(CONFIG_RTK_SYSTIMER_TEST)		+= timer-realtek-test.o
+-
+-- 
+2.47.0
+

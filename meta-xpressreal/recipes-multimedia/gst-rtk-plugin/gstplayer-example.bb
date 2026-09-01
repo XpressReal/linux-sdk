@@ -13,7 +13,8 @@ S = "${WORKDIR}/${BPN}-${PV}"
 SDK_DIR = "${THISDIR}/../../rtk-dl"
 FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
-DEPENDS += "gstreamer1.0 wayland wayland-native wayland-protocols virtual/libgles2"
+DEPENDS += "gstreamer1.0"
+DEPENDS += "wayland wayland-native wayland-protocols virtual/libgles2"
 TARGET_CC_ARCH += "${LDFLAGS}"
 
 do_install() {

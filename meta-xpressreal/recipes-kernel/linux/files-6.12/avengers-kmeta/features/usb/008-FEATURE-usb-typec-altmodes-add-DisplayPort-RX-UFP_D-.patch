@@ -1,0 +1,69 @@
+From cddbac9515e7b81614b1b53a73e35d2a44d7cc15 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 28 Jan 2026 15:23:56 +0800
+Subject: [PATCH 33/33] [FEATURE] usb: typec: altmodes: add DisplayPort RX
+ (UFP_D) driver
+
+Add displayport_rx.c driver to support DisplayPort Alt Mode as UFP_D
+(DisplayPort Sink/Receiver):
+
+- Handle VDM messages: Enter Mode, Exit Mode, Status Update, Configure
+- Trigger PHY mux_set via typec_altmode_notify() for lane configuration
+- Send Attention VDM with HPD status to DFP_D (Source)
+- State machine: IDLE -> ENTERED -> CONFIGURED
+- Sysfs interface for testing HPD and viewing status
+- Export dp_rx_send_attention() and dp_rx_set_hpd() APIs
+
+Kconfig: CONFIG_TYPEC_DP_RX_ALTMODE to enable UFP_D driver
+This driver works alongside displayport.c (DFP_D driver).
+
+[PLATFORM] Prince
+[TEST] RTD1761
+[JIRA] SW-9676
+
+Change-Id: I91233b490897e6c2326f26de56fc1b31fa63a03c
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/typec/altmodes/Kconfig  | 13 +++++++++++++
+ drivers/usb/typec/altmodes/Makefile |  2 ++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/drivers/usb/typec/altmodes/Kconfig b/drivers/usb/typec/altmodes/Kconfig
+index 1a6b5e872b0d9..d75a7c566681c 100644
+--- a/drivers/usb/typec/altmodes/Kconfig
++++ b/drivers/usb/typec/altmodes/Kconfig
+@@ -13,6 +13,19 @@ config TYPEC_DP_ALTMODE
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called typec_displayport.
+ 
++config TYPEC_DP_RX_ALTMODE
++	tristate "DisplayPort Alternate Mode driver (UFP_D - Sink/Receiver)"
++	help
++	  DisplayPort USB Type-C Alternate Mode driver for UFP_D (Sink/Receiver) role.
++	  This driver passively responds to VDMs from DFP_D and receives DisplayPort
++	  video input from external sources.
++
++	  Use this if your device receives DisplayPort video (monitors, video
++	  capture devices, docking stations with DP input).
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called typec_displayport_rx.
++
+ config TYPEC_NVIDIA_ALTMODE
+ 	tristate "NVIDIA Alternate Mode driver"
+ 	depends on TYPEC_DP_ALTMODE
+diff --git a/drivers/usb/typec/altmodes/Makefile b/drivers/usb/typec/altmodes/Makefile
+index 45717548b3960..5ffd3694e8d52 100644
+--- a/drivers/usb/typec/altmodes/Makefile
++++ b/drivers/usb/typec/altmodes/Makefile
+@@ -2,5 +2,7 @@
+ 
+ obj-$(CONFIG_TYPEC_DP_ALTMODE)		+= typec_displayport.o
+ typec_displayport-y			:= displayport.o
++obj-$(CONFIG_TYPEC_DP_RX_ALTMODE)	+= typec_displayport_rx.o
++typec_displayport_rx-y			:= displayport_rx.o
+ obj-$(CONFIG_TYPEC_NVIDIA_ALTMODE)	+= typec_nvidia.o
+ typec_nvidia-y				:= nvidia.o
+-- 
+2.47.0
+

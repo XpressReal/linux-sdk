@@ -1,0 +1,40 @@
+From 1e35732a2b715d73d5fe90daeeb8761fbd2d4dc2 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:11:42 +0800
+Subject: [PATCH 56/73] power: reset: add reboot-mode driver for Realtek DHC
+ SoCs
+
+Change-Id: Iba006b7ad946ff46dbd4e3c0535d9ab5fd7e6eb4
+---
+ drivers/power/reset/Kconfig  | 7 +++++++
+ drivers/power/reset/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/power/reset/Kconfig b/drivers/power/reset/Kconfig
+index f3b9f4a6fcb5a..47717caa94acb 100644
+--- a/drivers/power/reset/Kconfig
++++ b/drivers/power/reset/Kconfig
+@@ -321,4 +321,11 @@ config POWER_RESET_RTK
+ 	default y
+ 	help
+ 	  Reboot support for Realtek SoCs.
++
++config RTK_REBOOT_MODE
++	tristate "Realtek reboot mode driver"
++	depends on ARCH_REALTEK
++	help
++	  Realtek reboot mode driver.
++
+ endif
+diff --git a/drivers/power/reset/Makefile b/drivers/power/reset/Makefile
+index dd0c643d667a2..c23de50a0c85d 100644
+--- a/drivers/power/reset/Makefile
++++ b/drivers/power/reset/Makefile
+@@ -38,3 +38,4 @@ obj-$(CONFIG_SYSCON_REBOOT_MODE) += syscon-reboot-mode.o
+ obj-$(CONFIG_POWER_RESET_SC27XX) += sc27xx-poweroff.o
+ obj-$(CONFIG_NVMEM_REBOOT_MODE) += nvmem-reboot-mode.o
+ obj-$(CONFIG_POWER_MLXBF) += pwr-mlxbf.o
++obj-$(CONFIG_RTK_REBOOT_MODE) += rtk-reboot-mode.o
+-- 
+2.47.0
+

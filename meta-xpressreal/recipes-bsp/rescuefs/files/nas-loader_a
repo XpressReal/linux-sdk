@@ -12,48 +12,260 @@ DL_IMAGE_FILE="/tmp/${IMAGE_FILES%% *}"
 
 MMC_IDX=`test -b /dev/mmcblk1 && echo 1 || echo 0`
 
-FourGB="`expr $(grep MemTotal: /proc/meminfo | cut -F 2) / 1024 \> 3072`"
+FourGB="`expr $(grep MemTotal: /proc/meminfo | awk '{print $2}') / 1024 \> 3072`"
 SUFFIX="`test $FourGB -eq 1 && echo _4gb`"
 BOOT_AREA_FILES="rtd1619b_emmc_bind${SUFFIX}.bin rtd1619b_emmc_bind.bin rtd1625_emmc_bind.bin"
+
+# =========================================================
+# MASTER DIALOG TRACKER (Whole System Upgrade)
+# =========================================================
+GUI_TTY="/dev/ttyS0"
+GUI_TERM="xterm"
+
+# 1. Check if the DRM subsystem is active and has registered a display card
+if [ -d /sys/class/drm ] && ls /sys/class/drm/card* >/dev/null 2>&1; then
+
+    # 2. Check if the Framebuffer Console is ALSO explicitly enabled
+    if [ -f /proc/config.gz ] && zcat /proc/config.gz 2>/dev/null | grep -q "^CONFIG_FRAMEBUFFER_CONSOLE=y"; then
+
+        # 3. Both conditions passed. Attempt to detect and use the active TTY
+        if [ -e /sys/class/tty/tty0/active ]; then
+            active_tty=$(cat /sys/class/tty/tty0/active 2>/dev/null)
+            if [ -n "$active_tty" ] && [ -w "/dev/$active_tty" ]; then
+                GUI_TTY="/dev/$active_tty"
+            fi
+        fi
+    fi
+fi
+
+exec 2>GUI_TTY
+PROGRESS_FIFO="/run/upgrade_progress.fifo"
+
+start_master_dialog() {
+    if command -v dialog >/dev/null 2>&1; then
+        rm -f "$PROGRESS_FIFO"
+        mkfifo "$PROGRESS_FIFO"
+
+        TERM=$GUI_TERM dialog  --title "System Firmware Upgrade" \
+            --backtitle "Please do not disconnect the power" \
+            --gauge "Initializing..." 20 80 < "$PROGRESS_FIFO" > "$GUI_TTY" 2>&1 &
+        DIALOG_PID=$!
+
+        # Open the FIFO on File Descriptor 3 so it doesn't close prematurely
+        exec 3> "$PROGRESS_FIFO"
+    fi
+}
+
+update_progress() {
+    local pct=$1
+    local text=$2
+    if [ -n "$DIALOG_PID" ] && kill -0 $DIALOG_PID 2>/dev/null; then
+        if [ -n "$text" ]; then
+            echo "XXX" >&3
+            echo "$text" >&3
+            echo "XXX" >&3
+        fi
+        echo "$pct" >&3
+    fi
+}
+
+stop_master_dialog() {
+    if [ -n "$DIALOG_PID" ]; then
+        exec 3>&-
+        wait $DIALOG_PID 2>/dev/null
+        rm -f "$PROGRESS_FIFO" /run/dialogrc
+    fi
+}
+
+track_pipeline() {
+    local source_file=$1
+    local total=$2
+
+    while true; do
+        reader_found=0
+        for pid in $(pidof pixz xzcat cat 2>/dev/null); do
+            link=$(readlink "/proc/$pid/fd/0" 2>/dev/null)
+            if [ "$link" = "$source_file" ]; then
+                reader_found=1
+                pos=$(awk '/^pos:/ {print $2}' "/proc/$pid/fdinfo/0" 2>/dev/null)
+                if [ -n "$pos" ] && [ "$total" -gt 0 ]; then
+                    # Phase 1: Reading data scales from 0% to 70%
+                    pct=$(( pos * 70 / total ))
+                    update_progress "$pct" "Step 1/4: Decompressing and Writing Image..."
+                fi
+                break
+            fi
+        done
+
+        if [ "$reader_found" -eq 0 ]; then
+            # Phase 2: Reader is done. If dd is alive, it is blocked on the final fsync.
+            if pidof dd >/dev/null; then
+                update_progress 70 "Step 2/4: Finalizing flash memory sync..."
+                fake_pct=71
+
+                while pidof dd >/dev/null; do
+                    update_progress "$fake_pct" ""
+                    [ "$fake_pct" -lt 90 ] && fake_pct=$((fake_pct + 1))
+                    sleep 1
+                done
+            fi
+            break
+        fi
+
+        sleep 1
+    done
+}
+
+# =========================================================
+
+check_dd_bytes()
+{
+    label="$1"
+    if [ -z "$DD_BYTES" ] || [ "$DD_BYTES" = "0" ]; then
+        echo "[$label wrote 0 bytes — pipeline failed entirely]"
+        cat "$DD_LOG"
+        return 1
+    elif [ "$DD_BYTES" -lt "$MIN_BYTES" ]; then
+        echo "[$label wrote only $DD_BYTES bytes (min $MIN_BYTES) — partial flash]"
+        cat "$DD_LOG"
+        return 1
+    elif [ "$DD_BYTES" != "$DECOMP_BYTES" ]; then
+        echo "[mismatch: $label decompressed ${DECOMP_BYTES:-?} bytes, dd wrote $DD_BYTES bytes]"
+        return 1
+    fi
+    return 0
+}
 
 do_xz_install()
 {
     ret=-1
+    DD_LOG=/run/nas-loader-dd.log
+    FIFO=/run/nas-loader-dec.fifo
+    DECOUNT=/run/nas-loader-dec.count
+
+    SIZE=$(( $(stat -c %s "$1") * 7 ))
+    MIN_BYTES=$((SIZE / 2))
+    SRC_BYTES=$(stat -c %s "$1" 2>/dev/null)
 
     if [ -e /usr/bin/pixz ];then
-        echo "[pixz -d < $1 > /dev/mmcblk${MMC_IDX}]"
-	#estimated ratio use 7
-	SIZE=$(( $(stat -c %s $1) * 7 ))
-	#can't use pv first since pixz will complain input seek error
-	pixz -d < $1 | pv -s $SIZE -f -W -pterb 2> /dev/tty1 | dd of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
+        echo "[pixz -d < $1 | tee fifo | dd of=/dev/mmcblk${MMC_IDX}]"
+        rm -f "$FIFO" "$DECOUNT" "$DD_LOG"; mkfifo "$FIFO"
+        wc -c < "$FIFO" > "$DECOUNT" & WCPID=$!
+
+        track_pipeline "$1" "$SRC_BYTES" & TRACKER_PID=$!
+
+        set -o pipefail
+        # Note: conv=fsync is back, so dd blocks properly and triggers our smooth Phase 2 tracker
+        pixz -d -p 2 < "$1" | tee "$FIFO" | dd of=/dev/mmcblk${MMC_IDX} bs=1M conv=fsync 2>"$DD_LOG"
         ret=$?
+        set +o pipefail
+
+        kill $TRACKER_PID 2>/dev/null; wait $TRACKER_PID 2>/dev/null
+        wait $WCPID 2>/dev/null
+
+        DD_BYTES=$(awk '/bytes.*copied/{b=$1} END{print b}' "$DD_LOG" 2>/dev/null)
+        DECOMP_BYTES=$(cat "$DECOUNT" 2>/dev/null)
+        rm -f "$FIFO" "$DECOUNT"
+        [ $ret -eq 0 ] && { check_dd_bytes pixz || ret=1; }
     fi
     if [ $ret != 0 ]; then
         echo "[do pixz failed, change to xzcat]"
-        echo "[xzcat $1 > /dev/mmcblk${MMC_IDX}]"
-	pv -f -W -pterb $1 2> /dev/tty1 | xzcat > /dev/mmcblk${MMC_IDX}
+        echo "[xzcat < $1 | tee fifo | dd of=/dev/mmcblk${MMC_IDX}]"
+        rm -f "$FIFO" "$DECOUNT" "$DD_LOG"; mkfifo "$FIFO"
+        wc -c < "$FIFO" > "$DECOUNT" & WCPID=$!
+
+        track_pipeline "$1" "$SRC_BYTES" & TRACKER_PID=$!
+
+        set -o pipefail
+        xzcat < "$1" | tee "$FIFO" | dd of=/dev/mmcblk${MMC_IDX} bs=1M conv=fsync 2>"$DD_LOG"
+        ret=$?
+        set +o pipefail
+
+        kill $TRACKER_PID 2>/dev/null; wait $TRACKER_PID 2>/dev/null
+        wait $WCPID 2>/dev/null
+
+        DD_BYTES=$(awk '/bytes.*copied/{b=$1} END{print b}' "$DD_LOG" 2>/dev/null)
+        DECOMP_BYTES=$(cat "$DECOUNT" 2>/dev/null)
+        rm -f "$FIFO" "$DECOUNT"
+        [ $ret -eq 0 ] && { check_dd_bytes xzcat || ret=1; }
     fi
+    rm -f "$DD_LOG"
+    return $ret
+}
+
+do_wic_install()
+{
+    DD_LOG=/run/nas-loader-dd.log
+    echo "[cat < $1 | dd of=/dev/mmcblk${MMC_IDX}]"
+
+    SRC_BYTES=$(stat -c %s "$1" 2>/dev/null)
+    rm -f "$DD_LOG"
+
+    track_pipeline "$1" "$SRC_BYTES" & TRACKER_PID=$!
+
+    set -o pipefail
+    cat < "$1" | dd of=/dev/mmcblk${MMC_IDX} bs=1M conv=fsync 2>"$DD_LOG"
+    ret=$?
+    set +o pipefail
+
+    kill $TRACKER_PID 2>/dev/null; wait $TRACKER_PID 2>/dev/null
+
+    DD_BYTES=$(awk '/bytes.*copied/{b=$1} END{print b}' "$DD_LOG" 2>/dev/null)
+    if [ $ret -eq 0 ]; then
+        if [ -z "$DD_BYTES" ] || [ "$DD_BYTES" = "0" ]; then
+            echo "[wic wrote 0 bytes — flash failed entirely]"
+            cat "$DD_LOG"
+            ret=1
+        elif [ "$DD_BYTES" != "$SRC_BYTES" ]; then
+            echo "[mismatch: src $SRC_BYTES bytes, dd wrote $DD_BYTES bytes]"
+            ret=1
+        fi
+    fi
+    rm -f "$DD_LOG"
+    return $ret
 }
 
 upgrade() {
+    start_master_dialog
+    update_progress 0 "Preparing for installation..."
+
+    DEFAULT_DIRTY_RATIO=$(cat /proc/sys/vm/dirty_ratio)
+
+    #Uncap the cache to decouple the pipeline
+    sysctl -w vm.dirty_ratio=80 >/dev/null 2>&1
+
     case "$2" in
         "wic")
-	    pv -f -W -pterb $1 2> /dev/tty1 | dd of=/dev/mmcblk${MMC_IDX} bs=4096 conv=fsync
+            do_wic_install "$1"
             ;;
         "xz")
-            do_xz_install $1
+            do_xz_install "$1"
             ;;
         *)
-            echo "File format is not supported" > /dev/console
-	    return 1
+            update_progress 0 "Error: File format is not supported!"
+            sleep 3
+            stop_master_dialog
+            return 1
             ;;
     esac
 
-    [ $? -eq 0 ] \
-    && resize_fs \
-    && upgrade_spl \
-    && reboot \
-    && return 0
+    if [ $? -eq 0 ]; then
+        update_progress 90 "Step 3/4: Resizing File System..."
+        resize_fs > GUI_TTY
+
+        update_progress 95 "Step 4/4: Upgrading Bootloader (SPL)..."
+        upgrade_spl > GUI_TTY
+
+        update_progress 100 "Upgrade Complete! Rebooting system..."
+        sleep 2
+        stop_master_dialog
+        reboot
+        return 0
+    fi
+
+    update_progress 0 "Upgrade Failed! Check system logs."
+    sleep 3
+    stop_master_dialog
     return 1
 }
 
@@ -70,6 +282,7 @@ EOF
 
 e2fsck -fy /dev/mmcblk${MMC_IDX}p${MMC_PART}
 resize2fs /dev/mmcblk${MMC_IDX}p${MMC_PART}
+e2fsck -fy /dev/mmcblk${MMC_IDX}p${MMC_PART}
 
 return 0
 }
@@ -128,4 +341,3 @@ while [ ! -f /tmp/.upgrading ]; do
     done
     sleep 1
 done
-

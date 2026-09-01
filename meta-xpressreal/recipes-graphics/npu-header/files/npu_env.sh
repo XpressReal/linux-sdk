@@ -1,1 +1,0 @@
-export VIVANTE_SDK_DIR=/usr/include/npu

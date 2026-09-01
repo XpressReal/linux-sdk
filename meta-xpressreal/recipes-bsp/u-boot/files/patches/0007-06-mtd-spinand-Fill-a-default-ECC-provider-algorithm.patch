@@ -1,0 +1,43 @@
+From c8efe010283ae0bef8593211e39bf7e7e185b93e Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Wed, 30 Sep 2020 17:41:09 +0200
+Subject: [PATCH] mtd: spinand: Fill a default ECC provider/algorithm
+
+The SPI-NAND layer default is on-die ECC because until now it was the
+only one supported. New SPI-NAND chip flavors might use something else
+as ECC engine provider but this will always be the default if the user
+does not choose explicitly something else.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20200930154109.3922-6-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/spi/core.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 069ebf85dd3fc..f58cea52c781a 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -309,7 +309,7 @@ static struct nand_ecc_engine_ops spinand_ondie_ecc_engine_ops = {
+ 	.finish_io_req = spinand_ondie_ecc_finish_io_req,
+ };
+ 
+-static __maybe_unused struct nand_ecc_engine spinand_ondie_ecc_engine = {
++static struct nand_ecc_engine spinand_ondie_ecc_engine = {
+ 	.ops = &spinand_ondie_ecc_engine_ops,
+ };
+ 
+@@ -1133,6 +1133,10 @@ static int spinand_init(struct spinand_device *spinand)
+ 	if (ret)
+ 		goto err_manuf_cleanup;
+ 
++	/* SPI-NAND default ECC engine is on-die */
++	nand->ecc.defaults.engine_type = NAND_ECC_ENGINE_TYPE_ON_DIE;
++	nand->ecc.ondie_engine = &spinand_ondie_ecc_engine;
++
+ 	spinand_ecc_enable(spinand, false);
+ 	ret = spinand_ondie_ecc_init_ctx(nand);
+ 	if (ret)
+-- 
+2.47.0
+

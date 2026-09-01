@@ -1,0 +1,212 @@
+From 775074165d97e03277eaf345d8c472e48659f5af Mon Sep 17 00:00:00 2001
+From: Sean Anderson <seanga2@gmail.com>
+Date: Wed, 8 Nov 2023 11:48:47 -0500
+Subject: [PATCH] spl: Add generic spl_load function
+
+Implementers of SPL_LOAD_IMAGE_METHOD have to correctly determine what
+type of image is being loaded and then call the appropriate image load
+function correctly. This is tricky, because some image load functions
+expect the whole image to already be loaded (CONFIG_SPL_LOAD_FIT_FULL),
+some will load the image automatically using spl_load_info.read()
+(CONFIG_SPL_LOAD_FIT/CONFIG_SPL_LOAD_IMX_CONTAINER), and some just parse
+the header and expect the caller to do the actual loading afterwards
+(legacy/raw images). Load methods often only support a subset of the
+above methods, meaning that not all image types can be used with all
+load methods. Further, the code to invoke these functions is
+duplicated between different load functions.
+
+To address this problem, this commit introduces a "spl_load" function.
+It aims to handle image detection and correct invocation of each of the
+parse/load functions.
+
+Although this function generally results in a size reduction with
+several users, it tends to bloat boards with only a single user.
+This is generally because programmers open-coding the contents of this
+function can make optimizations based on the specific loader. For
+example, NOR flash is memory-mapped, so it never bothers calling
+load->read. The compiler can't really make these optimizations across
+translation units. LTO solves this, but it is only available on some
+arches. To address this, perform "pseudo-LTO" by inlining spl_load when
+there are one or fewer users. At the moment, there are no users, so
+define SPL_LOAD_USERS to be 0.
+
+Signed-off-by: Sean Anderson <seanga2@gmail.com>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+---
+ common/spl/spl.c   |  10 ++++
+ include/spl_load.h | 135 +++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 145 insertions(+)
+ create mode 100644 include/spl_load.h
+
+diff --git a/common/spl/spl.c b/common/spl/spl.c
+index 7ce38ce46d4..3ce5bfeec8b 100644
+--- a/common/spl/spl.c
++++ b/common/spl/spl.c
+@@ -19,6 +19,7 @@
+ #include <mapmem.h>
+ #include <serial.h>
+ #include <spl.h>
++#include <spl_load.h>
+ #include <system-constants.h>
+ #include <asm/global_data.h>
+ #include <asm-generic/gpio.h>
+@@ -352,6 +353,15 @@ int spl_parse_image_header(struct spl_image_info *spl_image,
+ 	return 0;
+ }
+ 
++#if SPL_LOAD_USERS > 1
++int spl_load(struct spl_image_info *spl_image,
++	     const struct spl_boot_device *bootdev, struct spl_load_info *info,
++	     size_t size, size_t offset)
++{
++	return _spl_load(spl_image, bootdev, info, size, offset);
++}
++#endif
++
+ __weak void __noreturn jump_to_image_no_args(struct spl_image_info *spl_image)
+ {
+ 	typedef void __noreturn (*image_entry_noargs_t)(void);
+diff --git a/include/spl_load.h b/include/spl_load.h
+new file mode 100644
+index 00000000000..406f8b577b2
+--- /dev/null
++++ b/include/spl_load.h
+@@ -0,0 +1,135 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (C) Sean Anderson <seanga2@gmail.com>
++ */
++#ifndef	_SPL_LOAD_H_
++#define	_SPL_LOAD_H_
++
++#include <image.h>
++#include <imx_container.h>
++#include <mapmem.h>
++#include <spl.h>
++
++static inline int _spl_load(struct spl_image_info *spl_image,
++			    const struct spl_boot_device *bootdev,
++			    struct spl_load_info *info, size_t size,
++			    size_t offset)
++{
++	struct legacy_img_hdr *header =
++		spl_get_load_buffer(-sizeof(*header), sizeof(*header));
++	ulong base_offset, image_offset, overhead;
++	int read, ret;
++
++	read = info->read(info, offset, ALIGN(sizeof(*header),
++					      info->bl_len), header);
++	if (read < sizeof(*header))
++		return -EIO;
++
++	if (image_get_magic(header) == FDT_MAGIC) {
++		if (IS_ENABLED(CONFIG_SPL_LOAD_FIT_FULL)) {
++			void *buf;
++
++			/*
++			 * In order to support verifying images in the FIT, we
++			 * need to load the whole FIT into memory. Try and
++			 * guess how much we need to load by using the total
++			 * size. This will fail for FITs with external data,
++			 * but there's not much we can do about that.
++			 */
++			if (!size)
++				size = round_up(fdt_totalsize(header), 4);
++			buf = map_sysmem(CONFIG_SYS_LOAD_ADDR, size);
++			read = info->read(info, offset,
++					  ALIGN(size, info->bl_len),
++					  buf);
++			if (read < size)
++				return -EIO;
++
++			return spl_parse_image_header(spl_image, bootdev, buf);
++		}
++
++		if (IS_ENABLED(CONFIG_SPL_LOAD_FIT))
++			return spl_load_simple_fit(spl_image, info, offset,
++						   header);
++	}
++
++	if (IS_ENABLED(CONFIG_SPL_LOAD_IMX_CONTAINER) &&
++	    valid_container_hdr((void *)header))
++		return spl_load_imx_container(spl_image, info, offset);
++
++	if (IS_ENABLED(CONFIG_SPL_LZMA) &&
++	    image_get_magic(header) == IH_MAGIC &&
++	    image_get_comp(header) == IH_COMP_LZMA) {
++		spl_image->flags |= SPL_COPY_PAYLOAD_ONLY;
++		ret = spl_parse_image_header(spl_image, bootdev, header);
++		if (ret)
++			return ret;
++
++		return spl_load_legacy_lzma(spl_image, info, offset);
++	}
++
++	ret = spl_parse_image_header(spl_image, bootdev, header);
++	if (ret)
++		return ret;
++
++	base_offset = spl_image->offset;
++	/* Only NOR sets this flag. */
++	if (IS_ENABLED(CONFIG_SPL_NOR_SUPPORT) &&
++	    spl_image->flags & SPL_COPY_PAYLOAD_ONLY)
++		base_offset += sizeof(*header);
++	image_offset = ALIGN_DOWN(base_offset, info->bl_len);
++	overhead = base_offset - image_offset;
++	size = ALIGN(spl_image->size + overhead, info->bl_len);
++
++	read = info->read(info, offset + image_offset, size,
++			  map_sysmem(spl_image->load_addr - overhead, size));
++	return read < spl_image->size ? -EIO : 0;
++}
++
++/*
++ * Although spl_load results in size reduction for callers, this is generally
++ * not enough to counteract the bloat if there is only one caller. The core
++ * problem is that the compiler can't optimize across translation units. The
++ * general solution to this is CONFIG_LTO, but that is not available on all
++ * architectures. Perform a pseudo-LTO just for this function by declaring it
++ * inline if there is one caller, and extern otherwise.
++ */
++#define SPL_LOAD_USERS \
++	0
++
++#if SPL_LOAD_USERS > 1
++/**
++ * spl_load() - Parse a header and load the image
++ * @spl_image: Image data which will be filled in by this function
++ * @bootdev: The device to load from
++ * @info: Describes how to load additional information from @bootdev. At the
++ *        minimum, read() and bl_len must be populated.
++ * @size: The size of the image, in bytes, if it is known in advance. Some boot
++ *        devices (such as filesystems) know how big an image is before parsing
++ *        the header. If 0, then the size will be determined from the header.
++ * @offset: The offset from the start of @bootdev, in bytes. This should have
++ *          the offset @header was loaded from. It will be added to any offsets
++ *          passed to @info->read().
++ *
++ * This function determines the image type (FIT, legacy, i.MX, raw, etc), calls
++ * the appropriate parsing function, determines the load address, and the loads
++ * the image from storage. It is designed to replace ad-hoc image loading which
++ * may not support all image types (especially when config options are
++ * involved).
++ *
++ * Return: 0 on success, or a negative error on failure
++ */
++int spl_load(struct spl_image_info *spl_image,
++	     const struct spl_boot_device *bootdev, struct spl_load_info *info,
++	     size_t size, size_t offset);
++#else
++static inline int spl_load(struct spl_image_info *spl_image,
++			   const struct spl_boot_device *bootdev,
++			   struct spl_load_info *info, size_t size,
++			   size_t offset)
++{
++	return _spl_load(spl_image, bootdev, info, size, offset);
++}
++#endif
++
++#endif /* _SPL_LOAD_H_ */
+-- 
+2.47.0
+

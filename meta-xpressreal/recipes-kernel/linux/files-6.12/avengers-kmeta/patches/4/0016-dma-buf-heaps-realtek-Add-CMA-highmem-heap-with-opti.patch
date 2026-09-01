@@ -1,0 +1,43 @@
+From f8be85c756fe1dacc7985b77c27e351901488162 Mon Sep 17 00:00:00 2001
+From: "cy.huang" <cy.huang@realtek.com>
+Date: Wed, 19 Nov 2025 18:32:30 +0800
+Subject: [PATCH 16/33] dma-buf: heaps: realtek: Add CMA highmem heap with
+ optional uncached mapping
+
+Change-Id: I3db859e607d8b031e8e3592514228c9c73de1dc6
+---
+ drivers/dma-buf/heaps/Kconfig  | 8 ++++++++
+ drivers/dma-buf/heaps/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/dma-buf/heaps/Kconfig b/drivers/dma-buf/heaps/Kconfig
+index 2e43245ca0212..86ad150990800 100644
+--- a/drivers/dma-buf/heaps/Kconfig
++++ b/drivers/dma-buf/heaps/Kconfig
+@@ -21,3 +21,11 @@ config DMABUF_HEAPS_REALTEK
+ 	  Choose this option to enable dma-buf Realtek heap. This heap is backed
+ 	  by the Contiguous Memory Allocator (CMA) & Reserved Memory for Realtek
+ 	  Platform.
++
++config DMABUF_HEAPS_CMA_HIGHMEM
++	bool "DMA-BUF CMA Highmem Heap"
++	depends on DMABUF_HEAPS && DMA_CMA
++	help
++	  Enable CMA-backed DMA-BUF heaps for a dedicated high-memory CMA
++	  region named 'cma-highmem'.
++
+diff --git a/drivers/dma-buf/heaps/Makefile b/drivers/dma-buf/heaps/Makefile
+index 9ee158fa44221..3482230fb99b6 100644
+--- a/drivers/dma-buf/heaps/Makefile
++++ b/drivers/dma-buf/heaps/Makefile
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_DMABUF_HEAPS_SYSTEM)	+= system_heap.o
+ obj-$(CONFIG_DMABUF_HEAPS_CMA)		+= cma_heap.o
++obj-$(CONFIG_DMABUF_HEAPS_CMA_HIGHMEM) += cma_highmem_heap.o
+ obj-$(CONFIG_DMABUF_HEAPS_REALTEK)	+= rtk_media_heaps.o
+ rtk_media_heaps-y			+= rtk_media_heap.o rtk_heap_debug.o \
+ 					   rtk_heap_device.o rtk_heap_helpers.o \
+-- 
+2.47.0
+

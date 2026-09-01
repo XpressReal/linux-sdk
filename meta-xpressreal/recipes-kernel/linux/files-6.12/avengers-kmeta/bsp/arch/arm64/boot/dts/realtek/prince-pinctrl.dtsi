@@ -1,0 +1,792 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2022 Realtek Semiconductor Corp.
+ */
+
+
+&iso_pinctrl {
+	uart0_loc0_sel_pins: uart0-loc0-sel-pins {
+		pins = "uart0_loc";
+		function = "uart0_loc0";
+	};
+
+	uart4_loc2_pins: uart4-loc2-pins {
+		pins = "gpio_123", "gpio_124";
+		function = "uart4_loc2";
+	};
+
+	usb_cc1_pins: usb-cc1-pins {
+		pins = "usb_cc1";
+		function = "usb_cc1";
+	};
+
+	usb_cc2_pins: usb-cc2-pins {
+		pins = "usb_cc2";
+		function = "usb_cc2";
+	};
+
+	pwm0_loc2_pins: pwm0-loc2-pins {
+		pins = "gpio_123";
+		function = "pwm0_loc2";
+	};
+
+	pwm1_loc2_pins: pwm1-loc2-pins {
+		pins = "gpio_124";
+		function = "pwm1_loc2";
+	};
+
+	pwm4_loc0_pins: pwm4-loc0-pins {
+		pins = "gpio_30";
+		function = "pwm4_loc0";
+	};
+
+	pwm5_loc0_pins: pwm5-loc0-pins {
+		pins = "gpio_31";
+		function = "pwm5_loc0";
+	};
+
+	uart4_loc0_sel_pins: uart4-loc0-sel-pins {
+		pins = "uart4_loc";
+		function = "uart4_loc0";
+	};
+
+	uart4_loc1_sel_pins: uart4-loc1-sel-pins {
+		pins = "uart4_loc";
+		function = "uart4_loc1";
+	};
+
+	uart4_loc2_sel_pins: uart4-loc2-sel-pins {
+		pins = "uart4_loc";
+		function = "uart4_loc2";
+	};
+
+	uart9_loc0_sel_pins: uart9-loc0-sel-pins {
+		pins = "uart9_loc";
+		function = "uart9_loc0";
+	};
+
+	uart9_loc1_sel_pins: uart9-loc1-sel-pins {
+		pins = "uart9_loc";
+		function = "uart9_loc1";
+	};
+
+	uart9_loc2_sel_pins: uart9-loc2-sel-pins {
+		pins = "uart9_loc";
+		function = "uart9_loc2";
+	};
+
+	i2c4_loc0_sel_pins: i2c4_loc0-sel-pins {
+		pins = "i2c4_loc";
+		function = "i2c4_loc0";
+	};
+
+	i2c6_loc3_sel_pins: i2c6_loc3-sel-pins {
+		pins = "i2c6_loc";
+		function = "i2c6_loc3";
+	};
+
+	i2c8_loc0_pins: i2c8_loc0-pins {
+		pins = "gpio_119", "gpio_120", "i2c8_loc";
+		function = "i2c8_loc0";
+	};
+
+	gspi3_pins: gspi3-pins {
+		pins = "gpio_30", "gpio_31", "gpio_32", "gpio_33";
+		function = "gspi3";
+	};
+
+	ts1_pins: ts1-pins {
+		pins = "gpio_30",
+		       "gpio_31",
+		       "gpio_32",
+		       "gpio_33";
+		function = "ts1";
+	};
+
+	vi_dtv_pins: vi_dtv-pins {
+		pins = "gpio_110", "gpio_111", "gpio_112", "gpio_113", "gpio_114",
+		       "gpio_115", "gpio_116", "gpio_117", "gpio_118";
+		function = "vi_dtv";
+	};
+
+	ao_i2s0_pins: ao-i2s0-pins {
+		pins = "gpio_78", "gpio_79", "gpio_80", "gpio_85", "gpio_86",
+		       "gpio_87", "gpio_88";
+		function = "ao_i2s0";
+	};
+
+	ao_i2s0_data_pins: ao-i2s0-data-pins {
+		pins = "gpio_85", "gpio_86", "gpio_87", "gpio_88";
+		function = "ao_i2s0";
+	};
+
+	ai_i2s0_loc0_pins: ai-i2s0-loc0-pins {
+		pins = "gpio_78", "gpio_79", "gpio_80", "gpio_81", "gpio_82",
+		       "gpio_83", "gpio_84", "ai_i2s0_loc";
+		function = "ai_i2s0_loc0";
+	};
+
+	ai_i2s1_loc0_pins: ai-i2s1-loc0-pins {
+		pins = "ai_i2s1_loc", "gpio_89", "gpio_90", "gpio_91", "gpio_92", "gpio_93";
+		function = "ai_i2s1_loc0";
+	};
+
+	ai_i2s1_loc1_sel_pins: ai-i2s1-loc1-sel-pins {
+		pins = "ai_i2s1_loc";
+		function = "ai_i2s1_loc1";
+	};
+
+	ai_saibb0_pins: ai-saibb0-pins {
+		mux {
+			pins = "gpio_81", "gpio_82", "gpio_83", "gpio_84";
+			function = "ai_saibb0";
+		};
+		conf {
+			pins = "gpio_82", "gpio_83", "gpio_84";
+			input-schmitt-enable;
+		};
+	};
+
+	ai_saibb1_pins: ai-saibb1-pins {
+		mux {
+			pins = "gpio_89", "gpio_90", "gpio_91", "gpio_93";
+			function = "ai_saibb1";
+		};
+		conf {
+			pins = "gpio_89", "gpio_91", "gpio_93";
+			input-schmitt-enable;
+		};
+	};
+
+	ai_tdm0_pins: ai-tdm0-pins {
+		pins = "gpio_89", "gpio_90", "gpio_91", "gpio_92";
+		function = "ai_tdm0";
+	};
+
+	ao_tdm0_pins: ao-tdm0-pins {
+		pins = "gpio_78", "gpio_79", "gpio_80", "gpio_85";
+		function = "ao_tdm0";
+	};
+
+	ao_tdm1_pins: ao-tdm1-pins {
+		pins = "gpio_86", "gpio_87", "gpio_88", "gpio_93";
+		function = "ao_tdm1";
+	};
+
+	aio_vsel_1v8_pins: aio-vsel-1v8-pins {
+		pins = "gpio_78", "gpio_79", "gpio_80", "gpio_81", "gpio_82", "gpio_83",
+		       "gpio_84", "gpio_85", "gpio_86", "gpio_87", "gpio_88", "gpio_89",
+		       "gpio_90", "gpio_91", "gpio_92", "gpio_93";
+		power-source = <0>;
+		realtek,input_volt = <0>;
+	};
+
+	aio_vsel_3v3_pins: aio-vsel-3v3-pins {
+		pins = "gpio_78", "gpio_79", "gpio_80", "gpio_81", "gpio_82", "gpio_83",
+		       "gpio_84", "gpio_85", "gpio_86", "gpio_87", "gpio_88", "gpio_89",
+		       "gpio_90", "gpio_91", "gpio_92", "gpio_93";
+		power-source = <1>;
+		realtek,input_volt = <1>;
+	};
+};
+
+&npu_pinctrl {
+	uart2_pins: uart2-pins {
+		pins = "gpio_4", "gpio_5", "gpio_6", "gpio_7";
+		function = "uart2";
+	};
+
+	uart4_loc0_pins: uart4-loc0-pins {
+		pins = "gpio_129", "gpio_130";
+		function = "uart4_loc0";
+	};
+
+	uart6_pins: uart6-pins {
+		pins = "gpio_104", "gpio_105";
+		function = "uart6";
+	};
+
+	uart9_loc0_pins: uart9-loc0-pins {
+		pins = "gpio_72", "gpio_73";
+		function = "uart9_loc0";
+	};
+
+	uart9_loc2_pins: uart9-loc2-pins {
+		pins = "gpio_133", "gpio_134";
+		function = "uart9_loc2";
+	};
+
+	pwm0_loc0_pins: pwm0-loc0-pins {
+		pins = "gpio_12";
+		function = "pwm0_loc0";
+	};
+
+	pwm1_loc0_pins: pwm1-loc0-pins {
+		pins = "gpio_13";
+		function = "pwm1_loc0";
+	};
+
+	pwm5_loc1_pins: pwm5-loc1-pins {
+		pins = "gpio_72";
+		function = "pwm5_loc1";
+	};
+
+	pwm5_loc3_pins: pwm5-loc3-pins {
+		pins = "gpio_104";
+		function = "pwm5_loc3";
+	};
+
+	pwm6_loc1_pins: pwm6-loc1-pins {
+		pins = "gpio_73";
+		function = "pwm6_loc1";
+	};
+
+	pwm6_loc3_pins: pwm6-loc3-pins {
+		pins = "gpio_105";
+		function = "pwm6_loc3";
+	};
+
+	i2c0_pins: i2c0-pins {
+		pins = "gpio_12", "gpio_13";
+		function = "i2c0";
+		drive-strength = <4>;
+	};
+
+	i2c0_HS_pins: i2c0-HS-pins {
+		pins = "gpio_12", "gpio_13";
+		function = "i2c0";
+		drive-strength = <8>;
+	};
+
+	i2c6_loc3_pins: i2c6-loc3-pins {
+		pins = "gpio_131", "gpio_132";
+		function = "i2c6_loc3";
+	};
+
+	gspi0_pins: gspi0-pins {
+		pins = "gpio_4", "gpio_5", "gpio_6", "gpio_7";
+		function = "gspi0";
+	};
+
+	sgmii_pins: sgmii-pins {
+		pins = "gpio_14", "gpio_15";
+		function = "sgmii";
+	};
+
+	ai_i2s1_loc1_pins: ai-i2s1-loc1-pins {
+		pins = "gpio_72", "gpio_73", "gpio_74", "gpio_75";
+		function = "ai_i2s1_loc1";
+	};
+
+	ao_i2s1_pins: ao-i2s1-pins {
+		pins = "gpio_72", "gpio_73", "gpio_74", "gpio_75";
+		function = "ao_i2s1";
+	};
+
+	ao_i2s2_pins: ao-i2s2-pins {
+		pins = "gpio_68", "gpio_69", "gpio_70", "gpio_71";
+		function = "ao_i2s2";
+	};
+
+	dmic0_pins: dmic0-pins {
+		pins = "gpio_68", "gpio_69";
+		function = "dmic0";
+	};
+
+	dmic1_pins: dmic1-pins {
+		pins = "gpio_70", "gpio_71";
+		function = "dmic1";
+	};
+
+	dmic2_pins: dmic2-pins {
+		pins = "gpio_72", "gpio_73";
+		function = "dmic2";
+	};
+
+	dmic3_pins: dmic3-pins {
+		pins = "gpio_74", "gpio_75";
+		function = "dmic3";
+	};
+
+	pcie0_clkreq_pins: pcie0-clkreq-pins {
+		pins = "gpio_38";
+		function = "pcie0";
+	};
+
+};
+
+&ve2_pinctrl {
+	uart3_pins: uart3-pins {
+		pins = "gpio_98", "gpio_99", "gpio_100", "gpio_101";
+		function = "uart3";
+	};
+
+	pwm3_loc2_pins: pwm3-loc2-pins {
+		pins = "gpio_125";
+		function = "pwm3_loc2";
+	};
+
+	pwm4_loc2_pins: pwm4-loc2-pins {
+		pins = "gpio_126";
+		function = "pwm4_loc2";
+	};
+
+	pwm5_loc2_pins: pwm5-loc2-pins {
+		pins = "gpio_127";
+		function = "pwm5_loc2";
+	};
+
+	pwm6_loc2_pins: pwm6-loc2-pins {
+		pins = "gpio_128";
+		function = "pwm6_loc2";
+	};
+
+	gspi2_pins: gspi2-pins {
+		pins = "gpio_98", "gpio_99", "gpio_100", "gpio_101";
+		function = "gspi2";
+	};
+};
+
+&ve3_pinctrl {
+	uart0_loc0_pins: uart0-loc0-pins {
+		pins = "gpio_2", "gpio_3";
+		function = "uart0_loc0";
+	};
+
+	uart4_loc1_pins: uart4-loc1-pins {
+		pins = "gpio_34", "gpio_35";
+		function = "uart4_loc1";
+	};
+
+	uart5_pins: uart5-pins {
+		pins = "gpio_102", "gpio_103";
+		function = "uart5";
+	};
+
+	uart7_pins: uart7-pins {
+		pins = "gpio_106", "gpio_107";
+		function = "uart7";
+	};
+
+	uart9_loc1_pins: uart9-loc1-pins {
+		pins = "gpio_24", "gpio_25";
+		function = "uart9_loc1";
+	};
+
+	i2c3_pins: i2c3-pins {
+		pins = "gpio_94", "gpio_95";
+		function = "i2c3";
+	};
+
+	i2c4_loc0_pins: i2c4-loc0-pins {
+		pins = "gpio_34", "gpio_35";
+		function = "i2c4_loc0";
+	};
+
+	i2c5_pins: i2c5-pins {
+		pins = "gpio_36", "gpio_37";
+		function = "i2c5";
+	};
+
+	pwm3_loc3_pins: pwm3-loc3-pins {
+		pins = "gpio_102";
+		function = "pwm3_loc3";
+	};
+
+	pwm4_loc1_pins: pwm4-loc1-pins {
+		pins = "gpio_109";
+		function = "pwm4_loc1";
+	};
+
+	pwm4_loc3_pins: pwm4-loc3-pins {
+		pins = "gpio_103";
+		function = "pwm4_loc3";
+	};
+
+	pwm6_loc0_pins: pwm6-loc0-pins {
+		pins = "gpio_108";
+		function = "pwm6_loc0";
+	};
+
+	gspi1_pins: gspi1-pins {
+		pins = "gpio_106", "gpio_107", "gpio_108", "gpio_109";
+		function = "gspi1";
+	};
+
+	ts0_pins: ts0-pins {
+		pins = "gpio_24",
+		       "gpio_25",
+		       "gpio_26",
+		       "gpio_27";
+		function = "ts0";
+	};
+
+	ao_spdif_pins: ao-spdif-pins {
+		pins = "gpio_61";
+		function = "spdif_out";
+	};
+};
+
+&isom_pinctrl {
+	ir_rx_loc1_pins: ir-rx-loc1-pins {
+		pins = "gpio_29", "ir_rx_loc";
+		function = "ir_rx_loc1";
+	};
+
+	uart10_pins: uart10-pins {
+		pins = "gpio_28", "gpio_29";
+		function = "uart10";
+	};
+
+	ec_pins: ec-pins {
+		pins = "gpio_29";
+		function = "pctrl";
+	};
+};
+
+&main2_pinctrl {
+	uart1_pins: uart1-pins {
+		pins = "gpio_10", "gpio_11", "gpio_8", "gpio_9";
+		function = "uart1";
+	};
+
+	uart1_vsel_1v8_pins: uart1-vsel-1v8_pins {
+		pins = "gpio_8", "gpio_9", "gpio_10", "gpio_11";
+		power-source = <0>;
+		realtek,input_volt = <0>;
+	};
+
+	uart1_vsel_3v3_pins: uart1-vsel-3v3_pins {
+		pins = "gpio_8", "gpio_9", "gpio_10", "gpio_11";
+		power-source = <1>;
+		realtek,input_volt = <1>;
+	};
+
+	pwm0_loc1_pins: pwm0-loc1-pins {
+		pins = "gpio_64";
+		function = "pwm0_loc1";
+	};
+
+	pwm1_loc1_pins: pwm1-loc1-pins {
+		pins = "gpio_65";
+		function = "pwm1_loc1";
+	};
+
+	pwm2_loc0_pins: pwm2-loc0-pins {
+		pins = "gpio_76";
+		function = "pwm2_loc0";
+	};
+
+	pwm2_loc1_pins: pwm2-loc1-pins {
+		pins = "gpio_66";
+		function = "pwm2_loc1";
+	};
+
+	pwm3_loc0_pins: pwm3-loc0-pins {
+		pins = "gpio_77";
+		function = "pwm3_loc0";
+	};
+
+	pwm3_loc1_pins: pwm3-loc1-pins {
+		pins = "gpio_67";
+		function = "pwm3_loc1";
+	};
+
+	i2c1_pins: i2c1-pins {
+		pins = "gpio_20", "gpio_21";
+		function = "i2c1";
+		drive-strength = <8>;
+		slew-rate = <1>;
+	};
+
+	i2c1_gpio_pins: i2c1-gpio-pins {
+		pins = "gpio_20", "gpio_21";
+		function = "gpio";
+	};
+
+	dptx_hpd_pins: dptx-hpd-pins {
+		pins = "gpio_22";
+		function = "dptx_hpd";
+	};
+
+	pcm_pins: pcm-pins {
+		pins = "gpio_16", "gpio_17", "gpio_18", "gpio_19";
+		function = "pcm";
+	};
+
+	eio_irq5_pins: eio_irq5-pins {
+		pins = "gpio_76";
+		function = "eio_irq5";
+	};
+
+	sd_pins: sd-pins {
+		pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+		function = "sd";
+	};
+
+	sd_vsel_3v3_pins: sd-vsel-3v3-pins {
+		pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+		power-source = <1>;
+	};
+
+	sd_vsel_1v8_pins: sd-vsel-1v8-pins {
+		pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+		power-source = <0>;
+	};
+
+	sd_3v3_drv_pins: sd-3v3-drv-pins {
+		mux {
+			pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+			function = "sd";
+		};
+
+		conf {
+			pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+			realtek,pdrive = <0>;
+			realtek,ndrive = <0>;
+		};
+	};
+
+	sd_1v8_drv_pins: sd-1v8-drv-pins {
+		mux {
+			pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+			function = "sd";
+		};
+
+		conf {
+			pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+			realtek,pdrive = <4>;
+			realtek,ndrive = <4>;
+		};
+	};
+
+	sd_pud_cfg_pins: sd-pud-cfg-pins {
+		mux {
+			pins = "gpio_44", "gpio_45", "hif_clk", "hif_data", "hif_en", "hif_rdy";
+			function = "sd";
+		};
+
+		conf-pull-disable {
+			pins = "gpio_45";
+			bias-disable;
+		};
+
+		conf-pull-up {
+			pins = "hif_en";
+			bias-pull-up = <1>;
+		};
+	};
+
+	nf_pins: nf-pins {
+		pins = "emmc_data_0", "emmc_data_1", "emmc_data_2", "emmc_data_3", "emmc_data_4",
+		       "emmc_data_5";
+		function = "nf";
+	};
+
+	emmc_pins: emmc-pins {
+		pins = "emmc_rst_n",
+			"emmc_dd_sb",
+			"emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+	};
+
+	emmc_vsel_1v8_pins: emmc-vsel-1v8-pins {
+		pins = "emmc_rst_n",
+			"emmc_dd_sb",
+			"emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		power-source = <0>;
+	};
+
+	emmc_vsel_3v3_pins: emmc-vsel-3v3-pins {
+		pins = "emmc_rst_n",
+			"emmc_dd_sb",
+			"emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		power-source = <1>;
+	};
+
+	emmc_sdr50_pins: emmc-sdr50-pins {
+		pinconf1 {
+			pins = "emmc_clk",
+				"emmc_cmd",
+				"emmc_data_0",
+				"emmc_data_1",
+				"emmc_data_2",
+				"emmc_data_3",
+				"emmc_data_4",
+				"emmc_data_5",
+				"emmc_data_6",
+				"emmc_data_7";
+			function = "emmc";
+			realtek,pdrive = <0x0>;
+			realtek,ndrive = <0x0>;
+		};
+		pinconf2 {
+			pins = "emmc_dd_sb";
+			input-schmitt-enable;
+		};
+	};
+	emmc_ddr50_pins: emmc-ddr50-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x0>;
+		realtek,ndrive = <0x0>;
+	};
+
+	emmc_hs200_pins: emmc-hs200-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x2>;
+		realtek,ndrive = <0x2>;
+	};
+
+	emmc_hs400_pins: emmc-hs400-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x4>;
+		realtek,ndrive = <0x4>;
+	};
+
+	emmc_tune0_pins: emmc-tune0-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x0>;
+		realtek,ndrive = <0x0>;
+	};
+
+	emmc_tune1_pins: emmc-tune1-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x1>;
+		realtek,ndrive = <0x1>;
+	};
+
+	emmc_tune2_pins: emmc-tune2-pins {
+		pins = "emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x2>;
+		realtek,ndrive = <0x2>;
+	};
+
+	emmc_tune3_pins: emmc-tune3-pins {
+		pins = //"emmc_clk",
+			"emmc_cmd",
+			"emmc_data_0",
+			"emmc_data_1",
+			"emmc_data_2",
+			"emmc_data_3",
+			"emmc_data_4",
+			"emmc_data_5",
+			"emmc_data_6",
+			"emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x3>;
+		realtek,ndrive = <0x3>;
+	};
+
+	emmc_tune4_pins: emmc-tune4-pins {
+		pins = "emmc_clk",
+		       "emmc_cmd",
+		       "emmc_data_0",
+		       "emmc_data_1",
+		       "emmc_data_2",
+		       "emmc_data_3",
+		       "emmc_data_4",
+		       "emmc_data_5",
+		       "emmc_data_6",
+		       "emmc_data_7";
+		function = "emmc";
+		realtek,pdrive = <0x7>;
+		realtek,ndrive = <0x7>;
+	};
+
+	spi_pins: spi_pins {
+		pins = "gpio_64",
+		       "gpio_65",
+		       "gpio_66",
+		       "gpio_67";
+		function = "spi";
+		realtek,pdrive = <0x3>;
+		realtek,ndrive = <0x2>;
+	};
+};

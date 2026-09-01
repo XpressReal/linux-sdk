@@ -1,0 +1,414 @@
+From 8948a1e22eccea6bc44536b2fc15cb121601556b Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 8 Mar 2022 14:04:37 +0800
+Subject: [PATCH 22/54] 803: dma-buf: Export sync function for Realtek
+
+---
+ drivers/dma-buf/dma-buf.c    |  65 +++++++++++++
+ drivers/dma-buf/sw_sync.c    | 174 +++++++++++++++++++++++++++++++++++
+ drivers/dma-buf/sync_debug.c |   4 +
+ drivers/dma-buf/sync_debug.h |   7 ++
+ include/drm/drm_prime.h      |   1 +
+ include/linux/dma-buf.h      |  98 ++++++++++++++++++++
+
+diff --git a/drivers/dma-buf/dma-buf.c b/drivers/dma-buf/dma-buf.c
+index 93e9bf738..b51d5bbdd 100644
+--- a/drivers/dma-buf/dma-buf.c
++++ b/drivers/dma-buf/dma-buf.c
+@@ -1269,6 +1308,32 @@ void dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
+ }
+ EXPORT_SYMBOL_GPL(dma_buf_vunmap);
+ 
++int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags)
++{
++	int ret = 0;
++
++	if (WARN_ON(!dmabuf) || !flags)
++		return -EINVAL;
++
++	if (dmabuf->ops->get_flags)
++		ret = dmabuf->ops->get_flags(dmabuf, flags);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(dma_buf_get_flags);
++
++int dma_buf_get_uuid(struct dma_buf *dmabuf, uuid_t *uuid)
++{
++	if (WARN_ON(!dmabuf) || !uuid)
++		return -EINVAL;
++
++	if (!dmabuf->ops->get_uuid)
++		return -ENODEV;
++
++	return dmabuf->ops->get_uuid(dmabuf, uuid);
++}
++EXPORT_SYMBOL_GPL(dma_buf_get_uuid);
++
+ #ifdef CONFIG_DEBUG_FS
+ static int dma_buf_debug_show(struct seq_file *s, void *unused)
+ {
+diff --git a/drivers/dma-buf/sw_sync.c b/drivers/dma-buf/sw_sync.c
+index 348b3a917..77ffc7618 100644
+--- a/drivers/dma-buf/sw_sync.c
++++ b/drivers/dma-buf/sw_sync.c
+@@ -10,6 +10,9 @@
+ #include <linux/uaccess.h>
+ #include <linux/slab.h>
+ #include <linux/sync_file.h>
++#include <linux/miscdevice.h>
++#include <linux/init.h>
++#include <linux/module.h>
+ 
+ #include "sync_debug.h"
+ 
+@@ -68,6 +71,37 @@ static inline struct sync_pt *dma_fence_to_sync_pt(struct dma_fence *fence)
+ 	return container_of(fence, struct sync_pt, base);
+ }
+ 
++#ifdef CONFIG_ARCH_REALTEK
++/**
++ * sync_timeline_create() - creates a sync object
++ * @name:	sync_timeline name
++ *
++ * Creates a new sync_timeline. Returns the sync_timeline object or NULL in
++ * case of error.
++ */
++struct sync_timeline *sync_timeline_create(const char *name)
++{
++	struct sync_timeline *obj;
++
++	obj = kzalloc(sizeof(*obj), GFP_KERNEL);
++	if (!obj)
++		return NULL;
++
++	kref_init(&obj->kref);
++	obj->context = dma_fence_context_alloc(1);
++	strlcpy(obj->name, name, sizeof(obj->name));
++
++	obj->pt_tree = RB_ROOT;
++	INIT_LIST_HEAD(&obj->pt_list);
++	spin_lock_init(&obj->lock);
++
++	sync_timeline_debug_add(obj);
++
++	return obj;
++}
++EXPORT_SYMBOL(sync_timeline_create);
++
++#else
+ /**
+  * sync_timeline_create() - creates a sync object
+  * @name:	sync_timeline name
+@@ -95,6 +129,7 @@ static struct sync_timeline *sync_timeline_create(const char *name)
+ 
+ 	return obj;
+ }
++#endif
+ 
+ static void sync_timeline_free(struct kref *kref)
+ {
+@@ -111,10 +146,19 @@ static void sync_timeline_get(struct sync_timeline *obj)
+ 	kref_get(&obj->kref);
+ }
+ 
++#ifdef CONFIG_ARCH_REALTEK
++void sync_timeline_put(struct sync_timeline *obj)
++{
++	kref_put(&obj->kref, sync_timeline_free);
++}
++EXPORT_SYMBOL(sync_timeline_put);
++
++#else
+ static void sync_timeline_put(struct sync_timeline *obj)
+ {
+ 	kref_put(&obj->kref, sync_timeline_free);
+ }
++#endif
+ 
+ static const char *timeline_fence_get_driver_name(struct dma_fence *fence)
+ {
+@@ -181,6 +225,49 @@ static const struct dma_fence_ops timeline_fence_ops = {
+ 	.timeline_value_str = timeline_fence_timeline_value_str,
+ };
+ 
++
++#ifdef CONFIG_ARCH_REALTEK
++/**
++ * sync_timeline_signal() - signal a status change on a sync_timeline
++ * @obj:	sync_timeline to signal
++ * @inc:	num to increment on timeline->value
++ *
++ * A sync implementation should call this any time one of it's fences
++ * has signaled or has an error condition.
++ */
++void sync_timeline_signal(struct sync_timeline *obj, unsigned int inc)
++{
++	struct sync_pt *pt, *next;
++
++	trace_sync_timeline(obj);
++
++	spin_lock_irq(&obj->lock);
++
++	obj->value += inc;
++
++	list_for_each_entry_safe(pt, next, &obj->pt_list, link) {
++		if (!timeline_fence_signaled(&pt->base))
++			break;
++
++		list_del_init(&pt->link);
++		rb_erase(&pt->node, &obj->pt_tree);
++
++		/*
++		 * A signal callback may release the last reference to this
++		 * fence, causing it to be freed. That operation has to be
++		 * last to avoid a use after free inside this loop, and must
++		 * be after we remove the fence from the timeline in order to
++		 * prevent deadlocking on timeline->lock inside
++		 * timeline_fence_release().
++		 */
++		dma_fence_signal_locked(&pt->base);
++	}
++
++	spin_unlock_irq(&obj->lock);
++}
++EXPORT_SYMBOL(sync_timeline_signal);
++
++#else
+ /**
+  * sync_timeline_signal() - signal a status change on a sync_timeline
+  * @obj:	sync_timeline to signal
+@@ -219,7 +306,74 @@ static void sync_timeline_signal(struct sync_timeline *obj, unsigned int inc)
+ 
+ 	spin_unlock_irq(&obj->lock);
+ }
++#endif
+ 
++#ifdef CONFIG_ARCH_REALTEK
++/**
++ * sync_pt_create() - creates a sync pt
++ * @obj:	parent sync_timeline
++ * @value:	value of the fence
++ *
++ * Creates a new sync_pt (fence) as a child of @parent.  @size bytes will be
++ * allocated allowing for implementation specific data to be kept after
++ * the generic sync_timeline struct. Returns the sync_pt object or
++ * NULL in case of error.
++ */
++struct sync_pt *sync_pt_create(struct sync_timeline *obj,
++				      unsigned int value)
++{
++	struct sync_pt *pt;
++
++	pt = kzalloc(sizeof(*pt), GFP_KERNEL);
++	if (!pt)
++		return NULL;
++
++	sync_timeline_get(obj);
++	dma_fence_init(&pt->base, &timeline_fence_ops, &obj->lock,
++		       obj->context, value);
++	INIT_LIST_HEAD(&pt->link);
++
++	spin_lock_irq(&obj->lock);
++	if (!dma_fence_is_signaled_locked(&pt->base)) {
++		struct rb_node **p = &obj->pt_tree.rb_node;
++		struct rb_node *parent = NULL;
++
++		while (*p) {
++			struct sync_pt *other;
++			int cmp;
++
++			parent = *p;
++			other = rb_entry(parent, typeof(*pt), node);
++			cmp = value - other->base.seqno;
++			if (cmp > 0) {
++				p = &parent->rb_right;
++			} else if (cmp < 0) {
++				p = &parent->rb_left;
++			} else {
++				if (dma_fence_get_rcu(&other->base)) {
++					sync_timeline_put(obj);
++					kfree(pt);
++					pt = other;
++					goto unlock;
++				}
++				p = &parent->rb_left;
++			}
++		}
++		rb_link_node(&pt->node, parent, p);
++		rb_insert_color(&pt->node, &obj->pt_tree);
++
++		parent = rb_next(&pt->node);
++		list_add_tail(&pt->link,
++			      parent ? &rb_entry(parent, typeof(*pt), node)->link : &obj->pt_list);
++	}
++unlock:
++	spin_unlock_irq(&obj->lock);
++
++	return pt;
++}
++EXPORT_SYMBOL(sync_pt_create);
++
++#else
+ /**
+  * sync_pt_create() - creates a sync pt
+  * @obj:	parent sync_timeline
+@@ -282,6 +436,7 @@ static struct sync_pt *sync_pt_create(struct sync_timeline *obj,
+ 
+ 	return pt;
+ }
++#endif
+ 
+ /*
+  * *WARNING*
+@@ -410,3 +565,22 @@ const struct file_operations sw_sync_debugfs_fops = {
+ 	.unlocked_ioctl = sw_sync_ioctl,
+ 	.compat_ioctl	= compat_ptr_ioctl,
+ };
++
++static struct miscdevice sw_sync_dev = {
++    .minor  = MISC_DYNAMIC_MINOR,
++    .name   = "sw_sync",
++    .fops   = &sw_sync_debugfs_fops,
++};
++
++static int __init sw_sync_device_init(void)
++{
++    return misc_register(&sw_sync_dev);
++}
++
++static void __exit sw_sync_device_remove(void)
++{
++    misc_deregister(&sw_sync_dev);
++}
++
++module_init(sw_sync_device_init);
++module_exit(sw_sync_device_remove);
+diff --git a/drivers/dma-buf/sync_debug.c b/drivers/dma-buf/sync_debug.c
+index 101394f16..f381047a0 100644
+--- a/drivers/dma-buf/sync_debug.c
++++ b/drivers/dma-buf/sync_debug.c
+@@ -33,6 +33,7 @@ void sync_timeline_debug_remove(struct sync_timeline *obj)
+ 	spin_unlock_irqrestore(&sync_timeline_list_lock, flags);
+ }
+ 
++#ifdef CONFIG_DEBUG_FS
+ void sync_file_debug_add(struct sync_file *sync_file)
+ {
+ 	unsigned long flags;
+@@ -50,6 +51,7 @@ void sync_file_debug_remove(struct sync_file *sync_file)
+ 	list_del(&sync_file->sync_file_list);
+ 	spin_unlock_irqrestore(&sync_file_list_lock, flags);
+ }
++#endif
+ 
+ static const char *sync_status_str(int status)
+ {
+@@ -138,6 +140,7 @@ static void sync_print_sync_file(struct seq_file *s,
+ 	}
+ }
+ 
++#ifdef CONFIG_DEBUG_FS
+ static int sync_info_debugfs_show(struct seq_file *s, void *unused)
+ {
+ 	struct list_head *pos;
+@@ -188,3 +191,4 @@ static __init int sync_debugfs_init(void)
+ 	return 0;
+ }
+ late_initcall(sync_debugfs_init);
++#endif
+diff --git a/drivers/dma-buf/sync_debug.h b/drivers/dma-buf/sync_debug.h
+index 6176e52ba..434dd145e 100644
+--- a/drivers/dma-buf/sync_debug.h
++++ b/drivers/dma-buf/sync_debug.h
+@@ -69,4 +69,11 @@ void sync_timeline_debug_remove(struct sync_timeline *obj);
+ void sync_file_debug_add(struct sync_file *fence);
+ void sync_file_debug_remove(struct sync_file *fence);
+ 
++#ifdef CONFIG_ARCH_REALTEK
++struct sync_timeline *sync_timeline_create(const char *name);
++struct sync_pt *sync_pt_create(struct sync_timeline *obj, unsigned int value);
++void sync_timeline_signal(struct sync_timeline *obj, unsigned int inc);
++void sync_timeline_put(struct sync_timeline *obj);
++#endif /* CONFIG_RTK_PLATFORM */
++
+ #endif /* _LINUX_SYNC_H */
+diff --git a/include/drm/drm_prime.h b/include/drm/drm_prime.h
+index 0f69f9fbf..a9d0c6b08 100644
+--- a/include/drm/drm_prime.h
++++ b/include/drm/drm_prime.h
+@@ -107,5 +107,6 @@ void drm_prime_gem_destroy(struct drm_gem_object *obj, struct sg_table *sg);
+ int drm_prime_sg_to_page_addr_arrays(struct sg_table *sgt, struct page **pages,
+ 				     dma_addr_t *addrs, int max_pages);
+ 
++int drm_gem_dmabuf_get_uuid(struct dma_buf *dma_buf, uuid_t *uuid);
+ 
+ #endif /* __DRM_PRIME_H__ */
+diff --git a/include/linux/dma-buf.h b/include/linux/dma-buf.h
+index 957b398d3..89e3a5355 100644
+--- a/include/linux/dma-buf.h
++++ b/include/linux/dma-buf.h
+@@ -267,6 +324,35 @@ struct dma_buf_ops {
+ 
+ 	void *(*vmap)(struct dma_buf *);
+ 	void (*vunmap)(struct dma_buf *, void *vaddr);
++
++	/**
++	 * @get_uuid
++	 *
++	 * This is called by dma_buf_get_uuid to get the UUID which identifies
++	 * the buffer to virtio devices.
++	 *
++	 * This callback is optional.
++	 *
++	 * Returns:
++	 *
++	 * 0 on success or a negative error code on failure. On success uuid
++	 * will be populated with the buffer's UUID.
++	 */
++	int (*get_uuid)(struct dma_buf *dmabuf, uuid_t *uuid);
++
++	/**
++	 * @get_flags:
++	 *
++	 * This is called by dma_buf_get_flags and is used to get the buffer's
++	 * flags.
++	 * This callback is optional.
++	 *
++	 * Returns:
++	 *
++	 * 0 on success or a negative error code on failure. On success flags
++	 * will be populated with the buffer's flags.
++	 */
++	int (*get_flags)(struct dma_buf *dmabuf, unsigned long *flags);
+ };
+ 
+ /**
+@@ -376,6 +462,8 @@ struct dma_buf_attach_ops {
+  * @importer_ops: importer operations for this attachment, if provided
+  * dma_buf_map/unmap_attachment() must be called with the dma_resv lock held.
+  * @importer_priv: importer specific attachment data.
++ * @dma_map_attrs: DMA attributes to be used when the exporter maps the buffer
++ * through dma_buf_map_attachment.
+  *
+  * This structure holds the attachment information between the dma_buf buffer
+  * and its user device(s). The list contains one attachment struct per device
+@@ -396,6 +484,7 @@ struct dma_buf_attachment {
+ 	const struct dma_buf_attach_ops *importer_ops;
+ 	void *importer_priv;
+ 	void *priv;
++	unsigned long dma_map_attrs;
+ };
+ 
+ /**
+@@ -497,4 +586,7 @@ void dma_buf_unmap_attachment(struct dma_buf_attachment *, struct sg_table *,
+ 		 unsigned long);
+ void *dma_buf_vmap(struct dma_buf *);
+ void dma_buf_vunmap(struct dma_buf *, void *vaddr);
++int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
++int dma_buf_get_uuid(struct dma_buf *dmabuf, uuid_t *uuid);
++
+ #endif /* __DMA_BUF_H__ */
+-- 
+2.17.1
+

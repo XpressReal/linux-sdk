@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2023 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1325-livingvampire-512mb.dts"
+
+&display_subsystem {
+	ports = <&vo_out_legacy>;
+	status = "okay";
+};
+
+&rtk_avcpu {
+	alog {
+		addr = <0x0487d000>;
+		size = <0x8000>;
+		lvl = <0x0>;
+	};
+
+	vlog {
+		addr = <0x04885000>;
+		size = <0x8000>;
+	};
+
+	hlog {
+		addr = <0x0488d000>;
+		size = <0x8000>;
+		lvl = <0x0>;
+	};
+};

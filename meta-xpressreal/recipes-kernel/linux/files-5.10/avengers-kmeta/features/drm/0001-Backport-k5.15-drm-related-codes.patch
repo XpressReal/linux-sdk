@@ -1,0 +1,189 @@
+From 670d92044ff23ed71681d996d0c78f2051f80e1a Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Wed, 22 Apr 2026 14:54:45 +0800
+Subject: [PATCH 1/1] Backport k5.15 drm related codes
+
+---
+ drivers/gpu/drm/drm_edid.c    |   7 ++-
+ include/drm/drm_connector.h   |  12 +++-
+ include/uapi/drm/drm_fourcc.h | 103 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 116 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/drm_edid.c b/drivers/gpu/drm/drm_edid.c
+index 39eb39e78d7a..6443a94bbfe7 100644
+--- a/drivers/gpu/drm/drm_edid.c
++++ b/drivers/gpu/drm/drm_edid.c
+@@ -4931,21 +4931,21 @@ static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
+ 
+ 	if (hdmi[6] & DRM_EDID_HDMI_DC_30) {
+ 		dc_bpc = 10;
+-		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_30;
++		info->edid_hdmi_rgb444_dc_modes |= DRM_EDID_HDMI_DC_30;
+ 		DRM_DEBUG("%s: HDMI sink does deep color 30.\n",
+ 			  connector->name);
+ 	}
+ 
+ 	if (hdmi[6] & DRM_EDID_HDMI_DC_36) {
+ 		dc_bpc = 12;
+-		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_36;
++		info->edid_hdmi_rgb444_dc_modes |= DRM_EDID_HDMI_DC_36;
+ 		DRM_DEBUG("%s: HDMI sink does deep color 36.\n",
+ 			  connector->name);
+ 	}
+ 
+ 	if (hdmi[6] & DRM_EDID_HDMI_DC_48) {
+ 		dc_bpc = 16;
+-		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_48;
++		info->edid_hdmi_rgb444_dc_modes |= DRM_EDID_HDMI_DC_48;
+ 		DRM_DEBUG("%s: HDMI sink does deep color 48.\n",
+ 			  connector->name);
+ 	}
+@@ -4962,6 +4962,7 @@ static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
+ 
+ 	/* YCRCB444 is optional according to spec. */
+ 	if (hdmi[6] & DRM_EDID_HDMI_DC_Y444) {
++		info->edid_hdmi_ycbcr444_dc_modes = info->edid_hdmi_rgb444_dc_modes;
+ 		DRM_DEBUG("%s: HDMI sink does YCRCB444 in deep color.\n",
+ 			  connector->name);
+ 	}
+diff --git a/include/drm/drm_connector.h b/include/drm/drm_connector.h
+index 03d39532c708..5067131955d1 100644
+--- a/include/drm/drm_connector.h
++++ b/include/drm/drm_connector.h
+@@ -517,10 +517,16 @@ struct drm_display_info {
+ 	bool rgb_quant_range_selectable;
+ 
+ 	/**
+-	 * @edid_hdmi_dc_modes: Mask of supported hdmi deep color modes. Even
+-	 * more stuff redundant with @bus_formats.
++	 * @edid_hdmi_rgb444_dc_modes: Mask of supported hdmi deep color modes
++	 * in RGB 4:4:4. Even more stuff redundant with @bus_formats.
+ 	 */
+-	u8 edid_hdmi_dc_modes;
++	u8 edid_hdmi_rgb444_dc_modes;
++
++	/**
++	 * @edid_hdmi_ycbcr444_dc_modes: Mask of supported hdmi deep color
++	 * modes in YCbCr 4:4:4. Even more stuff redundant with @bus_formats.
++	 */
++	u8 edid_hdmi_ycbcr444_dc_modes;
+ 
+ 	/**
+ 	 * @cea_rev: CEA revision of the HDMI sink.
+diff --git a/include/uapi/drm/drm_fourcc.h b/include/uapi/drm/drm_fourcc.h
+index dad9d3b4a97a..8d7d2d0f8843 100644
+--- a/include/uapi/drm/drm_fourcc.h
++++ b/include/uapi/drm/drm_fourcc.h
+@@ -963,6 +963,109 @@ drm_fourcc_canonicalize_nvidia_format_mod(__u64 modifier)
+  */
+ #define AFBC_FORMAT_MOD_USM	(1ULL << 12)
+ 
++/*
++ * Arm Fixed-Rate Compression (AFRC) modifiers
++ *
++ * AFRC is a proprietary fixed rate image compression protocol and format,
++ * designed to provide guaranteed bandwidth and memory footprint
++ * reductions in graphics and media use-cases.
++ *
++ * AFRC buffers consist of one or more planes, with the same components
++ * and meaning as an uncompressed buffer using the same pixel format.
++ *
++ * Within each plane, the pixel/luma/chroma values are grouped into
++ * "coding unit" blocks which are individually compressed to a
++ * fixed size (in bytes). All coding units within a given plane of a buffer
++ * store the same number of values, and have the same compressed size.
++ *
++ * The coding unit size is configurable, allowing different rates of compression.
++ *
++ * The start of each AFRC buffer plane must be aligned to an alignment granule which
++ * depends on the coding unit size.
++ *
++ * Coding Unit Size   Plane Alignment
++ * ----------------   ---------------
++ * 16 bytes           1024 bytes
++ * 24 bytes           512  bytes
++ * 32 bytes           2048 bytes
++ *
++ * Coding units are grouped into paging tiles. AFRC buffer dimensions must be aligned
++ * to a multiple of the paging tile dimensions.
++ * The dimensions of each paging tile depend on whether the buffer is optimised for
++ * scanline (SCAN layout) or rotated (ROT layout) access.
++ *
++ * Layout   Paging Tile Width   Paging Tile Height
++ * ------   -----------------   ------------------
++ * SCAN     16 coding units     4 coding units
++ * ROT      8  coding units     8 coding units
++ *
++ * The dimensions of each coding unit depend on the number of components
++ * in the compressed plane and whether the buffer is optimised for
++ * scanline (SCAN layout) or rotated (ROT layout) access.
++ *
++ * Number of Components in Plane   Layout      Coding Unit Width   Coding Unit Height
++ * -----------------------------   ---------   -----------------   ------------------
++ * 1                               SCAN        16 samples          4 samples
++ * Example: 16x4 luma samples in a 'Y' plane
++ *          16x4 chroma 'V' values, in the 'V' plane of a fully-planar YUV buffer
++ * -----------------------------   ---------   -----------------   ------------------
++ * 1                               ROT         8 samples           8 samples
++ * Example: 8x8 luma samples in a 'Y' plane
++ *          8x8 chroma 'V' values, in the 'V' plane of a fully-planar YUV buffer
++ * -----------------------------   ---------   -----------------   ------------------
++ * 2                               DONT CARE   8 samples           4 samples
++ * Example: 8x4 chroma pairs in the 'UV' plane of a semi-planar YUV buffer
++ * -----------------------------   ---------   -----------------   ------------------
++ * 3                               DONT CARE   4 samples           4 samples
++ * Example: 4x4 pixels in an RGB buffer without alpha
++ * -----------------------------   ---------   -----------------   ------------------
++ * 4                               DONT CARE   4 samples           4 samples
++ * Example: 4x4 pixels in an RGB buffer with alpha
++ */
++
++#define DRM_FORMAT_MOD_ARM_TYPE_AFRC 0x02
++
++#define DRM_FORMAT_MOD_ARM_AFRC(__afrc_mode) \
++	DRM_FORMAT_MOD_ARM_CODE(DRM_FORMAT_MOD_ARM_TYPE_AFRC, __afrc_mode)
++
++/*
++ * AFRC coding unit size modifier.
++ *
++ * Indicates the number of bytes used to store each compressed coding unit for
++ * one or more planes in an AFRC encoded buffer. The coding unit size for chrominance
++ * is the same for both Cb and Cr, which may be stored in separate planes.
++ *
++ * AFRC_FORMAT_MOD_CU_SIZE_P0 indicates the number of bytes used to store
++ * each compressed coding unit in the first plane of the buffer. For RGBA buffers
++ * this is the only plane, while for semi-planar and fully-planar YUV buffers,
++ * this corresponds to the luma plane.
++ *
++ * AFRC_FORMAT_MOD_CU_SIZE_P12 indicates the number of bytes used to store
++ * each compressed coding unit in the second and third planes in the buffer.
++ * For semi-planar and fully-planar YUV buffers, this corresponds to the chroma plane(s).
++ *
++ * For single-plane buffers, AFRC_FORMAT_MOD_CU_SIZE_P0 must be specified
++ * and AFRC_FORMAT_MOD_CU_SIZE_P12 must be zero.
++ * For semi-planar and fully-planar buffers, both AFRC_FORMAT_MOD_CU_SIZE_P0 and
++ * AFRC_FORMAT_MOD_CU_SIZE_P12 must be specified.
++ */
++#define AFRC_FORMAT_MOD_CU_SIZE_MASK 0xf
++#define AFRC_FORMAT_MOD_CU_SIZE_16 (1ULL)
++#define AFRC_FORMAT_MOD_CU_SIZE_24 (2ULL)
++#define AFRC_FORMAT_MOD_CU_SIZE_32 (3ULL)
++
++#define AFRC_FORMAT_MOD_CU_SIZE_P0(__afrc_cu_size) (__afrc_cu_size)
++#define AFRC_FORMAT_MOD_CU_SIZE_P12(__afrc_cu_size) ((__afrc_cu_size) << 4)
++
++/*
++ * AFRC scanline memory layout.
++ *
++ * Indicates if the buffer uses the scanline-optimised layout
++ * for an AFRC encoded buffer, otherwise, it uses the rotation-optimised layout.
++ * The memory layout is the same for all planes.
++ */
++#define AFRC_FORMAT_MOD_LAYOUT_SCAN (1ULL << 8)
++
+ /*
+  * Arm 16x16 Block U-Interleaved modifier
+  *
+-- 
+2.34.1
+

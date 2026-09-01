@@ -1,0 +1,42 @@
+From 95d497e0e58f8de6233644803367823cbc54cdb2 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:47:08 +0800
+Subject: [PATCH 66/73] rpmsg: add rpmsg driver for realtek DHC platform
+
+Change-Id: I79c7f98e0118fda3e788d52f0eb7b542c62cc86e
+---
+ drivers/rpmsg/Kconfig  | 6 ++++++
+ drivers/rpmsg/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/rpmsg/Kconfig b/drivers/rpmsg/Kconfig
+index d3795860f5c08..ef88deb54eef8 100644
+--- a/drivers/rpmsg/Kconfig
++++ b/drivers/rpmsg/Kconfig
+@@ -1,3 +1,4 @@
++
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ menu "Rpmsg drivers"
+@@ -81,4 +82,9 @@ config RPMSG_VIRTIO
+ 	select RPMSG_NS
+ 	select VIRTIO
+ 
++config RPMSG_RTK_RPC
++	tristate "RTK RPC DRIVER"
++	select RPMSG
++	select REMOTEPROC
++
+ endmenu
+diff --git a/drivers/rpmsg/Makefile b/drivers/rpmsg/Makefile
+index 1e02b58ff61fe..c2311b1f45b45 100644
+--- a/drivers/rpmsg/Makefile
++++ b/drivers/rpmsg/Makefile
+@@ -11,3 +11,4 @@ obj-$(CONFIG_RPMSG_QCOM_GLINK_RPM) += qcom_glink_rpm.o
+ obj-$(CONFIG_RPMSG_QCOM_GLINK_SMEM) += qcom_glink_smem.o
+ obj-$(CONFIG_RPMSG_QCOM_SMD)	+= qcom_smd.o
+ obj-$(CONFIG_RPMSG_VIRTIO)	+= virtio_rpmsg_bus.o
++obj-$(CONFIG_RPMSG_RTK_RPC)	+= rpmsg_rtk.o
+-- 
+2.47.0
+

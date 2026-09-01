@@ -1,0 +1,20 @@
+/dts-v1/;
+/plugin/;
+
+&cma_reserved_2 {
+	status = "disabled";
+};
+
+/* 33M + 3M CMA alignment = 36M */
+&reserved_memory {
+	linux,cma_a {
+		size = <0x02400000>;
+		alloc-ranges = <0x10000000 0x02400000>;
+	};
+};
+
+&rtk_media_heap {
+	tee {
+		rtk,static_cma_size = <0x02200000>;
+	};
+};

@@ -1,0 +1,41 @@
+From f61362c24f5d827005cca5b46887400625faf540 Mon Sep 17 00:00:00 2001
+From: Gabor Juhos <j4g8y7@gmail.com>
+Date: Tue, 30 Sep 2025 03:21:04 +0300
+Subject: [PATCH 31/38] mtd: spinand: propagate spinand_wait() errors from
+ spinand_write_page()
+
+Since commit 3d1f08b032dc ("mtd: spinand: Use the external ECC engine
+logic") the spinand_write_page() function ignores the errors returned
+by spinand_wait(). Change the code to propagate those up to the stack
+as it was done before the offending change.
+
+This is a port of linux commit
+091d9e35b85b ("mtd: spinand: propagate spinand_wait() errors from spinand_write_page()")
+
+Signed-off-by: Gabor Juhos <j4g8y7@gmail.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index daf6efb87d8..3e21a06dd0f 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -691,7 +691,10 @@ int spinand_write_page(struct spinand_device *spinand,
+ 			   SPINAND_WRITE_INITIAL_DELAY_US,
+ 			   SPINAND_WRITE_POLL_DELAY_US,
+ 			   &status);
+-	if (!ret && (status & STATUS_PROG_FAILED))
++	if (ret)
++		return ret;
++
++	if (status & STATUS_PROG_FAILED)
+ 		return -EIO;
+ 
+ 	return spinand_ondie_ecc_finish_io_req(nand, (struct nand_page_io_req *)req);
+-- 
+2.47.0
+

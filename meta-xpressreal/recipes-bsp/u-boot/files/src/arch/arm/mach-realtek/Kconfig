@@ -18,6 +18,10 @@ config TARGET_RTD1625
 	bool "Realtek RTD1625 SoC"
 	select ARMV8_CRYPTO
 
+config TARGET_RTD1635
+	bool "Realtek RTD1635 SoC"
+	select ARMV8_CRYPTO
+
 endchoice
 
 config SYS_SOC
@@ -30,6 +34,8 @@ config SYS_CONFIG_NAME
 	default "rtd1619b_emmc" if TARGET_RTD1619B && RTK_MMC_DRIVER
 	default "rtd1619b_spi" if TARGET_RTD1619B && SPI_RTK_SFC
 	default "rtd1625_emmc" if TARGET_RTD1625 && RTK_MMC_DRIVER
+	default "rtd1625_spi" if TARGET_RTD1625 && SPI_RTK_NAND
+	default "rtd1635_emmc" if TARGET_RTD1635 && RTK_MMC_DRIVER
 	default ""
 	help
 	  This option contains information about board configuration name.
@@ -38,6 +44,10 @@ config SYS_CONFIG_NAME
 
 config RTK_MMC_DRIVER
 	bool "CONFIG_RTK_MMC_DRIVER"
+
+config RTK_DEBUG
+	bool "Realtek debug protocol"
+	select SPL_SEMIHOSTING
 
 source "board/realtek/Kconfig"
 

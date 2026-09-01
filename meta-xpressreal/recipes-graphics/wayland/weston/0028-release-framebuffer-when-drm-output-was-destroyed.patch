@@ -1,0 +1,29 @@
+From 481f9bd5c5313f1897c3c6ce9110894aad4bca13 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 14 Apr 2026 05:00:20 -0400
+Subject: [PATCH] release framebuffer when drm output was destroyed
+
+Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
+---
+ libweston/backend-drm/drm-gbm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libweston/backend-drm/drm-gbm.c b/libweston/backend-drm/drm-gbm.c
+index 601391a..99cad49 100644
+--- a/libweston/backend-drm/drm-gbm.c
++++ b/libweston/backend-drm/drm-gbm.c
+@@ -292,6 +292,9 @@ drm_output_fini_egl(struct drm_output *output)
+ 	struct drm_backend *b = output->backend;
+ 	const struct weston_renderer *renderer = b->compositor->renderer;
+ 
++	if (output->scanout_plane->prev_bo != NULL)
++		gbm_surface_release_buffer(output->gbm_surface, output->scanout_plane->prev_bo);
++
+ 	/* Destroying the GBM surface will destroy all our GBM buffers,
+ 	 * regardless of refcount. Ensure we destroy them here. */
+ 	if (!b->compositor->shutting_down &&
+-- 
+2.34.1
+

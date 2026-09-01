@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+LOG_ROOT=/run/rtk-fwlog/log
+PREVIOUS_DIR="${LOG_ROOT}/PreviousLogs"
+
+if [ ! -d "${LOG_ROOT}" ]; then
+    echo "Firmware log directory does not exist: ${LOG_ROOT}" >&2
+    exit 1
+fi
+
+# Only retain logs from the immediately preceding boot.
+rm -rf "${PREVIOUS_DIR}"
+mkdir -m 0750 "${PREVIOUS_DIR}"
+
+# Move active and rotated logs from the preceding boot.
+for log_file in "${LOG_ROOT}"/*.log*; do
+    [ -f "${log_file}" ] || continue
+    mv "${log_file}" "${PREVIOUS_DIR}/"
+done

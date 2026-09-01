@@ -1,0 +1,559 @@
+From d52471b237f6a321467da728a45cc19e8cc144c6 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 7 Apr 2026 22:51:26 -0400
+Subject: [PATCH] usb: typec: tcpm: add UFP_D (DP Sink) mode support
+
+---
+ drivers/usb/typec/tcpm/tcpm.c | 398 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 387 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/usb/typec/tcpm/tcpm.c b/drivers/usb/typec/tcpm/tcpm.c
+index e8cda34eedba..7197021036ff 100644
+--- a/drivers/usb/typec/tcpm/tcpm.c
++++ b/drivers/usb/typec/tcpm/tcpm.c
+@@ -28,6 +28,7 @@
+ #include <linux/usb/pd_bdo.h>
+ #include <linux/usb/pd_ext_sdb.h>
+ #include <linux/usb/pd_vdo.h>
++#include <linux/usb/typec_dp.h>
+ #include <linux/usb/role.h>
+ #include <linux/usb/tcpm.h>
+ #include <linux/usb/typec_altmode.h>
+@@ -587,6 +588,11 @@ struct tcpm_port {
+ 	int logbuffer_tail;
+ 	u8 *logbuffer[LOG_BUFFER_ENTRIES];
+ #endif
++
++	/* Hybrid DR_Swap support for passive cables and alt mode */
++	struct hrtimer dr_swap_wait_timer;
++	struct kthread_work dr_swap_wait_work;
++	bool waiting_for_partner_dr_swap;
+ };
+ 
+ struct pd_rx_event {
+@@ -1888,6 +1894,101 @@ static void tcpm_register_plug_altmodes(struct tcpm_port *port)
+ 	}
+ }
+ 
++/*
++ * tcpm_register_partner_altmode_for_ufpd - Register partner altmode for UFP_D mode
++ *
++ * In UFP_D mode, the DFP partner initiates VDM discovery. When we receive
++ * Enter Mode request, we need to register a partner altmode so that the
++ * typec_bus can pair it with our port_altmode and probe the altmode driver.
++ *
++ * @port: TCPM port
++ * @svid: SVID from the Enter Mode request
++ * @mode: Mode index from the Enter Mode request
++ *
++ * Returns: pointer to the registered altmode, or NULL on failure
++ */
++static struct typec_altmode *
++tcpm_register_partner_altmode_for_ufpd(struct tcpm_port *port, u16 svid, u8 mode)
++{
++	struct typec_altmode_desc desc;
++	struct typec_altmode *altmode;
++	struct typec_altmode *port_alt;
++	int i;
++
++	if (!port->partner) {
++		tcpm_log(port, "UFP_D: Cannot register partner altmode - no partner");
++		return NULL;
++	}
++
++	/* Check if already registered */
++	for (i = 0; i < ALTMODE_DISCOVERY_MAX && port->partner_altmode[i]; i++) {
++		if (port->partner_altmode[i]->svid == svid &&
++		    port->partner_altmode[i]->mode == mode) {
++			tcpm_log(port, "UFP_D: Partner altmode SVID 0x%04x mode %d already registered",
++				 svid, mode);
++			return port->partner_altmode[i];
++		}
++	}
++
++	/* Find a free slot */
++	for (i = 0; i < ALTMODE_DISCOVERY_MAX; i++) {
++		if (!port->partner_altmode[i])
++			break;
++	}
++
++	if (i >= ALTMODE_DISCOVERY_MAX) {
++		tcpm_log(port, "UFP_D: No free slot for partner altmode");
++		return NULL;
++	}
++
++	/*
++	 * For UFP_D mode, the partner is DFP_D (DisplayPort Source).
++	 * We construct a VDO that indicates DFP_D capability.
++	 * This allows displayport_rx.c probe to succeed.
++	 *
++	 * Find our port altmode to get compatible pin assignments.
++	 */
++	port_alt = typec_match_altmode(port->port_altmode, ALTMODE_DISCOVERY_MAX,
++				       svid, mode);
++
++	memset(&desc, 0, sizeof(desc));
++	desc.svid = svid;
++	desc.mode = mode;
++
++	if (port_alt && svid == USB_TYPEC_DP_SID) {
++		/*
++		 * Construct partner VDO for DisplayPort:
++		 * - Partner is DFP_D (Source) since we are UFP_D (Sink)
++		 * - Set as Receptacle so DFP_D pins are in bits 15-8
++		 *   (matches DP_CAP_PIN_ASSIGN_DFP_D macro behavior)
++		 * - Use complementary pin assignments from our port VDO
++		 */
++		u8 our_ufp_pins = DP_CAP_PIN_ASSIGN_UFP_D(port_alt->vdo);
++		desc.vdo = DP_CAP_DFP_D |  /* Partner is DFP_D */
++			   DP_CAP_RECEPTACLE |  /* Partner is Receptacle (DFP_D pins in bits 15-8) */
++			   (our_ufp_pins << 8) |  /* Partner DFP_D pins = our UFP_D pins */
++			   DP_CAP_USB;  /* Assume USB concurrent */
++		tcpm_log(port, "UFP_D: Constructed partner VDO 0x%08x (DFP_D Receptacle, pins=0x%02x)",
++			 desc.vdo, our_ufp_pins);
++	} else {
++		/* Default: just mark as having the capability */
++		desc.vdo = 0x00000001;
++	}
++
++	altmode = typec_partner_register_altmode(port->partner, &desc);
++	if (IS_ERR(altmode)) {
++		tcpm_log(port, "UFP_D: Failed to register partner altmode SVID 0x%04x",
++			 svid);
++		return NULL;
++	}
++
++	port->partner_altmode[i] = altmode;
++	tcpm_log(port, "UFP_D: Registered partner altmode[%d] SVID 0x%04x mode %d VDO 0x%08x",
++		 i, svid, mode, desc.vdo);
++
++	return altmode;
++}
++
+ #define supports_modal(port)	PD_IDH_MODAL_SUPP((port)->partner_ident.id_header)
+ #define supports_modal_cable(port)     PD_IDH_MODAL_SUPP((port)->cable_ident.id_header)
+ #define supports_host(port)    PD_IDH_HOST_SUPP((port->partner_ident.id_header))
+@@ -2082,21 +2183,161 @@ static int tcpm_pd_svdm(struct tcpm_port *port, struct typec_altmode *adev,
+ 			break;
+ 		case CMD_DISCOVER_SVID:
+ 			port->ams = DISCOVER_SVIDS;
++			/*
++			 * UFP_D Support: Build Discover SVIDs response
++			 * Collect SVIDs from registered port altmodes
++			 */
++			if (port->data_role == TYPEC_DEVICE || svdm_version >= SVDM_VER_2_0) {
++				u32 svid_vdo = 0;
++				int svid_idx = 0;
++
++				/* Iterate through port_altmode to collect SVIDs */
++				for (i = 0; i < ALTMODE_DISCOVERY_MAX && port->port_altmode[i]; i++) {
++					u16 svid = port->port_altmode[i]->svid;
++
++					if (svid_idx & 1)
++						svid_vdo |= svid;  /* Lower 16 bits */
++					else
++						svid_vdo = (u32)svid << 16;  /* Upper 16 bits */
++
++					svid_idx++;
++
++					/* Each VDO contains 2 SVIDs */
++					if ((svid_idx & 1) == 0) {
++						response[rlen + 1] = svid_vdo;
++						rlen++;
++						svid_vdo = 0;
++					}
++				}
++
++				/* Add last VDO if odd number of SVIDs (with 0x0000 terminator) */
++				if (svid_idx & 1) {
++					response[rlen + 1] = svid_vdo;  /* Lower 16 bits already 0 */
++					rlen++;
++				}
++
++				/* If we have SVIDs, add header count */
++				if (rlen > 0)
++					rlen++;  /* +1 for VDM header */
++
++				tcpm_log(port, "UFP_D: Discover SVIDs response with %d SVIDs", svid_idx);
++			}
+ 			break;
+ 		case CMD_DISCOVER_MODES:
+ 			port->ams = DISCOVER_MODES;
++			/*
++			 * UFP_D Support: Build Discover Modes response
++			 * Find the altmode matching the requested SVID and return its VDO
++			 */
++			if (port->data_role == TYPEC_DEVICE || svdm_version >= SVDM_VER_2_0) {
++				u16 req_svid = PD_VDO_VID(p[0]);
++				struct typec_altmode *alt;
++
++				/* Find matching port altmode by SVID */
++				for (i = 0; i < ALTMODE_DISCOVERY_MAX && port->port_altmode[i]; i++) {
++					alt = port->port_altmode[i];
++					if (alt->svid == req_svid) {
++						response[1] = alt->vdo;
++						rlen = 2;  /* VDM header + Mode VDO */
++						tcpm_log(port, "UFP_D: Discover Modes for SVID 0x%04x, VDO=0x%08x",
++							 req_svid, alt->vdo);
++						break;
++					}
++				}
++
++				if (rlen == 0)
++					tcpm_log(port, "UFP_D: No mode found for SVID 0x%04x", req_svid);
++			}
+ 			break;
+ 		case CMD_ENTER_MODE:
+ 			port->ams = DFP_TO_UFP_ENTER_MODE;
++			/*
++			 * UFP_D Support: Handle Enter Mode request
++			 * Forward to altmode driver which will send the response
++			 */
++			if (port->data_role == TYPEC_DEVICE || svdm_version >= SVDM_VER_2_0) {
++				u16 req_svid = PD_VDO_VID(p[0]);
++				u8 req_opos = PD_VDO_OPOS(p[0]);
++
++				/* Find matching port altmode */
++				adev = typec_match_altmode(port->port_altmode, ALTMODE_DISCOVERY_MAX,
++							   req_svid, req_opos);
++				if (adev) {
++					/*
++					 * In UFP_D mode, we need to register a partner altmode
++					 * so that typec_bus can pair it with port_altmode and
++					 * probe the altmode driver (displayport_rx.c).
++					 *
++					 * This must be done before ADEV_QUEUE_VDM because
++					 * typec_altmode_vdm() requires altmode->partner to exist.
++					 */
++					if (!tcpm_register_partner_altmode_for_ufpd(port, req_svid, req_opos)) {
++						tcpm_log(port, "UFP_D: Enter Mode NAK - failed to register partner altmode");
++						break;
++					}
++
++					/*
++					 * Forward to altmode driver (displayport_rx.c)
++					 * The driver will handle the response via tcpm_altmode_vdm()
++					 * Return 0 to skip TCPM's own response
++					 */
++					tcpm_log(port, "UFP_D: Enter Mode for SVID 0x%04x OPOS %d -> forward to altmode driver",
++						 req_svid, req_opos);
++					*adev_action = ADEV_QUEUE_VDM;
++					return 0;
++				} else {
++					tcpm_log(port, "UFP_D: Enter Mode NAK - no altmode for SVID 0x%04x OPOS %d",
++						 req_svid, req_opos);
++				}
++			}
+ 			break;
+ 		case CMD_EXIT_MODE:
+ 			port->ams = DFP_TO_UFP_EXIT_MODE;
++			/*
++			 * UFP_D Support: Handle Exit Mode request
++			 * Forward to altmode driver which will send the response
++			 */
++			if (port->data_role == TYPEC_DEVICE || svdm_version >= SVDM_VER_2_0) {
++				u16 req_svid = PD_VDO_VID(p[0]);
++				u8 req_opos = PD_VDO_OPOS(p[0]);
++
++				adev = typec_match_altmode(port->port_altmode, ALTMODE_DISCOVERY_MAX,
++							   req_svid, req_opos);
++				if (adev) {
++					tcpm_log(port, "UFP_D: Exit Mode for SVID 0x%04x OPOS %d -> forward to altmode driver",
++						 req_svid, req_opos);
++					*adev_action = ADEV_QUEUE_VDM;
++					return 0;
++				}
++			}
+ 			break;
+ 		case CMD_ATTENTION:
+ 			/* Attention command does not have response */
+ 			*adev_action = ADEV_ATTENTION;
+ 			return 0;
+ 		default:
++			/*
++			 * UFP_D Support: Handle SVID-specific vendor commands
++			 * (e.g., DP Status Update = 0x10, DP Configure = 0x11)
++			 * Forward to altmode driver which will send the response
++			 */
++			if ((port->data_role == TYPEC_DEVICE || svdm_version >= SVDM_VER_2_0) &&
++			    cmd >= CMD_ATTENTION) {
++				u16 req_svid = PD_VDO_VID(p[0]);
++				u8 req_opos = PD_VDO_OPOS(p[0]);
++
++				/* Find matching port altmode for this SVID */
++				adev = typec_match_altmode(port->port_altmode, ALTMODE_DISCOVERY_MAX,
++							   req_svid, req_opos);
++				if (adev) {
++					tcpm_log(port, "UFP_D: Vendor cmd 0x%02x for SVID 0x%04x -> forward to altmode driver",
++						 cmd, req_svid);
++					*adev_action = ADEV_QUEUE_VDM;
++					return 0;
++				}
++				tcpm_log(port, "UFP_D: Vendor cmd 0x%02x NAK - no altmode for SVID 0x%04x",
++					 cmd, req_svid);
++			}
+ 			break;
+ 		}
+ 		if (rlen >= 1) {
+@@ -2110,6 +2351,8 @@ static int tcpm_pd_svdm(struct tcpm_port *port, struct typec_altmode *adev,
+ 		}
+ 		response[0] = (response[0] & ~VDO_SVDM_VERS_MASK) |
+ 			      (VDO_SVDM_VERS(typec_get_negotiated_svdm_version(typec)));
++		/* clear Structured VDM Version (Minor) */
++		response[0] = response[0] & ~(BIT(11) | BIT(12));
+ 		break;
+ 	case CMDT_RSP_ACK:
+ 		/*
+@@ -2302,6 +2545,8 @@ static int tcpm_pd_svdm(struct tcpm_port *port, struct typec_altmode *adev,
+ 			rlen = 1;
+ 			response[0] = (response[0] & ~VDO_SVDM_VERS_MASK) |
+ 				      (VDO_SVDM_VERS(svdm_version));
++			/* clear Structured VDM Version (Minor) */
++			response[0] = response[0] & ~(BIT(11) | BIT(12));
+ 			break;
+ 		}
+ 		break;
+@@ -2323,6 +2568,8 @@ static int tcpm_pd_svdm(struct tcpm_port *port, struct typec_altmode *adev,
+ 			rlen = 1;
+ 			response[0] = (response[0] & ~VDO_SVDM_VERS_MASK) |
+ 				      (VDO_SVDM_VERS(svdm_version));
++			/* clear Structured VDM Version (Minor) */
++			response[0] = response[0] & ~(BIT(11) | BIT(12));
+ 			break;
+ 		}
+ 		break;
+@@ -2331,6 +2578,8 @@ static int tcpm_pd_svdm(struct tcpm_port *port, struct typec_altmode *adev,
+ 		rlen = 1;
+ 		response[0] = (response[0] & ~VDO_SVDM_VERS_MASK) |
+ 			      (VDO_SVDM_VERS(svdm_version));
++		/* clear Structured VDM Version (Minor) */
++		response[0] = response[0] & ~(BIT(11) | BIT(12));
+ 		break;
+ 	}
+ 
+@@ -3586,6 +3835,13 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
+ 				break;
+ 			}
+ 
++			/* Cancel Hybrid DR_Swap wait timer if partner initiated DR_Swap */
++			if (port->waiting_for_partner_dr_swap) {
++				tcpm_log(port, "[Hybrid DR_Swap] Partner initiated DR_Swap, cancelling wait timer");
++				hrtimer_cancel(&port->dr_swap_wait_timer);
++				port->waiting_for_partner_dr_swap = false;
++			}
++
+ 			tcpm_pd_handle_state(port, DR_SWAP_ACCEPT, DATA_ROLE_SWAP, 0);
+ 		}
+ 		break;
+@@ -4483,9 +4739,15 @@ static void tcpm_unregister_altmodes(struct tcpm_port *port)
+ 	struct pd_mode_data *modep_prime = &port->mode_data_prime;
+ 	int i;
+ 
+-	for (i = 0; i < modep->altmodes; i++) {
+-		typec_unregister_altmode(port->partner_altmode[i]);
+-		port->partner_altmode[i] = NULL;
++	/*
++	 * Unregister all partner altmodes, including those registered
++	 * for UFP_D mode via tcpm_register_partner_altmode_for_ufpd()
++	 */
++	for (i = 0; i < ALTMODE_DISCOVERY_MAX; i++) {
++		if (port->partner_altmode[i]) {
++			typec_unregister_altmode(port->partner_altmode[i]);
++			port->partner_altmode[i] = NULL;
++		}
+ 	}
+ 	for (i = 0; i < modep_prime->altmodes; i++) {
+ 		typec_unregister_altmode(port->plug_prime_altmode[i]);
+@@ -4510,6 +4772,12 @@ static void tcpm_reset_port(struct tcpm_port *port)
+ 	port->in_ams = false;
+ 	port->ams = NONE_AMS;
+ 	port->vdm_sm_running = false;
++
++	/* Cancel Hybrid DR_Swap wait timer on disconnect/reset */
++	if (port->waiting_for_partner_dr_swap) {
++		hrtimer_cancel(&port->dr_swap_wait_timer);
++		port->waiting_for_partner_dr_swap = false;
++	}
+ 	tcpm_unregister_altmodes(port);
+ 	tcpm_typec_disconnect(port);
+ 	port->attached = false;
+@@ -4982,15 +5250,56 @@ static void run_state_machine(struct tcpm_port *port)
+ 		 * ready state, but if done after a Vconn Swap following Discover
+ 		 * Identity on SOP then the discovery process can be run here
+ 		 * as well.
++		 *
++		 * Only DFP (Host) is allowed to initiate VDM discovery per USB PD spec.
++		 * UFP (Device) should not initiate discovery.
++		 *
++		 * UFP_D Special Case:
++		 * If port is UFP_D only (DP RX), skip Discovery and wait for partner
++		 * to initiate DR_Swap. After DR_Swap, data_role becomes DEVICE and
++		 * partner (now DFP) will initiate Discovery.
+ 		 */
+-		if (port->explicit_contract) {
+-			if (port->send_discover_prime) {
+-				port->tx_sop_type = TCPC_TX_SOP_PRIME;
++		if (port->explicit_contract && port->data_role == TYPEC_HOST) {
++			bool skip_discovery_for_ufp_d = false;
++			int i;
++
++			/* Check if we are UFP_D only - if so, wait for partner DR_Swap */
++			for (i = 0; i < ALTMODE_DISCOVERY_MAX && port->port_altmode[i]; i++) {
++				if (port->port_altmode[i]->svid == USB_TYPEC_DP_SID &&
++				    DP_CAP_CAPABILITY(port->port_altmode[i]->vdo) == DP_CAP_UFP_D) {
++					skip_discovery_for_ufp_d = true;
++					tcpm_log(port, "UFP_D only: Skipping Discovery, waiting for partner DR_Swap");
++					break;
++				}
++			}
++
++			if (!skip_discovery_for_ufp_d) {
++				if (port->send_discover_prime) {
++					port->tx_sop_type = TCPC_TX_SOP_PRIME;
++				} else {
++					port->tx_sop_type = TCPC_TX_SOP;
++					tcpm_set_initial_svdm_version(port);
++				}
++				mod_send_discover_delayed_work(port, 0);
+ 			} else {
+-				port->tx_sop_type = TCPC_TX_SOP;
+-				tcpm_set_initial_svdm_version(port);
++				port->send_discover = false;
++				port->send_discover_prime = false;
++				/*
++				 * UFP_D only: we are SOURCE/HOST but cannot initiate Discovery.
++				 * Start a 300ms timer to wait for partner to initiate DR_Swap.
++				 * If partner sends DR_Swap before timeout, cancel and accept.
++				 * If timeout fires, we initiate DR_Swap ourselves.
++				 * Use !waiting_for_partner_dr_swap to avoid re-arming on
++				 * every SRC_READY re-entry (e.g. after each AMS completes).
++				 */
++				if (!port->waiting_for_partner_dr_swap) {
++					tcpm_log(port, "[Hybrid DR_Swap] UFP_D only: starting 300ms timer, "
++						 "waiting for partner DR_Swap");
++					port->waiting_for_partner_dr_swap = true;
++					hrtimer_start(&port->dr_swap_wait_timer,
++						      ms_to_ktime(1000), HRTIMER_MODE_REL);
++				}
+ 			}
+-			mod_send_discover_delayed_work(port, 0);
+ 		} else {
+ 			port->send_discover = false;
+ 			port->send_discover_prime = false;
+@@ -5324,8 +5633,11 @@ static void run_state_machine(struct tcpm_port *port)
+ 		 * ready state, but if done after a Vconn Swap following Discover
+ 		 * Identity on SOP then the discovery process can be run here
+ 		 * as well.
++		 *
++		 * Only DFP (Host) is allowed to initiate VDM discovery per USB PD spec.
++		 * UFP (Device) should not initiate discovery.
+ 		 */
+-		if (port->explicit_contract) {
++		if (port->explicit_contract && port->data_role == TYPEC_HOST) {
+ 			if (port->send_discover_prime) {
+ 				port->tx_sop_type = TCPC_TX_SOP_PRIME;
+ 			} else {
+@@ -6564,7 +6876,12 @@ static void tcpm_send_discover_work(struct kthread_work *work)
+ 	if (!port->send_discover && !port->send_discover_prime)
+ 		goto unlock;
+ 
+-	if (port->data_role == TYPEC_DEVICE && port->negotiated_rev < PD_REV30) {
++	/*
++	 * Per USB PD spec section 6.4.4.3: "A UFP Shall NOT initiate a
++	 * Discover_Identity Command."  This applies to all PD revisions.
++	 * Clear the flag unconditionally when in UFP (Device) role.
++	 */
++	if (port->data_role == TYPEC_DEVICE) {
+ 		port->send_discover = false;
+ 		port->send_discover_prime = false;
+ 		goto unlock;
+@@ -7758,6 +8075,61 @@ static enum hrtimer_restart send_discover_timer_handler(struct hrtimer *timer)
+ 	return HRTIMER_NORESTART;
+ }
+ 
++/*
++ * Hybrid DR_Swap work function
++ * Called when timeout expires waiting for partner to initiate DR_Swap
++ * This supports passive Type-C to DP cables that cannot initiate PD messages
++ */
++static void dr_swap_wait_work(struct kthread_work *work)
++{
++	struct tcpm_port *port = container_of(work, struct tcpm_port, dr_swap_wait_work);
++	int i;
++
++	mutex_lock(&port->lock);
++
++	/* Check if we're still waiting and conditions are still valid */
++	if (!port->waiting_for_partner_dr_swap) {
++		tcpm_log(port, "DR_Swap wait cancelled, no action needed");
++		mutex_unlock(&port->lock);
++		return;
++	}
++
++	port->waiting_for_partner_dr_swap = false;
++
++	/* Check if we're SOURCE/DFP and need to become UFP for UFP_D */
++	if (port->pwr_role == TYPEC_SOURCE && port->data_role == TYPEC_HOST && port->explicit_contract) {
++		/* Check if we have UFP_D port */
++		for (i = 0; i < ALTMODE_DISCOVERY_MAX && port->port_altmode[i]; i++) {
++			if (port->port_altmode[i]->svid == USB_TYPEC_DP_SID &&
++			    DP_CAP_CAPABILITY(port->port_altmode[i]->vdo) == DP_CAP_UFP_D) {
++				tcpm_log(port, "[Hybrid DR_Swap] Partner did not initiate DR_Swap, "
++					 "initiating ourselves for UFP_D support");
++				port->upcoming_state = DR_SWAP_SEND;
++				if (tcpm_ams_start(port, DATA_ROLE_SWAP) == -EAGAIN) {
++					tcpm_log(port, "[Hybrid DR_Swap] Failed to start DR_Swap AMS, will retry");
++					port->upcoming_state = INVALID_STATE;
++				}
++				break;
++			}
++		}
++	} else {
++		tcpm_log(port, "[Hybrid DR_Swap] Conditions changed, DR_Swap not needed "
++			 "(pwr_role=%d, data_role=%d, explicit_contract=%d)",
++			 port->pwr_role, port->data_role, port->explicit_contract);
++	}
++
++	mutex_unlock(&port->lock);
++}
++
++static enum hrtimer_restart dr_swap_wait_timer_handler(struct hrtimer *timer)
++{
++	struct tcpm_port *port = container_of(timer, struct tcpm_port, dr_swap_wait_timer);
++
++	if (port->registered)
++		kthread_queue_work(port->wq, &port->dr_swap_wait_work);
++	return HRTIMER_NORESTART;
++}
++
+ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
+ {
+ 	struct tcpm_port *port;
+@@ -7789,6 +8161,7 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
+ 	kthread_init_work(&port->event_work, tcpm_pd_event_handler);
+ 	kthread_init_work(&port->enable_frs, tcpm_enable_frs_work);
+ 	kthread_init_work(&port->send_discover_work, tcpm_send_discover_work);
++	kthread_init_work(&port->dr_swap_wait_work, dr_swap_wait_work);
+ 	hrtimer_init(&port->state_machine_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	port->state_machine_timer.function = state_machine_timer_handler;
+ 	hrtimer_init(&port->vdm_state_machine_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+@@ -7797,6 +8170,8 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
+ 	port->enable_frs_timer.function = enable_frs_timer_handler;
+ 	hrtimer_init(&port->send_discover_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	port->send_discover_timer.function = send_discover_timer_handler;
++	hrtimer_init(&port->dr_swap_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++	port->dr_swap_wait_timer.function = dr_swap_wait_timer_handler;
+ 
+ 	spin_lock_init(&port->pd_event_lock);
+ 
+@@ -7892,6 +8267,7 @@ void tcpm_unregister_port(struct tcpm_port *port)
+ 
+ 	hrtimer_cancel(&port->send_discover_timer);
+ 	hrtimer_cancel(&port->enable_frs_timer);
++	hrtimer_cancel(&port->dr_swap_wait_timer);
+ 	hrtimer_cancel(&port->vdm_state_machine_timer);
+ 	hrtimer_cancel(&port->state_machine_timer);
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,25 @@
+From 111d329871e9bd2d52b7f50f1d845c3c2891f57e Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 2 Apr 2026 00:59:41 -0400
+Subject: [PATCH] mesa: add prince g310 support
+License: MIT
+Source: realtek
+---
+ src/panfrost/lib/pan_props.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/panfrost/lib/pan_props.c b/src/panfrost/lib/pan_props.c
+index bc5eaca..4c2f226 100644
+--- a/src/panfrost/lib/pan_props.c
++++ b/src/panfrost/lib/pan_props.c
+@@ -74,6 +74,7 @@ const struct panfrost_model panfrost_model_list[] = {
+         MODEL(0xac74, 2, "G310",   "TVAx", HAS_ANISO,         16384, {}),
+         MODEL(0xac74, 3, "G310",   "TVAx", HAS_ANISO,         32768, {}),
+         MODEL(0xac74, 4, "G310",   "TVAx", HAS_ANISO,         32768, {}),
++        MODEL(0xacb4, 4, "G310",   "TVAx", HAS_ANISO,         32768, {}),
+ };
+ /* clang-format on */
+ 
+-- 
+2.34.1
+

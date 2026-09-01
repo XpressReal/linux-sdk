@@ -57,7 +57,7 @@ MODULE_PARM_DESC(tplg_path, "alternate path for SOF topology.");
 #define PCPU_IPC_ARG_ADDR_OFFSET 0x474
 #define PCPU_IPC_INTR_ADDR_OFFSET 0xa80
 #define PCPU_POWER_ON_HIFI 0x825b5008
-#define PCPU_POWER_DOWN_HIFI 0x825b5000
+#define PCPU_POWER_DOWN_HIFI 0x82535000
 
 struct sof_rtk_adsp_stream {
 	struct snd_sof_dev *sdev;

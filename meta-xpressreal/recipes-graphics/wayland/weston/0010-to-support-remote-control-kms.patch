@@ -1,20 +1,21 @@
-From d7f6548a8af1cb7969b2c7b40f882e33ba4db5c6 Mon Sep 17 00:00:00 2001
+From c8c9fed9435940889dbda4cd99086bd38b61543a Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Mon, 11 Nov 2024 12:14:38 +0800
+Date: Mon, 13 Apr 2026 22:22:38 -0400
 Subject: [PATCH] to support remote control kms
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  include/libweston/libweston.h        |   1 +
  libweston/backend-drm/drm-internal.h |  18 ++++
  libweston/backend-drm/drm.c          | 151 ++++++++++++++++++++++++++
  libweston/backend-drm/kms.c          | 154 +++++++++++++++++++++++++++
- libweston/backend-drm/modes.c        |   4 +-
  libweston/compositor.c               |   1 +
- 6 files changed, 327 insertions(+), 2 deletions(-)
+ 5 files changed, 325 insertions(+)
 
 diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
-index fd570dd..350d23d 100644
+index 9365a51..42b91ce 100644
 --- a/include/libweston/libweston.h
 +++ b/include/libweston/libweston.h
 @@ -1521,6 +1521,7 @@ struct weston_compositor {
@@ -448,28 +449,6 @@ index a602b4c..3067bd7 100644
 +	pthread_exit(NULL);
 +}
 +
-diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
-index b215dc6..5f14b99 100644
---- a/libweston/backend-drm/modes.c
-+++ b/libweston/backend-drm/modes.c
-@@ -635,7 +635,7 @@ update_head_from_connector(struct drm_head *head)
-  * @param current_mode Mode currently being displayed on this output
-  * @returns A mode from the output's mode list, or NULL if none available
-  */
--static struct drm_mode *
-+struct drm_mode *
- drm_output_choose_initial_mode(struct drm_device *device,
- 			       struct drm_output *output,
- 			       enum weston_drm_backend_output_mode mode,
-@@ -911,7 +911,7 @@ drm_output_set_mode_with_tv_mode(struct weston_output *base,
- 
- 	struct drm_mode *current;
- 	struct drm_mode *tv_current;
--	drmModeModeInfo dummy_mode;
-+	drmModeModeInfo dummy_mode = {0};
- 
- 	if (tv_modeline == NULL)
- 		return -1;
 diff --git a/libweston/compositor.c b/libweston/compositor.c
 index 41459eb..d4c16ba 100644
 --- a/libweston/compositor.c

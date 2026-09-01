@@ -1,0 +1,68 @@
+From c65db4e0313ac08f841da7cf388ddeee791c3d7b Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Mon, 17 Nov 2025 19:04:29 +0800
+Subject: [PATCH 31/33] [FEATURE] regulator: Add support for Renesas RRB86848
+ bidirectional buck-boost regulator
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a new regulator driver for the Renesas RRB86848 bidirectional
+buck-boost voltage regulator. This device is designed for USB-C Power
+Delivery Extended Power Range (EPR) applications, supporting voltages
+from 3.9V to 55V input and 2.4V to 55V output.
+
+Key features:
+- Bidirectional operation (forward and reverse/OTG modes)
+- Two independent regulators: VBUS output and OTG output
+- Voltage range: 2.4V - 55V with dual LSB encoding
+  * 16mV/32mV steps for VBUS (≤24.576V / >24.576V)
+  * 18mV/36mV steps for OTG (≤27.504V / >27.504V)
+- I2C/SMBus interface with regmap support
+
+[PLATFORM] Prince
+[TEST] Prince
+[JIRA] SW-9676
+
+Change-Id: Ia13e21ea96240ea325d6d9b2b1ba6cfb25feff5d
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/regulator/Kconfig  | 12 ++++++++++++
+ drivers/regulator/Makefile |  1 +
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index a1ef0b684e3e2..de2703fff226d 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1761,4 +1761,16 @@ config REGULATOR_RAA271003
+ 	  This driver provides support for the voltage regulators on the
+ 	  Renesas RAA271003 PMIC.
+ 
++config REGULATOR_RRB86848
++	tristate "Renesas RRB86848 bidirectional buck-boost regulator"
++	depends on I2C
++	select REGMAP_I2C
++	help
++	  Say y here to support the Renesas RRB86848 bidirectional buck-boost
++	  voltage regulator. This regulator is commonly used in USB-C PD EPR
++	  applications supporting voltages up to 48V.
++
++	  This driver can also be built as a module. If so, the module
++	  will be called rrb86848-regulator.
++
+ endif
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 7939d0197adcf..8d1aea0cced03 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -207,5 +207,6 @@ obj-$(CONFIG_REGULATOR_APW8889) += apw8889-regulator.o
+ obj-$(CONFIG_REGULATOR_APW8886) += apw8886-regulator.o
+ obj-$(CONFIG_REGULATOR_RR320010) += rr320010-regulator.o
+ obj-$(CONFIG_REGULATOR_RAA271003) += raa271003-regulator.o
++obj-$(CONFIG_REGULATOR_RRB86848) += rrb86848-regulator.o
+ 
+ ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+-- 
+2.47.0
+

@@ -1,0 +1,37 @@
+From 2694d286da3c6b345b03db271bf268bb7a0ce732 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 22:21:43 +0800
+Subject: [PATCH 36/73]  media: platform: add dsi driver for Realtek DHC SoCs
+
+Change-Id: I27db678b3899f9a044d7bfef0f11db998fb215ae
+---
+ drivers/media/platform/Kconfig  | 2 +-
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 85d2627776b6a..e44c4f59b386d 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -89,5 +89,5 @@ source "drivers/media/platform/ti/Kconfig"
+ source "drivers/media/platform/verisilicon/Kconfig"
+ source "drivers/media/platform/via/Kconfig"
+ source "drivers/media/platform/xilinx/Kconfig"
+-
++source "drivers/media/platform/rtk_dsi/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index ace4e34483ddc..b25c02b803aac 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -32,6 +32,7 @@ obj-y += ti/
+ obj-y += verisilicon/
+ obj-y += via/
+ obj-y += xilinx/
++obj-y += rtk_dsi/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

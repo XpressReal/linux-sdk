@@ -14,6 +14,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/nvmem-consumer.h>
+#include <linux/sys_soc.h>
 
 #define DRV_NAME "rtd-pcie-phy"
 
@@ -22,6 +23,8 @@
 #define PCIE_MDIO_PCTL1 0xF1C
 #define PCIE_MAC_ST 0xCB4
 #define PCIE_PHY_CTR 0xC68
+#define PIPE_CTL1 0xf04
+
 #define LINK_CONTROL_LINK_STATUS_REG 0x80
 #define MDIO_BUSY BIT(7)
 #define MDIO_RDY BIT(4)
@@ -484,25 +487,61 @@ static void rtd1625_oobs_manual_write_back(struct rtd_pcie_phy *rtd_phy, u16 deb
 }
 
 
+static int check_pipe_clock_ready(struct rtd_pcie_phy *rtd_phy)
+{
+	unsigned int val;
+	int ret;
+
+	ret = regmap_read_poll_timeout(rtd_phy->pcie_base, PCIE_MAC_ST, val,
+				       (val & BIT(16)), 100, 10000);
+
+	if (ret) {
+		dev_err(rtd_phy->dev, "pipe clock timeout\n");
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static int rtd1625_pcie0_phy_offset_calibrate(struct rtd_pcie_phy *rtd_phy)
 {
 	int cnt;
 	int val;
 	int tmp;
+	int retry;
 	int offset_k_timeout = 10000;
 
-	regmap_read(rtd_phy->pcie_base, PCIE_MDIO_CTR, &val);
-	regmap_write(rtd_phy->pcie_base, PCIE_PHY_CTR, (val & ~GENMASK(7, 6)) | (0x1 << 6) | BIT(3));
+	regmap_read(rtd_phy->pcie_base, PCIE_PHY_CTR, &val);
+	val |= BIT(3);
+	regmap_write(rtd_phy->pcie_base, PCIE_PHY_CTR, val);
+	if (check_pipe_clock_ready(rtd_phy)) {
+		dev_err(rtd_phy->dev, "offset-k start pipe clock timeout\n");
+		return -EBUSY;
+	}
+
+	regmap_write(rtd_phy->pcie_base, PCIE_PHY_CTR, (val & ~GENMASK(7, 6)) | (0x1 << 6));
 
 	/*Start*/
 	write_mdio_parallel_reg(rtd_phy, 0x1a4a, 0xcffc);
 	write_mdio_parallel_reg(rtd_phy, 0x1a48, 0x838f);
 	write_mdio_parallel_reg(rtd_phy, 0x1990, 0x0554);
-	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c04);
+	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c05);
+
 	/*Gen1*/
 	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c04);
+	retry = 3;
+gen1_retry:
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125d);
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125f);
+	if (check_pipe_clock_ready(rtd_phy)) {
+		if (retry > 0) {
+			retry--;
+			goto gen1_retry;
+		}
+
+		dev_err(rtd_phy->dev, "gen1 offset-k pipe clock timeout\n");
+		return -EBUSY;
+	}
 	write_mdio_parallel_reg(rtd_phy, 0x102e, 0x0010);
 
 	cnt = 0;
@@ -541,8 +580,18 @@ static int rtd1625_pcie0_phy_offset_calibrate(struct rtd_pcie_phy *rtd_phy)
 
 	/*GEN2*/
 	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c05);
+	retry = 3;
+gen2_retry:
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125d);
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125f);
+	if (check_pipe_clock_ready(rtd_phy)) {
+		if (retry > 0) {
+			retry--;
+			goto gen2_retry;
+		}
+		dev_err(rtd_phy->dev, "gen2 offset-k pipe clock timeout\n");
+		return -EBUSY;
+	}
 	write_mdio_parallel_reg(rtd_phy, 0x102e, 0x0010);
 	cnt = 0;
 	val = read_mdio_parallel_reg(rtd_phy, 0x1030);
@@ -601,8 +650,18 @@ static int rtd1625_pcie0_phy_offset_calibrate(struct rtd_pcie_phy *rtd_phy)
 	write_mdio_parallel_reg(rtd_phy, 0x1f00, 0x002f);
 
 	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c06);
+	retry = 3;
+gen3_retry:
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125d);
 	write_mdio_parallel_reg(rtd_phy, 0x1c00, 0x125f);
+	if (check_pipe_clock_ready(rtd_phy)) {
+		if (retry > 0) {
+			retry--;
+			goto gen3_retry;
+		}
+		dev_err(rtd_phy->dev, "gen3 offset-k pipe clock timeout\n");
+		return -EBUSY;
+	}
 	write_mdio_parallel_reg(rtd_phy, 0x102e, 0x0010);
 	cnt = 0;
 	val = read_mdio_parallel_reg(rtd_phy, 0x1030);
@@ -631,19 +690,19 @@ static int rtd1625_pcie0_phy_offset_calibrate(struct rtd_pcie_phy *rtd_phy)
 	write_mdio_parallel_reg(rtd_phy, 0x1a4a, 0x0);
 	write_mdio_parallel_reg(rtd_phy, 0x1a48, 0x8380);
 	write_mdio_parallel_reg(rtd_phy, 0x1f00, 0x0);
-	regmap_read(rtd_phy->pcie_base, PCIE_MDIO_CTR, &val);
+	regmap_read(rtd_phy->pcie_base, PCIE_PHY_CTR, &val);
 	regmap_write(rtd_phy->pcie_base, PCIE_PHY_CTR, val & ~BIT(3));
 	write_mdio_parallel_reg(rtd_phy, 0x1a40, 0x4c00);
 	write_mdio_parallel_reg(rtd_phy, 0x1990, 0x0554);
 	write_mdio_parallel_reg(rtd_phy, 0x1990, 0x0570);
-	regmap_read(rtd_phy->pcie_base, PCIE_MDIO_CTR, &val);
+	regmap_read(rtd_phy->pcie_base, PCIE_PHY_CTR, &val);
 	regmap_write(rtd_phy->pcie_base, PCIE_PHY_CTR, val & ~GENMASK(7, 6));
 
 	return 0;
 
 }
 
-void write_tx_matrix_entry(struct rtd_pcie_phy *rtd_phy, int addr, int value)
+static void write_tx_matrix_entry(struct rtd_pcie_phy *rtd_phy, int addr, int value)
 {
 	int write_enable = 0x3c0;
 	int val;
@@ -655,7 +714,7 @@ void write_tx_matrix_entry(struct rtd_pcie_phy *rtd_phy, int addr, int value)
 	write_mdio_parallel_reg(rtd_phy, 0x1a62, val | addr);
 }
 
-void set_tx_matrix_table(struct rtd_pcie_phy *rtd_phy)
+static void set_tx_matrix_table(struct rtd_pcie_phy *rtd_phy)
 {
 	int i;
 	int value[32] = { 0x0, 0x821, 0x1042, 0x1863, 0x2084, 0x28A6, 0x30C7, 0x40E8,
@@ -671,6 +730,10 @@ void set_tx_matrix_table(struct rtd_pcie_phy *rtd_phy)
 static int rtd1625_pcie0_phy_init(struct phy *phy)
 {
 	struct rtd_pcie_phy *rtd_phy = phy_get_drvdata(phy);
+	const struct soc_device_attribute rtk_soc_kent_ab[] = {
+		{ .family = "Realtek Kent", .revision = "A00",},
+		{ .family = "Realtek Kent", .revision = "A01",},
+		{ /* empty */ } };
 	int ret;
 
 	regmap_write(rtd_phy->pcie_base, PCIE_MDIO_CTL1, 0x3);
@@ -732,7 +795,18 @@ static int rtd1625_pcie0_phy_init(struct phy *phy)
 	write_mdio_parallel_reg(rtd_phy, 0x5a, 0x832);
 	write_mdio_parallel_reg(rtd_phy, 0x97, 0x5240);
 	write_mdio_parallel_reg(rtd_phy, 0x1990, 0x570);
+	write_mdio_parallel_reg(rtd_phy, 0x1144, 0xc00);
+	write_mdio_parallel_reg(rtd_phy, 0x0c, 0xcf93);
+	write_mdio_parallel_reg(rtd_phy, 0x5c, 0xcf93);
+	write_mdio_parallel_reg(rtd_phy, 0xac, 0xca91);
 
+	if (soc_device_match(rtk_soc_kent_ab)) {
+		write_mdio_parallel_reg(rtd_phy, 0xaa, 0x532);
+	} else {
+		write_mdio_parallel_reg(rtd_phy, 0xaa, 0x432);
+	}
+
+	regmap_write(rtd_phy->pcie_base, PIPE_CTL1, 40 << 8 | 12);
 	set_tx_matrix_table(rtd_phy);
 
 	ret = rtd1625_pcie0_phy_offset_calibrate(rtd_phy);
@@ -757,6 +831,7 @@ static int rtd1625_pcie1_phy_init(struct phy *phy)
 	write_mdio_reg(rtd_phy, 0xc, 0xc007);
 	write_mdio_reg(rtd_phy, 0xd, 0xef28);
 	write_mdio_reg(rtd_phy, 0xe, 0x1001);
+	write_mdio_reg(rtd_phy, 0x20, 0xc4ca);
 	write_mdio_reg(rtd_phy, 0x21, 0x65aa);
 	write_mdio_reg(rtd_phy, 0x23, 0xea6);
 	write_mdio_reg(rtd_phy, 0x24, 0x4514);
@@ -776,7 +851,7 @@ static int rtd1625_pcie1_phy_init(struct phy *phy)
 	write_mdio_reg(rtd_phy, 0x4c, 0xc007);
 	write_mdio_reg(rtd_phy, 0x4d, 0xef28);
 	write_mdio_reg(rtd_phy, 0x4e, 0x1001);
-	write_mdio_reg(rtd_phy, 0x60, 0xc4ef);
+	write_mdio_reg(rtd_phy, 0x60, 0xc4ed);
 	write_mdio_reg(rtd_phy, 0x61, 0xa5aa);
 	write_mdio_reg(rtd_phy, 0x63, 0xea6);
 	write_mdio_reg(rtd_phy, 0x65, 0x1260);

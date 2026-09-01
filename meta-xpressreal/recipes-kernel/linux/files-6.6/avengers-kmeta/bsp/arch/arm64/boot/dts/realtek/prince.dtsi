@@ -735,10 +735,12 @@
 			};
 
 			ve1: ve1@40000 {
-				compatible = "realtek,kent-ve1";
+				compatible = "realtek,prince-ve1";
 				reg = <0x40000 0x4000>;
 				interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
 				power-domains = <&pwr_ve1>;
+				intr-syscon = <&sb2>;
+				ipc-syscon = <&sb2_pmu>;
 				status = "disabled";
 			};
 
@@ -1090,7 +1092,8 @@
 				clocks = <&cc RTD1625_CRT_CLK_NPU>;
 				resets = <&pwr_npu>;
 				contiguousSize = <0x0 0x1000000>;
-				realtek,sb2 = <&sb2>;
+				ipc-syscon = <&sb2_pmu>;
+				intr-syscon = <&sb2>;
 				status = "disabled";
 			};
 		};

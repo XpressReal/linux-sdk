@@ -4,10 +4,27 @@ SRC_DIR := "${THISDIR}/files/src"
 
 require u-boot-avengers.inc
 
+# uboot-config.bbclass:147 eager-expands ${B} into KCONFIG_CONFIG_ROOTDIR at anon-func
+# time, BEFORE externalsrc (devtool) repoints ${B} to ${WORKDIR}/${BPN}-${PV}. That freezes
+# a stale ".../build/<config>" path, so the devtool do_configure snapshot later fails with
+# "cp: cannot stat '.../build/<config>/.config'". Re-assert it lazily (keep ${B} unexpanded)
+# so it tracks the live ${B} at task time. This MUST be an anonymous python func: a plain '='
+# or :forcevariable is applied at parse/expandKeys and then clobbered by the class's later
+# anon setVar. Our append anon is registered after uboot-config's, so it wins.
+python () {
+    machine = (d.getVar('UBOOT_MACHINE') or '').strip()
+    # Only single-config builds set/use KCONFIG_CONFIG_ROOTDIR (multi-config disables menuconfig).
+    if machine and len(machine.split()) == 1:
+        d.setVar('KCONFIG_CONFIG_ROOTDIR', '${B}/' + machine)
+}
+
 DEPENDS += "u-boot-mkimage-native xxd-native lzop-native"
 
 SRC_URI:append = " \
+	file://patches/0000-tiny-printf-Correct-return-values.patch \
+	file://patches/CVE-2026-33243.patch \
 	file://patches/0001-boot-Only-define-checksum-algos-when-the-hashes-are-.patch \
+	file://patches/0002-env_spi-support-overriding-spi-dev-from-board-code.patch \
 	file://patches/0002-env-mmc-Make-redundant-env-in-both-eMMC-boot-partiti.patch \
 	file://patches/0003-usb-dwc3-gadget-fix-crash-in-dwc3_gadget_giveback.patch \
 	file://patches/0004-usb-dwc3-invalidate-dcache-on-buffer-used-in-interru.patch \
@@ -45,6 +62,78 @@ SRC_URI:append = " \
 	file://patches/0005-32-cmd-bcb-support-various-block-device-interfaces-for-.patch \
 	file://patches/0005-33-cmd-bcb-extend-BCB-C-API-to-allow-read-write-the-fie.patch \
 	file://patches/0005-34-cmd-bcb-Fix-segfault-on-invalid-block-device.patch \
+	file://patches/0005-35-cmd-avb-rework-prints.patch \
+	file://patches/0005-36-cmd-avb-rework-do_avb_verify_part.patch \
+	file://patches/0005-37-boot-android-Always-use-8-byte-aligned-DT-with-libfd.patch \
+	file://patches/0005-38-boot-android-import-addBootConfigParameters-from-AOS.patch \
+	file://patches/0005-39-boot-android-Add-bootconfig-support.patch \
+	file://patches/0006-01-env-Introduce-support-for-MTD.patch \
+	file://patches/0006-01-env-mtd-fix-usability-with-NAND-flashes.patch \
+	file://patches/0006-01-env-mtd-add-the-missing-put_mtd_device.patch \
+	file://patches/0006-02-mtd-spinand-add-support-for-ESMT-F50x1G41LB.patch \
+	file://patches/0006-03-mtd-spinand-Add-support-for-XTX-SPINAND.patch \
+	file://patches/0006-04-01-cmd-mtd-OTP-access-support.patch \
+	file://patches/0006-04-02-cmd-mtd-Enable-speed-benchmarking.patch \
+	file://patches/0006-04-03-cmd-mtd-add-markbad-command-support.patch \
+	file://patches/0006-04-04-cmd-mtd-add-nand_write_test-command-support.patch \
+	file://patches/0006-04-05-cmd-mtd-add-nand_read_test-command-support.patch \
+	file://patches/0006-04-06-cmd-mtd-fix-speed-measurement-in-the-speed-benchmark.patch \
+	file://patches/0006-04-07-cmd-mtd-add-benchmark-option-to-the-help.patch \
+	file://patches/0006-05-01-disk-support-MTD-partitions.patch \
+	file://patches/0006-05-02-drivers-introduce-mtdblock-abstraction.patch \
+	file://patches/0006-05-03-spinand-bind-mtdblock.patch \
+	file://patches/0006-05-04-ubi-allow-to-read-from-volume-with-offset.patch \
+	file://patches/0006-05-05-ubi-allow-to-write-to-volume-with-offset.patch \
+	file://patches/0006-05-06-drivers-introduce-UBI-block-abstraction.patch \
+	file://patches/0006-05-07-disk-don-t-try-search-for-partition-type-if-already-.patch \
+	file://patches/0006-05-08-disk-support-UBI-partitions.patch \
+	file://patches/0006-05-09-spinand-bind-UBI-block.patch \
+	file://patches/0006-05-10-mtd-mtdpart-fix-partitions-searching.patch \
+	file://patches/0006-09-spi-Introduce-setup_for_spinand.patch \
+	file://patches/0006-10-spinand-call-SPI-setup_for_spinand-if-supported.patch \
+	file://patches/0006-11-mtd-spinand-winbond-add-Winbond-W25N04KV-flash-suppo.patch \
+	file://patches/0006-12-mtd-spinand-gigadevice-sync-supported-chips-with-lin.patch \
+	file://patches/0006-13-spi-spi-mem-Extend-SPI-MEM-ops-to-match-Linux-6.16.patch \
+	file://patches/0006-14-mtd-spinand-Use-the-spi-mem-dirmap-API.patch \
+	file://patches/0006-15-mtd-nand-Add-a-NAND-page-I-O-request-type.patch \
+	file://patches/0006-16-mtd-spinand-core-add-missing-MODULE_DEVICE_TABLE.patch \
+	file://patches/0006-17-mtd-spinand-Extend-spinand_wait-to-match-Linux-kerne.patch \
+	file://patches/0006-18-mtd-spinand-Make-use-of-spinand_to_-mtd-nand-helpers.patch \
+	file://patches/0006-19-mtd-spinand-Align-logic-for-enabling-ECC-to-match-Li.patch \
+	file://patches/0006-20-mtd-spinand-Refactor-spinand_init-functions.patch \
+	file://patches/0006-21-mtd-spinand-Refactor-ECC-OOB-functions.patch \
+	file://patches/0006-22-mtd-spinand-Sync-core-code-and-device-support-with-L.patch \
+	file://patches/0006-23-mtd-spinand-set-bitflip_threshold-to-75-of-ECC-stren.patch \
+	file://patches/0006-24-mtd-spinand-Add-support-for-setting-plane-select-bit.patch \
+	file://patches/0006-25-mtd-spinand-Remove-write_enable_op-in-markbad.patch \
+	file://patches/0006-26-mtd-spinand-Introduce-a-way-to-avoid-raw-access.patch \
+	file://patches/0006-27-mtd-spinand-add-support-of-continuous-reading-mode.patch \
+	file://patches/0006-28-mtd-spinand-Add-read-retry-support.patch \
+	file://patches/0006-29-mtd-spinand-add-OTP-support.patch \
+	file://patches/0006-30-mtd-spinand-Enhance-the-logic-when-picking-a-variant.patch \
+	file://patches/0006-31-mtd-spinand-propagate-spinand_wait-errors-from-spina.patch \
+	file://patches/0006-32-mtd-spinand-Add-a-configure_chip-hook.patch \
+	file://patches/0006-33-mtd-spinand-Sync-core-code-and-device-support-with-L.patch \
+	file://patches/0006-34-mtd-spinand-fix-direct-mapping-creation-sizes.patch \
+	file://patches/0006-35-mtd-spinand-try-a-regular-dirmap-if-creating-a-dirma.patch \
+	file://patches/0006-36-mtd-spinand-repeat-reading-in-regular-mode-if-contin.patch \
+	file://patches/0006-37-mtd-spinand-add-support-for-FudanMicro-FM25S01A.patch \
+	file://patches/0007-00-mtd-nand-Rename-a-core-structure.patch \
+	file://patches/0007-01-mtd-nand-Introduce-the-ECC-engine-framework.patch \
+	file://patches/0007-02-mtd-nand-Use-the-new-generic-ECC-object.patch \
+	file://patches/0007-03-mtd-nand-ecc-Add-an-I-O-request-tweaking-mechanism.patch \
+	file://patches/0007-04-mtd-spinand-Instantiate-a-SPI-NAND-on-die-ECC-engine.patch \
+	file://patches/0007-05-mtd-nand-Let-on-die-ECC-engines-be-retrieved-from-th.patch \
+	file://patches/0007-06-mtd-spinand-Fill-a-default-ECC-provider-algorithm.patch \
+	file://patches/0007-07-mtd-nand-Add-helpers-to-manage-ECC-engines-and-confi.patch \
+	file://patches/0007-08-mtd-spinand-Use-the-external-ECC-engine-logic.patch \
+	file://patches/0007-09-mtd-spinand-Allow-the-case-where-there-is-no-ECC-eng.patch \
+	file://patches/0007-10-mtd-spinand-Fix-OOB-read.patch \
+	file://patches/0007-11-mtd-spinand-Fix-MTD_OPS_AUTO_OOB-requests.patch \
+	file://patches/0007-12-mtd-nand-ecc-Add-infrastructure-to-support-hardware-.patch \
+	file://patches/0007-13-mtd-spinand-Create-direct-mapping-descriptors-for-EC.patch \
+	file://patches/0008-spl-Add-generic-spl_load-function.patch \
+	file://patches/0009-spl-semihosting-Don-t-close-fd-before-spl_load_simpl.patch \
 	file://patches/0010-build-arm-Add-mach-realtek.patch \
 	file://patches/0011-abortboot-detect-TAB-key-to-load-altbootcmd-for-rescue.patch \
 	file://patches/0013-include-common.h-Add-debug-print-macro-and-block-dev.patch \
@@ -67,11 +156,19 @@ SRC_URI:append = " \
 	file://patches/0067-drivers-clk-Add-clk-rtk.patch \
 	file://patches/0068-drivers-i2c-Add-i2c-rtk.patch \
 	file://patches/0069-drivers-pci-Add-realtek-pcie-support.patch \
+	file://patches/0070-common-add-rtk-fss-scan-smc.patch \
+	file://patches/0071-bootm-RTK_FSS_SCAN_SMC-add-fssscan-subcmd-after-fdt.patch \
+	file://patches/0072-bootm-android-support-adtbo_idx-for-dtbo.patch \
+	file://patches/100-mtd-spi-support-ENV_OFFSET_REDUND.patch \
+	file://patches/101-spl-add-SPI-NAND-support-via-MTD-in-SPL.patch \
+	file://patches/102-spl-add-BOOT_DEVICE_SPI_NAND-for-SPL_SPI_NAND_LOAD.patch \
+	file://patches/103-mtd-nand-ecc-support-ecc-engine-framework-on-u-boot.patch \
 	file://patches/903-arm-enable-ARM_SMCCC-without-ARM_PSCI_FW.patch \
 	file://patches/904-tools-binman-replace-update-current-imagefile.patch \
 	file://patches/905-fit-spl-support-FIT_CIPHER.patch \
 	file://patches/906-aes-use-mcp-for-aes-cbc.patch \
-	file://patches/907-common-hash.c-Use-stack-space-for-hash-context.patch \
+	file://patches/907-common-hash.c-ensure-sha256-ctx-align-with-ARMV8_CE.patch \
+	file://patches/908-spl-fit_full-Record-loadables-into-the-FDT.patch \
 	file://patches/910-fit-add-verify-on-image-load.patch \
 	file://patches/911-Makefile-Signed-configurations-on-U-Boot-fitImage.patch \
 	file://patches/912-spl-Makefile.spl-spl-with-padding.patch \
@@ -80,11 +177,26 @@ SRC_URI:append = " \
 	file://patches/R0003-support-load-bootargs-from-fat.patch \
 	"
 
+SRC_URI:append:rtd16xx = " \
+	file://patches/0070-fastboot-avb-add-flashing-unlock-and-wire-lock-state.patch \
+	"
+
 ERROR_QA:remove = "patch-status"
 
 do_src_copy() {
+	# for scripts/setlocalversion to generate uboot.release
+	(cd ${SRC_DIR}/../../; echo -n "-g$(git log --format=%h -1 -- .)" > ${S}/.scmversion)
+	(cd ${SRC_DIR}/../../; git --no-optional-locks status -uno --porcelain . | read dummy && echo -n "-dirty" >> ${S}/.scmversion || true)
 	cp -afL ${SRC_DIR}/* ${S}
 	(cd ${S}; git add -A; git commit -m "Realtek Soc Patches")
+}
+
+do_compile:append() {
+	mkimage -c none -A arm64 -T script -d ${S}/board/realtek/bootconfig.cmd ${B}/boot.scr
+}
+
+do_deploy:append() {
+	cp ${S}/board/realtek/config.txt ${B}/boot.scr ${DEPLOY_DIR_IMAGE}/
 }
 
 do_compile[depends] = "bootfiles:do_deploy"

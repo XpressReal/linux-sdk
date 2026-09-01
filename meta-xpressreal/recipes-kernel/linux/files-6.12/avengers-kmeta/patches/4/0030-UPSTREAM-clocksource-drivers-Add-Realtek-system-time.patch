@@ -1,0 +1,58 @@
+From 4c8212ea57fdc66dcf65c11f382781bd6c869d3e Mon Sep 17 00:00:00 2001
+From: Hao-Wen Ting <haowen.ting@realtek.com>
+Date: Wed, 26 Nov 2025 14:01:10 +0800
+Subject: [PATCH 30/33] UPSTREAM: clocksource/drivers: Add Realtek system timer
+ driver
+
+Add a system timer driver for Realtek SoCs.
+
+This driver registers the 1 MHz global hardware counter on Realtek
+platforms as a clock event device. Since this hardware counter starts
+counting automatically after SoC power-on, no clock initialization is
+required. Because the counter does not stop or get affected by CPU power
+down, and it supports oneshot mode, it is typically used as a tick
+broadcast timer.
+
+Change-Id: Iee910e7de20f50a9b9aa845793c7ff1c087e7443
+Signed-off-by: Hao-Wen Ting <haowen.ting@realtek.com>
+Signed-off-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+Acked-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://patch.msgid.link/20251126060110.198330-3-haowen.ting@realtek.com
+(cherry picked from commit d1780dce9575072303b9c574614b72b5c8c5c44c)
+---
+ drivers/clocksource/Kconfig  | 11 +++++++++++
+ drivers/clocksource/Makefile |  1 +
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/clocksource/Kconfig b/drivers/clocksource/Kconfig
+index d546903dba4f3..d0100d1ada06c 100644
+--- a/drivers/clocksource/Kconfig
++++ b/drivers/clocksource/Kconfig
+@@ -754,4 +754,15 @@ config EP93XX_TIMER
+ 	  Enables support for the Cirrus Logic timer block
+ 	  EP93XX.
+ 
++config RTK_SYSTIMER
++	bool "Realtek SYSTIMER support"
++	depends on ARM || ARM64
++	depends on ARCH_REALTEK || COMPILE_TEST
++	select TIMER_OF
++	help
++	  This option enables the driver that registers the global 1 MHz hardware
++	  counter as a clock event device on Realtek SoCs. Make sure to enable
++	  this option only when building for a Realtek platform or for compilation
++	  testing.
++
+ endmenu
+diff --git a/drivers/clocksource/Makefile b/drivers/clocksource/Makefile
+index 22743785299ed..dd61c50a13ac5 100644
+--- a/drivers/clocksource/Makefile
++++ b/drivers/clocksource/Makefile
+@@ -91,3 +91,4 @@ obj-$(CONFIG_GOLDFISH_TIMER)		+= timer-goldfish.o
+ obj-$(CONFIG_GXP_TIMER)			+= timer-gxp.o
+ obj-$(CONFIG_CLKSRC_LOONGSON1_PWM)	+= timer-loongson1-pwm.o
+ obj-$(CONFIG_EP93XX_TIMER)		+= timer-ep93xx.o
++obj-$(CONFIG_RTK_SYSTIMER)		+= timer-realtek.o
+-- 
+2.47.0
+

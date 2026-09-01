@@ -19,19 +19,6 @@
 	aliases {
 		ethernet = &nic;
 	};
-
-	vpu_legacy: vpu_legacy {
-		compatible = "realtek,rtd16xxb-vpu-legacy";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	ve2: ve2 {
-		compatible = "realtek,rtd16xxb-ve2-sl";
-		memory-region = <&cma_reserved_0>;
-		status = "disabled";
-	};
-
 };
 
 &display_subsystem {
@@ -74,10 +61,6 @@
 };
 
 &vcpu_rproc {
-	status = "okay";
-};
-
-&vpu_legacy {
 	status = "okay";
 };
 

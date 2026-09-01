@@ -1,0 +1,4 @@
+patch 0001-drm-add-panthor-dts.patch 
+patch 0002-panthor-add-model-g310.patch
+
+kconf non-hardware mesa.cfg

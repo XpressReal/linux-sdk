@@ -1,0 +1,44 @@
+From 0fe41f525e685c91833475cddded352025a6d864 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Thu, 12 Feb 2026 15:59:45 +0800
+Subject: [PATCH 2/2] regulator: sqrl460l: Add Silergy SQRL460L driver
+
+Change-Id: Iebcd6ba75720fb61be06aa17313e4b5d10c72092
+---
+ drivers/regulator/Kconfig  | 7 +++++++
+ drivers/regulator/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index de070106dd129..ef86b11460d4c 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1476,6 +1476,13 @@ config REGULATOR_SYRL815E
+ 	help
+ 	  This driver supports SYRL815E single output regulator.
+ 
++config REGULATOR_SQRL460L
++	tristate "Silergy SQRL460L regulator"
++	depends on I2C && (OF || COMPILE_TEST)
++	select REGMAP_I2C
++	help
++	  This driver supports SQRL460L quad output regulator.
++
+ config REGULATOR_TPS51632
+ 	tristate "TI TPS51632 Power Regulator"
+ 	depends on I2C
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 1d33e820e26ce..a937a26de541f 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -171,6 +171,7 @@ obj-$(CONFIG_REGULATOR_SY8106A) += sy8106a-regulator.o
+ obj-$(CONFIG_REGULATOR_SY8824X) += sy8824x.o
+ obj-$(CONFIG_REGULATOR_SY8827N) += sy8827n.o
+ obj-$(CONFIG_REGULATOR_SYRL815E) += syrl815e.o
++obj-$(CONFIG_REGULATOR_SQRL460L) += sqrl460l.o
+ obj-$(CONFIG_REGULATOR_TI_ABB) += ti-abb-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS6105X) += tps6105x-regulator.o
+ obj-$(CONFIG_REGULATOR_TPS62360) += tps62360-regulator.o
+-- 
+2.47.0
+

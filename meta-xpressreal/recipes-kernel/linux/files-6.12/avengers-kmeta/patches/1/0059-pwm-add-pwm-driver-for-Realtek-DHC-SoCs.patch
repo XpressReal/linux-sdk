@@ -1,0 +1,44 @@
+From ca92f96dc9d3e0683b143c268d38fe02d1b52473 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:21:18 +0800
+Subject: [PATCH 59/73] pwm: add pwm driver for Realtek DHC SoCs
+
+Change-Id: Ic56ac9b56d7357a9d349afdc2f517876d11c3efe
+---
+ drivers/pwm/Kconfig  | 7 +++++++
+ drivers/pwm/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/pwm/Kconfig b/drivers/pwm/Kconfig
+index 0915c1e7df16d..77718f3730482 100644
+--- a/drivers/pwm/Kconfig
++++ b/drivers/pwm/Kconfig
+@@ -551,6 +551,13 @@ config PWM_RZ_MTU3
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called pwm-rz-mtu3.
+ 
++config PWM_RTK
++	tristate "Realtek PWM support"
++	depends on ARCH_REALTEK
++	default n
++	help
++	  Say Y, if you want to enable PWM feature on Realtek platform.
++
+ config PWM_SAMSUNG
+ 	tristate "Samsung PWM support"
+ 	depends on PLAT_SAMSUNG || ARCH_S5PV210 || ARCH_EXYNOS || COMPILE_TEST
+diff --git a/drivers/pwm/Makefile b/drivers/pwm/Makefile
+index 9081e0c0e9e09..962d5dd8c8ab8 100644
+--- a/drivers/pwm/Makefile
++++ b/drivers/pwm/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_PWM_RCAR)		+= pwm-rcar.o
+ obj-$(CONFIG_PWM_RENESAS_TPU)	+= pwm-renesas-tpu.o
+ obj-$(CONFIG_PWM_ROCKCHIP)	+= pwm-rockchip.o
+ obj-$(CONFIG_PWM_RZ_MTU3)	+= pwm-rz-mtu3.o
++obj-$(CONFIG_PWM_RTK)		+= pwm-rtk.o
+ obj-$(CONFIG_PWM_SAMSUNG)	+= pwm-samsung.o
+ obj-$(CONFIG_PWM_SIFIVE)	+= pwm-sifive.o
+ obj-$(CONFIG_PWM_SL28CPLD)	+= pwm-sl28cpld.o
+-- 
+2.47.0
+

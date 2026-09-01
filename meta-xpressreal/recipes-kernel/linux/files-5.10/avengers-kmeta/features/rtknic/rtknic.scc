@@ -1,0 +1,5 @@
+patch 700-net-realtek-Add-R8169SOC-R8168-and-R8125.patch
+patch 701-net-usb-Add-USB_RTL8152.patch
+patch 702-phy-realtek-Add-phy-driver.patch
+
+kconf hardware rtknic.cfg

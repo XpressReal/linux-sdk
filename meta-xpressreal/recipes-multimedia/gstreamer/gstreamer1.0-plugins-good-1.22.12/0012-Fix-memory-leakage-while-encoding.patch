@@ -2,6 +2,8 @@ From c306bf89bb135d55d4cc5435b116ea990a81a424 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Tue, 22 Apr 2025 19:58:34 +0800
 Subject: [PATCH 12/12] Fix memory leakage while encoding
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

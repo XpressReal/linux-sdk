@@ -1,0 +1,49 @@
+From 77fadd8aef00c981d291218d91b0b92c2e741498 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 15 Jul 2026 21:42:28 -0400
+Subject: [PATCH] waylandsink: to support NV24 and P010 format
+
+Source: Realtek
+License: LGPL-2.1-or-later
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ext/wayland/gstwaylandsink.c            | 2 +-
+ gst-libs/gst/wayland/gstwlvideoformat.c | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index b0d1c47..d98d21f 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -74,7 +74,7 @@ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define WL_VIDEO_FORMATS \
+     "{ BGRx, BGRA, RGBx, xBGR, xRGB, RGBA, ABGR, ARGB, RGB, BGR, " \
+     "RGB16, BGR16, YUY2, YVYU, UYVY, AYUV, NV12, NV21, NV16, NV61, " \
+-    "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308 }"
++    "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308, P010_10LE, NV24 }"
+ 
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+diff --git a/gst-libs/gst/wayland/gstwlvideoformat.c b/gst-libs/gst/wayland/gstwlvideoformat.c
+index 73455bd..12cf601 100644
+--- a/gst-libs/gst/wayland/gstwlvideoformat.c
++++ b/gst-libs/gst/wayland/gstwlvideoformat.c
+@@ -74,6 +74,7 @@ static const wl_VideoFormat wl_formats[] = {
+   {WL_SHM_FORMAT_NV21, DRM_FORMAT_NV21, GST_VIDEO_FORMAT_NV21},
+   {WL_SHM_FORMAT_NV16, DRM_FORMAT_NV16, GST_VIDEO_FORMAT_NV16},
+   {WL_SHM_FORMAT_NV61, DRM_FORMAT_NV61, GST_VIDEO_FORMAT_NV61},
++  {WL_SHM_FORMAT_NV24, DRM_FORMAT_NV24, GST_VIDEO_FORMAT_NV24},
+   {WL_SHM_FORMAT_YUV410, DRM_FORMAT_YUV410, GST_VIDEO_FORMAT_YUV9},
+   {WL_SHM_FORMAT_YVU410, DRM_FORMAT_YVU410, GST_VIDEO_FORMAT_YVU9},
+   {WL_SHM_FORMAT_YUV411, DRM_FORMAT_YUV411, GST_VIDEO_FORMAT_Y41B},
+@@ -81,6 +82,7 @@ static const wl_VideoFormat wl_formats[] = {
+   {WL_SHM_FORMAT_YVU420, DRM_FORMAT_YVU420, GST_VIDEO_FORMAT_YV12},
+   {WL_SHM_FORMAT_YUV422, DRM_FORMAT_YUV422, GST_VIDEO_FORMAT_Y42B},
+   {WL_SHM_FORMAT_YUV444, DRM_FORMAT_YUV444, GST_VIDEO_FORMAT_v308},
++  {WL_SHM_FORMAT_P010, DRM_FORMAT_P010, GST_VIDEO_FORMAT_P010_10LE},
+ };
+ 
+ enum wl_shm_format
+-- 
+2.34.1
+

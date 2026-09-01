@@ -1,0 +1,79 @@
+From de754069e40d88b61931f84fe0f62b75b7fd0889 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Wed, 1 Apr 2026 18:48:14 +0800
+Subject: [PATCH] phy: fix usb3dp-bdp build fail
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/i2c/busses/Kconfig           |  1 +
+ drivers/phy/realtek/phy-rtk-usb3dp.c | 12 ++----------
+ drivers/phy/realtek/phy-rtk-usb3dp.h |  5 -----
+ 3 files changed, 3 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+index 4313dca4187e7..9111ec129e065 100644
+--- a/drivers/i2c/busses/Kconfig
++++ b/drivers/i2c/busses/Kconfig
+@@ -1005,6 +1005,7 @@ config I2C_QUP
+ 
+ config I2C_REALTEK
+ 	tristate "Realtek I2C"
++	select I2C_SMBUS
+ 	depends on I2C
+ 	help
+ 	  This driver supports I2C Controller on Realtek SoC
+diff --git a/drivers/phy/realtek/phy-rtk-usb3dp.c b/drivers/phy/realtek/phy-rtk-usb3dp.c
+index e9ff95e131b9c..89933746f1deb 100644
+--- a/drivers/phy/realtek/phy-rtk-usb3dp.c
++++ b/drivers/phy/realtek/phy-rtk-usb3dp.c
+@@ -894,13 +894,9 @@ static int rtk_usb_type_c_check_mux(struct type_c_data *type_c, int cc, int lane
+ 	return ret;
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++
+ static int rtk_udphy_orien_sw_set(struct typec_switch_dev *sw,
+ 				 enum typec_orientation orien)
+-#else
+-static int rtk_udphy_orien_sw_set(struct typec_switch *sw,
+-                                 enum typec_orientation orien)
+-#endif
+ {
+ 	struct rtk_phy *rtk_phy = typec_switch_get_drvdata(sw);
+ 	int cc = 0;
+@@ -946,13 +942,9 @@ static int rtk_typec_switch_register(struct rtk_phy *rtk_phy)
+ 					rtk_udphy_orien_switch_unregister, rtk_phy);
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++
+ static int rtk_udphy_typec_mux_set(struct typec_mux_dev *mux,
+                                  struct typec_mux_state *state)
+-#else
+-static int rtk_udphy_typec_mux_set(struct typec_mux *mux,
+-                                 struct typec_mux_state *state)
+-#endif
+ {
+         struct rtk_phy *rtk_phy = typec_mux_get_drvdata(mux);
+ 	struct type_c_data *type_c = &rtk_phy->type_c;
+diff --git a/drivers/phy/realtek/phy-rtk-usb3dp.h b/drivers/phy/realtek/phy-rtk-usb3dp.h
+index a9b25ea7d4321..7d3d2dcec5a5e 100644
+--- a/drivers/phy/realtek/phy-rtk-usb3dp.h
++++ b/drivers/phy/realtek/phy-rtk-usb3dp.h
+@@ -254,13 +254,8 @@ struct rtk_phy {
+ 	struct type_c_data type_c;
+ 	struct workqueue_struct *wq_typec_phy;
+ 	struct delayed_work delayed_work;
+-#ifdef CONFIG_CHROME_PLATFORMS
+ 	struct typec_switch_dev *sw;
+ 	struct typec_mux_dev *mux;
+-#else
+-	struct typec_switch *sw;
+-	struct typec_mux *mux;
+-#endif
+ 	struct typec_mux_state state;
+ 	struct mutex mutex; /* mutex to protect access to individual PHYs */
+ 	u32 lane_mux_sel[4];
+-- 
+2.48.0
+

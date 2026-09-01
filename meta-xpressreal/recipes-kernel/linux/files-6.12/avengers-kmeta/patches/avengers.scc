@@ -1,0 +1,98 @@
+#==== start: 4b07fe4a044d8 Linux 6.12.13
+#==== merge points ===
+#9aec5087aaa1f Merge branch 'linux-6.12.y' into kernel-6.12-trunk
+#faf47cbe21719 Merge branch 'upstream-linux-6.12.y' into kernel-6.12-trunk
+#5fe8e25f4fc2c Merge branch 'kernel-6.12-dev' into kernel-6.12-trunk
+#2d1ee97585dd1 Merge 'linux-6.12.y' into kernel-6.12-trunk
+#==== end: ed4f8fcb219fd pci: controller: realtek: Extend link timeout to 1s
+
+patch 1/0006-clk-realtek-add-Realtek-DHC-SoCs-clock-drivers.patch
+patch 1/0007-nvmem-realtek-add-Realtek-efuse-driver.patch
+patch 1/0008-hwspinlock-add-realtek-hwlock-driver.patch
+patch 1/0009-soc-realtek-common-add-Realtek-SoCs-specific-driver.patch
+patch 1/0010-irqchip-add-irq-mux-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0011-gpio-rtd-update-gpio-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0012-pinctrl-realtek-update-pinctrl-driver-for-Realtek-DH.patch
+patch 1/0013-i2c-add-i2c-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0014-spi-add-GSPI-controller-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0017-char-hw_random-add-Realtek-random-number-generator.patch
+patch 1/0018-ata-add-ahci-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0019-bluetooth-add-rfkill-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0020-cpufreq-add-rtk-cpufreq-dt-for-rtd1319d-with-get-tar.patch
+patch 1/0021-crypto-add-Realtek-crypto-hardware-engine.patch
+patch 1/0022-dma-buf-heaps-add-media-heap-for-Realtek-DHC-SoCs.patch
+patch 1/0023-firmware-add-ifcp-firmware-driver-for-Realtek-DHC-So.patch
+patch 1/0024-gpu-drm-add-DRM-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0025-iio-adc-add-lsadc-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0026-pci-controller-add-pcie-host-driver-for-Realtek-DHC-.patch
+patch 1/0027-phy-realtek-add-pcie-phy-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0028-phy-realtek-add-sata-phy-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0029-phy-realtek-add-usb3-dp-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0030-iommu-realtek-add-pcie-iommu-support.patch
+patch 1/0031-mailbox-add-ifcp-mailbox-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0032-media-platform-Add-CEC-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0033-media-i2c-Add-PIXELPLUS-PR2000-V4L2-sub-device-drive.patch
+patch 1/0034-media-i2c-Add-MAX96724-GMSL-deserializer-V4L2-sub-de.patch
+patch 1/0035-media-i2c-Add-Techpoint-TP2815-V4L2-sub-device-drive.patch
+patch 1/0036-media-platform-add-dsi-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0037-media-platform-add-tpdemux-driver-for-Realtek-DHC-So.patch
+patch 1/0038-media-platform-rtk-vi-Add-video-input-driver.patch
+patch 1/0039-media-platform-rtk-mipi-csi-Add-mipi-csi-driver.patch
+patch 1/0040-media-platform-Add-NPU-PP-driver-for-Realtek-platfor.patch
+patch 1/0041-media-rc-add-irda-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0042-mtd-add-mfd-driver-for-apw888x-series-PMIC.patch
+patch 1/0043-mfd-add-rr320010-i2c-driver.patch
+patch 1/0044-mfd-add-raa271003-driver.patch
+patch 1/0045-mmc-host-add-emmc-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0046-mmc-host-add-SDHCI-controller-driver-for-Realtek-DHC.patch
+patch 1/0047-mmc-host-add-SD-MMC-host-controller-driver-for-Realt.patch
+patch 1/0050-net-ethernet-realtek-add-r8169soc-ethernet-driver-fo.patch
+patch 1/0051-net-ethernet-realtek-add-r8168-nic-driver-version-8..patch
+patch 1/0052-net-ethernet-realtek-add-r8125-nic-driver-version-9..patch
+patch 1/0053-net-ethernet-realtek-r8126-add-NIC-R8126-driver-vers.patch
+patch 1/0054-perf-realtek-add-PMU-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0055-power-reset-add-reboot-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0056-power-reset-add-reboot-mode-driver-for-Realtek-DHC-S.patch
+patch 1/0057-power-supply-add-simple-charger-driver-for-Realtek-D.patch
+patch 1/0058-power-supply-Add-simple-battery-driver-for-Realtek-D.patch
+patch 1/0059-pwm-add-pwm-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0060-regulator-add-regulator-driver-for-apw888x-series-PM.patch
+patch 1/0061-regulator-add-rr320010-regulator-driver.patch
+patch 1/0062-regulator-add-raa271003-regulator-driver.patch
+patch 1/0063-regulator-add-ti-tps62860-driver.patch
+patch 1/0064-remoteproc-realtek-add-remoteproc-support.patch
+patch 1/0065-reset-add-m2tmx-reset-controller-for-Realtek-DHC-SoC.patch
+patch 1/0066-rpmsg-add-rpmsg-driver-for-realtek-DHC-platform.patch
+patch 1/0067-rtc-add-rtc-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0068-rtc-add-software-emulated-rtc-for-Realtek-DHC-SoCs.patch
+patch 1/0069-thermal-realtek-add-thermal-sensor-driver.patch
+patch 1/0070-watchdog-add-watchdog-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0071-sound-soc-add-sound-driver-for-Realtek-DHC-SoCs.patch
+patch 1/0072-ASoC-SOF-realtek-add-SOF-driver-and-machine-driver.patch
+patch 1/0073-kernel-dma-buf-add-rheap-ops.patch
+patch 1/0074-u3dprx-add-u3dprx-to-Kconfig-and-Makefile.patch
+patch 3/0003-gpio-realtek-Add-gpio-expander-support.patch
+patch 4/0003-media-i2c-Add-Techpoint-TP9937-V4L2-sub-device-drive.patch
+patch 4/0006-net-ethernet-realtek-fix-typo-in-Kconfig-for-r8126.patch
+patch 4/0007-clocksource-Add-realtek-systimer-driver-for-4-core-p.patch
+patch 4/0010-net-ethernet-realtek-Add-r8127-nic-support.patch
+patch 4/0014-input-misc-Add-Realtek-LSADC-knob-driver.patch
+patch 4/0016-dma-buf-heaps-realtek-Add-CMA-highmem-heap-with-opti.patch
+patch 4/0017-dma-buf-heaps-realtek-Change-config-type-to-tristate.patch
+patch 4/0018-arm64-dts-realtek-rtd1861-add-lsadc-button.patch
+patch 4/0022-media-platform-rtk_dprx-Add-DisplayPort-receiver-dri.patch
+patch 4/0025-pinctrl-realtek-refactor-driver-to-match-upstream-ve.patch
+patch 4/0026-media-platform-Add-Realtek-XDI-Driver.patch
+patch 4/0029-Revert-clocksource-Add-realtek-systimer-driver-for-4.patch
+patch 4/0030-UPSTREAM-clocksource-drivers-Add-Realtek-system-time.patch
+patch 4/0031-FEATURE-regulator-Add-support-for-Renesas-RRB86848-b.patch
+patch 5/0001-regulator-syrl815e-Add-Silergy-SYRL815E-driver.patch
+patch 5/0002-regulator-sqrl460l-Add-Silergy-SQRL460L-driver.patch
+
+patch 802-01-add-pll_scpu-in-rtd1619b-cc.patch
+patch 831-kernel-upscale-SCPU-frequency-up-to-2.0GHz.patch
+patch 838-arm64-dts-rtd1501s-phantom-add-FSS-support-for-2GHz.patch
+
+kconf hardware avengers.cfg
+
+patch 850-regulator-tps6287x-rtk-workarounds.patch

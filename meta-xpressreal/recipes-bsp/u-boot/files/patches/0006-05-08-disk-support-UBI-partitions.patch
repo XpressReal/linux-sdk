@@ -1,0 +1,156 @@
+From aa5b67ce226267440e64fadc57d3a21e5842027c Mon Sep 17 00:00:00 2001
+From: Alexey Romanov <avromanov@salutedevices.com>
+Date: Thu, 18 Jul 2024 08:45:27 +0300
+Subject: [PATCH 8/9] disk: support UBI partitions
+
+UBI partition is abstraction over UBI volumes.
+Can be used by UBI block device.
+
+Signed-off-by: Alexey Romanov <avromanov@salutedevices.com>
+Reviewed-by: Heiko Schocher <hs@denx.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/ubi/Makefile |  2 +-
+ drivers/mtd/ubi/part.c   | 99 ++++++++++++++++++++++++++++++++++++++++
+ include/part.h           |  2 +
+ 3 files changed, 102 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/mtd/ubi/part.c
+
+diff --git a/drivers/mtd/ubi/Makefile b/drivers/mtd/ubi/Makefile
+index 6e24ae95d3b..690ef9e901a 100644
+--- a/drivers/mtd/ubi/Makefile
++++ b/drivers/mtd/ubi/Makefile
+@@ -7,4 +7,4 @@ obj-y += attach.o build.o vtbl.o vmt.o upd.o kapi.o eba.o io.o wl.o crc32.o
+ obj-$(CONFIG_MTD_UBI_FASTMAP) += fastmap.o
+ obj-y += misc.o
+ obj-y += debug.o
+-obj-$(CONFIG_UBI_BLOCK) += block.o
++obj-$(CONFIG_UBI_BLOCK) += block.o part.o
+diff --git a/drivers/mtd/ubi/part.c b/drivers/mtd/ubi/part.c
+new file mode 100644
+index 00000000000..13d1f165c30
+--- /dev/null
++++ b/drivers/mtd/ubi/part.c
+@@ -0,0 +1,99 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * (C) Copyright 2024 SaluteDevices, Inc.
++ *
++ * Author: Alexey Romanov <avromanov@salutedevices.com>
++ */
++
++#include <memalign.h>
++#include <part.h>
++#include <ubi_uboot.h>
++
++static inline struct ubi_device *get_ubi_device(void)
++{
++	return ubi_devices[0];
++}
++
++static struct ubi_volume *ubi_get_volume_by_index(int vol_id)
++{
++	struct ubi_device *ubi = get_ubi_device();
++	int i;
++
++	for (i = 0; i < (ubi->vtbl_slots + 1); i++) {
++		struct ubi_volume *volume = ubi->volumes[i];
++
++		if (!volume)
++			continue;
++
++		if (volume->vol_id >= UBI_INTERNAL_VOL_START)
++			continue;
++
++		if (volume->vol_id == vol_id)
++			return volume;
++	}
++
++	return NULL;
++}
++
++static int __maybe_unused part_get_info_ubi(struct blk_desc *dev_desc, int part_idx,
++					    struct disk_partition *info)
++{
++	struct ubi_volume *vol;
++
++	/*
++	 * We must use part_idx - 1 instead of part_idx, because
++	 * part_get_info_by_name() start indexing at 1, not 0.
++	 * ubi volumes idexed starting at 0
++	 */
++	vol = ubi_get_volume_by_index(part_idx - 1);
++	if (!vol)
++		return 0;
++
++	snprintf(info->name, PART_NAME_LEN, vol->name);
++
++	info->start = 0;
++	info->size = (unsigned long)vol->used_bytes / dev_desc->blksz;
++	info->blksz = dev_desc->blksz;
++
++	/* Save UBI volume ID in blk device descriptor */
++	dev_desc->hwpart = vol->vol_id;
++
++	return 0;
++}
++
++static void __maybe_unused part_print_ubi(struct blk_desc *dev_desc)
++{
++	struct ubi_device *ubi = get_ubi_device();
++	int i;
++
++	for (i = 0; i < (ubi->vtbl_slots + 1); i++) {
++		struct ubi_volume *volume = ubi->volumes[i];
++
++		if (!volume)
++			continue;
++
++		if (volume->vol_id >= UBI_INTERNAL_VOL_START)
++			continue;
++
++		printf("%d: %s\n", volume->vol_id, volume->name);
++	}
++}
++
++static int part_test_ubi(struct blk_desc *dev_desc)
++{
++	ALLOC_CACHE_ALIGN_BUFFER(unsigned char, buffer, dev_desc->blksz);
++
++	if (blk_dread(dev_desc, 0, 1, (ulong *)buffer) != 1)
++		return -1;
++
++	return 0;
++}
++
++U_BOOT_PART_TYPE(ubi) = {
++	.name	= "ubi",
++	.part_type	= PART_TYPE_UBI,
++	.max_entries	= UBI_ENTRY_NUMBERS,
++	.get_info	= part_get_info_ptr(part_get_info_ubi),
++	.print	= part_print_ptr(part_print_ubi),
++	.test	= part_test_ubi,
++};
+diff --git a/include/part.h b/include/part.h
+index a5994f2cace..54b986cee63 100644
+--- a/include/part.h
++++ b/include/part.h
+@@ -31,6 +31,7 @@ struct block_drvr {
+ #define PART_TYPE_AMIGA		0x04
+ #define PART_TYPE_EFI		0x05
+ #define PART_TYPE_MTD		0x06
++#define PART_TYPE_UBI		0x07
+ 
+ /* maximum number of partition entries supported by search */
+ #define DOS_ENTRY_NUMBERS	8
+@@ -38,6 +39,7 @@ struct block_drvr {
+ #define MAC_ENTRY_NUMBERS	64
+ #define AMIGA_ENTRY_NUMBERS	8
+ #define MTD_ENTRY_NUMBERS	64
++#define UBI_ENTRY_NUMBERS	UBI_MAX_VOLUMES
+ 
+ /*
+  * Type string for U-Boot bootable partitions
+-- 
+2.47.0
+

@@ -2,6 +2,8 @@ From f5602eed939e72b922532e67aa1f05a89abb61bd Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Fri, 7 Mar 2025 14:39:23 +0800
 Subject: [PATCH 1/1] Support AV1 for riff
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

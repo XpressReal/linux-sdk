@@ -1,0 +1,23 @@
+From 50f6e0ebb55bdb9c7b130ce2c46473091354ac17 Mon Sep 17 00:00:00 2001
+From: TY Chang <tychang@realtek.com>
+Date: Thu, 2 Oct 2025 14:10:30 +0800
+Subject: [PATCH 06/33] net: ethernet: realtek: fix typo in Kconfig for r8126
+
+Change-Id: Ief1dbaee6121b2e525097ab22fb680ad4597c96f
+---
+ drivers/net/ethernet/realtek/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/realtek/Makefile b/drivers/net/ethernet/realtek/Makefile
+index 04e8a52a8b08f..2fdf6166bbe5a 100644
+--- a/drivers/net/ethernet/realtek/Makefile
++++ b/drivers/net/ethernet/realtek/Makefile
+@@ -14,4 +14,4 @@ r8169soc-objs += rtl8169soc.o rtl8169soc_fw_data.o
+ obj-$(CONFIG_R8169SOC) += r8169soc.o
+ obj-$(CONFIG_R8168) += r8168/
+ obj-$(CONFIG_R8125) += r8125/
+-obj-$(CONFIG_R8125) += r8126/
++obj-$(CONFIG_R8126) += r8126/
+-- 
+2.47.0
+

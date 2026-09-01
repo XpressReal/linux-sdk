@@ -1,0 +1,858 @@
+From a7ea2d80468e5ee415fbc5539deb20ede45db7fa Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 22 Apr 2026 20:25:03 -0400
+Subject: [PATCH] OPC-26: add rtk-demo app
+
+1. dprx
+2. aisr
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ clients/meson.build |   7 +
+ clients/rtk-demo.c  | 813 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 820 insertions(+)
+ create mode 100644 clients/rtk-demo.c
+
+diff --git a/clients/meson.build b/clients/meson.build
+index be5d2b2..7d9d687 100644
+--- a/clients/meson.build
++++ b/clients/meson.build
+@@ -346,6 +346,13 @@ demo_clients = [
+ 			tablet_unstable_v2_protocol_c,
+ 		],
+ 	},
++	{
++		'basename': 'rtk-demo',
++		'add_sources': [
++			tablet_unstable_v2_client_protocol_h,
++			tablet_unstable_v2_protocol_c,
++		],
++	},
+ 	{ 'basename': 'transformed' },
+ ]
+ 
+diff --git a/clients/rtk-demo.c b/clients/rtk-demo.c
+new file mode 100644
+index 0000000..c0358a1
+--- /dev/null
++++ b/clients/rtk-demo.c
+@@ -0,0 +1,813 @@
++/*
++ * Copyright © 2014 Lyude
++ *
++ * Permission to use, copy, modify, distribute, and sell this software and
++ * its documentation for any purpose is hereby granted without fee, provided
++ * that the above copyright notice appear in all copies and that both that
++ * copyright notice and this permission notice appear in supporting
++ * documentation, and that the name of the copyright holders not be used in
++ * advertising or publicity pertaining to distribution of the software
++ * without specific, written prior permission.  The copyright holders make
++ * no representations about the suitability of this software for any
++ * purpose.  It is provided "as is" without express or implied warranty.
++ *
++ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
++ * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
++ * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE
++ */
++#include "config.h"
++
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <dirent.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include <signal.h>
++#include <cairo.h>
++#include <math.h>
++#include <assert.h>
++#include <stdbool.h>
++
++#include <linux/input.h>
++#include <wayland-client.h>
++
++#include "window.h"
++#include "tablet-unstable-v2-client-protocol.h"
++
++struct display *display;
++struct window *window;
++struct widget *widget;
++
++cairo_surface_t *draw_buffer;
++
++int old_x, old_y;
++int current_x, current_y;
++enum zwp_tablet_tool_v2_type tool_type;
++
++bool tablet_is_down;
++
++double current_pressure;
++
++/* Bottom bar buttons */
++bool aiser_enabled = false;
++int bottom_button_area_y;
++
++/* File browser state */
++bool file_browser_visible = false;
++#define MAX_FILES 100
++#define MAX_PATH 512
++char *file_list[MAX_FILES];
++int file_count = 0;
++int selected_file_index = -1;
++char current_path[MAX_PATH] = ".";
++char selected_file[MAX_PATH] = "";
++
++/* rtk_media_player daemon PID */
++static pid_t rtk_media_player_pid = 0;
++
++/* File browser scroll */
++static int file_scroll_offset = 0;
++
++enum bottom_button {
++	BUTTON_NONE,
++	BUTTON_LOCAL_PLAYBACK,
++	BUTTON_DPRX,
++	BUTTON_AISR,
++	BUTTON_PAUSE,
++	BUTTON_RESUME,
++	BUTTON_STOP,
++	BUTTON_FILE_BROWSER
++};
++
++static enum bottom_button
++get_bottom_button(int x, int y)
++{
++	struct rectangle allocation;
++	widget_get_allocation(widget, &allocation);
++
++	int width = allocation.width;
++	int button_width = width / 6;
++	int button_height = 60;
++	bottom_button_area_y = allocation.height - button_height;
++
++	if (y < bottom_button_area_y)
++		return BUTTON_NONE;
++
++	if (x < button_width)
++		return BUTTON_LOCAL_PLAYBACK;
++	else if (x < button_width * 2)
++		return BUTTON_DPRX;
++	else if (x < button_width * 3)
++		return BUTTON_AISR;
++	else if (x < button_width * 4)
++		return BUTTON_PAUSE;
++	else if (x < button_width * 5)
++		return BUTTON_RESUME;
++	else
++		return BUTTON_STOP;
++}
++
++static void
++draw_bottom_bar(cairo_t *cr, struct rectangle *alloc)
++{
++	int width = alloc->width;
++	int height = alloc->height;
++	int button_width = width / 6;
++	int button_height = 60;
++	int y = height - button_height;
++	int margin = 5;
++
++	/* Draw background bar */
++	cairo_set_source_rgb(cr, 0.2, 0.2, 0.2);
++	cairo_rectangle(cr, 0, y, width, button_height);
++	cairo_fill(cr);
++
++	/* Draw each button with grey background and white border */
++	cairo_set_line_width(cr, 2);
++
++	/* Button 1: LOCAL PLAYBACK */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Button 2: dprx */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, button_width + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, button_width + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Button 3: AISR */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, button_width * 2 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, button_width * 2 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Button 4: PAUSE */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, button_width * 3 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, button_width * 3 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Button 5: RESUME */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, button_width * 4 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, button_width * 4 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Button 6: STOP */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_rectangle(cr, button_width * 5 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_rectangle(cr, button_width * 5 + margin, y + margin, button_width - margin * 2, button_height - margin * 2);
++	cairo_stroke(cr);
++
++	/* Draw button text */
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
++	cairo_set_font_size(cr, 14);
++
++	/* Button 1: LOCAL PLAYBACK */
++	cairo_move_to(cr, button_width / 2 - 55, y + 35);
++	cairo_show_text(cr, "LOCAL PLAYBACK");
++
++	/* Button 2: dprx */
++	cairo_move_to(cr, button_width + button_width / 2 - 20, y + 35);
++	cairo_show_text(cr, "dprx");
++
++	/* Button 3: AISR */
++	cairo_move_to(cr, button_width * 2 + button_width / 2 - 20, y + 35);
++	if (aiser_enabled)
++		cairo_show_text(cr, "AISR off");
++	else
++		cairo_show_text(cr, "AISR running");
++
++	/* Button 4: PAUSE */
++	cairo_move_to(cr, button_width * 3 + button_width / 2 - 25, y + 35);
++	cairo_show_text(cr, "PAUSE");
++
++	/* Button 5: RESUME */
++	cairo_move_to(cr, button_width * 4 + button_width / 2 - 30, y + 35);
++	cairo_show_text(cr, "RESUME");
++
++	/* Button 6: STOP */
++	cairo_move_to(cr, button_width * 5 + button_width / 2 - 20, y + 35);
++	cairo_show_text(cr, "STOP");
++}
++
++static void
++load_directory(const char *path)
++{
++	DIR *dir;
++	struct dirent *entry;
++	struct stat st;
++	int i;
++
++	/* Free existing file list */
++	for (i = 0; i < file_count; i++) {
++		free(file_list[i]);
++		file_list[i] = NULL;
++	}
++	file_count = 0;
++	selected_file_index = -1;
++	file_scroll_offset = 0;
++
++	/* Update current path */
++	strncpy(current_path, path, MAX_PATH - 1);
++	current_path[MAX_PATH - 1] = '\0';
++
++	dir = opendir(path);
++	if (!dir) {
++		fprintf(stderr, "Cannot open directory: %s\n", path);
++		return;
++	}
++
++	while ((entry = readdir(dir)) != NULL && file_count < MAX_FILES) {
++		/* Skip hidden files */
++		if (entry->d_name[0] == '.')
++			continue;
++
++		/* Build full path for stat check */
++		char full_path[MAX_PATH];
++		snprintf(full_path, MAX_PATH, "%s/%s", path, entry->d_name);
++
++		if (stat(full_path, &st) == 0 && S_ISDIR(st.st_mode)) {
++			/* Put directories first with '/' suffix */
++			file_list[file_count] = malloc(strlen(entry->d_name) + 2);
++			sprintf(file_list[file_count], "%s/", entry->d_name);
++		} else {
++			file_list[file_count] = strdup(entry->d_name);
++		}
++		file_count++;
++	}
++
++	closedir(dir);
++	fprintf(stderr, "Loaded %d files in %s\n", file_count, path);
++}
++
++static void
++draw_file_browser(cairo_t *cr, struct rectangle *alloc)
++{
++	int width = alloc->width;
++	int height = alloc->height;
++	int item_height = 40;
++	int bottom_bar_height = 60;
++	int visible_files = (height - 80 - bottom_bar_height) / item_height;
++	int i;
++
++	/* Draw background - semi-transparent */
++	cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
++	cairo_rectangle(cr, 0, 0, width, height);
++	cairo_fill(cr);
++
++	/* Draw border */
++	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++	cairo_set_line_width(cr, 4);
++	cairo_rectangle(cr, 20, 20, width - 40, height - 40);
++	cairo_stroke(cr);
++
++	/* Draw title */
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
++	cairo_set_font_size(cr, 24);
++	cairo_move_to(cr, 80, 50);
++	cairo_show_text(cr, "Select File (tap dir to enter, tap file to select)");
++
++	/* Draw back button */
++	cairo_set_source_rgb(cr, 0.2, 0.4, 0.8);
++	cairo_rectangle(cr, 20, 10, 40, 30);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_set_font_size(cr, 18);
++	cairo_move_to(cr, 25, 32);
++	cairo_show_text(cr, "<");
++
++	/* Draw current path */
++	cairo_set_source_rgb(cr, 0.8, 0.8, 0.8);
++	cairo_set_font_size(cr, 16);
++	cairo_move_to(cr, 70, 32);
++	cairo_show_text(cr, current_path);
++
++	/* Draw close button area */
++	cairo_set_source_rgb(cr, 0.8, 0.2, 0.2);
++	cairo_rectangle(cr, width - 80, 10, 60, 30);
++	cairo_fill(cr);
++	cairo_set_source_rgb(cr, 1, 1, 1);
++	cairo_set_font_size(cr, 18);
++	cairo_move_to(cr, width - 70, 32);
++	cairo_show_text(cr, "CLOSE");
++
++	/* Draw file list */
++	cairo_set_font_size(cr, 20);
++	for (i = 0; i < visible_files && (file_scroll_offset + i) < file_count; i++) {
++		int file_idx = file_scroll_offset + i;
++		int file_y = 80 + i * item_height;
++
++		/* Highlight selected file */
++		if (file_idx == selected_file_index) {
++			cairo_set_source_rgb(cr, 0.2, 0.4, 0.8);
++			cairo_rectangle(cr, 30, file_y, width - 60, item_height);
++			cairo_fill(cr);
++		}
++
++		cairo_set_source_rgb(cr, 1, 1, 1);
++		cairo_move_to(cr, 40, file_y + 26);
++		cairo_show_text(cr, file_list[file_idx]);
++
++		/* Draw divider */
++		cairo_set_source_rgb(cr, 0.3, 0.3, 0.3);
++		cairo_move_to(cr, 30, file_y + item_height);
++		cairo_line_to(cr, width - 30, file_y + item_height);
++		cairo_stroke(cr);
++	}
++
++	/* Draw scroll indicator */
++	if (file_count > visible_files) {
++		int scrollbar_height = (height - 80 - bottom_bar_height) * visible_files / file_count;
++		int scrollbar_y = 80 + (height - 80 - bottom_bar_height) * file_scroll_offset / file_count;
++
++		cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
++		cairo_rectangle(cr, width - 25, 80, 5, height - 80 - bottom_bar_height);
++		cairo_fill(cr);
++
++		cairo_set_source_rgb(cr, 0.8, 0.8, 0.8);
++		cairo_rectangle(cr, width - 25, scrollbar_y, 5, scrollbar_height);
++		cairo_fill(cr);
++	}
++}
++
++static void
++handle_file_browser_click(int x, int y, struct rectangle *alloc)
++{
++	int width = alloc->width;
++	int height = alloc->height;
++	int item_height = 40;
++	int bottom_bar_height = 60;
++	int visible_files = (height - 80 - bottom_bar_height) / item_height;
++
++	/* Check close button */
++	if (x > width - 80 && x < width - 20 && y > 10 && y < 40) {
++		file_browser_visible = false;
++		return;
++	}
++
++	/* Check go back button (left side) */
++	if (x > 20 && x < 60 && y > 10 && y < 40) {
++		/* Go back to parent directory */
++		char *last_slash = strrchr(current_path, '/');
++		if (last_slash && last_slash != current_path) {
++			*last_slash = '\0';
++		} else if (strcmp(current_path, ".") != 0) {
++			strcpy(current_path, ".");
++		}
++		load_directory(current_path);
++		widget_schedule_redraw(widget);
++		return;
++	}
++
++	/* Check file list */
++	if (y >= 80 && y < 80 + visible_files * item_height) {
++		int index = (y - 80) / item_height;
++		int actual_index = file_scroll_offset + index;
++		if (actual_index >= 0 && actual_index < file_count && index < visible_files) {
++			selected_file_index = actual_index;
++			char *filename = file_list[selected_file_index];
++			fprintf(stderr, "Selected: %s\n", filename);
++
++			/* Check if it's a directory (ends with '/') */
++			size_t len = strlen(filename);
++			if (len > 0 && filename[len - 1] == '/') {
++				/* It's a directory - navigate into it */
++				char new_path[MAX_PATH];
++				if (strcmp(current_path, ".") == 0) {
++					snprintf(new_path, MAX_PATH, "%s", filename);
++				} else {
++					snprintf(new_path, MAX_PATH, "%s/%s", current_path, filename);
++				}
++				/* Remove trailing '/' */
++				new_path[strlen(new_path) - 1] = '\0';
++				load_directory(new_path);
++				fprintf(stderr, "Navigating to: %s\n", new_path);
++			} else {
++				/* It's a file - save file path and close browser */
++				if (strcmp(current_path, ".") == 0) {
++					snprintf(selected_file, MAX_PATH, "%s", filename);
++				} else {
++					snprintf(selected_file, MAX_PATH, "%s/%s", current_path, filename);
++				}
++				system("amixer sset \"DPRX Audio En\" off");
++				fprintf(stderr, "File selected: %s\n", selected_file);
++				system("rtk_media_player_ctrl -c stop");
++				char buf[512] = {0};
++				sprintf(buf, "rtk_media_player_ctrl -c start -s %s", selected_file);
++				printf("cmd:%s\n", buf);
++				system(buf);
++				file_browser_visible = false;
++			}
++		}
++	}
++}
++
++#define WL_TABLET_AXIS_MAX 65535
++
++static void
++redraw_handler(struct widget *widget, void *data)
++{
++	cairo_surface_t *surface;
++	cairo_t *window_cr, *drawing_cr;
++	struct rectangle allocation;
++
++	widget_get_allocation(widget, &allocation);
++
++	surface = window_get_surface(window);
++
++	/* Setup the background */
++	window_cr = cairo_create(surface);
++	cairo_set_operator(window_cr, CAIRO_OPERATOR_SOURCE);
++	cairo_rectangle(window_cr,
++			allocation.x,
++			allocation.y,
++			allocation.width,
++			allocation.height);
++	cairo_set_source_rgba(window_cr, 0, 0, 0, 0);
++	cairo_fill(window_cr);
++
++	/* Update the drawing buffer */
++	if (tablet_is_down) {
++		if (old_x != -1 && old_y != -1) {
++			drawing_cr = cairo_create(draw_buffer);
++			if (tool_type == ZWP_TABLET_TOOL_V2_TYPE_PEN) {
++				cairo_set_source_rgb(drawing_cr, 1, 1, 1);
++				cairo_set_line_width(drawing_cr,
++						     current_pressure /
++						     WL_TABLET_AXIS_MAX * 7 + 1);
++			} else if (tool_type == ZWP_TABLET_TOOL_V2_TYPE_ERASER) {
++				cairo_set_operator(drawing_cr, CAIRO_OPERATOR_CLEAR);
++				cairo_set_source_rgb(drawing_cr, 0, 0, 0);
++				cairo_set_line_width(drawing_cr,
++						     current_pressure /
++						     WL_TABLET_AXIS_MAX * 30 + 10);
++			}
++
++			cairo_set_line_cap(drawing_cr, CAIRO_LINE_CAP_ROUND);
++
++			cairo_translate(drawing_cr,
++					-allocation.x,
++					-allocation.y);
++			cairo_move_to(drawing_cr, old_x, old_y);
++			cairo_line_to(drawing_cr, current_x, current_y);
++			cairo_stroke(drawing_cr);
++
++			cairo_destroy(drawing_cr);
++		}
++
++		old_x = current_x;
++		old_y = current_y;
++	}
++
++	/* Squash the drawing buffer onto the window's buffer */
++	cairo_set_source_surface(window_cr,
++				 draw_buffer,
++				 allocation.x,
++				 allocation.y);
++	cairo_set_operator(window_cr, CAIRO_OPERATOR_ADD);
++	cairo_rectangle(window_cr,
++			allocation.x,
++			allocation.y,
++			allocation.width,
++			allocation.height);
++	cairo_clip(window_cr);
++	cairo_paint(window_cr);
++
++	cairo_destroy(window_cr);
++
++	/* Draw bottom bar */
++	window_cr = cairo_create(surface);
++	draw_bottom_bar(window_cr, &allocation);
++	cairo_destroy(window_cr);
++
++	/* Draw file browser if visible */
++	if (file_browser_visible) {
++		window_cr = cairo_create(surface);
++		draw_file_browser(window_cr, &allocation);
++		cairo_destroy(window_cr);
++	}
++
++	cairo_surface_destroy(surface);
++}
++
++static void
++resize_handler(struct widget *widget,
++	       int32_t width, int32_t height,
++	       void *data)
++{
++	cairo_surface_t *tmp_buffer;
++	cairo_t *cr;
++
++	tmp_buffer = draw_buffer;
++	draw_buffer = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
++						 width, height);
++	cr = cairo_create(draw_buffer);
++	cairo_set_source_rgba(cr, 0, 0, 0, 0);
++	cairo_rectangle(cr, 0, 0, width, height);
++	cairo_fill(cr);
++
++	if (tmp_buffer) {
++		cairo_set_source_surface(cr, tmp_buffer, 0, 0);
++		cairo_rectangle(cr, 0, 0, width, height);
++		cairo_clip(cr);
++		cairo_paint(cr);
++	}
++
++	cairo_destroy(cr);
++
++	cairo_surface_destroy(tmp_buffer);
++}
++
++static void
++proximity_in_handler(struct widget *widget, struct tablet_tool *tool,
++		     struct tablet *tablet, void *data)
++{
++	tool_type = tablet_tool_get_type(tool);
++}
++
++static void
++pressure_handler(struct widget *widget, struct tablet_tool *tool,
++		 uint32_t pressure, void *data)
++{
++	current_pressure = pressure;
++}
++
++static int
++tablet_motion_handler(struct widget *widget, struct tablet_tool *tool,
++		      float x, float y, void *data)
++{
++	int cursor;
++
++	current_x = x;
++	current_y = y;
++
++	if (tablet_is_down) {
++		widget_schedule_redraw(widget);
++		cursor = CURSOR_HAND1;
++	} else {
++		cursor = CURSOR_LEFT_PTR;
++	}
++
++	return cursor;
++}
++
++static void
++tablet_down_handler(struct widget *widget, struct tablet_tool *tool, void *data)
++{
++	tablet_is_down = true;
++}
++
++static void
++tablet_up_handler(struct widget *widget, struct tablet_tool *tool, void *data)
++{
++	tablet_is_down = false;
++	old_x = -1;
++	old_y = -1;
++}
++
++static void
++axis_handler(struct widget *widget, struct input *input, uint32_t time,
++	     uint32_t axis, wl_fixed_t value, void *data)
++{
++	if (!file_browser_visible)
++		return;
++
++	if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
++		return;
++
++	/* Get cursor position to check if in file browser area */
++	int32_t x, y;
++	input_get_position(input, &x, &y);
++
++	struct rectangle allocation;
++	widget_get_allocation(widget, &allocation);
++
++	/* Only scroll if in file browser area */
++	if (y < allocation.height - 60 && x > 20 && x < allocation.width - 20) {
++		int delta = wl_fixed_to_int(value);
++		int visible_files = (allocation.height - 80 - 60) / 40;
++		int max_scroll = file_count - visible_files;
++		if (max_scroll < 0) max_scroll = 0;
++
++		file_scroll_offset += delta > 0 ? 1 : -1;
++		if (file_scroll_offset < 0) file_scroll_offset = 0;
++		if (file_scroll_offset > max_scroll) file_scroll_offset = max_scroll;
++
++		widget_schedule_redraw(widget);
++	}
++}
++
++static void
++button_handler(struct widget *widget,
++	       struct input *input, uint32_t time,
++	       uint32_t button,
++	       enum wl_pointer_button_state state, void *data)
++{
++	int32_t x, y;
++	struct rectangle allocation;
++
++	input_get_position(input, &x, &y);
++	fprintf(stderr, "button_handler: button=%u state=%d x=%d y=%d\n", button, state, x, y);
++
++	if (button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED) {
++		widget_get_allocation(widget, &allocation);
++
++		/* Handle file browser click */
++		if (file_browser_visible) {
++			handle_file_browser_click(x, y, &allocation);
++			widget_schedule_redraw(widget);
++			return;
++		}
++
++		enum bottom_button btn = get_bottom_button(x, y);
++		fprintf(stderr, "button click: btn=%d\n", btn);
++
++		switch (btn) {
++		case BUTTON_LOCAL_PLAYBACK:
++			/* Open file selection UI */
++			load_directory(".");
++			file_browser_visible = true;
++			widget_schedule_redraw(widget);
++			fprintf(stderr, "LOCAL PLAYBACK clicked - file browser opened\n");
++			break;
++		case BUTTON_DPRX:
++			/* dprx - empty function */
++			system("amixer sset \"DPRX Audio En\" on");
++			system("rtk_media_player_ctrl -c stop");
++			system("rtk_media_player_ctrl -c start -s rtk_dprx");
++			fprintf(stderr, "dprx clicked\n");
++			break;
++		case BUTTON_AISR:
++			aiser_enabled = !aiser_enabled;
++			widget_schedule_redraw(widget);
++			if (aiser_enabled) {
++				fprintf(stderr, "disable AISR\n");
++				system("kms_ipc -F -a 0");
++			} else {
++				fprintf(stderr, "enable AISR\n");
++				system("kms_ipc -F -a 1");
++			}
++			break;
++		case BUTTON_PAUSE:
++			system("rtk_media_player_ctrl -c pause");
++			fprintf(stderr, "PAUSE clicked\n");
++			break;
++		case BUTTON_RESUME:
++			system("rtk_media_player_ctrl -c resume");
++			fprintf(stderr, "RESUME clicked\n");
++			break;
++		case BUTTON_STOP:
++			system("rtk_media_player_ctrl -c stop");
++			fprintf(stderr, "STOP clicked\n");
++			break;
++		case BUTTON_FILE_BROWSER:
++		case BUTTON_NONE:
++			break;
++		}
++	}
++}
++
++static void
++init_globals(void)
++{
++	window = window_create(display);
++	widget = window_frame_create(window, NULL);
++	window_set_title(window, "Wayland Tablet Demo");
++	window_set_maximized(window, 1);
++	old_x = -1;
++	old_y = -1;
++
++	widget_set_tablet_tool_axis_handlers(widget,
++					     tablet_motion_handler,
++					     pressure_handler,
++					     NULL, NULL,
++					     NULL, NULL, NULL);
++	widget_set_tablet_tool_down_handler(widget, tablet_down_handler);
++	widget_set_tablet_tool_up_handler(widget, tablet_up_handler);
++	widget_set_tablet_tool_proximity_handlers(widget,
++						  proximity_in_handler,
++						  NULL);
++	widget_set_redraw_handler(widget, redraw_handler);
++	widget_set_resize_handler(widget, resize_handler);
++	widget_set_button_handler(widget, button_handler);
++	widget_set_axis_handler(widget, axis_handler);
++}
++
++static void
++cleanup(void)
++{
++	/* Kill rtk_media_player daemon */
++	if (rtk_media_player_pid > 0) {
++		fprintf(stderr, "Killing rtk_media_player (pid=%d)\n", rtk_media_player_pid);
++		kill(rtk_media_player_pid, SIGTERM);
++		usleep(100000);
++		/* Force kill if still alive */
++		kill(rtk_media_player_pid, SIGKILL);
++	}
++
++	widget_destroy(widget);
++	window_destroy(window);
++}
++
++static void
++start_rtk_media_player_daemon(void)
++{
++	pid_t pid = fork();
++	if (pid < 0) {
++		fprintf(stderr, "fork failed: %m\n");
++		return;
++	}
++	if (pid > 0) {
++		/* Parent process - save PID and continue */
++		rtk_media_player_pid = pid;
++		usleep(100000);
++		return;
++	}
++	if (pid == 0) {
++
++	/* Child process - become daemon */
++	if (setsid() < 0) {
++		_exit(1);
++	}
++
++	/* Close stdin, stdout, stderr */
++	close(STDIN_FILENO);
++	close(STDOUT_FILENO);
++	close(STDERR_FILENO);
++
++	/* Redirect to /dev/null */
++	open("/dev/null", O_RDONLY);
++	open("/dev/null", O_WRONLY);
++	open("/dev/null", O_WRONLY);
++
++	/* Execute rtk_media_player */
++	execlp("rtk_media_player", "rtk_media_player", NULL);
++	_exit(1);
++	}
++}
++
++static void
++signal_handler(int signum)
++{
++	/* Kill rtk_media_player on signal */
++	if (rtk_media_player_pid > 0) {
++		kill(rtk_media_player_pid, SIGTERM);
++	}
++	exit(1);
++}
++
++int
++main(int argc, char *argv[])
++{
++	/* Register signal handlers */
++	struct sigaction sa;
++	sa.sa_handler = signal_handler;
++	sigemptyset(&sa.sa_mask);
++	sa.sa_flags = 0;
++	sigaction(SIGINT, &sa, NULL);
++	sigaction(SIGTERM, &sa, NULL);
++
++	system("kms_ipc -F -a 1");
++	start_rtk_media_player_daemon();
++
++	display = display_create(&argc, argv);
++	if (display == NULL) {
++		fprintf(stderr, "failed to create display: %m\n");
++		return -1;
++	}
++
++	init_globals();
++
++	display_run(display);
++
++	cleanup();
++
++	display_destroy(display);
++
++	return 0;
++}
+-- 
+2.34.1
+

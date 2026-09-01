@@ -13,5 +13,16 @@ patch 012-kernel-gpu-drm-do-not-use-CLUSTER-flow.patch
 patch 013-drm-sync-mixer-plane-to-chromebook.patch
 patch 014-eDP-driver-for-Kent-AIOT-platform.patch
 patch 015-CHROME-878-use-dma_buf_vmap_unlock-and-dma_buf_vunma.patch
+patch 016-gpu-drm-enable-dptx-driver.patch
+patch 017-NASPRJ-1360-add-ARGB8888-to-rtk-afrc-list.patch
+patch 018-drm-realtek-Fix-NULL-pointer-dereference-in-rtk_edp_shutdown.patch
+patch 019-gpu-drm-provide-XB24-to-primary-plane.patch
+patch 020-gpu-drm-support-cursor-update.patch
+patch 021-gpu-drm-add-drm-fence-flow.patch
+patch 022-fix-incorrect-mixer-number-and-pitch.patch
+patch 023-add-prc-command-to-support-overlay-plane-cropping.patch
+patch 024-add-video-fence-for-normal-dma-buffer.patch
+patch 025-share-overlay-planes-across-crts.patch
+patch 100-Add-raspberry-pi-v2-panel-and-touch-drivers.patc.patch
 
 kconf hardware drm.cfg

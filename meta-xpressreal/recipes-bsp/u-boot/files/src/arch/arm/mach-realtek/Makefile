@@ -2,6 +2,7 @@
 
 obj-$(CONFIG_SPL_BUILD)	+= spl.o
 
+obj-$(CONFIG_RTK_DEBUG)	+= debug.o
 obj-y	+= clock.o
 #obj-	y+= timer.o
 obj-y	+= dram.o
@@ -20,3 +21,4 @@ endif
 obj-$(CONFIG_TARGET_RTD1319) += rtd1319/
 obj-$(CONFIG_TARGET_RTD1619B) += rtd1619b/
 obj-$(CONFIG_TARGET_RTD1625) += rtd1625/
+obj-$(CONFIG_TARGET_RTD1635) += rtd1625/

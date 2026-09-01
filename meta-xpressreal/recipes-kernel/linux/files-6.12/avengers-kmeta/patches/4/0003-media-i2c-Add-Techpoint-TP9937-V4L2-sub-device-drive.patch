@@ -1,0 +1,45 @@
+From 3ee6db619ca6cf8a5cc66a3373f0ae52d5ac95d3 Mon Sep 17 00:00:00 2001
+From: "chase.yen" <chase.yen@realtek.com>
+Date: Thu, 19 Jun 2025 20:11:12 +0800
+Subject: [PATCH 03/33] media: i2c: Add Techpoint TP9937 V4L2 sub-device driver
+
+JIRA: SW-9369
+
+Change-Id: Ia60ae8d90370a21368cf16a8c1e4838d23786a79
+Signed-off-by: James Tai <james.tai@realtek.com>
+---
+ drivers/media/i2c/Kconfig  | 8 ++++++++
+ drivers/media/i2c/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index af670391f6c46..3c907d50b8d19 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -1358,6 +1358,14 @@ config VIDEO_VPX3220
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called vpx3220.
+ 
++config VIDEO_TP9937
++	tristate "Techpoint TP9937 4-CH analog video to BT.656 output support"
++	depends on I2C
++	depends on OF_GPIO
++	select VIDEO_V4L2_SUBDEV_API
++	help
++	  This driver supports the Techpoint TP9937.
++
+ comment "Video and audio decoders"
+ 
+ config VIDEO_SAA717X
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+index 39368bc466620..734f6e8c8d448 100644
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -160,3 +160,4 @@ obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
+ obj-$(CONFIG_VIDEO_PR2000) += pr2000.o
+ obj-$(CONFIG_VIDEO_MAX96724) += max96724.o
+ obj-$(CONFIG_VIDEO_TP2815) += tp2815.o
++obj-$(CONFIG_VIDEO_TP9937) += tp9937.o
+-- 
+2.47.0
+

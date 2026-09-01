@@ -1,0 +1,25 @@
+From b7583a891b2e7ac66b43c24918b3d16c408500cf Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Mon, 2 Mar 2026 02:25:35 -0500
+Subject: [PATCH] adjust dts for mali r54 reg size
+
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index ffc8ba8a8eb8..0715d3a52c23 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -1087,7 +1087,7 @@ gpu_wrap: gpu-wrap@200000 {
+ 
+ 				gpu: gpu@0 {
+ 					compatible = "arm,mali-midgard";
+-					reg = <0x0 0x4f0000>;
++					reg = <0x0 0x480000>;
+ 					clock-name = "clk_mali";
+ 					clocks = <&cc RTD1625_CRT_CLK_EN_GPU>;
+ 					interrupt-names = "JOB", "MMU", "GPU";
+-- 
+2.34.1
+

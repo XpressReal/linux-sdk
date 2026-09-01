@@ -1,0 +1,42 @@
+From ce7855cd479b5161cb0f665b38ad07bb9fee1958 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 21:50:15 +0800
+Subject: [PATCH 35/73] media: i2c: Add Techpoint TP2815 V4L2 sub-device driver
+
+Change-Id: I5e362465e915c0c2a41ff248fce7428cfbab85ab
+---
+ drivers/media/i2c/Kconfig  | 8 ++++++++
+ drivers/media/i2c/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index aecabef3faae6..28308d353b6ed 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -1340,6 +1340,14 @@ config VIDEO_MAX96724
+ 	help
+ 	  This driver supports the Maxim MAX96724 quad GMSL2/1 deserializer.
+ 
++config VIDEO_TP2815
++	tristate "Techpoint TP2815 AHD to MIPI-CSI2 output support"
++	depends on I2C
++	depends on OF_GPIO
++	select VIDEO_V4L2_SUBDEV_API
++	help
++	  This driver supports the Techpoint TP2815.
++
+ config VIDEO_VPX3220
+ 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"
+ 	depends on VIDEO_DEV && I2C
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+index 8103c8f646d23..39368bc466620 100644
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -159,3 +159,4 @@ obj-$(CONFIG_VIDEO_WM8739) += wm8739.o
+ obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
+ obj-$(CONFIG_VIDEO_PR2000) += pr2000.o
+ obj-$(CONFIG_VIDEO_MAX96724) += max96724.o
++obj-$(CONFIG_VIDEO_TP2815) += tp2815.o
+-- 
+2.47.0
+

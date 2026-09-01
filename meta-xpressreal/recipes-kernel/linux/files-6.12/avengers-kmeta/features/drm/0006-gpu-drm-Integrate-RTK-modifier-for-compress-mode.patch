@@ -1,0 +1,145 @@
+From 75e7c2d0bbe9fc76889ee437c52edd6d37be663f Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 28 May 2026 20:37:40 -0400
+Subject: [PATCH] gpu: drm: Integrate RTK modifier for compress mode
+
+License: GPLv2
+Source: Realtek
+---
+ drivers/gpu/drm/realtek/rtk_drm_fb.c    | 27 +++++++++++++++++++++++
+ drivers/gpu/drm/realtek/rtk_drm_fb.h    | 29 +++++++++++++++++++++++++
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 19 +++++++++++++++-
+ 3 files changed, 74 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_fb.c b/drivers/gpu/drm/realtek/rtk_drm_fb.c
+index 83de74000182..25244785f3f3 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_fb.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_fb.c
+@@ -37,6 +37,23 @@ static const struct drm_format_info rtk_afrc_mod_format[] = {
+ 	  .char_per_block = { 1, 0, 0 }, .hsub = 1, .vsub = 1, .has_alpha = true },
+ };
+ 
++/*
++ * RTK_COMPRESS_LOSSLESS: stride = width * 1.0, use standard NV12 cpp so
++ * framebuffer_check validates pitch normally.
++ * RTK_COMPRESS_75/65/60: stride < width, char_per_block = 0 causes
++ * framebuffer_check to skip the pitch check (kernel 6.12 line 202:
++ * "if (block_size && pitches[i] < min_pitch)").
++ */
++static const struct drm_format_info rtk_nv12_compress_lossless_info[] = {
++	{ .format = DRM_FORMAT_NV12, .depth = 0, .num_planes = 2,
++	  .char_per_block = { 1, 2, 0 }, .hsub = 2, .vsub = 2, .is_yuv = true },
++};
++
++static const struct drm_format_info rtk_nv12_compress_lossy_info[] = {
++	{ .format = DRM_FORMAT_NV12, .depth = 0, .num_planes = 2,
++	  .char_per_block = { 0, 0, 0 }, .hsub = 2, .vsub = 2, .is_yuv = true },
++};
++
+ struct drm_gem_object *rtk_fb_get_gem_obj(struct drm_framebuffer *fb,
+ 					  unsigned int plane)
+ {
+@@ -194,6 +211,16 @@ rtk_drm_get_format_info(const struct drm_mode_fb_cmd2 *cmd)
+ 		return lookup_format_info(rtk_afrc_mod_format,
+ 					  ARRAY_SIZE(rtk_afrc_mod_format),
+ 					  cmd->pixel_format);
++	case RTK_COMPRESS_LOSSLESS:
++		return lookup_format_info(rtk_nv12_compress_lossless_info,
++					  ARRAY_SIZE(rtk_nv12_compress_lossless_info),
++					  cmd->pixel_format);
++	case RTK_COMPRESS_75:
++	case RTK_COMPRESS_65:
++	case RTK_COMPRESS_60:
++		return lookup_format_info(rtk_nv12_compress_lossy_info,
++					  ARRAY_SIZE(rtk_nv12_compress_lossy_info),
++					  cmd->pixel_format);
+ 	default:
+ 		return NULL;
+ 	}
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_fb.h b/drivers/gpu/drm/realtek/rtk_drm_fb.h
+index 4e8023d3707b..57e5b7c6c5c2 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_fb.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_fb.h
+@@ -9,6 +9,35 @@
+ #define RTK_DRM_FB_MIN_WIDTH  64
+ #define RTK_DRM_FB_MIN_HEIGHT 64
+ 
++#define DRM_FORMAT_MOD_VENDOR_RTK     0x0d
++#define DRM_FORMAT_MOD_RTK(__flags)     fourcc_mod_code(RTK, __flags)
++
++/*
++ * Realtek Compress Modifier
++ * The top 4 bits of modifier is used to specify the compress layout.
++ * 0 - compress + lossless
++ * 1 - compress + lossy 75%
++ * 2 - compress + lossy 65%
++ * 3 - compress + lossy 60%
++ */
++#define RTK_FMT_MOD_COMPRESS_MASK 0xf
++#define RTK_FMT_MOD_COMPRESS_LOSSLESS 0x0
++#define RTK_FMT_MOD_COMPRESS_LOSSY_75 0x1
++#define RTK_FMT_MOD_COMPRESS_LOSSY_65 0x2
++#define RTK_FMT_MOD_COMPRESS_LOSSY_60 0x3
++
++#define RTK_COMPRESS_LOSSLESS \
++	DRM_FORMAT_MOD_RTK(RTK_FMT_MOD_COMPRESS_LOSSLESS)
++
++#define RTK_COMPRESS_75 \
++	DRM_FORMAT_MOD_RTK(RTK_FMT_MOD_COMPRESS_LOSSY_75)
++
++#define RTK_COMPRESS_65 \
++	DRM_FORMAT_MOD_RTK(RTK_FMT_MOD_COMPRESS_LOSSY_65)
++
++#define RTK_COMPRESS_60 \
++	DRM_FORMAT_MOD_RTK(RTK_FMT_MOD_COMPRESS_LOSSY_60)
++
+ #define RTK_AFBC_MOD \
+ 	DRM_FORMAT_MOD_ARM_AFBC( \
+ 		AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 | AFBC_FORMAT_MOD_YTR \
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 6fef720cd0db..3a03c7cc8872 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -84,6 +84,15 @@ static const uint64_t format_modifiers_default[] = {
+ 	DRM_FORMAT_MOD_INVALID,
+ };
+ 
++static const uint64_t format_modifiers_rtk[] = {
++	DRM_FORMAT_MOD_LINEAR,
++	RTK_COMPRESS_LOSSLESS,
++	RTK_COMPRESS_75,
++	RTK_COMPRESS_65,
++	RTK_COMPRESS_60,
++	DRM_FORMAT_MOD_INVALID,
++};
++
+ static const uint64_t format_modifiers_arm[] = {
+ 	RTK_AFBC_MOD,
+ 	RTK_AFRC_CU16_MOD,
+@@ -1435,6 +1444,14 @@ static bool rtk_plane_mod_supported(struct drm_plane *plane,
+ 		return true;
+ 	else if (modifier == RTK_AFRC_CU32_MOD)
+ 		return true;
++	else if (modifier == RTK_COMPRESS_LOSSLESS)
++		return true;
++	else if (modifier == RTK_COMPRESS_75)
++		return true;
++	else if (modifier == RTK_COMPRESS_65)
++		return true;
++	else if (modifier == RTK_COMPRESS_60)
++		return true;
+ 	else
+ 		return false;
+ }
+@@ -1624,7 +1641,7 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 			format_count = ARRAY_SIZE(video_formats);
+ 		}
+ 
+-		format_modifiers = format_modifiers_default;
++		format_modifiers = format_modifiers_rtk;
+ 	} else if (type == DRM_PLANE_TYPE_PRIMARY) {
+ 		plane_formats = osd_formats;
+ 		format_count = ARRAY_SIZE(osd_formats);
+-- 
+2.34.1
+

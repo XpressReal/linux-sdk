@@ -1,3 +1,12 @@
+From 255e5ccca526b856baf05a413e4f6d3a73dfcc50 Mon Sep 17 00:00:00 2001
+From: KenYen <KenYen@realtek.com>
+Date: Wed, 9 Apr 2025 18:25:41 +0800
+Subject: recipes-kernel: linux: r8169soc: 704: support jumbo frame
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: I94cdf9efe7cb29f31a1556d0a41a5753c8a744f5
+---
 --- a/drivers/net/ethernet/realtek/r8169soc.c
 +++ b/drivers/net/ethernet/realtek/r8169soc.c
 @@ -128,7 +128,7 @@ enum cfg_version {

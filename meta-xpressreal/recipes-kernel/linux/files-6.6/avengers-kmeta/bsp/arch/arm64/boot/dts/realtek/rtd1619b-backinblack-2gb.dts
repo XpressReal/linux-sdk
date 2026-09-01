@@ -20,18 +20,6 @@
 		ethernet = &nic;
 	};
 
-	vpu_legacy: vpu_legacy {
-		compatible = "realtek,rtd16xxb-vpu-legacy";
-		memory-region=<&cma_reserved_0>;
-		status = "disabled";
-	};
-
-	ve2: ve2 {
-		compatible = "realtek,rtd16xxb-ve2-sl";
-		memory-region = <&cma_reserved_0>;
-		status = "disabled";
-	};
-
 	bootlogo {
 		compatible = "realtek,bootlogo";
 		memory-region = <&bootlogo_region>;
@@ -64,6 +52,7 @@
 
 &dsi {
 	status = "okay";
+	data-lanes = <0 1>;
 
 	ports {
 		dsi_in: port@0 {
@@ -76,10 +65,11 @@
 
 		dsi_out: port@1 {
 			reg = <1>;
-			dsi_out_panel: endpoint {
-				reg = <0>;
-				remote-endpoint = <&panel_in_dsi>;
-			};
+			/*
+			 * No panel endpoint here: the base tree is
+			 * panel-neutral. dsi-7inch-td1.dts / dsi-ili9881-7inch.dts
+			 * each add their own dsi_out_panel endpoint.
+			 */
 		};
 	};
 };
@@ -87,22 +77,10 @@
 &i2c_5 {
 	status = "okay";
 	i2c-scl-falling-time-ns = <2350>;
-	dfr0550_ts@38 {
-		compatible = "realtek,dfr0550_ts";
-		reg = <0x38>;
-		rotate = <0>;
-	};
-
-	dsi_panel@45 {
-		compatible = "raspberrypi,7inch-touchscreen-panel";
-		reg = <0x45>;
-		rotation = <0>;
-		port {
-			panel_in_dsi: endpoint {
-				remote-endpoint = <&dsi_out_panel>;
-			};
-		};
-	};
+	/*
+	 * No panel/touch children here: the base tree is panel-neutral.
+	 * dsi-7inch-td1.dts / dsi-ili9881-7inch.dts each add their own.
+	 */
 };
 
 &hdmi {
@@ -131,10 +109,6 @@
 };
 
 &vcpu_rproc {
-	status = "okay";
-};
-
-&vpu_legacy {
 	status = "okay";
 };
 

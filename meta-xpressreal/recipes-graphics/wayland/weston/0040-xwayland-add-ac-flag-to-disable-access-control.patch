@@ -1,0 +1,31 @@
+From a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed Jul 22 2026
+Subject: [PATCH] xwayland: add -ac flag to disable access control
+
+Xwayland 23.x requires authorization by default even without -auth flag.
+Since weston 13 does not have built-in xauth support, add -ac to disable
+access control for X11 connections.
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+
+Signed-off-by: yaozenhu <yaozenhu@realtek.com>
+---
+ compositor/xwayland.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/compositor/xwayland.c b/compositor/xwayland.c
+index 95e5e4d..a1b2c3d 100644
+--- a/compositor/xwayland.c
++++ b/compositor/xwayland.c
+@@ -161,6 +161,7 @@ spawn_xserver(void *user_data, const char *display, int abstract_fd, int unix_fd
+ 	custom_env_add_arg(&child_env, xserver);
+ 	custom_env_add_arg(&child_env, display);
+ 	custom_env_add_arg(&child_env, "-rootless");
++	custom_env_add_arg(&child_env, "-ac");
+ 	custom_env_add_arg(&child_env, LISTEN_STR);
+ 	custom_env_add_arg(&child_env, x11_abstract_socket.str1);
+ 	custom_env_add_arg(&child_env, LISTEN_STR);

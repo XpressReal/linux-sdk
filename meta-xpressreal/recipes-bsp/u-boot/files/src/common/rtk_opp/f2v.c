@@ -1,5 +1,5 @@
-#include <common.h>
 #include <rtk_opp.h>
+#include <rtk_opp_sysdeps.h>
 
 int rtk_opp_init_data(struct rtk_opp_data *data)
 {
@@ -17,7 +17,7 @@ int rtk_opp_add_entry(struct rtk_opp_data *data, int f, int v)
 	if (i >= RTK_OPP_MAX_ENTRIES)
 		return RTK_OPP_ERROR;
 
-	/* frequency should be descending */
+	/* frequency should be ascending */
 	if (i != 0 && data->entries[i - 1].f >= f)
 		return RTK_OPP_ERROR;
 
@@ -28,7 +28,7 @@ int rtk_opp_add_entry(struct rtk_opp_data *data, int f, int v)
 }
 
 __maybe_unused
-static struct rtk_opp_entry *rtk_opp_entry_lookup_eq(struct rtk_opp_data *data, int freq)
+static inline struct rtk_opp_entry *rtk_opp_entry_lookup_eq(struct rtk_opp_data *data, int freq)
 {
 	int i;
 
@@ -38,7 +38,7 @@ static struct rtk_opp_entry *rtk_opp_entry_lookup_eq(struct rtk_opp_data *data, 
 	return NULL;
 }
 
-static struct rtk_opp_entry *rtk_opp_entry_lookup_ge(struct rtk_opp_data *data, int freq)
+static inline struct rtk_opp_entry *rtk_opp_entry_lookup_ge(struct rtk_opp_data *data, int freq)
 {
 	int i;
 
@@ -77,7 +77,7 @@ static int __rtk_opp_evaluate_voltage(struct rtk_opp_data *data, int f)
 		centry = &data->entries[data->num_entries - 1];
 		cv = __volt(data, centry);
 
-		return cv + (f - centry->f) * param->step / 100;
+		return param->step_h ? cv + (f - centry->f) * param->step_h / 100 : 0;
 	}
 
 	cv = __volt(data, centry);

@@ -1,0 +1,41 @@
+From db65d64b9fbd8717179d2504eed3be472130d986 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Tue, 10 Mar 2026 08:03:22 +0800
+Subject: [PATCH 1/2] dma-buf: heaps: add all cma areas into cma heaps
+
+Change-Id: I34bcbb8db5077193b1c4fd44a9f04752efb54884
+---
+ drivers/dma-buf/heaps/cma_heap.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/dma-buf/heaps/cma_heap.c b/drivers/dma-buf/heaps/cma_heap.c
+index 06d8fc1b6c906..7167a21a781fb 100644
+--- a/drivers/dma-buf/heaps/cma_heap.c
++++ b/drivers/dma-buf/heaps/cma_heap.c
+@@ -393,15 +393,16 @@ static int __add_cma_heap(struct cma *cma, void *data)
+ 	return 0;
+ }
+ 
+-static int add_default_cma_heap(void)
++static int add_cma_heaps(struct cma *cma, void *data)
+ {
+-	struct cma *default_cma = dev_get_cma_area(NULL);
+-	int ret = 0;
+-
+-	if (default_cma)
+-		ret = __add_cma_heap(default_cma, NULL);
++	pr_info("Add cma area %s into cmaheap", cma_get_name(cma));
++	__add_cma_heap(cma, NULL);
++	return 0;
++}
+ 
+-	return ret;
++static int add_default_cma_heap(void)
++{
++	return cma_for_each_area(add_cma_heaps, NULL);
+ }
+ module_init(add_default_cma_heap);
+ MODULE_DESCRIPTION("DMA-BUF CMA Heap");
+-- 
+2.43.0
+

@@ -1,0 +1,53 @@
+From f3f614e949b74dadf9e64bb1fd0492bd7f9e2ee1 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 5 May 2026 15:20:18 +0800
+Subject: [PATCH] spi: nand: rtk-sn: return rtknand in get_name
+
+- mtd: nand: spi: call spi_mem_get_name() for mtd name
+
+---
+ drivers/mtd/nand/spi/core.c | 3 +++
+ drivers/spi/spi-rtk-sn.c | 9 +++++++++
+ 2 file changed, 12 insertions(+)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 762ea2ec8e16..12f76c7277c9 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1215,6 +1215,9 @@ static int spinand_probe(struct spi_mem *mem)
+ 	if (ret)
+ 		return ret;
+ 
++	if (!mtd->name)
++		mtd->name = spi_mem_get_name(mem);
++
+ 	ret = mtd_device_register(mtd, NULL, 0);
+ 	if (ret)
+ 		goto err_spinand_cleanup;
+diff --git a/drivers/spi/spi-rtk-sn.c b/drivers/spi/spi-rtk-sn.c
+index 10be95d222fe..76a8895b4d4a 100644
+--- a/drivers/spi/spi-rtk-sn.c
++++ b/drivers/spi/spi-rtk-sn.c
+@@ -1394,10 +1394,19 @@ static int rtk_snand_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
+ 	return 0;
+ }
+ 
++static const char *rtk_snand_get_name(struct spi_mem *mem)
++{
++	struct rtk_snand *snf = spi_controller_get_devdata(mem->spi->controller);
++	struct device *dev = snf->dev;
++
++	return devm_kasprintf(dev, GFP_KERNEL, "rtknand");
++}
++
+ static const struct spi_controller_mem_ops rtk_snand_mem_ops = {
+ 	//.adjust_op_size = rtk_snand_adjust_op_size,
+ 	.supports_op = rtk_snand_supports_op,
+ 	.exec_op = rtk_snand_exec_op,
++	.get_name = rtk_snand_get_name,
+ };
+ 
+ static const struct of_device_id rtk_snand_ids[] = {
+-- 
+2.47.0
+

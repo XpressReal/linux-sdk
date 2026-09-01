@@ -1,0 +1,81 @@
+From 00c15b78b4b46bcd9253bf4ab4ef05fb746ac4af Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Thu, 1 Oct 2020 12:20:12 +0200
+Subject: [PATCH] mtd: spinand: Allow the case where there is no ECC engine
+
+Even if this is not supposed to happen, there is no reason to fail the
+probe if it was explicitly requested to use no ECC engine at all (for
+instance, during development). This condition is met by just
+commenting out the error on the OOB free bytes count after the
+assignation of an ECC engine if none was provided (any other situation
+would error out much earlier anyway).
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201001102014.20100-5-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/ecc.c      | 8 ++++----
+ drivers/mtd/nand/spi/core.c | 8 +++++---
+ 2 files changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/mtd/nand/ecc.c b/drivers/mtd/nand/ecc.c
+index 9afdde70824a5..6c43dfda01d4d 100644
+--- a/drivers/mtd/nand/ecc.c
++++ b/drivers/mtd/nand/ecc.c
+@@ -105,7 +105,7 @@
+  */
+ int nand_ecc_init_ctx(struct nand_device *nand)
+ {
+-	if (!nand->ecc.engine->ops->init_ctx)
++	if (!nand->ecc.engine || !nand->ecc.engine->ops->init_ctx)
+ 		return 0;
+ 
+ 	return nand->ecc.engine->ops->init_ctx(nand);
+@@ -118,7 +118,7 @@ EXPORT_SYMBOL(nand_ecc_init_ctx);
+  */
+ void nand_ecc_cleanup_ctx(struct nand_device *nand)
+ {
+-	if (nand->ecc.engine->ops->cleanup_ctx)
++	if (nand->ecc.engine && nand->ecc.engine->ops->cleanup_ctx)
+ 		nand->ecc.engine->ops->cleanup_ctx(nand);
+ }
+ EXPORT_SYMBOL(nand_ecc_cleanup_ctx);
+@@ -131,7 +131,7 @@ EXPORT_SYMBOL(nand_ecc_cleanup_ctx);
+ int nand_ecc_prepare_io_req(struct nand_device *nand,
+ 			    struct nand_page_io_req *req)
+ {
+-	if (!nand->ecc.engine->ops->prepare_io_req)
++	if (!nand->ecc.engine || !nand->ecc.engine->ops->prepare_io_req)
+ 		return 0;
+ 
+ 	return nand->ecc.engine->ops->prepare_io_req(nand, req);
+@@ -146,7 +146,7 @@ EXPORT_SYMBOL(nand_ecc_prepare_io_req);
+ int nand_ecc_finish_io_req(struct nand_device *nand,
+ 			   struct nand_page_io_req *req)
+ {
+-	if (!nand->ecc.engine->ops->finish_io_req)
++	if (!nand->ecc.engine || !nand->ecc.engine->ops->finish_io_req)
+ 		return 0;
+ 
+ 	return nand->ecc.engine->ops->finish_io_req(nand, req);
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 8a4d20e30edb6..4a4c86d8eeb6a 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1160,9 +1160,11 @@ static int spinand_init(struct spinand_device *spinand)
+ 			goto err_cleanup_ecc_engine;
+ 	}
+ 
+-	ret = mtd_ooblayout_count_freebytes(mtd);
+-	if (ret < 0)
+-		goto err_cleanup_ecc_engine;
++	if (nand->ecc.engine) {
++		ret = mtd_ooblayout_count_freebytes(mtd);
++		if (ret < 0)
++			goto err_cleanup_ecc_engine;
++	}
+ 
+ 	mtd->oobavail = ret;
+ 
+-- 
+2.47.0
+

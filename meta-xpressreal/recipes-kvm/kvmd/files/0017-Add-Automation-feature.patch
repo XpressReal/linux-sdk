@@ -1,0 +1,3852 @@
+From 7419425ad67429aa32f5821293b7bfca00388e00 Mon Sep 17 00:00:00 2001
+From: htwang <htwang@realtek.com>
+Date: Thu, 6 Aug 2026 14:33:40 +0800
+Subject: [PATCH] kvmd: Add Automation feature
+
+ - on Demo mode
+ - Use WebRTC mode by default
+---
+ kvmd/apps/kvmd/api/automation.py    |  402 ++++++++
+ kvmd/apps/kvmd/automation_engine.py | 1371 +++++++++++++++++++++++++++
+ kvmd/apps/kvmd/server.py            |    7 +
+ web/kvm/index.html                  |   92 +-
+ web/share/css/kvm/automation.css    |  543 +++++++++++
+ web/share/js/kvm/automation.js      | 1282 +++++++++++++++++++++++++
+ web/share/js/kvm/session.js         |    2 +
+ web/share/js/kvm/stream.js          |    4 +-
+ 8 files changed, 3698 insertions(+), 5 deletions(-)
+ create mode 100644 kvmd/apps/kvmd/api/automation.py
+ create mode 100644 kvmd/apps/kvmd/automation_engine.py
+ create mode 100644 web/share/css/kvm/automation.css
+ create mode 100644 web/share/js/kvm/automation.js
+
+diff --git a/kvmd/apps/kvmd/api/automation.py b/kvmd/apps/kvmd/api/automation.py
+new file mode 100644
+index 00000000..7edf1d2d
+--- /dev/null
++++ b/kvmd/apps/kvmd/api/automation.py
+@@ -0,0 +1,402 @@
++# ========================================================================== #
++#                                                                            #
++#    KVMD - Test Automation API                                              #
++#                                                                            #
++#    HTTP API endpoints for the test automation system.                      #
++#    Provides template matching, OCR, HID control, and sequence management.  #
++#                                                                            #
++# ========================================================================== #
++
++
++import json
++import base64
++import os
++
++from typing import Any
++
++from aiohttp.web import Request
++from aiohttp.web import Response
++
++from ....htserver import exposed_http
++from ....htserver import make_json_response
++from ....htserver import UnavailableError
++
++from ....validators.basic import valid_bool
++from ....validators.basic import valid_number
++from ....validators.basic import valid_int_f0
++
++from ..automation_engine import AutomationEngine
++from ..automation_engine import TemplateNotFoundError
++from ..automation_engine import SequenceNotFoundError
++
++from ....logging import get_logger
++
++
++# =====
++class AutomationApi:
++    """
++    API endpoints for test automation.
++
++    All endpoints are under the /automation prefix.
++    """
++
++    def __init__(self, engine: AutomationEngine) -> None:
++        self._engine = engine
++
++    # ======================================================================
++    # Template Management
++    # ======================================================================
++
++    @exposed_http("GET", "/automation/templates")
++    async def __list_templates_handler(self, _: Request) -> Response:
++        """List all saved template images."""
++        templates = self._engine.list_templates()
++        return make_json_response({"templates": templates})
++
++    @exposed_http("POST", "/automation/templates/save")
++    async def __save_template_handler(self, req: Request) -> Response:
++        """
++        Save a template image from a snapshot region.
++
++        POST body (JSON):
++        {
++            "name": "template_name",
++            "snapshot": "<optional base64 JPEG data - if omitted, takes fresh snapshot>",
++            "left": 100, "top": 200,
++            "right": 400, "bottom": 350
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        name = body.get("name", "unnamed")
++        snapshot_b64 = body.get("snapshot", None)
++        left = int(body.get("left", 0))
++        top = int(body.get("top", 0))
++        right = int(body.get("right", 0))
++        bottom = int(body.get("bottom", 0))
++
++        # If no snapshot provided, take one from the tee file
++        if not snapshot_b64:
++            snapshot_jpg = await self._engine.take_snapshot()
++            if snapshot_jpg is None:
++                return make_json_response({"error": "No snapshot available"}, status=500)
++        else:
++            try:
++                snapshot_jpg = base64.b64decode(snapshot_b64)
++            except Exception:
++                return make_json_response({"error": "Invalid base64 data"}, status=400)
++
++        try:
++            path = self._engine.save_template_from_snapshot(
++                name, snapshot_jpg, left, top, right, bottom
++            )
++            return make_json_response({"saved": True, "path": path, "name": name})
++        except Exception as ex:
++            return make_json_response({"error": str(ex)}, status=500)
++
++    @exposed_http("DELETE", "/automation/templates/{name}")
++    async def __delete_template_handler(self, req: Request) -> Response:
++        """Delete a saved template."""
++        name = req.match_info.get("name", "")
++        if not name:
++            return make_json_response({"error": "No template name"}, status=400)
++
++        ok = self._engine.delete_template(name)
++        return make_json_response({"deleted": ok})
++
++    # ======================================================================
++    # Template Matching
++    # ======================================================================
++
++    @exposed_http("POST", "/automation/match")
++    async def __match_template_handler(self, req: Request) -> Response:
++        """
++        Run template matching.
++
++        POST body (JSON):
++        {
++            "template": "template_name.jpg",
++            "snapshot": "<optional base64 JPEG - if omitted, takes fresh snapshot>",
++            "threshold": 0.8
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        template_name = body.get("template", "")
++        snapshot_b64 = body.get("snapshot", None)
++        threshold = float(body.get("threshold", 0.8))
++
++        snapshot_jpg = None
++        if snapshot_b64:
++            try:
++                snapshot_jpg = base64.b64decode(snapshot_b64)
++            except Exception:
++                return make_json_response({"error": "Invalid base64"}, status=400)
++
++        result = await self._engine.match_template(template_name, snapshot_jpg, threshold)
++        return make_json_response(result)
++
++    # ======================================================================
++    # Snapshot
++    # ======================================================================
++
++    @exposed_http("POST", "/automation/snapshot")
++    async def __take_snapshot_handler(self, _: Request) -> Response:
++        """Take a snapshot and return it as base64 JPEG."""
++        data = await self._engine.take_snapshot()
++        if data is None:
++            raise UnavailableError()
++
++        b64 = base64.b64encode(data).decode("ascii")
++        return make_json_response({"snapshot": b64, "size": len(data)})
++
++    # ======================================================================
++    # OCR
++    # ======================================================================
++
++    @exposed_http("POST", "/automation/ocr")
++    async def __ocr_handler(self, req: Request) -> Response:
++        """
++        Run OCR on a snapshot region using Gemini.
++
++        POST body (JSON):
++        {
++            "snapshot": "<base64 JPEG data>",
++            "left": 100, "top": 200,
++            "right": 400, "bottom": 350,
++            "prompt": "optional custom prompt"
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        snapshot_b64 = body.get("snapshot", "")
++        left = int(body.get("left", 0))
++        top = int(body.get("top", 0))
++        right = int(body.get("right", 0))
++        bottom = int(body.get("bottom", 0))
++
++        try:
++            snapshot_jpg = base64.b64decode(snapshot_b64)
++        except Exception:
++            return make_json_response({"error": "Invalid base64"}, status=400)
++
++        prompt = body.get("prompt", None)
++        result = await self._engine.ocr_region(
++            snapshot_jpg, left, top, right, bottom, prompt
++        )
++        return make_json_response(result)
++
++    # ======================================================================
++    # HID Actions
++    # ======================================================================
++
++    @exposed_http("POST", "/automation/action/mouse/move")
++    async def __mouse_move_handler(self, req: Request) -> Response:
++        """Move mouse to absolute coordinates."""
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        x = int(body.get("x", 0))
++        y = int(body.get("y", 0))
++        ok = self._engine.mouse_move(x, y)
++        return make_json_response({"ok": ok})
++
++    @exposed_http("POST", "/automation/action/mouse/click")
++    async def __mouse_click_handler(self, req: Request) -> Response:
++        """Click mouse at coordinates."""
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        x = int(body.get("x", 0))
++        y = int(body.get("y", 0))
++        button = body.get("button", "left")
++        ok = self._engine.mouse_click(x, y, button)
++        return make_json_response({"ok": ok})
++
++    @exposed_http("POST", "/automation/action/key")
++    async def __key_handler(self, req: Request) -> Response:
++        """Press a single key."""
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        key = body.get("key", "")
++        ok = self._engine.keyboard_press_key(key)
++        return make_json_response({"ok": ok})
++
++    @exposed_http("POST", "/automation/action/shortcut")
++    async def __shortcut_handler(self, req: Request) -> Response:
++        """Send a keyboard shortcut (list of keys)."""
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        keys = body.get("keys", [])
++        ok = self._engine.keyboard_shortcut(keys)
++        return make_json_response({"ok": ok})
++
++    # ======================================================================
++    # Sequence Management
++    # ======================================================================
++
++    @exposed_http("GET", "/automation/sequences")
++    async def __list_sequences_handler(self, _: Request) -> Response:
++        """List all saved test sequences."""
++        sequences = self._engine.list_sequences()
++        return make_json_response({"sequences": sequences})
++
++    @exposed_http("POST", "/automation/sequences/save")
++    async def __save_sequence_handler(self, req: Request) -> Response:
++        """Save a test sequence.
++
++        POST body (JSON):
++        {
++            "name": "My Test",
++            "steps": [ ... ]
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        name = body.get("name", "unnamed")
++        steps = body.get("steps", [])
++
++        if not steps:
++            return make_json_response({"error": "No steps defined"}, status=400)
++
++        path = self._engine._save_sequence(name, steps)
++        return make_json_response({"saved": True, "path": path, "name": name, "step_count": len(steps)})
++
++    @exposed_http("POST", "/automation/sequences/run")
++    async def __run_sequence_handler(self, req: Request) -> Response:
++        """Run a saved test sequence.
++
++        POST body (JSON):
++        {
++            "name": "My Test"
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        name = body.get("name", "")
++        repeat = int(body.get("repeat", 1))
++        if not name:
++            return make_json_response({"error": "No sequence name"}, status=400)
++
++        result = await self._engine.run_sequence(name, repeat=repeat)
++        return make_json_response(result)
++
++    @exposed_http("POST", "/automation/sequence/stop")
++    async def __stop_sequence_handler(self, _: Request) -> Response:
++        """Stop the currently running sequence."""
++        self._engine.stop_sequence()
++        return make_json_response({"ok": True})
++
++    @exposed_http("GET", "/automation/sequences/{name}")
++    async def __get_sequence_handler(self, req: Request) -> Response:
++        """Get a saved sequence by filename (with steps)."""
++        name = req.match_info.get("name", "")
++        if not name:
++            return make_json_response({"error": "No sequence name"}, status=400)
++        try:
++            sequence = self._engine.get_sequence(name)
++            return make_json_response(sequence)
++        except SequenceNotFoundError as ex:
++            return make_json_response({"error": str(ex)}, status=404)
++
++    @exposed_http("DELETE", "/automation/sequences/{name}")
++    async def __delete_sequence_handler(self, req: Request) -> Response:
++        """Delete a saved sequence."""
++        name = req.match_info.get("name", "")
++        ok = self._engine.delete_sequence(name)
++        return make_json_response({"deleted": ok})
++
++    # ======================================================================
++    # Schedule (autonomous batch execution on dev board)
++    # ======================================================================
++
++    @exposed_http("POST", "/automation/schedule")
++    async def __schedule_handler(self, req: Request) -> Response:
++        """
++        Schedule a batch run to execute autonomously on the dev board.
++
++        POST body (JSON):
++        {
++            "run_at": 1700000000000,   # Unix timestamp in ms (dev board time)
++            "sequences": ["seq1", "seq2"]
++        }
++        """
++        try:
++            body = await req.json()
++        except Exception:
++            return make_json_response({"error": "Invalid JSON body"}, status=400)
++
++        run_at = int(body.get("run_at", 0))
++        sequences = body.get("sequences", [])
++
++        if not run_at:
++            return make_json_response({"error": "No run_at timestamp"}, status=400)
++        if not sequences:
++            return make_json_response({"error": "No sequences"}, status=400)
++
++        import time
++        now_ms = int(time.time() * 1000)
++        if run_at <= now_ms:
++            return make_json_response({"error": "run_at must be in the future"}, status=400)
++
++        result = await self._engine.schedule_batch(run_at, sequences)
++        return make_json_response(result)
++
++    @exposed_http("GET", "/automation/schedule")
++    async def __schedule_status_handler(self, _: Request) -> Response:
++        """Get the current schedule status."""
++        status = self._engine.get_schedule_status()
++        return make_json_response(status)
++
++    @exposed_http("POST", "/automation/schedule/cancel")
++    async def __schedule_cancel_handler(self, _: Request) -> Response:
++        """Cancel the pending schedule."""
++        result = self._engine.cancel_schedule()
++        return make_json_response(result)
++
++    # ======================================================================
++    # Gemini Key Management
++    # ======================================================================
++
++    @exposed_http("GET", "/automation/gemini/status")
++    async def __gemini_status_handler(self, _: Request) -> Response:
++        """Get the current Gemini API key status (masked for security)."""
++        status = self._engine.get_gemini_status()
++        return make_json_response(status)
++
++    @exposed_http("GET", "/automation/time")
++    async def __time_handler(self, _: Request) -> Response:
++        """Get the current server (dev board) time as Unix timestamp in milliseconds."""
++        import time
++        return make_json_response({"timestamp": int(time.time() * 1000)})
++
++    @exposed_http("POST", "/automation/gemini/reload")
++    async def __gemini_reload_handler(self, _: Request) -> Response:
++        """Reload API keys from the key file without restarting the server."""
++        result = self._engine.reload_api_keys()
++        return make_json_response(result)
+diff --git a/kvmd/apps/kvmd/automation_engine.py b/kvmd/apps/kvmd/automation_engine.py
+new file mode 100644
+index 00000000..6efcdba9
+--- /dev/null
++++ b/kvmd/apps/kvmd/automation_engine.py
+@@ -0,0 +1,1371 @@
++# ========================================================================== #
++#                                                                            #
++#    KVMD - Test Automation Engine                                           #
++#                                                                            #
++#    Integrates OpenCV template matching, Gemini OCR, and HID control        #
++#    to create automated test sequences for KVM targets.                     #
++#                                                                            #
++# ========================================================================== #
++
++
++import io
++import os
++import json
++import time
++import base64
++import struct
++import asyncio
++from typing import Any
++
++from PIL import Image
++
++from ...logging import get_logger
++
++
++# =====
++# Configuration - customizable per deployment
++TEMPLATES_DIR = "/etc/kvmd/automation/templates"
++SEQUENCES_DIR = "/etc/kvmd/automation/sequences"
++# Fallback directories if /etc/kvmd/automation is not writable
++TEMPLATES_DIR_FALLBACK = "/var/lib/kvmd/automation/templates"
++SEQUENCES_DIR_FALLBACK = "/var/lib/kvmd/automation/sequences"
++
++# Gemini API keys: supports multiple keys for automatic rotation when quota is exhausted.
++# Source priority:
++#   1. Environment variable GEMINI_API_KEY (comma-separated or newline-separated)
++#   2. File /etc/kvmd/automation/gemini_key.txt (one key per line or comma-separated)
++_GEMINI_KEY_ENV_RAW = os.environ.get("GEMINI_API_KEY", "")
++_GEMINI_KEY_FILE = "/etc/kvmd/automation/gemini_key.txt"
++
++def _parse_api_keys(raw: str) -> list[str]:
++    """Parse a string that may contain one or more API keys (comma, newline, or semicolon separated)."""
++    keys = []
++    for sep in ("\n", ",", ";"):
++        if sep in raw:
++            parts = raw.split(sep)
++            keys = [k.strip() for k in parts if k.strip()]
++            break
++    if not keys:
++        raw_stripped = raw.strip()
++        if raw_stripped:
++            keys = [raw_stripped]
++    # Remove duplicates while preserving order
++    seen = set()
++    unique = []
++    for k in keys:
++        if k not in seen:
++            seen.add(k)
++            unique.append(k)
++    return unique
++
++_GEMINI_API_KEYS: list[str] = []
++if _GEMINI_KEY_ENV_RAW:
++    _GEMINI_API_KEYS = _parse_api_keys(_GEMINI_KEY_ENV_RAW)
++if not _GEMINI_API_KEYS and os.path.exists(_GEMINI_KEY_FILE):
++    try:
++        _GEMINI_API_KEYS = _parse_api_keys(open(_GEMINI_KEY_FILE).read())
++    except Exception:
++        pass
++
++GEMINI_API_KEY = _GEMINI_API_KEYS[0] if _GEMINI_API_KEYS else "YOUR_API_KEY_HERE"
++GEMINI_API_KEYS = _GEMINI_API_KEYS if _GEMINI_API_KEYS else ["YOUR_API_KEY_HERE"]
++GEMINI_MODEL_NAME = "gemini-3.5-flash-lite"
++
++USE_GEMINI = bool(GEMINI_API_KEYS and GEMINI_API_KEYS[0] and GEMINI_API_KEYS[0] != "YOUR_API_KEY_HERE")
++
++# Screen dimensions (from opencv.py)
++SCREEN_W = 1920
++SCREEN_H = 1080
++
++# HID devices
++HID_MOUSE_DEV = "/dev/hidg1"
++HID_KEYBOARD_DEV = "/dev/hidg0"
++
++
++# =====
++class AutomationError(Exception):
++    """Base exception for automation errors."""
++    pass
++
++
++class TemplateNotFoundError(AutomationError):
++    """Raised when a template image is not found."""
++    pass
++
++
++class SequenceNotFoundError(AutomationError):
++    """Raised when a saved sequence is not found."""
++    pass
++
++
++class SequenceStoppedError(AutomationError):
++    """Raised when a running sequence is stopped by user."""
++    pass
++
++
++class StepExecutionError(AutomationError):
++    """Raised when a step fails to execute."""
++    pass
++
++
++# =====
++class AutomationEngine:
++    """
++    Core automation engine that provides:
++    - Template matching (OpenCV)
++    - Gemini OCR
++    - HID control (mouse click/move, keyboard)
++    - Sequence execution
++    """
++
++    def __init__(self, streamer=None, hid=None) -> None:
++        self._streamer = streamer
++        self._hid = hid
++
++        self._logger = get_logger(0)
++
++        # Try to create template and sequence directories with fallback
++        self._templates_dir = TEMPLATES_DIR
++        self._sequences_dir = SEQUENCES_DIR
++        try:
++            os.makedirs(self._templates_dir, exist_ok=True)
++            os.makedirs(self._sequences_dir, exist_ok=True)
++        except (OSError, PermissionError):
++            try:
++                self._templates_dir = TEMPLATES_DIR_FALLBACK
++                self._sequences_dir = SEQUENCES_DIR_FALLBACK
++                os.makedirs(self._templates_dir, exist_ok=True)
++                os.makedirs(self._sequences_dir, exist_ok=True)
++                self._logger.warning("Using fallback automation directories: %s", self._templates_dir)
++            except (OSError, PermissionError) as ex:
++                self._logger.error("Cannot create automation directories: %s", ex)
++                self._templates_dir = "/tmp/kvmd-automation/templates"
++                self._sequences_dir = "/tmp/kvmd-automation/sequences"
++                os.makedirs(self._templates_dir, exist_ok=True)
++                os.makedirs(self._sequences_dir, exist_ok=True)
++                self._logger.warning("Using tmp fallback automation directories: %s", self._templates_dir)
++
++        # Stop/cancel mechanism for running sequences
++        self._stop_event = asyncio.Event()
++
++        # Schedule mechanism for autonomous batch execution
++        self._schedule_stop_event = asyncio.Event()
++        self._schedule_info: dict | None = None
++        self._schedule_task: asyncio.Task | None = None
++
++        # Lazy-loaded Gemini model and multi-key rotation state
++        self._gemini_model = None
++        self._gemini_key_index: int = 0
++        self._gemini_rotated_keys: set[int] = set()  # indices we've already tried in current rotation
++        self._gemini_model_name: str | None = None  # dynamically resolved model name
++
++    def reload_api_keys(self) -> dict:
++        """
++        Reload API keys from the key file without restarting the server.
++        Returns a dict with status information.
++        """
++        total_before = len(GEMINI_API_KEYS)
++        new_keys: list[str] = []
++
++        # Priority: env var first, then file
++        if _GEMINI_KEY_ENV_RAW:
++            new_keys = _parse_api_keys(_GEMINI_KEY_ENV_RAW)
++        if not new_keys and os.path.exists(_GEMINI_KEY_FILE):
++            try:
++                new_keys = _parse_api_keys(open(_GEMINI_KEY_FILE).read())
++            except Exception as ex:
++                self._logger.error("Failed to reload Gemini keys from file: %s", ex)
++                return {"reloaded": False, "error": str(ex), "total_keys": total_before}
++
++        if not new_keys:
++            return {"reloaded": False, "error": "No keys found", "total_keys": total_before}
++
++        # Update the global list
++        GEMINI_API_KEYS.clear()
++        GEMINI_API_KEYS.extend(new_keys)
++        # Keep key index valid
++        if self._gemini_key_index >= len(GEMINI_API_KEYS):
++            self._gemini_key_index = 0
++        # Force re-init on next use
++        self._gemini_model = None
++        self._gemini_model_name = None
++
++        total_now = len(GEMINI_API_KEYS)
++        self._logger.info("Reloaded Gemini API keys: %d -> %d keys", total_before, total_now)
++        return {
++            "reloaded": True,
++            "total_before": total_before,
++            "total_keys": total_now,
++            "active_index": self._gemini_key_index + 1,
++        }
++
++    def get_gemini_status(self) -> dict:
++        """Return current Gemini API key status (masks actual keys for security)."""
++        total = len(GEMINI_API_KEYS)
++        masked = []
++        for i, k in enumerate(GEMINI_API_KEYS):
++            if k and len(k) > 8:
++                masked.append(k[:6] + "..." + k[-4:])
++            elif k:
++                masked.append(k[:4] + "...")
++            else:
++                masked.append("(empty)")
++        configured = bool(GEMINI_API_KEYS and GEMINI_API_KEYS[0] and GEMINI_API_KEYS[0] != "YOUR_API_KEY_HERE")
++        return {
++            "configured": configured,
++            "total_keys": total,
++            "keys": masked,
++            "active_index": self._gemini_key_index + 1 if self._gemini_model is not None else 0,
++            "model": self._gemini_model_name or GEMINI_MODEL_NAME,
++        }
++
++    def stop_sequence(self) -> None:
++        """Request the currently running sequence to stop."""
++        self._stop_event.set()
++
++    def _check_stop(self) -> None:
++        """Check if stop was requested. Call between steps."""
++        if self._stop_event.is_set():
++            self._stop_event.clear()
++            raise SequenceStoppedError("Sequence stopped by user")
++
++    # ======================================================================
++    # Schedule (autonomous batch execution on dev board)
++    # ======================================================================
++
++    async def schedule_batch(self, run_at_ms: int, sequences: list[str]) -> dict:
++        """Schedule a batch run to execute autonomously on the dev board at the given time."""
++        self.cancel_schedule()
++        self._schedule_info = {
++            "run_at": run_at_ms,
++            "sequences": list(sequences),
++            "status": "pending",
++            "message": "Scheduled",
++            "results": [],
++            "error": None,
++        }
++        self._schedule_stop_event.clear()
++        self._schedule_task = asyncio.create_task(
++            self._execute_scheduled_batch(run_at_ms, sequences)
++        )
++        remaining_s = max(0, (run_at_ms - int(time.time() * 1000))) // 1000
++        self._logger.info(
++            "Batch scheduled at %d (in %ds): %s",
++            run_at_ms, remaining_s, sequences,
++        )
++        return {"scheduled": True, "run_at": run_at_ms, "sequence_count": len(sequences)}
++
++    async def _execute_scheduled_batch(self, run_at_ms: int, sequences: list[str]) -> None:
++        """Background task: wait until run_at, then execute each sequence in order."""
++        import time as _time
++        try:
++            now_ms = int(_time.time() * 1000)
++            delay_s = max(0, (run_at_ms - now_ms)) / 1000
++            if delay_s > 0:
++                # Wait with cancellable sleep
++                try:
++                    await asyncio.wait_for(
++                        self._schedule_stop_event.wait(),
++                        timeout=delay_s,
++                    )
++                    # Event was set → cancelled
++                    if self._schedule_info:
++                        self._schedule_info["status"] = "cancelled"
++                        self._schedule_info["message"] = "Cancelled by user"
++                    return
++                except asyncio.TimeoutError:
++                    pass  # Time reached, proceed
++
++            if self._schedule_stop_event.is_set():
++                return
++
++            if self._schedule_info:
++                self._schedule_info["status"] = "running"
++                self._schedule_info["message"] = "Executing..."
++                self._schedule_info["results"] = []
++
++            for seq_name in sequences:
++                if self._schedule_stop_event.is_set():
++                    if self._schedule_info:
++                        self._schedule_info["status"] = "cancelled"
++                        self._schedule_info["message"] = f"Cancelled after {seq_name}"
++                    return
++                result = await self.run_sequence(seq_name)
++                if self._schedule_info:
++                    self._schedule_info["results"].append(result)
++                if self._schedule_stop_event.is_set():
++                    if self._schedule_info:
++                        self._schedule_info["status"] = "cancelled"
++                    return
++
++            if self._schedule_info:
++                success = all(
++                    r.get("status") in ("ok", "fail")
++                    for result in self._schedule_info["results"]
++                    for r in (result.get("results") or [])
++                ) if self._schedule_info["results"] else False
++                self._schedule_info["status"] = "completed"
++                self._schedule_info["message"] = "Completed"
++                self._logger.info("Scheduled batch completed: success=%s", success)
++
++        except Exception as ex:
++            self._logger.error("Scheduled batch error: %s", ex)
++            if self._schedule_info:
++                self._schedule_info["status"] = "error"
++                self._schedule_info["message"] = str(ex)
++                self._schedule_info["error"] = str(ex)
++
++    def get_schedule_status(self) -> dict:
++        """Return the current schedule status."""
++        if not self._schedule_info:
++            return {"status": "none"}
++        return dict(self._schedule_info)
++
++    def cancel_schedule(self) -> dict:
++        """Cancel a pending or running schedule."""
++        had_schedule = self._schedule_info is not None
++        self._schedule_stop_event.set()
++        if self._schedule_info and self._schedule_info.get("status") in ("pending",):
++            self._schedule_info["status"] = "cancelled"
++            self._schedule_info["message"] = "Cancelled by user"
++        self._schedule_info = None
++        self._schedule_task = None
++        self._logger.info("Schedule cancelled")
++        return {"cancelled": had_schedule}
++
++    # ======================================================================
++    # Snapshot helpers
++    # ======================================================================
++
++    async def take_snapshot(self) -> bytes | None:
++        """
++        Take a snapshot and return JPEG bytes.
++        Reads from kvmd-webrtc's tee branch multifilesink.
++        No service interruption, ~33ms delay, writes to tmpfs (RAM).
++        """
++        import os as _os
++
++        TEE_FILE = "/tmp/kvmd_snapshot.jpg"
++        for attempt in range(5):
++            if _os.path.exists(TEE_FILE):
++                age = time.time() - _os.path.getmtime(TEE_FILE)
++                if age < 3:  # Updated 30fps, 3s is very generous
++                    with open(TEE_FILE, "rb") as f:
++                        data = f.read()
++                    if len(data) > 1000:
++                        self._logger.info("Snapshot via tee: %d bytes (age=%.2fs)", len(data), age)
++                        return data
++                    self._logger.warning("Tee file too small: %d bytes", len(data))
++                else:
++                    self._logger.warning("Tee file stale: age=%.1fs", age)
++            await asyncio.sleep(0.2)
++
++        self._logger.error("Tee file unavailable after %d attempts", 5)
++        return None
++
++    async def _capture_with_service_restart(self) -> bytes | None:
++        """
++        Stop all video streaming services, capture a frame with OpenCV,
++        then restart the services.
++        """
++        import subprocess as _sp
++        import os as _os
++
++        all_services = ["kvmd-janus-static", "kvmd-webrtc", "kvmd-ustreamer", "kvmd-extend"]
++        stopped = []
++        SNAP_FILE = "/tmp/automation_snapshot.jpg"
++
++        try:
++            # Step 1: Stop services
++            for svc in all_services:
++                try:
++                    r = await asyncio.to_thread(
++                        _sp.run, ["systemctl", "is-active", svc],
++                        capture_output=True, text=True, timeout=5,
++                    )
++                    if r.returncode == 0 and "active" in r.stdout:
++                        self._logger.info("Stopping %s to capture snapshot...", svc)
++                        await asyncio.to_thread(
++                            _sp.run, ["systemctl", "stop", svc],
++                            capture_output=True, timeout=15,
++                        )
++                        stopped.append(svc)
++                except Exception:
++                    pass
++
++            if stopped:
++                await asyncio.sleep(3.0)
++
++            # Step 2: gst-launch-1.0 pipelines
++            gst_pipelines = [
++                ["gst-launch-1.0", "v4l2src", "device=/dev/video60", "!", "videoconvert",
++                 "!", "jpegenc", "quality=85", "!", "filesink", f"location={SNAP_FILE}"],
++                ["gst-launch-1.0", "v4l2src", "device=/dev/video60",
++                 "!", "video/x-raw,width=1920,height=1080",
++                 "!", "videoconvert", "!", "jpegenc", "quality=85",
++                 "!", "filesink", f"location={SNAP_FILE}"],
++                ["gst-launch-1.0", "v4l2src", "device=/dev/video60", "io-mode=4",
++                 "!", "videoconvert", "!", "jpegenc", "quality=85",
++                 "!", "filesink", f"location={SNAP_FILE}"],
++            ]
++            for gst_cmd in gst_pipelines:
++                try:
++                    r = await asyncio.to_thread(
++                        _sp.run, gst_cmd, capture_output=True, timeout=8,
++                    )
++                    if r.returncode != 0:
++                        err = (r.stderr or b"")[:500]
++                        out = (r.stdout or b"")[:200]
++                        self._logger.warning("gst-launch ret=%d out=%s err=%s", r.returncode, out, err)
++                except _sp.TimeoutExpired:
++                    pass
++                except Exception as ex:
++                    self._logger.warning("gst-launch exception: %s", ex)
++                    continue
++                if _os.path.exists(SNAP_FILE):
++                    raw = open(SNAP_FILE, "rb").read()
++                    _os.remove(SNAP_FILE)
++                    jpeg_start = raw.find(b"\xff\xd8")
++                    jpeg_end = raw.find(b"\xff\xd9", jpeg_start + 2) if jpeg_start >= 0 else -1
++                    if jpeg_start >= 0 and jpeg_end >= 0:
++                        frame = raw[jpeg_start:jpeg_end + 2]
++                        if len(frame) > 1000:
++                            self._logger.info("Snapshot via gst-launch: %d bytes", len(frame))
++                            return frame
++
++            # Step 3: OpenCV with explicit 1920x1080
++            try:
++                import cv2
++                def _ocv_cap():
++                    for pipe in [
++                        "v4l2src device=/dev/video60 ! video/x-raw,width=1920,height=1080 ! "
++                        "tee name=t t.! queue ! fakesink sync=false "
++                        "t.! queue ! videoconvert ! appsink drop=true max-buffers=1",
++                        "v4l2src device=/dev/video60 ! video/x-raw,width=1920,height=1080 ! "
++                        "videoconvert ! appsink drop=true max-buffers=1",
++                    ]:
++                        cap = cv2.VideoCapture(pipe, cv2.CAP_GSTREAMER)
++                        if cap.isOpened():
++                            ret, frame = cap.read()
++                            cap.release()
++                            if ret and frame is not None:
++                                ok, d = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
++                                if ok:
++                                    return (True, d.tobytes())
++                    return (False, None)
++                ok, data = await asyncio.to_thread(_ocv_cap)
++                if ok and data:
++                    self._logger.info("Snapshot via OpenCV: %d bytes", len(data))
++                    return data
++            except ImportError:
++                pass
++            except Exception as ex:
++                self._logger.error("OpenCV capture error: %s", ex)
++
++        except Exception as ex:
++            self._logger.error("Service restart capture error: %s", ex)
++        finally:
++            for svc in reversed(stopped):
++                try:
++                    self._logger.info("Restarting %s...", svc)
++                    await asyncio.to_thread(
++                        _sp.run, ["systemctl", "start", svc],
++                        capture_output=True, timeout=15,
++                    )
++                    await asyncio.sleep(1.0)
++                except Exception as ex:
++                    self._logger.error("Failed to restart %s: %s", svc, ex)
++
++        return None
++
++    # ======================================================================
++    # Template (template image) management
++    # ======================================================================
++
++    def save_template_from_snapshot(
++        self,
++        name: str,
++        snapshot_jpg: bytes,
++        left: int, top: int, right: int, bottom: int,
++    ) -> str:
++        """
++        Crop a region from a snapshot and save as a template image.
++
++        Args:
++            name: Template name (without extension).
++            snapshot_jpg: Full snapshot image as JPEG bytes.
++            left, top, right, bottom: Crop coordinates.
++
++        Returns:
++            Path to the saved template file.
++        """
++        from PIL import Image
++        import io as _io
++
++        img = Image.open(_io.BytesIO(snapshot_jpg))
++        cropped = img.crop((left, top, right, bottom))
++        safe_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in name)
++        path = os.path.join(self._templates_dir, f"{safe_name}.jpg")
++        cropped.save(path, "JPEG")
++        self._logger.info("Saved template: %s (size=%dx%d)", path, cropped.width, cropped.height)
++        return path
++
++    def get_template_path(self, name: str) -> str:
++        """Get the full path for a template name."""
++        self._logger.info("get_template_path: templates_dir=%s name=%s", self._templates_dir, name)
++        orig_name = name
++        if not name.endswith(".jpg"):
++            name += ".jpg"
++        path = os.path.join(self._templates_dir, name)
++        self._logger.info("  Looking for template at: %s (exists=%s)", path, os.path.exists(path))
++        if os.path.exists(path):
++            return path
++        # Try listing directory contents
++        try:
++            files = os.listdir(self._templates_dir)
++            self._logger.info("  Files in templates dir: %s", files)
++        except Exception as ex:
++            self._logger.error("  Cannot list templates dir: %s", ex)
++        raise TemplateNotFoundError(f"Template not found: {orig_name}")
++
++    def list_templates(self) -> list[dict]:
++        """List all saved template images."""
++        templates = []
++        if os.path.isdir(self._templates_dir):
++            for fname in sorted(os.listdir(self._templates_dir)):
++                if fname.lower().endswith((".jpg", ".jpeg", ".png")):
++                    fpath = os.path.join(self._templates_dir, fname)
++                    size = os.path.getsize(fpath)
++                    templates.append({
++                        "name": fname,
++                        "path": fpath,
++                        "size": size,
++                    })
++        return templates
++
++    def delete_template(self, name: str) -> bool:
++        """Delete a template image."""
++        try:
++            path = self.get_template_path(name)
++            os.remove(path)
++            self._logger.info("Deleted template: %s", path)
++            return True
++        except (OSError, TemplateNotFoundError) as ex:
++            self._logger.error("Failed to delete template: %s", ex)
++            return False
++
++    # ======================================================================
++    # OpenCV template matching
++    # ======================================================================
++
++    async def match_template(
++        self,
++        template_name: str,
++        snapshot_jpg: bytes | None = None,
++        threshold: float = 0.8,
++    ) -> dict:
++        """
++        Match a saved template against the current snapshot.
++
++        Args:
++            template_name: Name of saved template.
++            snapshot_jpg: Optional snapshot bytes. If None, takes a new snapshot.
++            threshold: Match confidence threshold (0.0 - 1.0).
++
++        Returns:
++            Dict with keys: found, box, center, confidence
++        """
++        if snapshot_jpg is None:
++            snapshot_jpg = await self.take_snapshot()
++            if snapshot_jpg is None:
++                return {"found": False, "error": "No snapshot available"}
++
++        try:
++            import cv2
++            import numpy as np
++        except ImportError:
++            return {"found": False, "error": "OpenCV (cv2) not installed"}
++
++        try:
++            template_path = self.get_template_path(template_name)
++        except TemplateNotFoundError as ex:
++            return {"found": False, "error": str(ex)}
++
++        # Decode images
++        np_snapshot = np.frombuffer(snapshot_jpg, dtype=np.uint8)
++        main_img = cv2.imdecode(np_snapshot, cv2.IMREAD_COLOR)
++        template = cv2.imread(template_path)
++
++        if main_img is None or template is None:
++            return {"found": False, "error": "Failed to decode images"}
++
++        th, tw = template.shape[:2]
++        result = cv2.matchTemplate(main_img, template, cv2.TM_CCOEFF_NORMED)
++        _, max_val, _, max_loc = cv2.minMaxLoc(result)
++
++        if max_val >= threshold:
++            x1, y1 = max_loc[0], max_loc[1]
++            x2, y2 = x1 + tw, y1 + th
++            return {
++                "found": True,
++                "box": (x1, y1, x2, y2),
++                "center": ((x1 + x2) // 2, (y1 + y2) // 2),
++                "confidence": round(float(max_val), 4),
++                "snapshot_width": main_img.shape[1],
++                "snapshot_height": main_img.shape[0],
++            }
++
++        return {"found": False, "confidence": round(float(max_val), 4)}
++
++    # ======================================================================
++    # Gemini OCR
++    # ======================================================================
++
++    def _discover_model(self, api_key: str) -> str | None:
++        """Query the Gemini API to find the best available model for this key.
++
++        Automatically picks the latest flash/lite model — no hardcoded version list.
++        Only falls back to a hardcoded default if the API query itself fails.
++
++        Returns the model name string, or None if no suitable model is found.
++        """
++        import re as _re
++
++        try:
++            import google.generativeai as genai
++            genai.configure(api_key=api_key)
++
++            models = genai.list_models()
++            # Filter to production Gemini models that support generateContent
++            available = [
++                m.name for m in models
++                if "generateContent" in m.supported_generation_methods
++                and m.name.startswith("models/gemini-")
++            ]
++
++            if not available:
++                self._logger.error("No Gemini models with generateContent found for this API key")
++                return None
++
++            # Helper: extract version tuple from "models/gemini-X.Y-*"
++            def _version(name: str) -> tuple:
++                m = _re.search(r"gemini-(\d+)\.(\d+)", name)
++                return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
++
++            # Separate flash/lite models from others
++            flash_models = [n for n in available if "flash" in n.lower()]
++            other_models = [n for n in available if "flash" not in n.lower()]
++
++            # Pick the newest flash/lite model (highest version wins)
++            if flash_models:
++                flash_models.sort(key=_version, reverse=True)
++                chosen = flash_models[0]
++                self._logger.info(
++                    "Gemini model resolved: %s (from %d available, %d flash models)",
++                    chosen, len(available), len(flash_models),
++                )
++                return chosen
++
++            # No flash model available — use highest-version model among the rest
++            other_models.sort(key=_version, reverse=True)
++            chosen = other_models[0]
++            self._logger.warning(
++                "No flash model available, using: %s (from %d models)",
++                chosen, len(available),
++            )
++            return chosen
++
++        except Exception as ex:
++            self._logger.error("Failed to discover Gemini models: %s", ex)
++            # Fall back to the hardcoded default
++            return "gemini-3.5-flash-lite"
++
++    def _ensure_gemini(self):
++        """Lazy-load the Gemini model using the current API key in rotation."""
++        # Runtime check: if keys aren't configured, try auto-reload from file
++        has_keys = bool(GEMINI_API_KEYS and GEMINI_API_KEYS[0] and GEMINI_API_KEYS[0] != "YOUR_API_KEY_HERE")
++        if not has_keys:
++            if os.path.exists(_GEMINI_KEY_FILE) or os.environ.get("GEMINI_API_KEY", ""):
++                self._logger.info("Keys not configured at import time, attempting auto-reload...")
++                result = self.reload_api_keys()
++                if not result.get("reloaded", False):
++                    self._logger.error("Auto-reload failed: %s", result.get("error", "unknown"))
++                    return False
++            else:
++                return False
++        if self._gemini_model is not None:
++            return True
++
++        total_keys = len(GEMINI_API_KEYS)
++        for attempt in range(total_keys):
++            idx = (self._gemini_key_index + attempt) % total_keys
++            key = GEMINI_API_KEYS[idx]
++            if not key or key == "YOUR_API_KEY_HERE":
++                continue
++            try:
++                # Discover the best model for this key first
++                model_name = self._discover_model(key)
++                if model_name is None:
++                    continue
++
++                import google.generativeai as genai
++                genai.configure(api_key=key)
++                self._gemini_model = genai.GenerativeModel(model_name)
++                self._gemini_model_name = model_name
++                self._gemini_key_index = idx
++                self._logger.info("Gemini initialized with key index %d/%d (model=%s)", idx + 1, total_keys, model_name)
++                return True
++            except Exception as ex:
++                self._logger.warning("Failed to init Gemini with key index %d/%d: %s", idx + 1, total_keys, ex)
++                continue
++
++        self._logger.error("All Gemini API keys failed to initialize")
++        return False
++
++    def _rotate_api_key(self) -> bool:
++        """
++        Rotate to the next API key and re-initialize the model.
++        Returns True if successful, False if all keys exhausted.
++        """
++        import google.generativeai as genai
++
++        self._gemini_model = None
++        total_keys = len(GEMINI_API_KEYS)
++
++        for attempt in range(1, total_keys + 1):
++            idx = (self._gemini_key_index + attempt) % total_keys
++            key = GEMINI_API_KEYS[idx]
++            if not key or key == "YOUR_API_KEY_HERE":
++                continue
++            try:
++                # Discover the best model for this key
++                model_name = self._discover_model(key)
++                if model_name is None:
++                    continue
++
++                genai.configure(api_key=key)
++                self._gemini_model = genai.GenerativeModel(model_name)
++                self._gemini_model_name = model_name
++                self._gemini_key_index = idx
++                self._logger.info("Rotated Gemini key to index %d/%d (model=%s)", idx + 1, total_keys, model_name)
++                return True
++            except Exception as ex:
++                self._logger.warning("Failed to init rotated key %d/%d: %s", idx + 1, total_keys, ex)
++                continue
++
++        self._logger.error("Gemini key rotation exhausted — all keys failed")
++        return False
++
++    async def ocr_region(
++        self,
++        snapshot_jpg: bytes,
++        left: int, top: int, right: int, bottom: int,
++        prompt: str | None = None,
++    ) -> dict:
++        """
++        Run OCR on a region of the snapshot using Gemini.
++        Automatically rotates API keys when quota is exhausted.
++
++        Args:
++            snapshot_jpg: Full snapshot as JPEG bytes.
++            left, top, right, bottom: Region coordinates.
++            prompt: Optional custom prompt for Gemini.
++
++        Returns:
++            Dict with keys: text, success, error (if failed)
++        """
++        if not self._ensure_gemini():
++            # Provide a more informative error message
++            if not GEMINI_API_KEYS or not GEMINI_API_KEYS[0] or GEMINI_API_KEYS[0] == "YOUR_API_KEY_HERE":
++                return {"success": False, "error": "Gemini not configured - no API key loaded. Set GEMINI_API_KEY env var or create /etc/kvmd/automation/gemini_key.txt, then restart kvmd service.", "text": ""}
++            try:
++                import google.generativeai as _gga
++            except ImportError:
++                return {"success": False, "error": "Gemini not configured - google.generativeai package not installed. Run: pip install google-generativeai", "text": ""}
++            return {"success": False, "error": "Gemini not configured - all API keys failed to initialize. Check server logs for details.", "text": ""}
++
++        # Crop the region
++        import io as _io
++        img = Image.open(_io.BytesIO(snapshot_jpg))
++        region = img.crop((left, top, right, bottom))
++        # Re-encode as JPEG bytes (avoid PIL→WebP conversion in old lib)
++        _buf = _io.BytesIO()
++        region.save(_buf, format="JPEG", quality=90)
++        jpg_data = _buf.getvalue()
++
++        if prompt is None:
++            prompt = (
++                "This is a cropped region of a screenshot.\n"
++                "Extract and return ONLY the text content visible in the image. "
++                "Do not include any explanation or extra text."
++            )
++
++        max_rotations = max(1, len(GEMINI_API_KEYS))
++        for rotation in range(max_rotations):
++            try:
++                # Use Part with explicit Blob to avoid PIL→WebP conversion
++                import google.generativeai as _genai
++                img_part = _genai.protos.Part(
++                    inline_data=_genai.protos.Blob(mime_type="image/jpeg", data=jpg_data)
++                )
++                response = self._gemini_model.generate_content([prompt, img_part])
++                text = response.text.strip()
++                return {"success": True, "text": text, "error": None}
++            except Exception as ex:
++                err_msg = str(ex)
++                err_lower = str(ex).lower()
++                # Check if this is a quota/rate-limit error
++                is_quota = any(term in err_msg for term in [
++                    "429", "RESOURCE_EXHAUSTED", "resource_exhausted",
++                    "quota", "rate_limit", "rateLimit", "ratelimit",
++                    "TooManyRequests", "too many requests",
++                    "dailyLimitExceeded", "Daily Limit Exceeded",
++                ]) or any(term in err_lower for term in [
++                    "quota", "rate limit", "rate_limit",
++                ])
++
++                if is_quota and rotation < max_rotations - 1 and len(GEMINI_API_KEYS) > 1:
++                    old_idx = self._gemini_key_index
++                    self._logger.warning(
++                        "Gemini quota error on key index %d/%d: %s. Rotating to next key...",
++                        old_idx + 1, len(GEMINI_API_KEYS), err_msg,
++                    )
++                    if self._rotate_api_key():
++                        self._logger.info(
++                            "Retrying OCR with rotated key index %d/%d",
++                            self._gemini_key_index + 1, len(GEMINI_API_KEYS),
++                        )
++                        continue
++                    else:
++                        self._logger.error("No more Gemini keys available after quota error")
++                        break
++                else:
++                    # Non-quota error, or all keys exhausted
++                    if is_quota:
++                        self._logger.error("Gemini OCR quota error — all keys exhausted: %s", err_msg)
++                    else:
++                        self._logger.error("Gemini OCR error: %s", err_msg)
++                    return {"success": False, "error": err_msg, "text": ""}
++
++        return {"success": False, "error": "All Gemini keys exhausted or failed", "text": ""}
++
++    # ======================================================================
++    # HID Control
++    # ======================================================================
++
++    def mouse_move(self, x: int, y: int) -> bool:
++        """Move mouse to absolute coordinates (screen space 0..SCREEN_W, 0..SCREEN_H)."""
++        if self._hid is not None:
++            try:
++                to_x = int((x / SCREEN_W) * 65535 - 32768)
++                to_y = int((y / SCREEN_H) * 65535 - 32768)
++                self._hid.send_mouse_move_event(to_x, to_y)
++                return True
++            except Exception as ex:
++                self._logger.error("HID mouse move error: %s", ex)
++                return False
++
++        # Fallback: direct HID device access
++        try:
++            hid_x = int((x / SCREEN_W) * 32767)
++            hid_y = int((y / SCREEN_H) * 32767)
++            with open(HID_MOUSE_DEV, 'wb') as hid:
++                hid.write(struct.pack('<Bhhbb', 0x00, hid_x, hid_y, 0, 0))
++            return True
++        except Exception as ex:
++            self._logger.error("Direct mouse move error: %s", ex)
++            return False
++
++    def mouse_click(self, x: int, y: int, button: str = "left") -> bool:
++        """Move mouse to coordinates and click."""
++        if self._hid is not None:
++            try:
++                to_x = int((x / SCREEN_W) * 65535 - 32768)
++                to_y = int((y / SCREEN_H) * 65535 - 32768)
++                self._hid.send_mouse_move_event(to_x, to_y)
++                time.sleep(0.05)
++                if button == "left":
++                    from evdev import ecodes
++                    self._hid.send_mouse_button_event(ecodes.BTN_LEFT, True)
++                    time.sleep(0.05)
++                    self._hid.send_mouse_button_event(ecodes.BTN_LEFT, False)
++                return True
++            except Exception as ex:
++                self._logger.error("HID mouse click error: %s", ex)
++                return False
++
++        # Fallback: direct HID device access
++        try:
++            hid_x = int((x / SCREEN_W) * 32767)
++            hid_y = int((y / SCREEN_H) * 32767)
++            with open(HID_MOUSE_DEV, 'wb') as hid:
++                hid.write(struct.pack('<Bhhbb', 0x00, hid_x, hid_y, 0, 0))
++                time.sleep(0.05)
++                hid.write(struct.pack('<Bhhbb', 0x01, hid_x, hid_y, 0, 0))
++                time.sleep(0.05)
++                hid.write(struct.pack('<Bhhbb', 0x00, hid_x, hid_y, 0, 0))
++            return True
++        except Exception as ex:
++            self._logger.error("Direct mouse click error: %s", ex)
++            return False
++
++    def keyboard_press_key(self, key_name: str) -> bool:
++        """Press and release a single key by name (e.g., 'Enter', 'KeyA')."""
++        # Normalize key name: "A" → "KeyA", "Enter" → "Enter"
++        if len(key_name) == 1 and key_name.isalpha():
++            key_name = f"Key{key_name.upper()}"
++        if self._hid is not None:
++            try:
++                from ...keyboard.mappings import WEB_TO_EVDEV
++                key = WEB_TO_EVDEV[key_name]
++                # Press key first (without auto-release)
++                self._hid.send_key_event(key, True, False)
++                time.sleep(0.08)  # Hold long enough for iOS/iPhone to register
++                # Then release
++                self._hid.send_key_event(key, False, False)
++                return True
++            except Exception as ex:
++                self._logger.error("HID key press error: %s", ex)
++                return False
++
++        # Fallback: direct HID device access
++        try:
++            # Simple mapping for common keys
++            key_map = {
++                "Enter": 0x28, "Space": 0x2C, "Tab": 0x2B,
++                "KeyA": 0x04, "KeyB": 0x05, "KeyC": 0x06,
++                "KeyD": 0x07, "KeyE": 0x08, "KeyF": 0x09,
++                "KeyG": 0x0A, "KeyH": 0x0B, "KeyI": 0x0C,
++                "KeyJ": 0x0D, "KeyK": 0x0E, "KeyL": 0x0F,
++                "KeyM": 0x10, "KeyN": 0x11, "KeyO": 0x12,
++                "KeyP": 0x13, "KeyQ": 0x14, "KeyR": 0x15,
++                "KeyS": 0x16, "KeyT": 0x17, "KeyU": 0x18,
++                "KeyV": 0x19, "KeyW": 0x1A, "KeyX": 0x1B,
++                "KeyY": 0x1C, "KeyZ": 0x1D,
++                "Digit1": 0x1E, "Digit2": 0x1F, "Digit3": 0x20,
++                "Digit4": 0x21, "Digit5": 0x22, "Digit6": 0x23,
++                "Digit7": 0x24, "Digit8": 0x25, "Digit9": 0x26,
++                "Digit0": 0x27,
++                "Backspace": 0x2A, "Delete": 0x4C,
++                "ArrowLeft": 0x50, "ArrowRight": 0x4F,
++                "ArrowUp": 0x52, "ArrowDown": 0x51,
++            }
++            hid_code = key_map.get(key_name, 0x00)
++            if hid_code:
++                with open(HID_KEYBOARD_DEV, 'wb') as hid:
++                    hid.write(struct.pack('8B', 0, 0, hid_code, 0, 0, 0, 0, 0))
++                    time.sleep(0.05)
++                    hid.write(struct.pack('8B', 0, 0, 0, 0, 0, 0, 0, 0))
++                return True
++            return False
++        except Exception as ex:
++            self._logger.error("Direct key press error: %s", ex)
++            return False
++
++    def keyboard_shortcut(self, keys: list[str]) -> bool:
++        """Send a keyboard shortcut (list of key names)."""
++        from ...keyboard.mappings import WEB_TO_EVDEV
++        import evdev
++
++        if self._hid is not None:
++            try:
++                # Press all modifier keys in order
++                for key_name in keys:
++                    key = WEB_TO_EVDEV[key_name]
++                    self._hid.send_key_event(key, True, False)
++                    time.sleep(0.02)
++
++                # Hold all keys briefly to ensure iOS registers the press
++                time.sleep(0.08)
++
++                # Release in reverse
++                for key_name in reversed(keys):
++                    key = WEB_TO_EVDEV[key_name]
++                    self._hid.send_key_event(key, False, False)
++                    time.sleep(0.02)
++                return True
++            except Exception as ex:
++                self._logger.error("HID shortcut error: %s", ex)
++                return False
++        return False
++
++    # Character-to-key mapping for the "type" step
++    # char -> (key_name, needs_shift)
++    _CHAR_MAP = {
++        '!': ('Digit1', True),  '@': ('Digit2', True),
++        '#': ('Digit3', True),  '$': ('Digit4', True),
++        '%': ('Digit5', True),  '^': ('Digit6', True),
++        '&': ('Digit7', True),  '*': ('Digit8', True),
++        '(': ('Digit9', True),  ')': ('Digit0', True),
++        '-': ('Minus', False),  '_': ('Minus', True),
++        '=': ('Equal', False),  '+': ('Equal', True),
++        '[': ('BracketLeft', False), '{': ('BracketLeft', True),
++        ']': ('BracketRight', False), '}': ('BracketRight', True),
++        '\\': ('Backslash', False), '|': ('Backslash', True),
++        ';': ('Semicolon', False), ':': ('Semicolon', True),
++        "'": ('Quote', False),   '"': ('Quote', True),
++        ',': ('Comma', False),   '<': ('Comma', True),
++        '.': ('Period', False),  '>': ('Period', True),
++        '/': ('Slash', False),   '?': ('Slash', True),
++        '`': ('Backquote', False), '~': ('Backquote', True),
++    }
++
++    # ======================================================================
++    # Sequence Execution
++    # ======================================================================
++
++    def _save_sequence(self, name: str, steps: list[dict]) -> str:
++        """Save a sequence to disk."""
++        safe_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in name)
++        path = os.path.join(self._sequences_dir, f"{safe_name}.json")
++        data = {"name": name, "steps": steps}
++        with open(path, "w", encoding="utf-8") as f:
++            json.dump(data, f, ensure_ascii=False, indent=2)
++        self._logger.info("Saved sequence: %s", path)
++        return path
++
++    def _load_sequence(self, name: str) -> dict:
++        """Load a sequence from disk."""
++        if not name.endswith(".json"):
++            name += ".json"
++        path = os.path.join(self._sequences_dir, name)
++        if not os.path.exists(path):
++            raise SequenceNotFoundError(f"Sequence not found: {name}")
++        with open(path, "r", encoding="utf-8") as f:
++            return json.load(f)
++
++    def list_sequences(self) -> list[dict]:
++        """List all saved sequences."""
++        sequences = []
++        if os.path.isdir(self._sequences_dir):
++            for fname in sorted(os.listdir(self._sequences_dir)):
++                if fname.endswith(".json"):
++                    fpath = os.path.join(self._sequences_dir, fname)
++                    try:
++                        with open(fpath, "r", encoding="utf-8") as f:
++                            data = json.load(f)
++                        sequences.append({
++                            "name": data.get("name", fname),
++                            "filename": fname,
++                            "step_count": len(data.get("steps", [])),
++                            "size": os.path.getsize(fpath),
++                        })
++                    except Exception:
++                        pass
++        return sequences
++
++    def get_sequence(self, name: str) -> dict:
++        """Load and return a saved sequence by filename (with steps)."""
++        sequence = self._load_sequence(name)
++        return {
++            "name": sequence.get("name", name),
++            "filename": name if name.endswith(".json") else name + ".json",
++            "steps": sequence.get("steps", []),
++            "step_count": len(sequence.get("steps", [])),
++        }
++
++    def delete_sequence(self, name: str) -> bool:
++        """Delete a saved sequence."""
++        try:
++            if not name.endswith(".json"):
++                name += ".json"
++            path = os.path.join(self._sequences_dir, name)
++            if os.path.exists(path):
++                os.remove(path)
++                return True
++            return False
++        except OSError:
++            return False
++
++    async def run_sequence(self, name: str, repeat: int = 1) -> dict:
++        """
++        Execute a saved sequence.
++
++        The sequence is a list of steps, where each step is a dict:
++          - {"type": "detect", "template": "...", "timeout": 10, "click": true}
++          - {"type": "move", "x": 100, "y": 200}
++          - {"type": "click", "x": 100, "y": 200, "button": "left"}
++          - {"type": "ocr", "left": 0, "top": 0, "right": 100, "bottom": 50,
++             "expected": "...", "prompt": "..."}
++          - {"type": "key", "key": "Enter"}  (single key press)
++          - {"type": "keys", "keys": ["ControlLeft", "KeyC"]}  (shortcut)
++          - {"type": "type", "text": "Hello World"}  (type text)
++          - {"type": "wait", "duration": 2}  (seconds)
++          - {"type": "assert_ocr", "left": 0, "top": 0, "right": 100, "bottom": 50,
++             "expected": "...", "prompt": "..."}
++          - {"type": "snapshot"}  (save snapshot with timestamp)
++
++        Returns:
++            Dict with keys: success, results (list of step results), sequence_name
++        """
++        try:
++            sequence = self._load_sequence(name)
++        except SequenceNotFoundError as ex:
++            return {"success": False, "error": str(ex)}
++
++        self._stop_event.clear()
++        steps = sequence.get("steps", [])
++        results = []
++        rep = 0
++        _early_stop = False
++        _stopped = False
++
++        for rep in range(repeat):
++            self._check_stop()
++            if _stopped or _early_stop:
++                break
++            step_index = 0
++            prev_ok = True
++
++            for step in steps:
++                step_index += 1
++                step_type = step.get("type", "unknown")
++                result = {"step": step_index, "type": step_type, "status": "pending"}
++
++            # Skip if "only_if_prev_ok" is set and previous step failed
++                if step.get("only_if_prev_ok", False) and not prev_ok:
++                    result["status"] = "skipped"
++                    result["error"] = "Skipped: previous step failed"
++                    results.append(result)
++                    continue
++
++                try:
++                    # Check stop inside try so SequenceStoppedError is always caught
++                    self._check_stop()
++                    if step_type == "wait":
++                        duration = float(step.get("duration", 1))
++                        await asyncio.sleep(duration)
++                        result["status"] = "ok"
++                        result["duration"] = duration
++
++                    elif step_type == "detect":
++                        template = step.get("template", "")
++                        threshold = float(step.get("threshold", 0.8))
++                        click_after = bool(step.get("click", False))
++                        retry_interval = float(step.get("retry_interval", 0))
++                        max_retries = int(step.get("max_retries", 1))
++
++                        match_found = False
++                        for retry in range(max(max_retries, 1)):
++                            if retry > 0:
++                                await asyncio.sleep(retry_interval)
++                            snapshot = await self.take_snapshot()
++                            if snapshot is None:
++                                continue
++                            match_result = await self.match_template(template, snapshot, threshold)
++                            if match_result.get("found"):
++                                match_found = True
++                                break
++
++                        if match_found:
++                            center = match_result["center"]
++                            snap_w = match_result.get("snapshot_width", SCREEN_W)
++                            snap_h = match_result.get("snapshot_height", SCREEN_H)
++                            click_x = int(center[0] * SCREEN_W / max(snap_w, 1))
++                            click_y = int(center[1] * SCREEN_H / max(snap_h, 1))
++                            self._logger.info(
++                                "Detect match (retry=%d): center=%s click=(%d,%d) conf=%.4f",
++                                retry, center, click_x, click_y,
++                                match_result.get("confidence", 0),
++                            )
++                            result["status"] = "ok"
++                            result["match"] = match_result
++                            if click_after:
++                                self.mouse_click(click_x, click_y)
++                                result["clicked"] = True
++                            if step.get("stop_on_found", False):
++                                result["stopped_on_success"] = True
++                                _early_stop = True
++                                results.append(result)
++                                break
++                        else:
++                            result["status"] = "error"
++                            result["error"] = f"Template '{template}' not found (retried {max_retries}x)"
++
++                    elif step_type == "click":
++                        x = int(step.get("x", 0))
++                        y = int(step.get("y", 0))
++                        button = step.get("button", "left")
++                    # First move to position
++                        self.mouse_move(x, y)
++                        time.sleep(0.1)
++                        self.mouse_click(x, y, button)
++                        result["status"] = "ok"
++                        result["position"] = (x, y)
++
++                    elif step_type == "move":
++                        x = int(step.get("x", 0))
++                        y = int(step.get("y", 0))
++                        self.mouse_move(x, y)
++                        result["status"] = "ok"
++                        result["position"] = (x, y)
++
++                    elif step_type == "key":
++                        key = step.get("key", "")
++                        if len(key) == 1 and key.isupper():
++                            # Single uppercase letter needs Shift + key
++                            self.keyboard_shortcut(["ShiftLeft", f"Key{key.upper()}"])
++                        else:
++                            self.keyboard_press_key(key)
++                        result["status"] = "ok"
++                        result["key"] = key
++
++                    elif step_type == "keys":
++                        keys = step.get("keys", [])
++                        self.keyboard_shortcut(keys)
++                        result["status"] = "ok"
++                        result["keys"] = keys
++
++                    elif step_type == "type":
++                        text = step.get("text", "")
++                        delay = float(step.get("delay", 0.05))
++                        for char in text:
++                        # Map character to key name
++                            if char.isalpha():
++                                key_name = f"Key{char.upper()}"
++                                if char.isupper():
++                                    self.keyboard_shortcut(["ShiftLeft", key_name])
++                                else:
++                                    self.keyboard_press_key(key_name)
++                            elif char.isdigit():
++                                self.keyboard_press_key(f"Digit{char}")
++                            elif char == ' ':
++                                self.keyboard_press_key("Space")
++                            elif char == '\n':
++                                self.keyboard_press_key("Enter")
++                            elif char == '\t':
++                                self.keyboard_press_key("Tab")
++                            elif char in self._CHAR_MAP:
++                                key_name, need_shift = self._CHAR_MAP[char]
++                                if need_shift:
++                                    self.keyboard_shortcut(["ShiftLeft", key_name])
++                                else:
++                                    self.keyboard_press_key(key_name)
++                            else:
++                                continue
++                            time.sleep(delay)
++                        result["status"] = "ok"
++                        result["text"] = text
++
++                    elif step_type == "ocr":
++                        snapshot = await self.take_snapshot()
++                        if snapshot is None:
++                            result["status"] = "error"
++                            result["error"] = "No snapshot"
++                            results.append(result)
++                            if not step.get("allow_fail", False):
++                                break
++
++                        left = int(step.get("left", 0))
++                        top = int(step.get("top", 0))
++                        right = int(step.get("right", 0))
++                        bottom = int(step.get("bottom", 0))
++                        prompt = step.get("prompt", None)
++
++                        ocr_result = await self.ocr_region(
++                            snapshot, left, top, right, bottom, prompt
++                        )
++                        result["status"] = "ok" if ocr_result["success"] else "error"
++                        result["ocr"] = ocr_result
++                        if ocr_result.get("error"):
++                            result["error"] = ocr_result["error"]
++
++                    elif step_type == "assert_ocr":
++                        snapshot = await self.take_snapshot()
++                        if snapshot is None:
++                            result["status"] = "error"
++                            result["error"] = "No snapshot"
++                            results.append(result)
++                            if not step.get("allow_fail", False):
++                                break
++
++                        left = int(step.get("left", 0))
++                        top = int(step.get("top", 0))
++                        right = int(step.get("right", 0))
++                        bottom = int(step.get("bottom", 0))
++                        expected = step.get("expected", "")
++                        prompt = step.get("prompt", None)
++
++                        ocr_result = await self.ocr_region(
++                            snapshot, left, top, right, bottom, prompt
++                        )
++                        if ocr_result["success"]:
++                            actual = ocr_result["text"]
++                            # Support multiple expected strings (list) or single string
++                            expected_list = expected if isinstance(expected, list) else [expected]
++                            matched_all = True
++                            missing = []
++                            for e in expected_list:
++                                if e and e not in actual:
++                                    matched_all = False
++                                    missing.append(e)
++                            matched = matched_all
++                            result["status"] = "ok" if matched else "fail"
++                            result["expected"] = expected
++                            result["actual"] = actual
++                            if step.get("stop_on_match", False):
++                                result["stopped_on_success"] = True
++                                _early_stop = True
++                                results.append(result)
++                                break
++                            if not matched:
++                                result["error"] = f"Expected strings not found: {missing}"
++                                results.append(result)
++                                break
++                        else:
++                            result["status"] = "error"
++                            result["error"] = ocr_result.get("error", "OCR failed")
++                            results.append(result)
++                            if not step.get("allow_fail", False):
++                                break
++
++                    elif step_type == "snapshot":
++                        snapshot = await self.take_snapshot()
++                        if snapshot:
++                            timestamp = time.strftime("%Y%m%d_%H%M%S")
++                            fpath = f"/tmp/automation_snapshot_{timestamp}.jpg"
++                            with open(fpath, "wb") as f:
++                                f.write(snapshot)
++                            result["status"] = "ok"
++                            result["snapshot_path"] = fpath
++                        else:
++                            result["status"] = "error"
++                            result["error"] = "No snapshot"
++
++                    else:
++                        result["status"] = "error"
++                        result["error"] = f"Unknown step type: {step_type}"
++                        results.append(result)
++                        if not step.get("allow_fail", False):
++                            break
++
++                except SequenceStoppedError:
++                    _stopped = True
++                    result["status"] = "stopped"
++                    result["error"] = "Sequence stopped by user"
++                    results.append(result)
++                    break
++
++                except Exception as ex:
++                    result["status"] = "error"
++                    result["error"] = str(ex)
++                    results.append(result)
++                    if not step.get("allow_fail", False):
++                        break
++                    continue
++
++                prev_ok = result.get("status") in ("ok", "skipped", "fail")
++                if not results or results[-1].get("step") != step_index:
++                    results.append(result)
++
++            if _early_stop or _stopped:
++                break
++
++        success = all(r.get("status") in ("ok", "fail") for r in results)
++        return {
++            "success": success,
++            "sequence_name": name,
++            "total_steps": len(steps) * repeat,
++            "completed_steps": len(results),
++            "results": results,
++        }
+diff --git a/kvmd/apps/kvmd/server.py b/kvmd/apps/kvmd/server.py
+index 8eecaf7f..8eaf7d60 100644
+--- a/kvmd/apps/kvmd/server.py
++++ b/kvmd/apps/kvmd/server.py
+@@ -81,6 +81,8 @@ from .api.streamer import StreamerApi
+ from .api.switch import SwitchApi
+ from .api.export import ExportApi
+ from .api.redfish import RedfishApi
++from .api.automation import AutomationApi
++from .automation_engine import AutomationEngine
+ 
+ 
+ # =====
+@@ -171,6 +173,10 @@ class KvmdServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-ins
+         self.__stream_forever = stream_forever
+ 
+         self.__hid_api = HidApi(hid, keymap_path)  # Ugly hack to get keymaps state
++
++        self.__automation_engine = AutomationEngine(streamer=streamer, hid=hid)
++        self.__automation_api = AutomationApi(self.__automation_engine)
++
+         self.__apis: list[object] = [
+             self,
+             AuthApi(auth_manager),
+@@ -184,6 +190,7 @@ class KvmdServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-ins
+             SwitchApi(switch),
+             ExportApi(info_manager, atx, user_gpio),
+             RedfishApi(info_manager, atx),
++            self.__automation_api,
+         ]
+         self.__subsystems = [
+             _Subsystem.make(auth_manager, "Auth manager"),
+diff --git a/web/kvm/index.html b/web/kvm/index.html
+index 89f328b0..6578be71 100644
+--- a/web/kvm/index.html
++++ b/web/kvm/index.html
+@@ -50,6 +50,7 @@
+     <link rel="stylesheet" href="../share/css/kvm/system.css">
+     <link rel="stylesheet" href="../share/css/kvm/keyboard.css">
+     <link rel="stylesheet" href="../share/css/kvm/about.css">
++    <link rel="stylesheet" href="../share/css/kvm/automation.css">
+     <!-- <link rel="stylesheet" href="../share/css/user.css"> -->
+     <script type="module">import {setRootPrefix} from "../share/js/vars.js";
+       setRootPrefix("../");
+@@ -819,7 +820,7 @@
+           </div>
+         </div>
+       </li>
+-      <li id="macro-dropdown"><a class="menu-button" href="#" style="display: none;"><img id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
++      <li id="macro-dropdown" class="hidden"><a class="menu-button" href="#" style="display: none;"><img id="hid-recorder-led" src="../share/svg/led-gear.svg"><span>Macro</span></a>
+         <div class="menu">
+           <div class="text"><b>Record and play HID/ATX/GPIO actions<br></b><sub>For security reasons, the record will not be saved on the PiKVM</sub></div>
+           <hr>
+@@ -862,7 +863,7 @@
+           </div>
+         </div>
+       </li>
+-      <li id="text-dropdown"><a class="menu-button" href="#" style="display: none;"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
++      <li id="text-dropdown" class="hidden"><a class="menu-button" href="#" style="display: none;"><img class="feature-disabled" id="stream-ocr-led" src="../share/svg/led-gear.svg"><span>Text</span></a>
+         <div class="menu" id="text-menu" style="width: 360px">
+           <div class="text"><b>Paste text as keypress sequence<br></b><sub>Please note that PiKVM cannot switch the keyboard layout</sub></div>
+           <hr>
+@@ -943,7 +944,7 @@
+           </div>
+         </div>
+       </li>
+-      <li id="shortcuts-dropdown"><a class="menu-button" href="#" style="display: none;">Shortcuts</a>
++      <li id="shortcuts-dropdown" class="hidden"><a class="menu-button" href="#" style="display: none;">Shortcuts</a>
+         <div class="menu" id="shortcuts-menu">
+           <div class="text"><b>Quick keyboard shortcuts<br></b><sub>Also see <i>System &rarr; Show keyboard</i></sub></div>
+           <hr>
+@@ -1022,6 +1023,15 @@
+               </table>
+         </div>
+       </li>
++      <!--li class="right feature-disabled nav-item" id="automation-dropdown"-->
++      <li class="right hidden nav-item" id="automation-dropdown">
++        <a class="menu-button" id="automation-menu-button" href="#">
++          <img id="automation-led" src="../share/svg/led-gear.svg">
++          <span class="nav-label">Automation</span>
++        </a>
++        <span class="nav-tooltip">Automation</span>
++        <div class="menu" id="automation-menu"></div>
++      </li>
+       <li class="right feature-disabled" id="gpio-dropdown"><a class="menu-button" id="gpio-menu-button" href="#"><span>GPIO</span></a>
+         <div class="menu" id="gpio-menu"></div>
+       </li>
+@@ -3077,6 +3087,82 @@
+         <!--p class="text credits"><a target="_blank" href="https://pikvm.org">PiKVM Project</a>&nbsp; | &nbsp;<a target="_blank" href="https://docs.pikvm.org">Documentation</a>&nbsp; | &nbsp;<a target="_blank" href="https://pikvm.org/support">Support</a></p-->
+       </div>
+     </div>
++    <div class="window" id="automation-window" data-show-centered>
++      <div class="window-header">
++        <div class="window-grab">Automation</div>
++        <div class="window-buttons">
++          <button class="window-button-original">&bull;</button>
++          <button class="window-button-close"><b>&times;</b></button>
++        </div>
++      </div>
++      <div class="automation-body">
++        <div class="automation-main">
++          <!-- Left Panel: Templates -->
++          <div class="automation-panel automation-panel-left">
++            <h3>Templates</h3>
++            <div class="automation-template-buttons">
++              <button id="automation-template-save-btn">Save from stream</button>
++              <button id="automation-template-refresh-btn">Refresh</button>
++            </div>
++            <ul id="automation-template-list"><li class="automation-empty">Loading...</li></ul>
++          </div>
++          <!-- Right Panel: Steps Editor -->
++          <div class="automation-panel automation-panel-right">
++            <h3>Test Steps</h3>
++            <div class="automation-add-step-toolbar">
++              <button id="automation-add-detect" title="Detect object by template matching">Detect</button>
++              <button id="automation-add-click" title="Mouse click at coordinates">Click</button>
++              <!-- button id="automation-add-move" title="Move mouse to coordinates" style="display:none">Move</button -->
++              <button id="automation-add-key" title="Press a single key">Key</button>
++              <button id="automation-add-keys" title="Keyboard shortcut (multiple keys)">Shortcut</button>
++              <button id="automation-add-type" title="Type text">Type</button>
++              <button id="automation-add-ocr" title="OCR region">OCR</button>
++              <button id="automation-add-assert-ocr" title="Assert OCR result contains text">Assert OCR</button>
++              <button id="automation-add-wait" title="Wait for N seconds">Wait</button>
++              <button id="automation-add-snapshot" title="Take a snapshot">Snapshot</button>
++            </div>
++            <div style="text-align:right;padding:2px 0">
++              <button id="automation-clear-steps-btn" style="font-size:10px;padding:2px 8px;color:#cc6666;background:none;border:1px solid #553333;border-radius:3px;cursor:pointer">Clear Steps</button>
++            </div>
++            <div id="automation-steps-container"></div>
++          </div>
++        </div>
++        <!-- Control Bar -->
++        <div class="automation-sequence-controls">
++          <input type="text" id="automation-seq-name-input" placeholder="Sequence name...">
++          <select id="automation-sequence-select">
++            <option value="">--- Load sequence ---</option>
++          </select>
++          <button id="automation-seq-save-btn">Save</button>
++          <label style="font-size:12px;font-weight:700;color:#8a8e97">Repeat:
++            <input type="number" id="automation-repeat-input" value="1" min="1" max="999" style="width:50px;padding:5px;background:#3a3d45;border:1px solid #555860;color:#8a8e97;border-radius:3px;font-size:12px;text-align:center;font-weight:600">
++          </label>
++          <button id="automation-run-btn" style="background:#2d8a4e;color:#fff;border:1px solid #36a15e;font-weight:700;padding:6px 18px;border-radius:3px;cursor:pointer">Run</button>
++          <button id="automation-stop-btn" style="display:none;background:#cc3333;color:#fff;border:1px solid #ee4444;font-weight:700;padding:6px 14px;border-radius:3px;cursor:pointer">■ Stop</button>
++          <button id="automation-record-btn" style="background:#cc3333;color:#fff;border:1px solid #ee4444;font-weight:700;padding:6px 14px;border-radius:3px;cursor:pointer">● Record</button>
++          <button id="automation-record-stop-btn" style="display:none;background:#cc8800;color:#fff;border:1px solid #eeaa00;font-weight:700;padding:6px 14px;border-radius:3px;cursor:pointer">■ Stop Rec</button>
++        </div>
++        <div style="display:flex;gap:6px;padding:4px 0;font-size:12px;color:#8a8e97;align-items:center;border-top:1px solid var(--cs-control-disabled-bg,#36393f)">
++          <b style="font-size:12px;font-weight:700;color:#8a8e97;min-width:38px">Batch:</b>
++          <span id="automation-batch-list" style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#b0b4ba">(empty)</span>
++          <button id="automation-batch-add-btn" style="font-size:11px;font-weight:600;padding:4px 10px;background:#3a7d4a;color:#fff;border:1px solid #4a9d5a;border-radius:3px;cursor:pointer;transition:background 0.15s">+Add</button>
++          <button id="automation-batch-clear-btn" style="font-size:11px;font-weight:600;padding:4px 10px;background:#555860;color:#e8e8eb;border:1px solid #6a6d78;border-radius:3px;cursor:pointer;transition:background 0.15s">Clear</button>
++          <button id="automation-batch-run-btn" style="font-size:11px;font-weight:700;padding:4px 12px;background:#2d8a4e;color:#fff;border:1px solid #36a15e;border-radius:3px;cursor:pointer;transition:background 0.15s">Run Batch</button>
++          <button id="automation-download-log-btn" style="font-size:11px;font-weight:600;padding:4px 10px;background:#4a5a7a;color:#e8e8eb;border:1px solid #5a6a8a;border-radius:3px;cursor:pointer;transition:background 0.15s">Download Log</button>
++          <span class="automation-schedule-box">
++            <input type="datetime-local" id="automation-schedule-time">
++            <button id="automation-schedule-btn">Schedule</button>
++            <button id="automation-schedule-cancel-btn" style="display:none">Cancel</button>
++            <span class="schedule-countdown" id="automation-schedule-countdown"></span>
++          </span>
++        </div>
++        <!-- Results -->
++        <div id="automation-results"></div>
++      </div>
++    </div>
++    <div id="automation-select-window">
++      <div class="hidden" id="automation-select-selection"></div>
++    </div>
+     <div class="window window-resizable" id="webterm-window" data-show-centered style="display: flex; min-width: 720px; min-height: 480px">
+       <div class="window-header">
+         <div class="window-grab">Terminal</div>
+diff --git a/web/share/css/kvm/automation.css b/web/share/css/kvm/automation.css
+new file mode 100644
+index 00000000..87cd208d
+--- /dev/null
++++ b/web/share/css/kvm/automation.css
+@@ -0,0 +1,543 @@
++/*****************************************************************************
++#                                                                            #
++#    KVMD - Test Automation CSS                                              #
++#                                                                            #
++#    Styles for the test automation window.                                  #
++#    Uses PiKVM standard CSS variables (--cs-*) for theming.                 #
++#                                                                            #
++*****************************************************************************/
++
++
++#automation-window {
++    min-width: 800px;
++    min-height: 500px;
++    width: 900px;
++    height: 650px;
++    background: var(--cs-window-default-bg, #1e1f22);
++    color: var(--cs-page-default-fg, #dcddde);
++}
++
++#automation-window .automation-body {
++    display: flex;
++    flex-direction: column;
++    height: calc(100% - 36px);
++    padding: 10px;
++    gap: 8px;
++    overflow: hidden;
++}
++
++.automation-main {
++    display: flex;
++    flex: 1;
++    gap: 10px;
++    overflow: hidden;
++}
++
++.automation-panel {
++    display: flex;
++    flex-direction: column;
++    gap: 6px;
++}
++
++.automation-panel-left {
++    width: 280px;
++    min-width: 200px;
++    border-right: 1px solid var(--cs-control-disabled-bg, #36393f);
++    padding-right: 10px;
++}
++
++.automation-panel-right {
++    flex: 1;
++    overflow: hidden;
++}
++
++/* Panel headers */
++.automation-panel h3 {
++    margin: 0 0 6px 0;
++    font-size: 13px;
++    color: var(--cs-page-default-fg, #dcddde);
++    text-transform: uppercase;
++    letter-spacing: 0.5px;
++    border-bottom: 1px solid var(--cs-control-disabled-bg, #36393f);
++    padding-bottom: 4px;
++}
++
++/* Template list */
++#automation-template-list {
++    flex: 1;
++    overflow-y: auto;
++    list-style: none;
++    padding: 0;
++    margin: 0;
++}
++
++#automation-template-list li {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    padding: 6px 8px;
++    margin: 2px 0;
++    border-radius: 4px;
++    cursor: pointer;
++    font-size: 12px;
++    color: var(--cs-page-default-fg, #dcddde);
++    background: var(--cs-control-default-bg, #2b2d30);
++    border: 1px solid transparent;
++}
++
++#automation-template-list li:hover {
++    background: var(--cs-control-hovered-bg, #393c41);
++    border-color: var(--cs-control-intensive-fg, #5b90bb);
++}
++
++#automation-template-list li.selected {
++    background: var(--cs-control-hovered-bg, #393c41);
++    border-color: var(--cs-control-intensive-fg, #5b90bb);
++    color: var(--cs-page-default-fg, #dcddde);
++    font-weight: bold;
++}
++
++#automation-template-list li .template-name {
++    flex: 1;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++    color: inherit;
++}
++
++#automation-template-list li .template-delete-btn {
++    cursor: pointer;
++    opacity: 0.6;
++    padding: 0 6px;
++    color: #dcddde;
++    font-size: 14px;
++}
++
++#automation-template-list li .template-delete-btn:hover {
++    opacity: 1;
++    color: #ff6b6b;
++}
++
++/* Template buttons */
++.automation-template-buttons {
++    display: flex;
++    gap: 4px;
++}
++
++.automation-template-buttons button {
++    flex: 1;
++    padding: 6px 8px;
++    font-size: 11px;
++    font-weight: 600;
++    color: #e8e8eb;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    border-radius: 3px;
++    cursor: pointer;
++    transition: background 0.15s, border-color 0.15s;
++}
++
++.automation-template-buttons button:hover {
++    background: #4a4d55;
++    border-color: #7a7d88;
++}
++
++.automation-template-buttons button:active {
++    background: #2a2d35;
++}
++
++/* Steps editor */
++#automation-steps-container {
++    flex: 1;
++    overflow-y: auto;
++    margin: 4px 0;
++}
++
++.automation-step {
++    display: flex;
++    align-items: flex-start;
++    gap: 8px;
++    padding: 8px 10px;
++    margin: 4px 0;
++    background: var(--cs-control-default-bg, #2b2d30);
++    border: 1px solid var(--cs-control-disabled-bg, #36393f);
++    border-radius: 4px;
++    font-size: 12px;
++    color: var(--cs-page-default-fg, #dcddde);
++}
++
++.automation-step:hover {
++    border-color: var(--cs-control-intensive-fg, #5b90bb);
++}
++
++.automation-step .step-number {
++    width: 24px;
++    height: 24px;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    background: var(--cs-control-intensive-fg, #5b90bb);
++    color: #ffffff;
++    border-radius: 50%;
++    font-weight: bold;
++    font-size: 11px;
++    flex-shrink: 0;
++}
++
++.automation-step .step-content {
++    flex: 1;
++    min-width: 0;
++}
++
++.automation-step .step-type {
++    font-weight: bold;
++    color: var(--cs-page-default-fg, #dcddde);
++    margin-bottom: 2px;
++    font-size: 13px;
++}
++
++.automation-step .step-desc {
++    color: var(--cs-control-disabled-fg, #8a8e97);
++    font-size: 11px;
++}
++
++.automation-step .step-actions {
++    display: flex;
++    gap: 4px;
++    flex-shrink: 0;
++}
++
++.automation-step .step-actions button {
++    cursor: pointer;
++    opacity: 0.6;
++    background: none;
++    border: none;
++    color: var(--cs-page-default-fg, #dcddde);
++    font-size: 14px;
++    padding: 2px 6px;
++    border-radius: 3px;
++}
++
++.automation-step .step-actions button:hover {
++    opacity: 1;
++    background: var(--cs-control-hovered-bg, #393c41);
++}
++
++/* Add step toolbar */
++.automation-add-step-toolbar {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 4px;
++    padding: 6px 0;
++}
++
++.automation-add-step-toolbar button {
++    padding: 6px 14px;
++    font-size: 11px;
++    font-weight: 600;
++    white-space: nowrap;
++    color: #e8e8eb;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    border-radius: 3px;
++    cursor: pointer;
++    transition: background 0.15s, border-color 0.15s;
++}
++
++.automation-add-step-toolbar button:hover {
++    background: #4a4d55;
++    border-color: #7a7d88;
++}
++
++.automation-add-step-toolbar button:active {
++    background: #2a2d35;
++}
++
++/* Sequence controls */
++.automation-sequence-controls {
++    display: flex;
++    gap: 6px;
++    align-items: center;
++    padding: 8px 0;
++    border-top: 1px solid var(--cs-control-disabled-bg, #36393f);
++}
++
++#automation-seq-name-input {
++    flex: 1;
++    padding: 6px 10px;
++    font-size: 13px;
++    font-weight: 600;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    color: #f0f0f5;
++    border-radius: 3px;
++    min-width: 0;
++    transition: border-color 0.15s;
++}
++
++#automation-seq-name-input:focus {
++    border-color: #7a9dcc;
++    outline: none;
++}
++
++#automation-sequence-select {
++    padding: 6px 10px;
++    font-size: 12px;
++    font-weight: 500;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    color: #f0f0f5;
++    border-radius: 3px;
++    cursor: pointer;
++    max-width: 240px;
++    -webkit-appearance: none;
++    -moz-appearance: none;
++    appearance: none;
++    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ccc'/%3E%3C/svg%3E");
++    background-repeat: no-repeat;
++    background-position: right 8px center;
++    padding-right: 26px;
++    transition: border-color 0.15s;
++}
++
++#automation-sequence-select:focus {
++    border-color: #7a9dcc;
++    outline: none;
++}
++
++.automation-sequence-controls button {
++    padding: 6px 14px;
++    font-size: 11px;
++    font-weight: 600;
++    color: #e8e8eb;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    border-radius: 3px;
++    cursor: pointer;
++    transition: background 0.15s, border-color 0.15s;
++}
++
++.automation-sequence-controls button:hover {
++    background: #4a4d55;
++    border-color: #7a7d88;
++}
++
++.automation-sequence-controls button:active {
++    background: #2a2d35;
++}
++
++#automation-run-btn {
++    background: #2d8a4e;
++    color: #ffffff;
++    border: 1px solid #36a15e;
++    border-radius: 3px;
++    padding: 6px 18px;
++    font-weight: bold;
++    cursor: pointer;
++}
++
++#automation-run-btn:hover {
++    background: #36a15e;
++}
++
++#automation-run-btn:disabled {
++    background: #555;
++    color: #aaa;
++    border-color: #555;
++    cursor: not-allowed;
++}
++
++/* Results */
++#automation-results {
++    max-height: 100px;
++    overflow-y: auto;
++    border-top: 1px solid var(--cs-control-disabled-bg, #36393f);
++    padding-top: 6px;
++    font-size: 11px;
++    display: none;
++    color: var(--cs-page-default-fg, #dcddde);
++}
++
++/* Scheduled auto-run */
++.automation-schedule-box {
++    display: flex;
++    gap: 4px;
++    align-items: center;
++    margin-left: auto;
++}
++.automation-schedule-box input[type="datetime-local"] {
++    padding: 4px 6px;
++    font-size: 11px;
++    background: #3a3d45;
++    border: 1px solid #555860;
++    color: #e8e8eb;
++    border-radius: 3px;
++    max-width: 170px;
++}
++.automation-schedule-box button {
++    padding: 4px 10px;
++    font-size: 11px;
++    font-weight: 600;
++    color: #e8e8eb;
++    background: #555860;
++    border: 1px solid #6a6d78;
++    border-radius: 3px;
++    cursor: pointer;
++    transition: background 0.15s;
++}
++.automation-schedule-box button:hover {
++    background: #6a6d88;
++}
++.automation-schedule-box .schedule-countdown {
++    font-size: 11px;
++    color: #cca300;
++    min-width: 60px;
++    text-align: right;
++}
++
++#automation-results.visible {
++    display: block;
++}
++
++.automation-result-item {
++    display: flex;
++    gap: 8px;
++    padding: 4px 4px;
++    align-items: center;
++}
++
++.automation-result-item .result-status {
++    width: 10px;
++    height: 10px;
++    border-radius: 50%;
++    flex-shrink: 0;
++}
++
++.result-status.ok {
++    background: #2d8a4e;
++}
++
++.result-status.error {
++    background: #cc3333;
++}
++
++.result-status.fail {
++    background: #cc8800;
++}
++
++.result-status.running {
++    background: #cca300;
++    animation: pulse 0.5s infinite alternate;
++}
++
++.automation-result-item .result-msg {
++    flex: 1;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++@keyframes pulse {
++    from { opacity: 0.4; }
++    to { opacity: 1; }
++}
++
++/* Selection overlay - direct DOM manipulation */
++#automation-select-window {
++    cursor: crosshair;
++    position: fixed;
++    width: 100%;
++    height: 100%;
++    top: 0;
++    left: 0;
++    z-index: 1000000;
++    border: none !important;
++    border-radius: 0 !important;
++    padding: 0 !important;
++    margin: 0 !important;
++    background: radial-gradient(transparent 15%, black);
++    display: none;
++    outline: none;
++    overflow: hidden;
++    box-sizing: border-box;
++    pointer-events: auto;
++    touch-action: none;
++}
++
++#automation-select-selection {
++    position: absolute;
++    border: 2px solid #00aaff;
++    background: rgba(0, 170, 255, 0.15);
++    pointer-events: none;
++}
++
++/* Step parameter editor inline */
++.automation-step-params {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 6px;
++    margin-top: 4px;
++}
++
++.automation-step-params label {
++    font-size: 10px;
++    color: var(--cs-control-disabled-fg, #8a8e97);
++    display: flex;
++    align-items: center;
++    gap: 3px;
++}
++
++.automation-step-params input {
++    padding: 3px 5px;
++    font-size: 11px;
++    background-color: #1e1f22;
++    border: 1px solid var(--cs-control-disabled-bg, #36393f);
++    color: var(--cs-page-default-fg, #dcddde);
++    border-radius: 3px;
++}
++
++.automation-step-params select {
++    padding: 4px 6px;
++    font-size: 11px;
++    min-height: 26px;
++    background-color: #1e1f22;
++    border: 1px solid var(--cs-control-disabled-bg, #36393f);
++    color: var(--cs-page-default-fg, #dcddde);
++    border-radius: 3px;
++    max-width: 110px;
++    cursor: pointer;
++}
++
++.automation-step-params input:focus,
++.automation-step-params select:focus {
++    border-color: var(--cs-control-intensive-fg, #5b90bb);
++    outline: none;
++}
++
++.automation-step-params input[type="number"] {
++    max-width: 60px;
++}
++
++/* Empty state */
++.automation-empty {
++    color: var(--cs-control-disabled-fg, #8a8e97);
++    font-size: 12px;
++    text-align: center;
++    padding: 30px 20px;
++    font-style: italic;
++}
++
++/* Loading indicator */
++.automation-loading {
++    display: inline-block;
++    width: 12px;
++    height: 12px;
++    border: 2px solid var(--cs-control-disabled-fg, #555);
++    border-top-color: var(--cs-page-default-fg, #dcddde);
++    border-radius: 50%;
++    animation: spin 0.8s linear infinite;
++}
++
++@keyframes spin {
++    to { transform: rotate(360deg); }
++}
+diff --git a/web/share/js/kvm/automation.js b/web/share/js/kvm/automation.js
+new file mode 100644
+index 00000000..a3c3431f
+--- /dev/null
++++ b/web/share/js/kvm/automation.js
+@@ -0,0 +1,1282 @@
++/*****************************************************************************
++#                                                                            #
++#    KVMD - Test Automation UI Module                                        #
++#                                                                            #
++#    Provides a visual interface for creating and running automated          #
++#    test sequences on the KVM target using template matching, OCR,          #
++#    mouse and keyboard control.                                             #
++#                                                                            #
++*****************************************************************************/
++
++
++"use strict";
++
++
++import {tools, $} from "../tools.js";
++import {wm} from "../wm.js";
++
++
++// =============================================================================
++
++export function Automation(__getGeometry) {
++    var self = this;
++
++    /************************************************************************/
++
++    // State
++    var __steps = [];
++    var __templates = [];
++    var __sequences = [];
++    var __isRunning = false;
++    var __activeTemplate = null;
++    var __sel = null;
++    var __selMode = null;
++    var __selCallback = null;
++    var __selStartPos = null;
++    var __selEndPos = null;
++
++    // Config storage keys
++    var __STORE_KEY = "automation.steps";
++    var __LAST_SEQ = "automation.last_sequence";
++
++    /************************************************************************/
++    // Initialization
++
++    var __init__ = function() {
++        // Enable the sidebar dropdown (remove feature-disabled class)
++        tools.feature.setEnabled($("automation-dropdown"), true);
++        _setupSidebarButton();
++        _loadTemplates();
++        _loadSequences();
++        _restoreSteps();
++    };
++
++    var _setupSidebarButton = function() {
++        tools.el.setOnClick($("automation-menu-button"), function() {
++            wm.showWindow($("automation-window"));
++        });
++    };
++
++    /************************************************************************/
++    // HTTP helpers (since tools.js only has httpGet and httpPost with query params)
++
++    // KVMD's make_json_response wraps all results in {"ok":true, "result": data}
++    var _unwrapJson = function(http) {
++        var data = JSON.parse(http.responseText);
++        if (data && data.ok && data.result !== undefined) {
++            return data.result;
++        }
++        return data;
++    };
++
++    var _httpPostJson = function(url, data, callback) {
++        var xhr = new XMLHttpRequest();
++        xhr.open("POST", url, true);
++        xhr.setRequestHeader("Content-Type", "application/json");
++        xhr.onreadystatechange = function() {
++            if (xhr.readyState === 4) {
++                callback(xhr);
++            }
++        };
++        xhr.timeout = 60000;
++        xhr.send(JSON.stringify(data));
++    };
++
++    var _httpDelete = function(url, callback) {
++        var xhr = new XMLHttpRequest();
++        xhr.open("DELETE", url, true);
++        xhr.onreadystatechange = function() {
++            if (xhr.readyState === 4) {
++                callback(xhr);
++            }
++        };
++        xhr.timeout = 15000;
++        xhr.send();
++    };
++
++    /************************************************************************/
++    // Template panel rendering
++
++    var _renderTemplatePanel = function() {
++        var list = $("automation-template-list");
++        if (!list) return;
++
++        list.innerHTML = "";
++        if (__templates.length === 0) {
++            list.innerHTML = '<li class="automation-empty">No templates saved yet.<br>Use "Save from stream" to capture one.</li>';
++            _populateTemplateSelects();
++            return;
++        }
++        for (var t of __templates) {
++            var li = document.createElement("li");
++            li.className = (__activeTemplate === t.name ? "selected" : "");
++            li.innerHTML = '<span class="template-name">' + _esc(t.name) + '</span>'
++                + '<span class="template-delete-btn" title="Delete">&times;</span>';
++            li.querySelector(".template-name").onclick = (function(name) {
++                return function() { _selectTemplate(name); };
++            })(t.name);
++            li.querySelector(".template-delete-btn").onclick = (function(name, ev) {
++                ev.stopPropagation();
++                _deleteTemplate(name);
++            }).bind(null, t.name);
++            list.appendChild(li);
++        }
++        _populateTemplateSelects();
++    };
++
++    /************************************************************************/
++    // Steps panel rendering
++
++    var _renderStepsPanel = function() {
++        var container = $("automation-steps-container");
++        if (!container) return;
++
++        container.innerHTML = "";
++        if (__steps.length === 0) {
++            container.innerHTML = '<div class="automation-empty">No steps yet. Click a button below to add one.</div>';
++            return;
++        }
++        for (var i = 0; i < __steps.length; i++) {
++            var step = __steps[i];
++            var div = document.createElement("div");
++            div.className = "automation-step";
++            div.innerHTML = _stepToHtml(i, step);
++            // Bind actions (use closures to capture index)
++            _bindStepActions(div, i);
++            container.appendChild(div);
++        }
++    };
++
++    var _bindStepActions = function(div, idx) {
++        var upBtn = div.querySelector(".step-move-up");
++        var downBtn = div.querySelector(".step-move-down");
++        var delBtn = div.querySelector(".step-delete");
++
++        if (upBtn) upBtn.onclick = function() { _moveStep(idx, -1); };
++        if (downBtn) downBtn.onclick = function() { _moveStep(idx, 1); };
++        if (delBtn) delBtn.onclick = function() { _removeStep(idx); };
++
++        // Bind param changes
++        var inputs = div.querySelectorAll("[data-param]");
++        for (var inp of inputs) {
++            inp.onchange = (function(index, el) {
++                return function() {
++                    var val = el.value;
++                    if (el.type === "number") val = parseFloat(el.value);
++                    if (el.type === "checkbox") val = el.checked;
++                    _updateStepParam(index, el.dataset.param, val);
++                };
++            })(idx, inp);
++        }
++    };
++
++    var _stepToHtml = function(index, step) {
++        var type = step.type || "unknown";
++        var label = _stepLabel(type);
++        var desc = _stepDescription(step);
++
++        return '<div class="step-number">' + (index + 1) + '</div>'
++            + '<div class="step-content">'
++            + '  <div class="step-type">' + _esc(label) + '</div>'
++            + '  <div class="step-desc">' + _esc(desc) + '</div>'
++            + _stepParamsHtml(index, step)
++            + '</div>'
++            + '<div class="step-actions">'
++            + '  <button class="step-move-up" title="Move up">&#9650;</button>'
++            + '  <button class="step-move-down" title="Move down">&#9660;</button>'
++            + '  <button class="step-delete" title="Delete step">&times;</button>'
++            + '</div>';
++    };
++
++    var _stepLabel = function(type) {
++        var labels = {
++            "detect":     "Detect Object",
++            "click":      "Mouse Click",
++            "move":       "Mouse Move",
++            "key":        "Press Key",
++            "keys":       "Keyboard Shortcut",
++            "type":       "Type Text",
++            "ocr":        "OCR Read",
++            "assert_ocr": "Assert OCR",
++            "wait":       "Wait",
++            "snapshot":   "Take Snapshot",
++        };
++        return labels[type] || type;
++    };
++
++    var _stepDescription = function(step) {
++        var extra = "";
++        if (step.allow_fail) extra += " [Allow fail]";
++        if (step.only_if_prev_ok) extra += " [If prev OK]";
++        switch (step.type) {
++            case "detect":     return "Template: " + (step.template || "?") + " | Click: " + (step.click ? "Yes" : "No") + " | Retry " + (step.retry_interval || 1) + "s x " + (step.max_retries || 1) + extra;
++            case "click":      return "(" + (step.x || 0) + ", " + (step.y || 0) + ")";
++            case "move":       return "(" + (step.x || 0) + ", " + (step.y || 0) + ")";
++            case "key":        return "Key: " + (step.key || "?");
++            case "keys":       return "Keys: " + ((step.keys || []).join(" + ") || "?");
++            case "type":       return "Text: \"" + (step.text || "") + "\"";
++            case "ocr":        return "Region: (" + (step.left || 0) + ", " + (step.top || 0) + ")";
++            case "assert_ocr":
++                var ex = step.expected || [];
++                if (!Array.isArray(ex)) ex = [ex];
++                return "Expect: \"" + ex.join('", "') + "\" in region";
++            case "wait":       return (step.duration || 1) + " sec";
++            case "snapshot":   return "Save screenshot";
++            default:           return "";
++        }
++    };
++
++    var _stepParamsHtml = function(index, step) {
++        var html = "";
++        switch (step.type) {
++            case "detect":
++                html += '<div class="automation-step-params">';
++                html += '<label>Template: <select data-param="template" class="param-template-select"></select></label>';
++                html += '<label>Threshold: <input type="number" data-param="threshold" value="' + (step.threshold || 0.8) + '" min="0" max="1" step="0.05"></label>';
++                html += '<label>Click: <input type="checkbox" data-param="click" ' + (step.click ? "checked" : "") + '></label>';
++                html += '<label>Retry: <input type="number" data-param="retry_interval" value="' + (step.retry_interval || 1) + '" min="0.1" step="0.5" style="max-width:50px">s</label>';
++                html += '<label>x <input type="number" data-param="max_retries" value="' + (step.max_retries || 1) + '" min="1" max="999" style="max-width:50px"></label>';
++                html += '<label>Stop: <input type="checkbox" data-param="stop_on_found" ' + (step.stop_on_found ? "checked" : "") + '></label>';
++                html += '</div>';
++                break;
++            case "click":
++            case "move":
++                html += '<div class="automation-step-params">';
++                html += '<label>X: <input type="number" data-param="x" value="' + (step.x || 0) + '"></label>';
++                html += '<label>Y: <input type="number" data-param="y" value="' + (step.y || 0) + '"></label>';
++                html += '</div>';
++                break;
++            case "key":
++                html += '<div class="automation-step-params">';
++                html += '<label>Key: <input type="text" data-param="key" value="' + _esc(step.key || "Enter") + '" style="max-width:100px"></label>';
++                html += '</div>';
++                break;
++            case "keys":
++                html += '<div class="automation-step-params">';
++                html += '<label>Keys: <input type="text" data-param="keys" value="' + _esc((step.keys || []).join(",")) + '" style="max-width:160px" placeholder="Key1,Key2"></label>';
++                html += '</div>';
++                break;
++            case "type":
++                html += '<div class="automation-step-params">';
++                html += '<label>Text: <input type="text" data-param="text" value="' + _esc(step.text || "") + '" style="max-width:160px"></label>';
++                html += '</div>';
++                break;
++            case "ocr":
++            case "assert_ocr":
++                html += '<div class="automation-step-params">';
++                html += '<label>L: <input type="number" data-param="left" value="' + (step.left || 0) + '"></label>';
++                html += '<label>T: <input type="number" data-param="top" value="' + (step.top || 0) + '"></label>';
++                html += '<label>R: <input type="number" data-param="right" value="' + (step.right || 0) + '"></label>';
++                html += '<label>B: <input type="number" data-param="bottom" value="' + (step.bottom || 0) + '"></label>';
++                if (step.type === "assert_ocr") {
++                    var expectVal = step.expected || [];
++                    if (Array.isArray(expectVal)) expectVal = expectVal.join("\n");
++                    html += '<label>Expect:<br><textarea data-param="expected" rows="3" style="max-width:160px;width:100%">' + _esc(expectVal) + '</textarea></label>';
++                    html += '<label>Stop: <input type="checkbox" data-param="stop_on_match" ' + (step.stop_on_match ? "checked" : "") + '></label>';
++                }
++                html += '</div>';
++                break;
++            case "wait":
++                html += '<div class="automation-step-params">';
++                html += '<label>Sec: <input type="number" data-param="duration" value="' + (step.duration || 1) + '" min="0.1" step="0.5"></label>';
++                html += '</div>';
++                break;
++        }
++        // Common flags for all steps
++        html += '<div class="automation-step-params" style="border-top:1px solid var(--cs-control-disabled-bg,#36393f);padding-top:4px;margin-top:4px">';
++        html += '<label><input type="checkbox" data-param="allow_fail" ' + (step.allow_fail ? "checked" : "") + '> Allow fail</label>';
++        html += '<label><input type="checkbox" data-param="only_if_prev_ok" ' + (step.only_if_prev_ok ? "checked" : "") + '> Only if prev OK</label>';
++        html += '</div>';
++        return html;
++    };
++
++    /************************************************************************/
++    // Step management
++
++    var _addStep = function(type) {
++        var step = {type: type};
++        switch (type) {
++            case "detect":     step.template = __activeTemplate || ""; step.threshold = 0.8; step.click = false; step.retry_interval = 1; step.max_retries = 1; break;
++            case "click":      step.x = 960; step.y = 540; break;
++            case "move":       step.x = 960; step.y = 540; break;
++            case "key":        step.key = "Enter"; break;
++            case "keys":       step.keys = ["ControlLeft", "AltLeft", "Delete"]; break;
++            case "type":       step.text = ""; step.delay = 0.05; break;
++            case "ocr":        step.left = 0; step.top = 0; step.right = 100; step.bottom = 50; break;
++            case "assert_ocr": step.left = 0; step.top = 0; step.right = 100; step.bottom = 50; step.expected = []; break;
++            case "wait":       step.duration = 1; break;
++            case "snapshot":   break;
++        }
++        __steps.push(step);
++        _renderStepsPanel();
++        _populateTemplateSelects();
++        _saveSteps();
++    };
++
++    var _removeStep = function(index) {
++        __steps.splice(index, 1);
++        _renderStepsPanel();
++        _populateTemplateSelects();
++        _saveSteps();
++    };
++
++    var _moveStep = function(index, direction) {
++        var newIndex = index + direction;
++        if (newIndex < 0 || newIndex >= __steps.length) return;
++        var tmp = __steps[index];
++        __steps[index] = __steps[newIndex];
++        __steps[newIndex] = tmp;
++        _renderStepsPanel();
++        _populateTemplateSelects();
++        _saveSteps();
++    };
++
++    var _updateStepParam = function(index, param, value) {
++        if (!__steps[index]) return;
++        if (param === "keys") {
++            value = value.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s; });
++        }
++        if (param === "expected") {
++            value = value.split("\n").map(function(s) { return s.trim(); }).filter(function(s) { return s; });
++        }
++        __steps[index][param] = value;
++        _saveSteps();
++        _renderStepsPanel();
++        _populateTemplateSelects();
++    };
++
++    var _saveSteps = function() {
++        tools.storage.set(__STORE_KEY, JSON.stringify(__steps));
++    };
++
++    var _restoreSteps = function() {
++        try {
++            var saved = tools.storage.get(__STORE_KEY, "[]");
++            __steps = JSON.parse(saved);
++            if (!Array.isArray(__steps)) __steps = [];
++        } catch (e) {
++            __steps = [];
++        }
++        _renderStepsPanel();
++        _populateTemplateSelects();
++    };
++
++    /************************************************************************/
++    // Template management
++
++    var _loadTemplates = function() {
++        tools.httpGet("/api/automation/templates", null, function(http) {
++            if (http.status === 200) {
++                try { var resp = _unwrapJson(http); __templates = resp.templates || []; }
++                catch (e) { __templates = []; }
++            } else { __templates = []; }
++            _renderTemplatePanel();
++        });
++    };
++
++    var _selectTemplate = function(name) {
++        __activeTemplate = (__activeTemplate === name ? null : name);
++        _renderTemplatePanel();
++        // Update any detect steps that reference this template
++        for (var i = 0; i < __steps.length; i++) {
++            if (__steps[i].type === "detect") {
++                __steps[i].template = __activeTemplate || __steps[i].template;
++            }
++        }
++    };
++
++    var _deleteTemplate = function(name) {
++        if (!confirm('Delete template "' + name + '"?')) return;
++        var encoded = encodeURIComponent(name);
++        _httpDelete("/api/automation/templates/" + encoded, function(http) {
++            if (http.status === 200) {
++                if (__activeTemplate === name) __activeTemplate = null;
++                _loadTemplates();
++            }
++        });
++    };
++
++    var _showOverlay = function() {
++        var el = $("automation-select-window");
++        if (el) {
++            el.style.display = "block";
++            el.style.visibility = "visible";
++        }
++    };
++
++    var _hideOverlay = function() {
++        var el = $("automation-select-window");
++        if (el) {
++            el.style.display = "none";
++            el.style.visibility = "hidden";
++        }
++    };
++
++    var _startTemplateSelection = function() {
++        __selMode = "template";
++        __sel = null;
++        // Close automation window first so the stream is visible
++        wm.closeWindow($("automation-window"));
++        // Ensure stream window is visible
++        wm.showWindow($("stream-window"));
++        _showOverlay();
++    };
++
++    /************************************************************************/
++    // Stream selection UI
++
++    var _selStart = function(ev) {
++        if (__selStartPos === null) {
++            tools.hidden.setVisible($("automation-select-selection"), false);
++            __selStartPos = _selGetGlobalPos(ev);
++            __selEndPos = null;
++        }
++    };
++
++    var _selChange = function(ev) {
++        if (__selStartPos !== null) {
++            __selEndPos = _selGetGlobalPos(ev);
++            var width = Math.abs(__selStartPos.x - __selEndPos.x);
++            var height = Math.abs(__selStartPos.y - __selEndPos.y);
++            var el = $("automation-select-selection");
++            el.style.left = Math.min(__selStartPos.x, __selEndPos.x) + "px";
++            el.style.top = Math.min(__selStartPos.y, __selEndPos.y) + "px";
++            el.style.width = width + "px";
++            el.style.height = height + "px";
++            tools.hidden.setVisible(el, (width > 1 || height > 1));
++        }
++    };
++
++    var _selEnd = function(ev) {
++        _selChange(ev);
++        var el = $("automation-select-selection");
++        var ok = (el.offsetWidth > 1 && el.offsetHeight > 1 && __selStartPos !== null && __selEndPos !== null);
++        tools.hidden.setVisible(el, ok);
++        if (ok) {
++            var rect = $("stream-box").getBoundingClientRect();
++            var relLeft = Math.min(__selStartPos.x, __selEndPos.x) - rect.left;
++            var relRight = Math.max(__selStartPos.x, __selEndPos.x) - rect.left;
++            var offset = _selGetNavbarOffset();
++            var relTop = Math.min(__selStartPos.y, __selEndPos.y) - rect.top + offset;
++            var relBottom = Math.max(__selStartPos.y, __selEndPos.y) - rect.top + offset;
++            var geo = __getGeometry();
++            __sel = {
++                "left":   Math.round(tools.remap(relLeft - geo.x, 0, geo.width, 0, geo.real_width)),
++                "right":  Math.round(tools.remap(relRight - geo.x, 0, geo.width, 0, geo.real_width)),
++                "top":    Math.round(tools.remap(relTop - geo.y, 0, geo.height, 0, geo.real_height)),
++                "bottom": Math.round(tools.remap(relBottom - geo.y, 0, geo.height, 0, geo.real_height)),
++            };
++        } else { __sel = null; }
++        __selStartPos = null;
++        __selEndPos = null;
++    };
++
++    var _selGetGlobalPos = function(ev) {
++        var rect = $("stream-box").getBoundingClientRect();
++        var geo = __getGeometry();
++        var offset = _selGetNavbarOffset();
++        return {
++            "x": Math.min(Math.max(ev.clientX, rect.left + geo.x), rect.right - geo.x),
++            "y": Math.min(Math.max(ev.clientY - offset, rect.top + geo.y - offset), rect.bottom - geo.y - offset),
++        };
++    };
++
++    var _selGetNavbarOffset = function() {
++        return tools.browser.is_firefox ? wm.getViewGeometry().top : 0;
++    };
++
++    var _selConfirm = function() {
++        if (!__sel) return;
++        var savedSel = __sel;  // Save coordinates before async call
++        if (__selMode === "template") {
++            _saveTemplateFromSelection(savedSel);
++        } else if (__selMode === "ocr" || __selMode === "assert_ocr") {
++            var step = {
++                type: __selMode,
++                left: savedSel.left, top: savedSel.top,
++                right: savedSel.right, bottom: savedSel.bottom,
++            };
++            if (__selMode === "assert_ocr") step.expected = [];
++            __steps.push(step);
++            _renderStepsPanel();
++            _saveSteps();
++        }
++        _selCleanup();
++    };
++
++    var _selCancel = function() {
++        _selCleanup();
++    };
++
++    var _selCleanup = function() {
++        __sel = null;
++        __selMode = null;
++        __selCallback = null;
++        __selStartPos = null;
++        __selEndPos = null;
++        // Remove click tip if present
++        var tip = document.getElementById("automation-click-tip");
++        if (tip) tip.remove();
++        _hideOverlay();
++        tools.hidden.setVisible($("automation-select-selection"), false);
++        // Re-open automation window
++        wm.showWindow($("automation-window"));
++    };
++
++    var _saveTemplateFromSelection = function(sel) {
++        // sel: {left, top, right, bottom} - saved before _selCleanup nulls __sel
++        if (!sel) { wm.error("No selection area"); return; }
++        // Backend will take its own snapshot from the tee file
++        var name = prompt("Template name:", "template_" + (__templates.length + 1));
++        if (!name) return;
++
++        _httpPostJson("/api/automation/templates/save", {
++            name: name,
++            left: sel.left, top: sel.top,
++            right: sel.right, bottom: sel.bottom,
++        }, function(http2) {
++            if (http2.status === 200) {
++                __activeTemplate = name;
++                _loadTemplates();
++                _notify("Template saved: " + name);
++            } else {
++                var errMsg = "Failed to save template";
++                try { var eresp = _unwrapJson(http2); if (eresp.error) errMsg += ": " + eresp.error; } catch(e){}
++                wm.error(errMsg);
++            }
++        });
++    };
++
++    /************************************************************************/
++    // OCR region selection
++
++    var _startOcrSelection = function(type) {
++        __selMode = type;
++        __sel = null;
++        wm.closeWindow($("automation-window"));
++        wm.showWindow($("stream-window"));
++        _showOverlay();
++    };
++
++    var _startClickSelection = function() {
++        __selMode = "click";
++        __sel = null;
++        wm.closeWindow($("automation-window"));
++        wm.showWindow($("stream-window"));
++        _showOverlay();
++        // Use alert instead of wm.error to avoid window manager conflicts
++        setTimeout(function() {
++            alert("Click on the stream to set the click position.\nThen click anywhere on the video.");
++        }, 200);
++        // Add instruction text to overlay
++        var selWin = $("automation-select-window");
++        if (selWin) {
++            var tip = document.createElement("div");
++            tip.id = "automation-click-tip";
++            tip.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;z-index:1000001;pointer-events:none;text-align:center;border:1px solid #666;";
++            tip.textContent = "🖱️ Click on the video to set click position";
++            document.body.appendChild(tip);
++            selWin.__clickTip = tip;
++        }
++    };
++
++    /************************************************************************/
++    // Sequence management
++
++    var _populateSequenceSelector = function() {
++        var sel = $("automation-sequence-select");
++        if (!sel) return;
++        sel.options.length = 0;
++        tools.selector.addOption(sel, "", "--- Load sequence ---");
++        for (var seq of __sequences) {
++            tools.selector.addOption(sel, seq.name + " (" + seq.step_count + " steps)", seq.filename);
++        }
++        sel.onchange = function() {
++            if (sel.value) {
++                for (var s of __sequences) {
++                    if (s.filename === sel.value) {
++                        var nameInput = $("automation-seq-name-input");
++                        if (nameInput) nameInput.value = s.name;
++                        break;
++                    }
++                }
++                _loadSequence(sel.value);
++            }
++        };
++    };
++
++    var _loadSequences = function() {
++        tools.httpGet("/api/automation/sequences", null, function(http) {
++            if (http.status === 200) {
++                try { var resp = _unwrapJson(http); __sequences = resp.sequences || []; }
++                catch (e) { __sequences = []; }
++            } else { __sequences = []; }
++            _populateSequenceSelector();
++        });
++    };
++
++    var _saveSequence = function() {
++        var nameInput = $("automation-seq-name-input");
++        var name = nameInput ? nameInput.value.trim() : "";
++        if (!name) { wm.error("Please enter a sequence name"); return; }
++        if (__steps.length === 0) { wm.error("No steps to save"); return; }
++
++        _httpPostJson("/api/automation/sequences/save", {name: name, steps: __steps}, function(http) {
++            if (http.status === 200) {
++                _notify("Sequence saved: " + name);
++                _loadSequences();
++            } else { wm.error("Failed to save sequence"); }
++        });
++    };
++
++    var _loadSequence = function(filename) {
++        // Fetch the sequence steps from the backend
++        var encoded = encodeURIComponent(filename);
++        tools.httpGet("/api/automation/sequences/" + encoded, null, function(http) {
++            if (http.status === 200) {
++                try {
++                    var resp = _unwrapJson(http);
++                    if (resp && resp.steps && Array.isArray(resp.steps)) {
++                        __steps = resp.steps;
++                        _renderStepsPanel();
++                        _populateTemplateSelects();
++                        _saveSteps();
++                        _notify("Loaded: " + (resp.name || filename));
++                    } else {
++                        _notify("Loaded sequence has no steps");
++                    }
++                } catch (e) {
++                    _notify("Error loading steps: " + e.message);
++                }
++            } else {
++                wm.error("Failed to load sequence: " + filename);
++            }
++        });
++    };
++
++    var _populateTemplateSelects = function() {
++        var selects = document.querySelectorAll(".param-template-select");
++        // Iterate over steps that have a template parameter
++        var stepIdx = 0;
++        for (var sel of selects) {
++            // Find the next detect step
++            while (stepIdx < __steps.length && __steps[stepIdx].type !== "detect") {
++                stepIdx++;
++            }
++            sel.options.length = 0;
++            tools.selector.addOption(sel, "", "-- Select --");
++            for (var t of __templates) {
++                tools.selector.addOption(sel, t.name, t.name);
++            }
++            // Set selected value if this is a detect step
++            if (stepIdx < __steps.length && __steps[stepIdx].template) {
++                sel.value = __steps[stepIdx].template;
++            }
++            stepIdx++;
++        }
++    };
++
++    /************************************************************************/
++    // Run sequence
++
++    var __lastResult = null;
++
++    var _runSequence = function() {
++        if (__steps.length === 0) { wm.error("No steps to run"); return; }
++        if (__isRunning) return;
++
++        __isRunning = true;
++        $("automation-run-btn").disabled = true;
++        $("automation-run-btn").textContent = "Running...";
++        $("automation-stop-btn").style.display = "inline";
++
++        var resultsEl = $("automation-results");
++        resultsEl.innerHTML = "";
++        resultsEl.classList.add("visible");
++
++        var nameInput = $("automation-seq-name-input");
++        var name = nameInput ? nameInput.value.trim() : "";
++        if (!name) {
++            name = "seq_" + Date.now();
++            if (nameInput) nameInput.value = name;
++        }
++        var repeatCount = parseInt(($("automation-repeat-input") || {}).value || "1");
++        if (repeatCount < 1) repeatCount = 1;
++
++        // Save then run
++        _httpPostJson("/api/automation/sequences/save", {name: name, steps: __steps}, function(saveHttp) {
++            if (saveHttp.status !== 200) {
++                wm.error("Failed to save sequence before run");
++                __isRunning = false;
++                $("automation-run-btn").disabled = false;
++                $("automation-run-btn").textContent = "Run";
++                $("automation-stop-btn").style.display = "none";
++                return;
++            }
++            _httpPostJson("/api/automation/sequences/run", {name: name, repeat: repeatCount}, function(runHttp) {
++                __isRunning = false;
++                $("automation-run-btn").disabled = false;
++                $("automation-run-btn").textContent = "Run";
++                $("automation-stop-btn").style.display = "none";
++                if (runHttp.status === 200) {
++                    try { var result = _unwrapJson(runHttp); _displayResults(result); }
++                    catch (e) { resultsEl.innerHTML = '<div class="automation-result-item"><span class="result-status error"></span><span class="result-msg">Parse error: ' + _esc(e.message) + '</span></div>'; }
++                } else {
++                    resultsEl.innerHTML = '<div class="automation-result-item"><span class="result-status error"></span><span class="result-msg">Server error: ' + runHttp.status + '</span></div>';
++                }
++                _loadSequences();
++            });
++        });
++    };
++
++    var _displayResults = function(result) {
++        __lastResult = result;
++        var resultsEl = $("automation-results");
++        if (!resultsEl) return;
++        resultsEl.innerHTML = "";
++
++        // Debug: Show raw response when result is unexpected
++        console.log("Run result:", JSON.stringify(result));
++        var debugInfo = "";
++        if (!result.total_steps && !result.completed_steps) {
++            debugInfo = " [debug: " + _esc(JSON.stringify(result)) + "]";
++        }
++
++        var header = document.createElement("div");
++        header.style.padding = "4px";
++        header.style.fontWeight = "bold";
++        header.innerHTML = 'Sequence: ' + _esc(result.sequence_name || "")
++            + ' | ' + (result.success ? '&#10003; Passed' : '&#10007; ' + (result.error || "Failed"))
++            + ' | Steps: ' + (result.completed_steps || 0) + '/' + (result.total_steps || 0)
++            + debugInfo;
++        resultsEl.appendChild(header);
++
++        var stepResults = result.results || [];
++        for (var r of stepResults) {
++            var item = document.createElement("div");
++            item.className = "automation-result-item";
++            var sc = "ok";
++            if (r.status === "error") sc = "error";
++            else if (r.status === "fail") sc = "fail";
++
++            var msg = "Step " + (r.step || "?") + ": " + (r.type || "?");
++            if (r.error) msg += " - " + r.error;
++            if (r.match) msg += " (conf: " + r.match.confidence + ")";
++            if (r.ocr && r.ocr.text) msg += ' - OCR: "' + r.ocr.text.substring(0, 60) + '"';
++            if (r.position) msg += " at (" + r.position[0] + "," + r.position[1] + ")";
++            if (r.snapshot_path) msg += " [snapshot: " + _esc(r.snapshot_path) + "]";
++
++            item.innerHTML = '<span class="result-status ' + sc + '"></span><span class="result-msg">' + _esc(msg) + '</span>';
++            resultsEl.appendChild(item);
++        }
++    };
++
++    /************************************************************************/
++    // Simple notification
++
++    var _notify = function(msg) {
++        var win = $("automation-window");
++        if (!win) return;
++        var el = document.createElement("div");
++        el.style.cssText = "position:absolute;bottom:40px;left:50%;transform:translateX(-50%);background:#2d8a4e;color:#fff;padding:6px 16px;border-radius:4px;font-size:12px;z-index:100;opacity:0;transition:opacity 0.3s;pointer-events:none;";
++        el.textContent = msg;
++        win.appendChild(el);
++        requestAnimationFrame(function() { el.style.opacity = "1"; });
++        setTimeout(function() {
++            el.style.opacity = "0";
++            setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
++        }, 2000);
++    };
++
++    /************************************************************************/
++    // Utilities
++
++    var _esc = function(str) {
++        if (typeof str !== "string") str = String(str || "");
++        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
++    };
++
++    /************************************************************************/
++    // Public API
++
++    self.setState = function(state) {};
++    self.setSocket = function(ws) {};
++
++    /************************************************************************/
++    // Wire up selection UI - use document-level event listeners
++    // to completely bypass any element-level event interception
++
++    var _isOverlayVisible = function() {
++        var el = $("automation-select-window");
++        return (el && el.style.display === "block" && el.style.visibility === "visible");
++    };
++
++    (function() {
++        // Keydown for Enter/Escape
++        document.addEventListener("keydown", function(ev) {
++            if (!_isOverlayVisible()) return;
++            if (ev.code === "Enter" && __sel) {
++                ev.preventDefault();
++                ev.stopPropagation();
++                _selConfirm();
++            } else if (ev.code === "Escape") {
++                ev.preventDefault();
++                ev.stopPropagation();
++                _selCancel();
++            }
++        }, true);  // capture phase to ensure we get it first
++
++        // Pointer events at document level (capture phase)
++        document.addEventListener("pointerdown", function(ev) {
++            if (!_isOverlayVisible()) return;
++            ev.preventDefault();
++            ev.stopPropagation();
++            ev.stopImmediatePropagation();
++            if (__selMode === "click") {
++                // Click mode: single click to get coordinates
++                var rect = $("stream-box").getBoundingClientRect();
++                var geo = __getGeometry();
++                var offset = (tools.browser.is_firefox ? wm.getViewGeometry().top : 0);
++                var x = Math.round(tools.remap(ev.clientX - rect.left - geo.x, 0, geo.width, 0, geo.real_width));
++                var y = Math.round(tools.remap(ev.clientY - offset - rect.top - geo.y, 0, geo.height, 0, geo.real_height));
++                // Add click step immediately
++                __steps.push({type: "click", x: x, y: y});
++                _renderStepsPanel();
++                _populateTemplateSelects();
++                _saveSteps();
++                _selCleanup();
++                return;
++            }
++            _selStart(ev);
++        }, true);
++
++        document.addEventListener("pointermove", function(ev) {
++            if (!_isOverlayVisible()) return;
++            if (__selStartPos === null) return;
++            ev.preventDefault();
++            ev.stopPropagation();
++            _selChange(ev);
++        }, true);
++
++        document.addEventListener("pointerup", function(ev) {
++            if (!_isOverlayVisible()) return;
++            if (__selStartPos === null) return;
++            ev.preventDefault();
++            ev.stopPropagation();
++            _selEnd(ev);
++        }, true);
++    })();
++
++    // Wire up buttons
++    tools.el.setOnClick($("automation-add-detect"),     function() { _addStep("detect"); });
++    tools.el.setOnClick($("automation-add-click"),      function() { _startClickSelection(); });
++    // tools.el.setOnClick($("automation-add-move"),    function() { _addStep("move"); }); // removed
++    tools.el.setOnClick($("automation-add-key"),        function() { _addStep("key"); });
++    tools.el.setOnClick($("automation-add-keys"),       function() { _addStep("keys"); });
++    tools.el.setOnClick($("automation-add-type"),       function() { _addStep("type"); });
++    tools.el.setOnClick($("automation-add-ocr"),        function() { _startOcrSelection("ocr"); });
++    tools.el.setOnClick($("automation-add-assert-ocr"), function() { _startOcrSelection("assert_ocr"); });
++    tools.el.setOnClick($("automation-add-wait"),       function() { _addStep("wait"); });
++    tools.el.setOnClick($("automation-add-snapshot"),   function() { _addStep("snapshot"); });
++
++    tools.el.setOnClick($("automation-template-save-btn"),    _startTemplateSelection);
++    tools.el.setOnClick($("automation-template-refresh-btn"), function() { _loadTemplates(); });
++    tools.el.setOnClick($("automation-seq-save-btn"),         _saveSequence);
++    tools.el.setOnClick($("automation-run-btn"),               _runSequence);
++
++    // Clear steps button
++    tools.el.setOnClick($("automation-clear-steps-btn"), function() {
++        if (__steps.length === 0) { _notify("No steps to clear"); return; }
++        if (!confirm("Clear all " + __steps.length + " test steps?")) return;
++        __steps = [];
++        _renderStepsPanel();
++        _saveSteps();
++        _notify("All steps cleared");
++    });
++
++    // Stop button handler
++    tools.el.setOnClick($("automation-stop-btn"), function() {
++        _httpPostJson("/api/automation/sequence/stop", {}, function(http) {
++            _notify("Stop request sent");
++        });
++    });
++
++    // Recording variables
++    var __isRecording = false;
++    var __recordedEvents = [];
++    var __recordingStartTime = 0;
++
++    var _recordingKeyHandler = function(ev) {
++        if (!__isRecording) return;
++        if (ev.code === "F9") { _stopRecording(); return; }
++        var totalMs = Date.now() - __recordingStartTime;
++        __recordedEvents.push({type: "key", key: ev.code, state: ev.type === "keydown", time: totalMs});
++    };
++
++    var _recordingMouseHandler = function(ev) {
++        if (!__isRecording) return;
++        if (ev.button !== 0) return; // Only left click
++        var totalMs = Date.now() - __recordingStartTime;
++        var rect = $("stream-box").getBoundingClientRect();
++        var geo = __getGeometry();
++        var x = Math.round(tools.remap(ev.clientX - rect.left - geo.x, 0, geo.width, 0, geo.real_width));
++        var y = Math.round(tools.remap(ev.clientY - rect.top - geo.y, 0, geo.height, 0, geo.real_height));
++        __recordedEvents.push({type: "click", x: x, y: y, time: totalMs});
++    };
++
++    var _startRecording = function() {
++        __isRecording = true;
++        __recordedEvents = [];
++        __recordingStartTime = Date.now();
++        $("automation-record-btn").style.display = "none";
++        $("automation-record-stop-btn").style.display = "inline";
++        document.addEventListener("keydown", _recordingKeyHandler, true);
++        document.addEventListener("keyup", _recordingKeyHandler, true);
++        document.addEventListener("pointerdown", _recordingMouseHandler, true);
++        // Switch to stream view for direct interaction
++        wm.closeWindow($("automation-window"));
++        wm.showWindow($("stream-window"));
++        _notify("Recording started... Interact with the remote desktop");
++    };
++
++    var _stopRecording = function() {
++        __isRecording = false;
++        document.removeEventListener("keydown", _recordingKeyHandler, true);
++        document.removeEventListener("keyup", _recordingKeyHandler, true);
++        document.removeEventListener("pointerdown", _recordingMouseHandler, true);
++        $("automation-record-btn").style.display = "inline";
++        $("automation-record-stop-btn").style.display = "none";
++        wm.showWindow($("automation-window"));
++
++        if (__recordedEvents.length === 0) {
++            wm.error("No events recorded");
++            return;
++        }
++
++        // Convert to steps (with modifier awareness for shortcuts)
++        var newSteps = [], prevTime = 0;
++        var activeDown = {};
++        var pendingMods = {};
++        for (var ev of __recordedEvents) {
++            var gap = ev.time - prevTime;
++            if (gap > 500 && newSteps.length > 0) {
++                newSteps.push({type: "wait", duration: Math.round(gap / 100) / 10});
++            }
++            prevTime = ev.time;
++            if (ev.type === "click") {
++                activeDown = {}; pendingMods = {};
++                newSteps.push({type: "click", x: ev.x, y: ev.y});
++            } else if (ev.type === "key") {
++                var isMod = /^(Shift|Control|Alt|Meta)/.test(ev.key);
++                if (ev.state) {
++                    activeDown[ev.key] = {mods: Object.assign({}, pendingMods)};
++                    if (isMod) pendingMods[ev.key] = true;
++                } else {
++                    var info = activeDown[ev.key];
++                    delete activeDown[ev.key];
++                    if (isMod) delete pendingMods[ev.key];
++                    if (!info) continue;
++                    var modKeys = Object.keys(info.mods);
++                    if (modKeys.length > 0 && !isMod) {
++                        newSteps.push({type: "keys", keys: modKeys.concat([ev.key])});
++                        for (var mk of modKeys) { delete activeDown[mk]; }
++                    } else if (!isMod) {
++                        newSteps.push({type: "key", key: ev.key});
++                    }
++                }
++            }
++        }
++
++        __steps = __steps.concat(newSteps);
++        _renderStepsPanel();
++        _saveSteps();
++        _notify("Recorded " + newSteps.length + " steps from " + __recordedEvents.length + " events");
++    };
++
++    tools.el.setOnClick($("automation-record-btn"),     _startRecording);
++    tools.el.setOnClick($("automation-record-stop-btn"), _stopRecording);
++
++    // Batch Run
++    var __batchList = [];
++    var __batchResults = [];
++
++    var _updateBatchDisplay = function() {
++        var el = document.getElementById("automation-batch-list");
++        if (!el) return;
++        el.textContent = __batchList.length ? __batchList.join(" -> ") : "(empty)";
++    };
++
++    tools.el.setOnClick(document.getElementById("automation-batch-add-btn"), function() {
++        var sel = document.getElementById("automation-sequence-select");
++        var nameInput = document.getElementById("automation-seq-name-input");
++        var val = "";
++        // Dropdown value is the filename (e.g. "A.json"); textbox may contain display name (e.g. "A (48 steps)")
++        if (sel && sel.value) {
++            val = sel.value;
++        } else if (nameInput && nameInput.value.trim()) {
++            val = nameInput.value.trim();
++        }
++        if (!val) { wm.error("Select a sequence first"); return; }
++        __batchList.push(val);
++        _updateBatchDisplay();
++        _notify("Added: " + val);
++    });
++
++    tools.el.setOnClick(document.getElementById("automation-batch-clear-btn"), function() {
++        __batchList = [];
++        _updateBatchDisplay();
++    });
++
++    tools.el.setOnClick(document.getElementById("automation-batch-run-btn"), function() {
++        if (__batchList.length === 0) { wm.error("Batch list is empty"); return; }
++        if (__isRunning) return;
++        // Cancel any pending schedule
++        _cancelScheduleUI();
++        __isRunning = true;
++        __batchResults = [];
++        var rb = document.getElementById("automation-run-btn");
++        rb.disabled = true;
++        rb.textContent = "Running...";
++        document.getElementById("automation-stop-btn").style.display = "inline";
++        var el = document.getElementById("automation-results");
++        el.innerHTML = "";
++        el.classList.add("visible");
++        var totalSeqs = __batchList.length;
++        var seqIdx = 0;
++        var _runNext = function() {
++            if (seqIdx >= totalSeqs) {
++                __isRunning = false;
++                rb.disabled = false;
++                rb.textContent = "Run";
++                document.getElementById("automation-stop-btn").style.display = "none";
++                _displayBatchResults();
++                _loadSequences();
++                return;
++            }
++            var seqName = __batchList[seqIdx];
++            var apiName = seqName.replace(/\.json$/, "");
++            _httpPostJson("/api/automation/sequences/run", {name: apiName}, function(runHttp) {
++                if (runHttp.status === 200) {
++                    try { var result = _unwrapJson(runHttp); __batchResults.push(result); }
++                    catch (e) { __batchResults.push({success: false, error: "Parse error: " + e.message}); }
++                } else { __batchResults.push({success: false, error: "HTTP " + runHttp.status}); }
++                seqIdx++;
++                _runNext();
++            });
++        };
++        _runNext();
++    });
++
++    var _displayBatchResults = function() {
++        var el = document.getElementById("automation-results");
++        el.innerHTML = "";
++        for (var i = 0; i < __batchResults.length; i++) {
++            var r = __batchResults[i];
++            var sn = __batchList[i] || ("seq"+i);
++            var line = (r.success ? "PASS" : "FAIL") + " " + sn;
++            line += " | Steps " + (r.completed_steps||0) + "/" + (r.total_steps||0);
++            if (r.error) line += " - " + r.error;
++            el.innerHTML += '<div style="padding:4px;font-weight:bold;border-bottom:1px solid #36393f">' + _esc(line) + '</div>';
++            if (r.results) {
++                for (var j = 0; j < r.results.length; j++) {
++                    var sr = r.results[j];
++                    var st = (sr.status==="ok"?"OK":sr.status==="error"?"ERR":"-") + " Step " + (sr.step||"") + ": " + (sr.type||"");
++                    if (sr.error) st += " - " + sr.error;
++                    el.innerHTML += '<div style="padding:2px 12px;font-size:11px;color:#8a8e97">' + _esc(st) + '</div>';
++                }
++            }
++        }
++    };
++
++    // Scheduled auto-run (server-side: dev board executes autonomously)
++    var __schedulePollTimer = null;
++
++    var _updateScheduleStatus = function() {
++        tools.httpGet("/api/automation/schedule", null, function(http) {
++            if (http.status !== 200) return;
++            try {
++                var resp = _unwrapJson(http);
++            } catch(e) { return; }
++            if (!resp || resp.status === "none") {
++                // No schedule pending - clean up if we were tracking one
++                if (__schedulePollTimer) {
++                    _cancelScheduleUI();
++                }
++                return;
++            }
++            // Update schedule UI based on status
++            var countdownEl = document.getElementById("automation-schedule-countdown");
++            var scheduleBtn = document.getElementById("automation-schedule-btn");
++            var cancelBtn = document.getElementById("automation-schedule-cancel-btn");
++            var timeInput = document.getElementById("automation-schedule-time");
++
++            if (resp.status === "pending") {
++                scheduleBtn.style.display = "none";
++                cancelBtn.style.display = "inline";
++                timeInput.disabled = true;
++                if (resp.run_at) {
++                    var diff = resp.run_at - Date.now();
++                    if (diff > 0) {
++                        var mins = Math.floor(diff / 60000);
++                        var secs = Math.floor((diff % 60000) / 1000);
++                        countdownEl.textContent = (mins > 0 ? mins + "m " : "") + secs + "s";
++                    } else {
++                        countdownEl.textContent = "Starting...";
++                    }
++                }
++            } else if (resp.status === "running") {
++                scheduleBtn.style.display = "none";
++                cancelBtn.style.display = "none";
++                timeInput.disabled = false;
++                countdownEl.textContent = "Running...";
++            } else if (resp.status === "completed") {
++                _cancelScheduleUI();
++                if (resp.results && resp.results.length > 0) {
++                    _displayBatchResultsFromServer(resp.results);
++                }
++                _notify("Scheduled batch completed");
++            } else if (resp.status === "cancelled" || resp.status === "error") {
++                _cancelScheduleUI();
++                if (resp.error) wm.error("Schedule error: " + resp.error);
++                else _notify("Schedule " + resp.status);
++            }
++        });
++    };
++
++    var _cancelScheduleUI = function() {
++        if (__schedulePollTimer) {
++            clearInterval(__schedulePollTimer);
++            __schedulePollTimer = null;
++        }
++        document.getElementById("automation-schedule-countdown").textContent = "";
++        document.getElementById("automation-schedule-btn").style.display = "inline";
++        document.getElementById("automation-schedule-cancel-btn").style.display = "none";
++        document.getElementById("automation-schedule-time").disabled = false;
++    };
++
++    var _displayBatchResultsFromServer = function(results) {
++        var el = document.getElementById("automation-results");
++        if (!el) return;
++        el.innerHTML = "";
++        el.classList.add("visible");
++        for (var i = 0; i < results.length; i++) {
++            var r = results[i];
++            var sn = (r.sequence_name || "seq" + i);
++            var line = (r.success ? "PASS" : "FAIL") + " " + sn;
++            line += " | Steps " + (r.completed_steps || 0) + "/" + (r.total_steps || 0);
++            if (r.error) line += " - " + r.error;
++            el.innerHTML += '<div style="padding:4px;font-weight:bold;border-bottom:1px solid #36393f">' + _esc(line) + '</div>';
++            if (r.results) {
++                for (var j = 0; j < r.results.length; j++) {
++                    var sr = r.results[j];
++                    var st = (sr.status === "ok" ? "OK" : sr.status === "error" ? "ERR" : "-") + " Step " + (sr.step || "") + ": " + (sr.type || "");
++                    if (sr.error) st += " - " + sr.error;
++                    el.innerHTML += '<div style="padding:2px 12px;font-size:11px;color:#8a8e97">' + _esc(st) + '</div>';
++                }
++            }
++        }
++    };
++
++    tools.el.setOnClick(document.getElementById("automation-schedule-btn"), function() {
++        if (__batchList.length === 0) { wm.error("Batch list is empty"); return; }
++        if (__isRunning) { wm.error("Already running"); return; }
++
++        var timeInput = document.getElementById("automation-schedule-time");
++        var val = timeInput.value;
++        if (!val) { wm.error("Please set a schedule time"); return; }
++
++        // Fetch dev board time to calculate run_at timestamp
++        tools.httpGet("/api/automation/time", null, function(http) {
++            if (http.status !== 200) { wm.error("Cannot get dev board time"); return; }
++            try {
++                var timeResp = _unwrapJson(http);
++            } catch (e) { wm.error("Invalid server time response"); return; }
++
++            var serverNow = timeResp.timestamp;
++            if (!serverNow) { wm.error("Invalid server time"); return; }
++
++            // Convert PC-local picker time to dev board time
++            var browserScheduledMs = new Date(val).getTime();
++            var clockOffset = serverNow - Date.now();
++            var serverScheduledMs = browserScheduledMs + clockOffset;
++
++            if (serverScheduledMs <= serverNow) {
++                wm.error("Schedule time must be in the future (dev board time)");
++                return;
++            }
++            if (serverScheduledMs - serverNow > 86400000) {
++                wm.error("Schedule cannot be more than 24 hours ahead");
++                return;
++            }
++
++            // Send schedule to dev board (it will execute autonomously)
++            _httpPostJson("/api/automation/schedule", {
++                run_at: serverScheduledMs,
++                sequences: __batchList.map(function(n) { return n.replace(/\.json$/, ""); }),
++            }, function(schedHttp) {
++                if (schedHttp.status === 200) {
++                    document.getElementById("automation-schedule-btn").style.display = "none";
++                    document.getElementById("automation-schedule-cancel-btn").style.display = "inline";
++                    timeInput.disabled = true;
++                    _notify("Batch scheduled on dev board");
++                    // Start polling for status updates
++                    _updateScheduleStatus();
++                    __schedulePollTimer = setInterval(_updateScheduleStatus, 2000);
++                } else {
++                    wm.error("Failed to schedule batch");
++                }
++            });
++        });
++    });
++
++    tools.el.setOnClick(document.getElementById("automation-schedule-cancel-btn"), function() {
++        _httpPostJson("/api/automation/schedule/cancel", {}, function(http) {
++            _cancelScheduleUI();
++            _notify("Schedule cancelled");
++        });
++    });
++
++    // Periodically check for pending schedule on page load
++    _updateScheduleStatus();
++    setInterval(_updateScheduleStatus, 10000);
++
++    // Download Log
++    var _appendResultToText = function(text, result, label) {
++        text += "--- " + label + " ---\nStatus: " + (result.success ? "PASS":"FAIL") + "\n";
++        text += "Steps: " + (result.completed_steps||0) + "/" + (result.total_steps||0) + "\n";
++        if (result.error) text += "Error: " + result.error + "\n";
++        if (result.results) {
++            for (var j = 0; j < result.results.length; j++) {
++                var sr = result.results[j];
++                text += "  Step " + (sr.step||"") + " [" + (sr.status||"") + "] " + (sr.type||"");
++                if (sr.error) text += ": " + sr.error;
++                text += "\n";
++            }
++        }
++        text += "\n";
++        return text;
++    };
++
++    tools.el.setOnClick(document.getElementById("automation-download-log-btn"), function() {
++        var text = "=== Test Results ===\nDate: " + new Date().toISOString() + "\n\n";
++        if (__batchResults.length > 0) {
++            for (var i = 0; i < __batchResults.length; i++) {
++                text = _appendResultToText(text, __batchResults[i], __batchList[i] || ("seq"+i));
++            }
++        } else if (__lastResult) {
++            text = _appendResultToText(text, __lastResult, __lastResult.sequence_name || "Single Run");
++        } else {
++            text += "(No results)\n";
++        }
++        var blob = new Blob([text], {type: "text/plain"});
++        var url = URL.createObjectURL(blob);
++        var a = document.createElement("a");
++        a.href = url;
++        var ts = new Date().toISOString().replace(/[:.]/g, "-");
++        a.download = "test_results_" + ts + ".txt";
++        a.click();
++        URL.revokeObjectURL(url);
++    });
++
++    __init__();
++}
+diff --git a/web/share/js/kvm/session.js b/web/share/js/kvm/session.js
+index 3791851c..07aa5f73 100644
+--- a/web/share/js/kvm/session.js
++++ b/web/share/js/kvm/session.js
+@@ -36,6 +36,7 @@ import {Streamer} from "./stream.js";
+ import {Gpio} from "./gpio.js";
+ import {Ocr} from "./ocr.js";
+ import {Switch} from "./switch.js";
++import {Automation} from "./automation.js";
+ 
+ 
+ export function Session() {
+@@ -57,6 +58,7 @@ export function Session() {
+ 	var __msd = new Msd();
+ 	var __gpio = new Gpio(__recorder);
+ 	var __ocr = new Ocr(__streamer.getGeometry);
++	var __automation = new Automation(__streamer.getGeometry);
+ 	var __switch = new Switch();
+ 
+ 	var __init__ = function() {
+diff --git a/web/share/js/kvm/stream.js b/web/share/js/kvm/stream.js
+index 061dd499..990d57ba 100644
+--- a/web/share/js/kvm/stream.js
++++ b/web/share/js/kvm/stream.js
+@@ -248,8 +248,8 @@ export function Streamer() {
+ 				mode = "mjpeg";
+ 			}
+ 
+-			//directly set mjpeg for demo
+-			mode = "mjpeg";
++			//directly set mjpeg for demo (original)
++			//mode = "mjpeg";  // Changed: now use WebRTC by default (janus)
+ 
+ 			tools.radio.clickValue("stream-mode-radio", mode);
+ 		}
+-- 
+2.34.1
+

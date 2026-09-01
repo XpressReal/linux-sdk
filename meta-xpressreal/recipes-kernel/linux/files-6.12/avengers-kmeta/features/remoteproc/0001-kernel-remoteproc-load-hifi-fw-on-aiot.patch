@@ -1,0 +1,55 @@
+From e9edd6cbc1e0e61ed922aff65338e1a7e4e2e7f6 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 13 May 2026 01:36:51 -0400
+Subject: [PATCH] kernel: remoteproc: load hifi fw on aiot
+
+---
+ drivers/remoteproc/rtk_fw_remoteproc.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/remoteproc/rtk_fw_remoteproc.c b/drivers/remoteproc/rtk_fw_remoteproc.c
+index 5568f503a51f..cbf6b471b21b 100644
+--- a/drivers/remoteproc/rtk_fw_remoteproc.c
++++ b/drivers/remoteproc/rtk_fw_remoteproc.c
+@@ -31,6 +31,7 @@
+ #include <linux/reboot.h>
+ #include <linux/of_platform.h>
+ #include "remoteproc_internal.h"
++#include <linux/sys_soc.h>
+ 
+ #define SMC_CMD_RTD1619B_LOAD 0x8400ff39
+ #define SMC_CMD_KR4_LOAD 0x82000008
+@@ -237,6 +238,12 @@ static int trust_fw_load(struct rproc *rproc, const struct firmware *fw)
+ 	void *vaddr = NULL;
+ 	struct arm_smccc_res res;
+ 	int cert_type;
++	int smc_fid = 0;
++
++	static const struct soc_device_attribute rtk_soc_prince[] = {
++		{ .family = "Realtek Prince", },
++		{ /* empty */ }
++	};
+ 
+ 	dev_info(dev->parent, "Find FW Name: %s\n", rproc->firmware);
+ 	dev_info(dev->parent, "size 0x%x\n", (unsigned int)fw->size);
+@@ -257,11 +264,15 @@ static int trust_fw_load(struct rproc *rproc, const struct firmware *fw)
+ 	else
+ 		cert_type = 0;
+ 
+-	arm_smccc_smc(rtk_rproc->info->smc_fid, dma, fw->size,
++	smc_fid = rtk_rproc->info->smc_fid;
++	if (smc_fid == SMC_CMD_HIFI_LOAD && soc_device_match(rtk_soc_prince))
++		smc_fid = 0x82000000;
++
++	arm_smccc_smc(smc_fid, dma, fw->size,
+ 		      cert_type, 0, 0, 0, 0, &res);
+ 	ret = (unsigned int)res.a0;
+ 	if (ret) {
+-		dev_err(dev, "process fwtype: %d fail\n", rtk_rproc->info->smc_fid);
++		dev_err(dev, "process fwtype: %d fail\n", smc_fid);
+ 		goto free_mem;
+ 	}
+ 
+-- 
+2.34.1
+

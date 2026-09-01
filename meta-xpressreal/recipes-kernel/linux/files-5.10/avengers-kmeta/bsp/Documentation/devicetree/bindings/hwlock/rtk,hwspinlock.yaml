@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: (GPL-2.0-only or BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/hwlock/rtk,hwspinlock.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: HwSpinlock for Realtek Soc
+
+properties:
+  compatible:
+    enum:
+      - realtek,hwlock
+
+  reg:
+    maxItems: 1
+
+  "#hwlock-cells":
+    const: 1
+    description: |
+      Please look at the generic hwlock binding for usage information for
+      consumers, "Documentation/devicetree/bindings/hwlock/hwlock.txt"
+
+  realtek,lock-id-maps:
+    description: |
+      An optional property. If this property exists, use the id-map
+      defined in the property for the locks. Otherwise use direct register
+      map.
+    $ref: /schemas/types.yaml#definitions/phandle-array
+
+required:
+  - compatible
+  - reg
+  - "#hwlock-cells"
+
+additionalProperties: false
+
+examples:
+
+  - |
+    /* add a hwlock */
+    lock0: hwlock@1a000 {
+	compatible = "realtek,hwlock";
+	reg = <0x1a000 0x4>;
+	#hwlock-cells = <1>;
+    };
+
+    dev {
+	hwlocks = <&lock0 0>;
+    };
+
+
+  - |
+    /* add hwlocks from continue reg */
+    lock1: hwlock@1a620 {
+	compatible = "realtek,hwlock";
+	reg = <0x1a620 0x10>;
+	#hwlock-cells = <1>;
+    };
+
+    dev {
+	hwlocks = <&lock1 0>, <&lock1 1>, <&lock1 2>, <&lock1 3>;
+    };
+
+  - |
+    /* add hwlocks based on id map */
+    lock2: hwlock@1a630 {
+	compatible = "realtek,hwlock";
+	reg = <0x1a630 0x4>;
+	#hwlock-cells = <1>;
+	realtek,lock-id-maps = <0 0>; /* both 2 hwlocks is using the one in offset 0 */
+    };
+
+    dev {
+	hwlocks = <&lock2 0>, <&lock2 1>;
+    };

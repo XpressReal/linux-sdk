@@ -286,7 +286,7 @@
 
 &rtk_pm {
 	wakeup-flags = <PCPU_V2_CHROME_MODE>;
-	wakeup-timer = <15>;
+	wakeup-timer = <0>;
 	status = "okay";
 };
 
@@ -404,10 +404,6 @@
 &usb_port0 {
 	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
 	status = "okay";
-
-	dwc3@20000 {
-		role-switch-default-mode = "host"; /* host, peripheral*/
-	};
 };
 
 &usb_port1 {

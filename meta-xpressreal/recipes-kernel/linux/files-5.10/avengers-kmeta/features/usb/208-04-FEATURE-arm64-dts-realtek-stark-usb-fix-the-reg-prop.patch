@@ -1,0 +1,31 @@
+From 7078e74d7c3d30fdf5a345c519d6815b11c5bc1f Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Mon, 6 Nov 2023 11:52:40 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: usb: fix the reg
+ property for new driver
+
+Split the reg = <0x13200 0x200> to <0x13200 0x140>, <0x13364 0x4>;
+for pm reg is not alignment.
+
+Change-Id: I6058474fa2d96ce0bc4328a73208c264d7d5ab10
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index e344eb3680e9b..57759a53bd0db 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -75,7 +75,7 @@ usb_port0_usb2phy: usb-phy@13214 {
+ 
+ 	usb_port0: usb-port0@13200 {
+ 		compatible = "realtek,rtd-dwc3";
+-		reg = <0x13200 0x200>;
++		reg = <0x13200 0x140>, <0x13364 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
+-- 
+2.47.0
+

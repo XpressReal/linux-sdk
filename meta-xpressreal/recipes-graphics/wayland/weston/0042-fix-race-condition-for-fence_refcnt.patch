@@ -1,0 +1,147 @@
+From 64ea69914ff0e1eb4232ea1cf7ab7e976c581b30 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 26 Aug 2026 05:09:10 -0400
+Subject: [PATCH] fix race condition for fence_refcnt
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/drm-internal.h |  1 +
+ libweston/backend-drm/fb.c           | 21 +++++++++++++++++++--
+ libweston/backend-drm/kms.c          | 22 ++++++++++++++++------
+ 3 files changed, 36 insertions(+), 8 deletions(-)
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 22a25d0..efebc18 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -442,6 +442,7 @@ struct drm_fb {
+ 	struct drm_plane *scanout_plane;
+ 	int fence_refcnt;
+ 	bool release_by_fence;
++	pthread_mutex_t fence_mutex;
+ };
+ 
+ struct drm_buffer_fb {
+diff --git a/libweston/backend-drm/fb.c b/libweston/backend-drm/fb.c
+index c890fe3..c8c6f06 100644
+--- a/libweston/backend-drm/fb.c
++++ b/libweston/backend-drm/fb.c
+@@ -54,6 +54,7 @@ drm_fb_destroy(struct drm_fb *fb)
+ 	 * it is free to destroy our fb once it stops using it. */
+ 	if (fb->fb_id != 0 && !fb->backend->compositor->shutting_down)
+ 		drmModeRmFB(fb->fd, fb->fb_id);
++	pthread_mutex_destroy(&fb->fence_mutex);
+ 	free(fb);
+ }
+ 
+@@ -268,6 +269,7 @@ drm_fb_create_dumb(struct drm_device *device, int width, int height,
+ 	if (!fb)
+ 		return NULL;
+ 	fb->refcnt = 1;
++	pthread_mutex_init(&fb->fence_mutex, NULL);
+ 
+ 	fb->backend = device->backend;
+ 
+@@ -342,7 +344,9 @@ drm_fb_ref(struct drm_fb *fb)
+ struct drm_fb *
+ drm_fb_ref_by_fence(struct drm_fb *fb)
+ {
++	pthread_mutex_lock(&fb->fence_mutex);
+ 	fb->fence_refcnt++;
++	pthread_mutex_unlock(&fb->fence_mutex);
+ 	return fb;
+ }
+ 
+@@ -425,6 +429,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
+ 		return NULL;
+ 
+ 	fb->refcnt = 1;
++	pthread_mutex_init(&fb->fence_mutex, NULL);
+ 	fb->type = BUFFER_DMABUF;
+ 	fb->backend = device->backend;
+ 
+@@ -513,6 +518,7 @@ drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_device *device,
+ 
+ 	fb->type = type;
+ 	fb->refcnt = 1;
++	pthread_mutex_init(&fb->fence_mutex, NULL);
+ 
+ 	fb->fence_refcnt = 0;
+ 	fb->release_by_fence = false;
+@@ -576,8 +582,13 @@ drm_fb_unref_by_fence(struct drm_fb *fb)
+ 	if (!fb)
+ 		return;
+ 
+-	if (--fb->fence_refcnt > 0)
++	pthread_mutex_lock(&fb->fence_mutex);
++	fb->fence_refcnt--;
++	if (fb->fence_refcnt > 0) {
++		pthread_mutex_unlock(&fb->fence_mutex);
+ 		return;
++	}
++	pthread_mutex_unlock(&fb->fence_mutex);
+ 
+ 	switch (fb->type) {
+ 	case BUFFER_GBM_SURFACE:
+@@ -624,7 +635,13 @@ drm_fb_unref(struct drm_fb *fb)
+ 		break;
+ 	case BUFFER_GBM_SURFACE:
+ 	{
+-		if (fb->release_by_fence == false)
++		bool release;
++
++		pthread_mutex_lock(&fb->fence_mutex);
++		release = !fb->release_by_fence;
++		pthread_mutex_unlock(&fb->fence_mutex);
++
++		if (release)
+ 			gbm_surface_release_buffer(fb->gbm_surface, fb->bo);
+ 		break;
+ 	}
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 73289a5..4898e54 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -1446,7 +1446,9 @@ drm_overlay_queue_release(struct drm_plane_state *cur)
+ 	cur->out_fence_fd = -1;
+ 
+ 	if (cur->plane->type == WDRM_PLANE_TYPE_PRIMARY) {
++		pthread_mutex_lock(&pending->fb->fence_mutex);
+ 		pending->fb->release_by_fence = true;
++		pthread_mutex_unlock(&pending->fb->fence_mutex);
+ 		drm_fb_ref_by_fence(pending->fb);
+ 
+ 		if (pthread_create(&thread, NULL, drm_overlay_fence_thread, pending) != 0)
+@@ -1477,12 +1479,20 @@ drm_overlay_queue_release(struct drm_plane_state *cur)
+ 
+ fallback_pending:
+ 	close(pending->fence_fd);
+-	if (pending->fb->release_by_fence == false) {
+-		weston_buffer_reference(&pending->buffer_ref, NULL,
+-				BUFFER_WILL_NOT_BE_ACCESSED);
+-		weston_buffer_release_reference(&pending->release_ref, NULL);
+-	} else {
+-		drm_fb_unref_by_fence(pending->fb);
++	{
++		bool release;
++
++		pthread_mutex_lock(&pending->fb->fence_mutex);
++		release = pending->fb->release_by_fence;
++		pthread_mutex_unlock(&pending->fb->fence_mutex);
++
++		if (!release) {
++			weston_buffer_reference(&pending->buffer_ref, NULL,
++					BUFFER_WILL_NOT_BE_ACCESSED);
++			weston_buffer_release_reference(&pending->release_ref, NULL);
++		} else {
++			drm_fb_unref_by_fence(pending->fb);
++		}
+ 	}
+ 	free(pending);
+ 	return;
+-- 
+2.34.1
+

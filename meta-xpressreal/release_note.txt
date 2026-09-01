@@ -7,8 +7,8 @@ If you are not the intended recipient, please notify the sender and delete this 
 Repository information:
 1. poky: https://git.yoctoproject.org/poky
 - branch: scarthgap
-- commit: 6b08410d0e
-- version: 5.0.8 (scarthgap)
+- commit: b56134ff90
+- version: 5.0.18 (scarthgap)
 2. meta-openembedded: https://git.openembedded.org/meta-openembedded
 - branch: scarthgap
 - commit: fdd1894976
@@ -28,6 +28,290 @@ Repository information:
 - branch: scarthgap/rust
 - commit: 96deb45139
 =============================================================================================
+2026 Yocto Scarthgap SDK v2.7.x
+
+2026-07-30 Yocto Scarthgap SDK v2.7.1
+COMMIT="a98dc6cde5"
+
+New Features:
+1. DRM / GPU enhancements
+   - Add rtk fence mechanism for DRM, weston, and waylandsink
+   - Add overlay plane cropping via RPC command
+   - Add video fence for normal dma buffer
+   - Fix incorrect mixer number and frame buffer pitch
+   - Reintegrate weston KMS control architecture
+   - Update RTK display controller to KMS IPC 3.0.7
+   - Provide Xwayland setting support (weston)
+   - Fix GPU-related jank on r54p1
+2. Vulkan support
+   - Integrate Mali Vulkan WSI
+   - Update Vulkan package to 1.3.275
+   - Fix Mali vkcube execution issue
+3. RescueFS enhancements
+   - Add dialog to display progress bar during firmware upgrade
+   - Add dialog support with ncurses static linking
+   - Add terminfo database entries from ncurses
+   - Install firmware and kernel modules only on Stark platforms
+4. V4L2 driver v1.2.2
+   - Fix FBC reconstructed frame buffer allocation using incorrect size
+   - Narrow ve4_hw_mutex to reduce serialization between concurrent instances
+5. GStreamer plugins
+   - Add rtkgridcomposer plugin
+6. CPU DVFS / FSS
+   - Add 2GHz FSS support on linux-6.12
+   - Add FSS support for CPU DVFS across Realtek boards
+7. Secure Boot
+   - Support secure boot for AOSP rtd16xx target
+8. Bootlogo support
+   - Add feature description for "bootlogo"
+   - Split bootlogo configs across platforms
+9. NPU
+   - Enable NPU for phantom-vcodec-rtd1625
+   - Add IPC register base for NPU in device tree
+10. USB
+    - AOSP: Enable USB gadget NCM/RNDIS/MIDI configfs
+
+Changes:
+1. V4L2 v1.2.2
+2. linux-firmware: update video_firmware
+3. u-boot prebuilt updates
+   - rtd1625: bl31 prebuilt update
+   - rtd1625: rtk_param update for secure regions
+   - Update dram_init and recovery_hwsetting prebuilt binaries
+4. linux-6.6: android: disable splash logo
+5. linux-6.6: gamepad: fix backinblack patch failure on hdmi node
+6. linux-6.12: usb: organize usb buildsys patches
+7. arm64: dts: set wakeup-timer to 0 for rtd1501 and rtd1920
+8. arm64: dts: kent: set USB port 0 default as host mode
+9. conf: phantom-vcodec-rtd1625: update optee linux 6.12 dts
+
+Fixed Bugs:
+1. V4L2 / VE driver fixes (v1.2.2)
+   - Fix FBC reconstructed frame buffer allocation using incorrect size from src_buf_size instead of compressed frame map layout
+   - Fix encoder inst_index collision by assigning from firmware instead of driver-side allocation
+   - Fix rtkve4_wait_busy() busy-spin; use proper polling interval and log PC on timeout
+   - Fix codeBase physical address truncation by using dma_addr_t
+   - Fix spurious -EBUSY on DEC_CMD_START after drain
+   - Fix cmprs_lu_size miscalculation causing decompress error
+   - Add physical address validation for VE2 DMA buffers (reject reserved/boundary-crossing/over-limit regions)
+2. DRM fixes
+   - Fix incorrect mixer number and frame buffer pitch
+   - Fix deinterlace failure
+   - Fix GPU-related jank on r54p1
+3. GStreamer fixes
+   - rtkvideoscale: fix append metadata outbuf size error
+4. RescueFS fixes
+   - nas-loader_a: fix drm missing and use virtual console issue
+5. U-Boot fixes
+   - Fall back to 2GB when DDR size register reads invalid
+   - emmc not recognized when USB Host boot
+6. Kernel fixes
+   - Fix phantom-rtd1625-mini with rtd1501s-phantom-spi device tree
+   - gamepad: fix backinblack patch failure on hdmi node
+
+V4L2 changelog:
+Version: 1.2.0
+1.Support H.264 VUI SAR for ve4 encoder
+2.Advertise V4L2_PIX_FMT_RTKC pixel format when enhance-lossy mode active
+3.Set maximum DMA segment size and DMA mask for ve4 encoder
+4.Error out on mid-stream visual resolution change
+5.Fix v4l2-compliance failures for JPEG encoder/decoder
+6.Fix kent lossy grey screen issue
+7.Fix VP8 TIMEOUT races on CMD_STOP and SOURCE_CHANGE
+8.Fix ve2 CAP DQBUF blocked on firmware fatal decode error
+9.Fix ve2 EOS not signaled on CAP restart after CMD_STOP drain
+10.Replace polling with interrupt for decoded frame notification
+11.Fix profile/level/stride handling for ve4 encoder
+Version: 1.2.1
+1.Add crop offset support to VE2 pre-parse
+2.Fix spurious -EBUSY on DEC_CMD_START after drain
+3.Fix cmprs_lu_size miscalculation causing decompress error
+4.Add physical address validation for VE2 DMA buffers
+5.Fix ve4 encoder inst_index collision
+6.Reduce ve1 OUTPUT buffers from 4 to 2
+7.ve1_v4l2: save extra map/unmap overhead on VB2_MEMORY_DMABUF buffers
+Version: 1.2.2
+1.Fix FBC reconstructed frame buffer allocation using incorrect size from src_buf_size instead of compressed frame map layout
+2.Fix encoder inst_index collision by assigning from firmware instead of driver-side allocation
+3.Fix rtkve4_wait_busy() busy-spin; use proper polling interval and log PC on timeout
+4.Fix codeBase physical address truncation by using dma_addr_t
+5.Narrow ve4_hw_mutex to only the actual FW commands to reduce serialization between concurrent instances
+6.Read and log W6_RET_CQ_FLAG and W6_RET_FW_VERSION during initialization
+7.Set protection mode before SET_FB / header operations
+
+
+2026-07-27 Yocto Scarthgap SDK v2.7.0
+COMMIT="c82eb5aea5"
+
+New Features:
+1. Support pixel format extensions on DRM/GPU
+   - Provide XBGR8888 on primary plane for broader format compatibility
+   - Support cursor update via DRM (gpu/drm: cursor update)
+   - Integrate RTK modifier for RTK compress mode (libmali & drm)
+   - Enable AFBC (Arm Frame Buffer Compression) on Ozone Wayland compositor
+2. Wayland / Weston enhancements
+   - Support weston hardware color key (hwcolorkey) enable/disable
+   - Use system wayland for Chromium browser integration
+   - Add support for 15-channel ve1 decoder
+   - Add stateful H.265 format support on Chromium
+3. PCIe subsystem overhaul
+   - Support PCIe switches
+   - Add PCIe INTx interrupt support
+   - Support PCIe L2 power down on shutdown
+   - Remove 500ms delay after port poweron for faster link establishment
+   - Extend MAC MSI entry to 256
+4. CPU DVFS / FSS support
+   - Add FSS (Fast Scale Systolic) support for CPU DVFS across all Realtek boards
+   - Add 2GHz FSS support on linux-6.6
+   - Add 800MHz and 900MHz CPU OPPs for rtd1501s-phantom
+   - linux-6.12: kent SCPU frequency upscaled to 2.0GHz
+5. Audio subsystem
+   - Add tinyalsa and tinycompress recipes
+   - Add tinyalsa/tinycompress to core-image-weston
+5. ARM64 DTS updates
+    - Add Phantom k6.12 1GB device tree
+    - Add PCIe INTx interrupt node
+    - Add 800MHz/900MHz CPU OPPs for rtd1501s-phantom
+    - Add FSS support for CPU DVFS across platforms
+
+Changes:
+1. linux-firmware updates
+2. kernel config and driver updates
+3. PHY parameter updates
+4. libmali updates
+5. Device tree refinements
+6. Replace ve2rpc/ve3rpc with vpu_legacy/ve3_enc device nodes
+7. soc: realtek: rtk_ve: use IS_ENABLED() for DMABUF_HEAPS_REALTEK to support module build
+8. Hint not to run rtk-multi-playback on panfrost platform
+9. core-image-weston: add tinyalsa and tinycompress
+10. Unified rtk_ve1 driver
+11. linux-5.10: mm/cma: only allow cma_alloc() to use CMA memory
+
+Fixed Bugs:
+1. V4L2 / VE driver fixes
+   - rtk_ve: ve1: serialize interrupt flag/kfifo to fix stale-wakeup races
+   - rtk_ve: ve4: queue interrupt reasons in a kfifo to fix lost/stale interrupts
+   - ve1: fix locking, resource cleanup, and error paths in VPU driver
+   - Reject high bit depth HDR input formats for V4L2 encoder
+2. PCIe fixes
+3. U-Boot fixes
+4. Audio fixes
+   - tinyalsa: fix tinyplay silent playback on RTK hifi_pcm
+5. DRM fixes
+   - Fix segmentation fault on waylandsink
+6. V4L2 / Media fixes
+7. GStreamer fixes
+   - Improve error handling in RTK GStreamer plugins
+
+V4L2 changelog:
+1. V4L2: increase MAX_NUM_INSTANCE for Android CTS (testGetMaxSupportedInstances)
+2. V4L2: add RTK Compress Pixel Format
+3. V4L2: set copy_threshold 0 to avoid buffer copying
+
+
+2026-05-28 Yocto Scarthgap SDK v2.6.0
+COMMIT="3a25f0f115"
+
+New Features:
+1. Support rtd1501s with SPI-NAND
+- MACHINE: phantom-vcodec-rtd1625
+- boot mode: SPI-NAND
+- kernel: Linux 5.10
+2. Support kernel 6.12 on rtd1625
+3. Support kernel 5.10 on rtd1625
+- V4L2 video codecs support
+- HSE support
+- vowb support
+4. Support SPI NAND boot on rtd1625
+5. Support Android AVB (Verified Boot) for AOSP
+6. Support afrc (Adaptive Frame Rate Control) feature
+7. add rtkgpuconverter plugin for color format converting
+8. add license and source for open source compliance
+9. arm64: dts: ve4 add intr-syscon, ipc-syscon to notify pcpu
+
+Changes:
+1. V4L2 v1.1.12 ~ v1.1.20
+2. kernel: add linux-6.12.55 recipe from yocto-poky master
+3. kernel: add linux-5.10.210 recipe from yocto-4.0.20
+4. kernel: 6.12/6.6: add Realtek SYSTIMER driver and DSU_SLEEP support
+5. kernel: 6.6: android: adjust v4l2 kernel config and disable pcie phy0
+6. u-boot: add SPI NAND support for rtd1625 (spl_ubi, env, fitImage)
+7. u-boot: enable ABOOTIMG/ADTIMG for AOSP boot
+8. u-boot: enable fastboot unlock/lock
+9. u-boot: spi-nand: improve ECC, error handling logic & bad block handling
+10. u-boot: prebuilt: update bl31, auxcode, extrom, pcpu fw
+11. spi: rtk-sn: refactor DMA handling, add CRC check, fix OOB copy
+12. reorganize weston and gstwaylandsink
+13. update NPU driver and library to VIPLite
+14. update rtkhse, rtkmixer, rtk-playback pipeline
+15. config: wifi/bt enabled by machine feature (vendor-wifi/vendor-bt)
+16. kernel: modules: include usb r8152.ko in rescuefs
+17. recipes-kernel: linux-firmware: update audio/video/HiFi firmware
+18. kernel: 6.12: hw: enable SATA and PCIE
+19. drm: add ARGB8888 to afrc list
+20. linux-5.10: r8125: update driver to version 9.017.01
+21. config: wifi: enable 8822BE/8822CE/8821CS/8822CS/8852BE upstream modules
+
+Fixed Bugs:
+1. drm/realtek: Fix NULL pointer dereference in rtk_edp_shutdown
+2. kernel: regulator: tps6287x: fix unexpected reboo
+3. kernel: android: fix no HDMI audio in some scenarios
+4. u-boot: add CVE-2026-33243 patch for fitImage signature verify
+5. u-boot: rtd1619b: prebuilt: fix S3 issue on ext_hwsetting
+6. u-boot: rtd1619b: prebuilt: fix LPDDR4 reboot fail
+7. media: fix ve4 compile error for k6.12
+8. media: fix extra subtitle issue (rtksrtrender)
+9. media: fix resolution change on youtube
+10. media: fix output buffer resize error
+11. media: fix rotate_method not set after scaling
+12. drm: fix black and green lines during vo writeback
+13. spi: fix OOB copy and DMA buffer leaks
+14. audio: fix side-effect of audio firmware update
+
+V4L2 changelog:
+Version: 1.1.12
+1.Replace dsb with dma_wmb/dma_rmb/dma_mb and remove volatile
+Version: 1.1.13
+1.Add configs for each codec
+2.Get the status of DPB buffer from VFW
+Version: 1.1.14
+1.JPEG driver supports iPhone 4032x3024
+2.Reduce output queue min buffer count
+3.Fix CtsMediaCodecTestCases issue
+Version: 1.1.15
+1.Modify sequence change flow to meet Chrome browser V4L2 flow
+2.Fixed vb2_set_plane_payload 0 issue
+Version: 1.1.16
+1.Change METADATA from PREPEND to APPEND
+Version: 1.1.17
+1.Fix ve4 encoding error in transcoding case
+2.Fix compile issues for k6.12 and k5.10
+Version: 1.1.18
+1.jcodec: Add user controls to support rotate and scale
+2.jcodec: Adjust encoder bytesperline alignment
+3.jcodec: Adjust JPEG output buffer sizeimage to w*h*3/2
+4.jcodec: Adjust encoder alignment for decoder scaling case
+5.hevc/vp9/av1 encoder: Reduce OUTPUT buffers from 4 to 2
+6.ve1 decoder: Reduce latency (remove usleep_range and wakeup threadcap)
+7.jcodec: Fixed alignment issue; set MAX WIDTH/HEIGHT to 8192x8192
+Version: 1.1.19
+1.jcodec: JPEG decoder supports 64-align output
+Version: 1.1.20
+1.JPEG decoder scale support with 64-byte alignment
+2.JPEG encoder output buffer size adjustment
+3.Fix ve1/ve2 null pointer dereference issues
+4.Fix memory leak issues in ve1/ve2/driver interface
+5.Fix ve1 blocking issue (mutex held across wait_for_completion)
+6.Fix kernel stack overflow in ve2_cc_wrapper_write
+7.Fix use-after-free in ve2_send_rpc()
+8.Fix heap overflow via unchecked RPC parameter size
+9.Fix DPB state corruption and ring buffer issues
+10.Refine the size of CAPTURE buffer while lossy compress
+11.Optimize spinlock usage (remove irqlock, reduce contention)
+12.Fix dmabuf reference leak and buffer slot leak
+13.Fix static analysis warnings (Coverity, smatch, Coccinelle)
+
+
 2026-03-16 Yocto Scarthgap SDK v2.5.0
 COMMIT="13b4dd5c44"
 
@@ -74,7 +358,7 @@ Version: 1.1.2
 1.Fix video frozen issue after seeking.
 2.Add error handling while malloc fail.
 Version: 1.1.3
-1.Add ve4 encoder for kent
+1.Add ve4 encoder for rtd1501s
 2.Pass v4l2-compliance 1.28.1
 3.ve1 supports tile mode
 Version: 1.1.7
@@ -144,7 +428,7 @@ New Features:
 11. support ai-demo
 - object detection
 - pose estimation
-- face recongition
+- face recognition
 - speech to text
 12. support new manchine
 - badassium-rtd1315c
@@ -152,7 +436,7 @@ New Features:
 
 Changes:
 1. conf: display exact commit version on the platform /etc/buildinfo
-2. Limit 2KUI for Stark only when Linux Desktop is used
+2. Limit 2KUI for rtd1619b only when Linux Desktop is used
 3. conf: remove GUI related DISTRO_FEATURES for mini MACHINE
 4. u-boot: disable virtual console in rescue mode
 5. add cacheable HiFi firmware for DRM
@@ -256,7 +540,7 @@ Changes:
 
 Fixed Bugs:
 1. kernel: Fix pcie phy connection issues on S3 suspend resume
-2. kernel: Fix S5 wakeup issue: NASPRJ-889
+2. kernel: Fix S5 wakeup issue
 3. [V4L2]Fix memory leakage issue
 4. [V4L2]Fix video roll back issue
 5. [V4L2]Fix specific vp9 decode failure issue

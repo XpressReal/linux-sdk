@@ -1,0 +1,36 @@
+From 6b0c9f2cb511b2b06fd675a49162208c9105f2a0 Mon Sep 17 00:00:00 2001
+From: Alexey Romanov <avromanov@salutedevices.com>
+Date: Thu, 18 Jul 2024 08:45:26 +0300
+Subject: [PATCH 7/9] disk: don't try search for partition type if already set
+
+Block devices can already set partition type at initialization
+stage, so, in this case is no point in searching for partition type.
+
+Signed-off-by: Alexey Romanov <avromanov@salutedevices.com>
+Reviewed-by: Heiko Schocher <hs@denx.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ disk/part.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/disk/part.c b/disk/part.c
+index 86f669926e1..706d77b3194 100644
+--- a/disk/part.c
++++ b/disk/part.c
+@@ -285,6 +285,13 @@ void part_init(struct blk_desc *desc)
+ 
+ 	blkcache_invalidate(desc->uclass_id, desc->devnum);
+ 
++	if (desc->part_type != PART_TYPE_UNKNOWN) {
++		for (entry = drv; entry != drv + n_ents; entry++) {
++			if (entry->part_type == desc->part_type && !entry->test(desc))
++				return;
++		}
++	}
++
+ 	desc->part_type = PART_TYPE_UNKNOWN;
+ 	for (entry = drv; entry != drv + n_ents; entry++) {
+ 		int ret;
+-- 
+2.47.0
+

@@ -1,0 +1,171 @@
+From 3d1f08b032dc4e168f3aefed1e07a63c3c080325 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Thu, 1 Oct 2020 12:20:11 +0200
+Subject: [PATCH] mtd: spinand: Use the external ECC engine logic
+
+Now that all the logic is available in the NAND core, let's use it
+from the SPI-NAND core. Right now there is no functional change as the
+default ECC engine for SPI-NANDs is set to 'on-die', but user can now
+use software correction if they want to by just setting the right
+properties in the DT.
+
+Also note that the OOB layout handling is removed from the SPI-NAND
+core as each ECC engine is supposed to handle it by it's own; users
+should not be aware of that.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201001102014.20100-4-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/spi/Kconfig |  1 +
+ drivers/mtd/nand/spi/core.c  | 38 +++++++++++++-----------------------
+ 2 files changed, 15 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/Kconfig b/drivers/mtd/nand/spi/Kconfig
+index 0777dfdf0a..d0d5c6c0ae 100644
+--- a/drivers/mtd/nand/spi/Kconfig
++++ b/drivers/mtd/nand/spi/Kconfig
+@@ -2,6 +2,7 @@ menuconfig MTD_SPI_NAND
+ 	bool "SPI NAND device Support"
+ 	depends on DM_MTD && DM_SPI
+ 	select MTD_NAND_CORE
++	select MTD_NAND_ECC
+ 	select SPI_MEM
+ 	help
+ 	  This is the framework for the SPI NAND device drivers.
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index e9936a1516..f50482d799 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -377,9 +377,11 @@ static struct nand_ecc_engine spinand_ondie_ecc_engine = {
+ 
+ static void spinand_ondie_ecc_save_status(struct nand_device *nand, u8 status)
+ {
+-	struct spinand_device *spinand = nand_to_spinand(nand);
++	struct spinand_ondie_ecc_conf *engine_conf = nand->ecc.ctx.priv;
+ 
+-	spinand->last_wait_status = status;
++	if (nand->ecc.ctx.conf.engine_type == NAND_ECC_ENGINE_TYPE_ON_DIE &&
++	    engine_conf)
++		engine_conf->status = status;
+ }
+ 
+ int spinand_write_enable_op(struct spinand_device *spinand)
+@@ -403,7 +405,6 @@ static int spinand_read_from_cache_op(struct spinand_device *spinand,
+ 				      const struct nand_page_io_req *req)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
+-	struct mtd_info *mtd = spinand_to_mtd(spinand);
+ 	struct spi_mem_dirmap_desc *rdesc;
+ 	unsigned int nbytes = 0;
+ 	void *buf = NULL;
+@@ -468,17 +469,6 @@ static int spinand_read_from_cache_op(struct spinand_device *spinand,
+ 		memcpy(req->databuf.in, spinand->databuf + req->dataoffs,
+ 		       req->datalen);
+ 
+-	if (req->ooblen) {
+-		if (req->mode == MTD_OPS_AUTO_OOB)
+-			mtd_ooblayout_get_databytes(mtd, req->oobbuf.in,
+-						    spinand->oobbuf,
+-						    req->ooboffs,
+-						    req->ooblen);
+-		else
+-			memcpy(req->oobbuf.in, spinand->oobbuf + req->ooboffs,
+-			       req->ooblen);
+-	}
+-
+ 	return 0;
+ }
+ 
+@@ -665,7 +655,7 @@ int spinand_read_page(struct spinand_device *spinand,
+ 	u8 status;
+ 	int ret;
+ 
+-	ret = spinand_ondie_ecc_prepare_io_req(nand, (struct nand_page_io_req *)req);
++	ret = nand_ecc_prepare_io_req(nand, (struct nand_page_io_req *)req);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -686,7 +676,7 @@ int spinand_read_page(struct spinand_device *spinand,
+ 	if (ret)
+ 		return ret;
+ 
+-	return spinand_ondie_ecc_finish_io_req(nand, (struct nand_page_io_req *)req);
++	return nand_ecc_finish_io_req(nand, (struct nand_page_io_req *)req);
+ }
+ 
+ /**
+@@ -704,7 +694,7 @@ int spinand_write_page(struct spinand_device *spinand,
+ 	u8 status;
+ 	int ret;
+ 
+-	ret = spinand_ondie_ecc_prepare_io_req(nand, (struct nand_page_io_req *)req);
++	ret = nand_ecc_prepare_io_req(nand, (struct nand_page_io_req *)req);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -730,7 +720,7 @@ int spinand_write_page(struct spinand_device *spinand,
+ 	if (status & STATUS_PROG_FAILED)
+ 		return -EIO;
+ 
+-	return spinand_ondie_ecc_finish_io_req(nand, (struct nand_page_io_req *)req);
++	return nand_ecc_finish_io_req(nand, (struct nand_page_io_req *)req);
+ }
+ 
+ static int spinand_mtd_regular_page_read(struct mtd_info *mtd, loff_t from,
+@@ -748,7 +738,7 @@ static int spinand_mtd_regular_page_read(struct mtd_info *mtd, loff_t from,
+ 
+ 	old_stats = mtd->ecc_stats;
+ 
+-	if (ops->mode == MTD_OPS_RAW || !mtd->ooblayout)
++	if (ops->mode == MTD_OPS_RAW || !spinand->eccinfo.ooblayout)
+ 		disable_ecc = true;
+ 
+ 	nanddev_io_for_each_page(nand, NAND_PAGE_READ, from, ops, &iter) {
+@@ -833,7 +823,7 @@ static int spinand_mtd_continuous_page_read(struct mtd_info *mtd, loff_t from,
+ 		if (ret)
+ 			goto end_cont_read;
+ 
+-		ret = spinand_ondie_ecc_prepare_io_req(nand, &iter.req);
++		ret = nand_ecc_prepare_io_req(nand, &iter.req);
+ 		if (ret)
+ 			goto end_cont_read;
+ 
+@@ -858,7 +848,7 @@ static int spinand_mtd_continuous_page_read(struct mtd_info *mtd, loff_t from,
+ 
+ 		spinand_ondie_ecc_save_status(nand, status);
+ 
+-		ret = spinand_ondie_ecc_finish_io_req(nand, &iter.req);
++		ret = nand_ecc_finish_io_req(nand, &iter.req);
+ 		if (ret < 0)
+ 			goto end_cont_read;
+ 
+@@ -1602,7 +1592,7 @@ static int spinand_init(struct spinand_device *spinand)
+ 	nand->ecc.ondie_engine = &spinand_ondie_ecc_engine;
+ 
+ 	spinand_ecc_enable(spinand, false);
+-	ret = spinand_ondie_ecc_init_ctx(nand);
++	ret = nanddev_ecc_engine_init(nand);
+ 	if (ret)
+ 		goto err_cleanup_nanddev;
+ 
+@@ -1647,7 +1637,7 @@ static int spinand_init(struct spinand_device *spinand)
+ 	return 0;
+ 
+ err_cleanup_ecc_engine:
+-	spinand_ondie_ecc_cleanup_ctx(nand);
++	nanddev_ecc_engine_cleanup(nand);
+ 
+ err_cleanup_nanddev:
+ 	nanddev_cleanup(nand);
+@@ -1665,7 +1655,7 @@ static void spinand_cleanup(struct spinand_device *spinand)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
+ 
+-	spinand_ondie_ecc_cleanup_ctx(nand);
++	nanddev_ecc_engine_cleanup(nand);
+ 	nanddev_cleanup(nand);
+ 	spinand_manufacturer_cleanup(spinand);
+ 	kfree(spinand->databuf);
+-- 
+2.47.0
+

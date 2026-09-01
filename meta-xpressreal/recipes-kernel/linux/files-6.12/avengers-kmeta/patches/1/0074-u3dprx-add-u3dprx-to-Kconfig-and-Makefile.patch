@@ -1,0 +1,44 @@
+From 452accf2e7522c703b092a056f1c902b1a1e8ba2 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 7 Apr 2026 22:30:05 -0400
+Subject: [PATCH] u3dprx: add u3dprx to Kconfig and Makefile
+
+---
+ drivers/phy/realtek/Kconfig  | 11 +++++++++++
+ drivers/phy/realtek/Makefile |  3 ++-
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/phy/realtek/Kconfig b/drivers/phy/realtek/Kconfig
+index 0e0ed862de8e..5736b4f2a39a 100644
+--- a/drivers/phy/realtek/Kconfig
++++ b/drivers/phy/realtek/Kconfig
+@@ -54,4 +54,15 @@ config PHY_RTK_RTD_USB3DPPHY
+ 	  DWC3 USB IP. This driver will do the PHY initialization
+ 	  of the parameters.
+ 
++config PHY_RTK_RTD_USB3DPRXPHY
++	tristate "Realtek RTD USB3 DP RX PHY Transceiver Driver"
++	depends on USB_SUPPORT
++	select GENERIC_PHY
++	select USB_PHY
++	help
++	  Enable this to support Realtek SoC USB3 and Display RX Port phy transceiver.
++	  The DHC (digital home center) RTD series SoCs used the Synopsys
++	  DWC3 USB IP. This driver will do the PHY initialization
++	  of the parameters.
++
+ endif # ARCH_REALTEK || COMPILE_TEST
+diff --git a/drivers/phy/realtek/Makefile b/drivers/phy/realtek/Makefile
+index 1b50c42f6514..1a7c626705bb 100644
+--- a/drivers/phy/realtek/Makefile
++++ b/drivers/phy/realtek/Makefile
+@@ -3,4 +3,5 @@ obj-$(CONFIG_PHY_RTD_PCIE)		+= phy-rtk-pcie.o
+ obj-$(CONFIG_PHY_RTK_SATA)		+= phy-rtk-sata.o
+ obj-$(CONFIG_PHY_RTK_RTD_USB2PHY)	+= phy-rtk-usb2.o
+ obj-$(CONFIG_PHY_RTK_RTD_USB3PHY)	+= phy-rtk-usb3.o
+-obj-$(CONFIG_PHY_RTK_RTD_USB3DPPHY)	+=phy-rtk-usb3dp.o
++obj-$(CONFIG_PHY_RTK_RTD_USB3DPPHY)	+= phy-rtk-usb3dp.o
++obj-$(CONFIG_PHY_RTK_RTD_USB3DPRXPHY)	+= phy-rtk-usb3dprx.o
+-- 
+2.34.1
+

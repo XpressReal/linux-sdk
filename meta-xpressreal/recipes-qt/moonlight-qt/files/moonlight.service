@@ -1,0 +1,17 @@
+[Unit]
+Description=Moonlight
+After=weston.service
+Before=graphical.target
+Requires=weston.service
+Wants=network.target
+
+[Service]
+User=root
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=QT_QPA_PLATFORM=wayland
+Environment=WAYLAND_DISPLAY=wayland-1
+ExecStart=/usr/bin/moonlight-qt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

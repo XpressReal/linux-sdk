@@ -69,6 +69,8 @@ kvmd:
 
         forever: false
 
+        snapshot_file: /tmp/kvmd_snapshot.jpg
+
     info:
         fan:
             unix: ""

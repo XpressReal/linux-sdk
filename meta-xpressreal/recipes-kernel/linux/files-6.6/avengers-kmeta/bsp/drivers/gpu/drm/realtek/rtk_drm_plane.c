@@ -615,7 +615,7 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
 
 	} else {
 #ifdef CONFIG_RTK_METADATA_AUTOJUDGE
-		struct video_object *decObj = (struct video_object *)rtk_gem[0]->vaddr;
+		struct video_object *decObj = (struct video_object *)(rtk_gem[0]->vaddr + rtk_gem[0]->metadata_offset);
 #else
 		struct video_object *decObj = (struct video_object *)(&s->rtk_meta_data);
 #endif

@@ -1,0 +1,40 @@
+From 8ec91abcf6fe732a1d2552adaf512e32fd386636 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 14:39:21 +0800
+Subject: [PATCH 08/73] hwspinlock: add realtek hwlock driver
+
+Change-Id: I8af1b8a1158117452a4a9474201abaafc048d56a
+---
+ drivers/hwspinlock/Kconfig  | 8 ++++++++
+ drivers/hwspinlock/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/hwspinlock/Kconfig b/drivers/hwspinlock/Kconfig
+index 3874d15b0e9b7..4ca1a2bc49849 100644
+--- a/drivers/hwspinlock/Kconfig
++++ b/drivers/hwspinlock/Kconfig
+@@ -63,4 +63,12 @@ config HSEM_U8500
+ 
+ 	  If unsure, say N.
+ 
++config HWSPINLOCK_RTK
++	tristate "Realtek Hardware Spinlock device"
++	depends on ARCH_REALTEK || COMPILE_TEST
++	help
++	  Say y here to support the Realtek Hardware Spinlock.
++
++	  If unsure, say N.
++
+ endif # HWSPINLOCK
+diff --git a/drivers/hwspinlock/Makefile b/drivers/hwspinlock/Makefile
+index a0f16c9aaa821..5340f7f434240 100644
+--- a/drivers/hwspinlock/Makefile
++++ b/drivers/hwspinlock/Makefile
+@@ -10,3 +10,4 @@ obj-$(CONFIG_HWSPINLOCK_SPRD)		+= sprd_hwspinlock.o
+ obj-$(CONFIG_HWSPINLOCK_STM32)		+= stm32_hwspinlock.o
+ obj-$(CONFIG_HWSPINLOCK_SUN6I)		+= sun6i_hwspinlock.o
+ obj-$(CONFIG_HSEM_U8500)		+= u8500_hsem.o
++obj-$(CONFIG_HWSPINLOCK_RTK)		+= rtk_hwspinlock.o
+-- 
+2.47.0
+

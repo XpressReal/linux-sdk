@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761B Rose EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1761b-rose.dtsi"
+
+/ {
+	compatible = "realtek,rose", "realtek,rtd1761b";
+	model = "Realtek Rose EVB (8GB)";
+};
+
+&soc {
+	bootph-all;
+};
+
+&rbus {
+	bootph-all;
+};
+
+&iso {
+	bootph-all;
+};
+
+&uart0 {
+	bootph-all;
+	status = "okay";
+};
+
+&emmc {
+	bootph-all;
+};

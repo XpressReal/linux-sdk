@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1761-rescue.dtsi"
+
+/ {
+	model = "Realtek RTD1761 HDMI Rescue";
+
+	memory: memory@50000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x3ffb0000>; /* 1 GiB */
+	};
+
+	chosen {
+		stdout-path = "serial0:460800n8";
+		bootargs = "console=ttyS0,460800 8250.nr_uarts=1 init=/init firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+		linux,initrd-start = <0x09000000>;
+		linux,initrd-end = <0x0a900000>;
+	};
+};
+
+&rtk_tee_mem {
+	status = "okay";
+};
+
+&hifi_rproc {
+	/delete-property/ need-ext-fw;
+};
+
+&kr4_rproc {
+	status = "disabled";
+};
+
+&kr4_rpmsg {
+	status = "disabled";
+};
+
+&dsi {
+	status = "disabled";
+};
+
+/delete-node/ &vo0_out_dp;
+/delete-node/ &dp_in_vo0;
+
+&hdmi {
+	status = "okay";
+
+	ports {
+		hdmi_in: port@0 {
+			reg = <0>;
+			hdmi_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_hdmi>;
+			};
+		};
+	};
+};
+
+&vo0 {
+	status = "okay";
+
+	vo0_out: port {
+		vo0_out_hdmi: endpoint {
+			remote-endpoint = <&hdmi_in_vo0>;
+		};
+	};
+};
+
+&vo1 {
+	status = "disabled";
+};

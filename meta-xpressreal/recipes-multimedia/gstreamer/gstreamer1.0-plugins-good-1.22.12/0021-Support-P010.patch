@@ -2,6 +2,8 @@ From 8fa7fc8372b1425aafd262759e2f746b6afd379b Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 21 Jul 2025 10:06:57 +0800
 Subject: [PATCH 1/1] Support P010
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 ---
  sys/v4l2/ext/videodev2.h | 1 +

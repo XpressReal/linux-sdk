@@ -1,17 +1,19 @@
-From 9bfdbf2465b1a06b5b1f09fd7ecee1e6ee9a02fe Mon Sep 17 00:00:00 2001
-From: hayward_ling <hayward_ling@realtek.com>
-Date: Fri, 30 Jan 2026 16:39:35 +0800
+From 38a9bb6e45c92f3ccc9139585807acbfc144ed04 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 14 Apr 2026 05:54:11 -0400
 Subject: [PATCH] weston avoid background transparent sw cursor trailing
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  compositor/main.c             | 10 ++++++++++
  include/libweston/libweston.h |  2 ++
- libweston/compositor.c        |  6 ++++++
- 3 files changed, 18 insertions(+)
+ libweston/compositor.c        |  8 +++++++-
+ 3 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/compositor/main.c b/compositor/main.c
-index 2afe62d..b159823 100644
+index ed35dba..c5e5ab8 100644
 --- a/compositor/main.c
 +++ b/compositor/main.c
 @@ -3039,6 +3039,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
@@ -22,7 +24,7 @@ index 2afe62d..b159823 100644
  
  	wet->drm_use_current_mode = false;
  
-@@ -3085,6 +3086,15 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
+@@ -3084,6 +3085,15 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
  	weston_config_section_get_bool(section, "transparent-fade-layer", &c->transparent_fade_layer, false);
  	weston_config_section_get_bool(section, "gbm-afbc", &c->gbm_afbc, false);
  	weston_config_section_get_bool(section, "ui-hole-punch", &c->ui_hole_punch, true);
@@ -39,10 +41,10 @@ index 2afe62d..b159823 100644
  	if (without_input)
  		c->require_input = !without_input;
 diff --git a/include/libweston/libweston.h b/include/libweston/libweston.h
-index 28e0a77..50795cf 100644
+index 60f1f12..f03c305 100644
 --- a/include/libweston/libweston.h
 +++ b/include/libweston/libweston.h
-@@ -1528,6 +1528,8 @@ struct weston_compositor {
+@@ -1531,6 +1531,8 @@ struct weston_compositor {
  	bool full_damage;
  	bool ui_hole_punch;
  	bool default_max_mode;
@@ -52,22 +54,25 @@ index 28e0a77..50795cf 100644
  
  struct weston_solid_buffer_values {
 diff --git a/libweston/compositor.c b/libweston/compositor.c
-index b33de19..fdf29ce 100644
+index 6139a69..6ece48b 100644
 --- a/libweston/compositor.c
 +++ b/libweston/compositor.c
-@@ -3485,6 +3485,12 @@ weston_output_repaint(struct weston_output *output)
- 				weston_view_move_to_layer (view_rtk_video, &layer_bg->view_list);
- 			}
- 		}
-+
+@@ -3440,8 +3440,14 @@ weston_output_repaint(struct weston_output *output)
+ 	TL_POINT(ec, "core_repaint_begin", TLP_OUTPUT(output), TLP_END);
+ 
+ 	/* Rebuild the surface list and update surface transforms up front. */
+-	if (ec->view_list_needs_rebuild)
++	if (ec->view_list_needs_rebuild) {
 +		if (ec->use_sw_cursor && ec->bg_transparent) {
 +			// background transparent always repaint full to avoid sw_cursor trailing
 +			weston_output_damage(output);
 +		}
 +
  		weston_compositor_build_view_list(ec);
- 	}
++	}
  
+ 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
+ 			 z_order_link) {
 -- 
-2.45.2
+2.34.1
 

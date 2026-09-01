@@ -1,0 +1,42 @@
+From d488490abdf2a2832fd7ce97bce4955c1026f15f Mon Sep 17 00:00:00 2001
+From: Daniel Golle <daniel@makrotopia.org>
+Date: Tue, 30 Sep 2025 03:20:56 +0300
+Subject: [PATCH 23/38] mtd: spinand: set bitflip_threshold to 75% of ECC
+ strength
+
+Reporting an unclean read from SPI-NAND only when the maximum number
+of correctable bitflip errors has been hit seems a bit late.
+UBI LEB scrubbing, which depends on the lower MTD device reporting
+correctable bitflips, then only kicks in when it's almost too late.
+
+Set bitflip_threshold to 75% of the ECC strength, which is also the
+default for raw NAND.
+
+This is a port of linux commit
+1824520e7477 (mtd: spinand: set bitflip_threshold to 75% of ECC strength)
+
+Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/2117e387260b0a96f95b8e1652ff79e0e2d71d53.1723427450.git.daniel@makrotopia.org
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index b5daab21743..2a2ab664c2c 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1291,6 +1291,7 @@ static int spinand_init(struct spinand_device *spinand)
+ 	/* Propagate ECC information to mtd_info */
+ 	mtd->ecc_strength = nanddev_get_ecc_conf(nand)->strength;
+ 	mtd->ecc_step_size = nanddev_get_ecc_conf(nand)->step_size;
++	mtd->bitflip_threshold = DIV_ROUND_UP(mtd->ecc_strength * 3, 4);
+ 
+ 	ret = spinand_create_dirmaps(spinand);
+ 	if (ret) {
+-- 
+2.47.0
+

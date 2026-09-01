@@ -12,6 +12,10 @@
 / {
 	compatible = "realtek,phantom", "realtek,rtd1501s";
 	model = "Realtek Phantom EVB (8GB)";
+
+	config {
+		u-boot,spl-payload-offset = <0x100000>; /* @ 1MB */
+	};
 };
 
 &soc {
@@ -29,6 +33,14 @@
 &uart0 {
 	bootph-all;
 	status = "okay";
+};
+
+&nand_flash {
+	bootph-all;
+};
+
+&spi_nand_flash {
+	bootph-all;
 };
 
 &nor_flash {

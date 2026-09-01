@@ -1,0 +1,18 @@
+# Boot-time configuration read by boot.scr (U-Boot "env import -t" text
+# format: one "name=value" per line, '#' starts a comment).
+#
+# overlays=<name> [<name> ...]
+#   Device tree overlays to apply, in order. Each name maps to a FIT
+#   configuration of the same name already built into yocto.itb (the
+#   overlay dtbo is embedded in the FIT at build time, not read from a
+#   separate file on this partition) — boot.scr selects it by chaining
+#   "#<name>" onto the base FIT config and letting u-boot's own FIT
+#   overlay support (bootm addr#base#overlay) apply it. Available overlays:
+#     dsi-7inch-td1         Raspberry Pi Touch Display 1 (7" 800x480)
+#     dsi-ili9881-7inch     Raspberry Pi Touch Display 2 (7" 720x1280)
+#   The base device tree ships no panel; pick one overlay or the DSI
+#   output stays unconfigured (no display).
+#
+# Examples:
+overlays=dsi-7inch-td1
+#overlays=dsi-ili9881-7inch

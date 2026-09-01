@@ -1,0 +1,276 @@
+From 6a0e81b1712ad17c4af2f1fa1ae2e7c61cdfeed6 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 17 Oct 2023 14:27:30 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: use new dwc3-rtk device
+ node
+
+We use new upstream dwc3-rtk driver, so updated the dts to new device node.
+
+Change-Id: I32e9418f796321ee94c7bf058e5b8112a6db98e7
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ .../boot/dts/realtek/rtd1315c-arcreactor.dtsi |   4 +-
+ .../boot/dts/realtek/rtd1315c-morgan.dtsi     |   6 +-
+ .../boot/dts/realtek/rtd1315c-repulsor.dtsi   |   4 +-
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 137 +++++++-----------
+ 4 files changed, 59 insertions(+), 92 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+index 574e992656bf4..b9871d42cb9f7 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-arcreactor.dtsi
+@@ -436,13 +436,11 @@ &usb_port2_usb3phy {
+ 
+ &usb_port2 {
+ 	status = "disabled";
+-	disable_usb3;
+ 
+-	dwc3_u3drd@50000 {
++	dwc3@50000 {
+ 		usb-phy = <&usb_port2_usb2phy>;
+ 		phys = <&usb_port2_usb2phy>;
+ 		phy-names = "usb2-phy";
+-		snps,dev_force_20_clk_for_30_clk;
+ 		maximum-speed = "high-speed";
+ 	};
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+index 4337c71fa64b5..181f280e098ff 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-morgan.dtsi
+@@ -433,15 +433,11 @@ &usb_port2_usb3phy {
+ 
+ &usb_port2 {
+ 	status = "okay";
+-	disable_usb3;
+ 
+-	boot_check_time = <30000>; /* ms (At boot Device switch Host time) */
+-
+-	dwc3_u3drd@50000 {
++	dwc3@50000 {
+ 		usb-phy = <&usb_port2_usb2phy>;
+ 		phys = <&usb_port2_usb2phy>;
+ 		phy-names = "usb2-phy";
+-		snps,dev_force_20_clk_for_30_clk;
+ 		maximum-speed = "high-speed";
+ 	};
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+index c7ad01bc3928f..4f29c6a7d5a7d 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-repulsor.dtsi
+@@ -403,13 +403,11 @@ &usb_port2_usb3phy {
+ 
+ &usb_port2 {
+ 	status = "okay";
+-	disable_usb3;
+ 
+-	dwc3_u3drd@50000 {
++	dwc3@50000 {
+ 		usb-phy = <&usb_port2_usb2phy>;
+ 		phys = <&usb_port2_usb2phy>;
+ 		phy-names = "usb2-phy";
+-		snps,dev_force_20_clk_for_30_clk;
+ 		maximum-speed = "high-speed";
+ 	};
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index 5fe200e20a4be..aea7f7edb8e03 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -92,7 +92,7 @@ &usb_manager {
+ };
+ 
+ &usb_manager {
+-	usb_port0_usb2phy: usb_port0_usb2phy@13214 {
++	usb_port0_usb2phy: usb-phy@13214 {
+ 		compatible = "realtek,rtd1619b-usb2phy";
+ 		reg = <0x13214 0x4>, <0x28280 0x4>;
+ 		#phy-cells = <0>;
+@@ -104,15 +104,31 @@ usb_port0_usb2phy: usb_port0_usb2phy@13214 {
+ 		realtek,driving-level = <0x12>;
+ 	};
+ 
+-	usb_port0: usb_port0@13200 {
+-		compatible = "realtek,dwc3", "syscon", "realtek,rtd-dwc3";
++	usb_port0: usb-port0@13200 {
++		compatible = "realtek,rtd-dwc3";
+ 		reg = <0x13200 0x200>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
++		status = "disabled";
++
++		dwc3@20000 {
++			compatible = "snps,dwc3";
++			reg = <0x20000 0x9000>;
++			interrupts = <0 95 4>;
++			usb-phy = <&usb_port0_usb2phy>;
++			phys = <&usb_port0_usb2phy>;
++			phy-names = "usb2-phy";
++			dr_mode = "otg"; /* otg, host, peripheral*/
++			usb-role-switch;
++			role-switch-default-mode = "host"; /* host, peripheral */
++			snps,dis_u2_susphy_quirk; // Disable u2phy suspend for drd
++			snps,dis-u2-freeclk-exists-quirk; // Fixed u2drd host die issue
++			snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
++		};
+ 	};
+ 
+-	usb_port1_usb2phy: usb_port1_usb2phy@13c14 {
++	usb_port1_usb2phy: usb-phy@13c14 {
+ 		compatible = "realtek,rtd1619b-usb2phy";
+ 		reg = <0x13c14 0x4>, <0x31280 0x4>;
+ 		#phy-cells = <0>;
+@@ -123,15 +139,27 @@ usb_port1_usb2phy: usb_port1_usb2phy@13c14 {
+ 		realtek,driving-level = <0x11>;
+ 	};
+ 
+-	usb_port1: usb_port1@13c00 {
+-		compatible = "realtek,dwc3", "syscon" , "realtek,rtd-dwc3";
+-		reg = <0x13c00 0x200>;
++	usb_port1: usb-port1@13c00 {
++		compatible = "realtek,rtd-dwc3";
++		reg = <0x13c00 0x140>, <0x13d60 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
++		status = "disabled";
++
++		dwc3@29000 {
++			compatible = "snps,dwc3";
++			reg = <0x29000 0x9000>;
++			interrupts = <0 21 4>;
++			usb-phy = <&usb_port1_usb2phy>;
++			phys = <&usb_port1_usb2phy>;
++			phy-names = "usb2-phy";
++			dr_mode = "host"; /*only host*/
++			snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
++		};
+ 	};
+ 
+-	usb_port2_usb2phy: usb_port2_usb2phy@13e14 {
++	usb_port2_usb2phy: usb-phy@13e14 {
+ 		compatible = "realtek,rtd1619b-usb2phy";
+ 		reg = <0x13e14 0x4>, <0x58280 0x4>;
+ 		#phy-cells = <0>;
+@@ -142,7 +170,7 @@ usb_port2_usb2phy: usb_port2_usb2phy@13e14 {
+ 		realtek,driving-level = <0x11>;
+ 	};
+ 
+-	usb_port2_usb3phy: usb_port2_usb3phy@13e10 {
++	usb_port2_usb3phy: usb-phy@13e10 {
+ 		compatible = "realtek,rtd1619b-usb3phy";
+ 		reg = <0x13e10 0x4>;
+ 		#phy-cells = <0>;
+@@ -153,12 +181,28 @@ usb_port2_usb3phy: usb_port2_usb3phy@13e10 {
+ 		realtek,amplitude-control-fine-tuning = <0xcfaa>;
+ 	};
+ 
+-	usb_port2: usb_port2@13e00 {
+-		compatible = "realtek,dwc3", "syscon" , "realtek,rtd-dwc3";
+-		reg = <0x13e00 0x200>;
++	usb_port2: usb-port2@13e00 {
++		compatible = "realtek,rtd-dwc3";
++		reg = <0x13e00 0x140>, <0x13f60 0x4>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
++		status = "disabled";
++
++		dwc3@50000 {
++			compatible = "snps,dwc3";
++			reg = <0x50000 0x9000>;
++			interrupts = <0 94 4>;
++			usb-phy = <&usb_port2_usb2phy &usb_port2_usb3phy>;
++			phys = <&usb_port2_usb2phy &usb_port2_usb3phy>;
++			phy-names = "usb2-phy", "usb3-phy";
++			dr_mode = "otg"; /* otg, host, peripheral*/
++			usb-role-switch;
++			role-switch-default-mode = "peripheral"; /* host, peripheral*/
++			snps,dis_u2_susphy_quirk; // Disable u2phy suspend for drd
++			snps,parkmode-disable-ss-quirk; // disable usb3.0 park mode
++			snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
++		};
+ 	};
+ 
+ 	type_c: type_c@7220 {
+@@ -170,75 +214,6 @@ type_c: type_c@7220 {
+ 	};
+ };
+ 
+-&usb_port0 {
+-	enable_l4icg;
+-	realtek,l4icg_quirk;
+-	drd_mode;
+-	rtk,desc_r2w_multi_disable;
+-	status = "disabled";
+-
+-	port0_dwc3: dwc3_u2drd@20000 {
+-		compatible = "synopsys,dwc3", "syscon";
+-		reg = <0x20000 0x9000>;
+-		interrupts = <0 95 4>;
+-		usb-phy = <&usb_port0_usb2phy>;
+-		phys = <&usb_port0_usb2phy>;
+-		phy-names = "usb2-phy";
+-		dr_mode = "otg"; /* otg, host, peripheral*/
+-		usb-role-switch;
+-		role-switch-default-mode = "host"; /* host, peripheral */
+-		snps,dis_u2_susphy_quirk; // Disable u2phy suspend for drd
+-		snps,dis-u2-freeclk-exists-quirk; // Fixed u2drd host die issue
+-		snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
+-
+-		status = "okay";
+-	};
+-};
+-
+-&usb_port1 {
+-	enable_l4icg;
+-	rtk,desc_r2w_multi_disable;
+-	status = "disabled";
+-
+-	port1_dwc3: dwc3_u2host@29000 {
+-		compatible = "synopsys,dwc3", "syscon";
+-		reg = <0x29000 0x9000>;
+-		interrupts = <0 21 4>;
+-		usb-phy = <&usb_port1_usb2phy>;
+-		phys = <&usb_port1_usb2phy>;
+-		phy-names = "usb2-phy";
+-		dr_mode = "host"; /*only host*/
+-		snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
+-
+-		status = "okay";
+-	};
+-};
+-
+-&usb_port2 {
+-	enable_l4icg;
+-	drd_mode;
+-	rtk,desc_r2w_multi_disable;
+-	boot_check_time = <(-1)>; /*ms (At boot Device switch Host time)*/
+-	status = "disabled";
+-
+-	port2_dwc3: dwc3_u3drd@50000 {
+-		compatible = "synopsys,dwc3", "syscon";
+-		reg = <0x50000 0x9000>;
+-		interrupts = <0 94 4>;
+-		usb-phy = <&usb_port2_usb2phy &usb_port2_usb3phy>;
+-		phys = <&usb_port2_usb2phy &usb_port2_usb3phy>;
+-		phy-names = "usb2-phy", "usb3-phy";
+-		dr_mode = "otg"; /* otg, host, peripheral*/
+-		usb-role-switch;
+-		role-switch-default-mode = "peripheral"; /* host, peripheral*/
+-		snps,dis_u2_susphy_quirk; // Disable u2phy suspend for drd
+-		snps,parkmode-disable-ss-quirk; // disable usb3.0 park mode
+-		snps,parkmode-disable-hs-quirk; // disable usb2.0 park mode
+-
+-		status = "okay";
+-	};
+-};
+-
+ &type_c {
+ 	interrupts = <0 60 4>;
+ 	//debug; /*to enable debug log*/
+-- 
+2.47.0
+

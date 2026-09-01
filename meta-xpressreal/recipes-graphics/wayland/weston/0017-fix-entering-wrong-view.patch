@@ -1,15 +1,17 @@
-From 9abd6a3e382c7540fba026e1cd655215286d4d1e Mon Sep 17 00:00:00 2001
+From d6e0ca70444227c67dc2dc65012fc407e5f00df6 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Sun, 6 Apr 2025 21:16:01 -0400
+Date: Tue, 14 Apr 2026 03:56:11 -0400
 Subject: [PATCH] weston: fix entering wrong view
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/state-propose.c | 13 ++++++++++++-
  1 file changed, 12 insertions(+), 1 deletion(-)
 
 diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
-index 8ac7f2d..6bef779 100644
+index a1c01ab..254b26f 100644
 --- a/libweston/backend-drm/state-propose.c
 +++ b/libweston/backend-drm/state-propose.c
 @@ -739,8 +739,19 @@ drm_output_propose_state(struct weston_output *output_base,

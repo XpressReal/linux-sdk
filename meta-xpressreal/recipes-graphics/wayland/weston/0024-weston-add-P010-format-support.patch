@@ -1,18 +1,20 @@
-From dcc7b31530620b1c40447d07f69d5f6a520a4d83 Mon Sep 17 00:00:00 2001
+From 0c182fe106122eb1cdddbfffd94b71a0eb63f044 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Mon, 21 Jul 2025 22:53:27 -0400
+Date: Tue, 14 Apr 2026 04:30:33 -0400
 Subject: [PATCH] weston: add P010 format support
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/renderer-gl/gl-renderer.c | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/libweston/renderer-gl/gl-renderer.c b/libweston/renderer-gl/gl-renderer.c
-index b94be5a..fbd96a6 100644
+index e922e0a..a2ce29d 100644
 --- a/libweston/renderer-gl/gl-renderer.c
 +++ b/libweston/renderer-gl/gl-renderer.c
-@@ -4054,6 +4054,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
+@@ -4047,6 +4047,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
  	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
  	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
  	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRA8888);

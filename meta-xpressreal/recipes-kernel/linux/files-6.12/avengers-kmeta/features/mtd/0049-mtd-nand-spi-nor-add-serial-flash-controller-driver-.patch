@@ -1,0 +1,40 @@
+From 69639f0eedd55e6f345f7120f619818249057ea6 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 11:04:19 +0800
+Subject: [PATCH 49/73] mtd: nand: spi-nor: add serial flash controller driver
+ for Realtek DHC SoCs
+
+Change-Id: I4d06163184445ddaafc051e6e257bc9283b54f79
+---
+ drivers/mtd/spi-nor/Kconfig  | 7 +++++++
+ drivers/mtd/spi-nor/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/mtd/spi-nor/Kconfig b/drivers/mtd/spi-nor/Kconfig
+index 24cd25de2b8b7..9b212eb1c4b53 100644
+--- a/drivers/mtd/spi-nor/Kconfig
++++ b/drivers/mtd/spi-nor/Kconfig
+@@ -70,4 +70,11 @@ endchoice
+ 
+ source "drivers/mtd/spi-nor/controllers/Kconfig"
+ 
++config SPI_RTK_SFC
++	tristate "Realtek SPI-NOR Flash Controller(SFC)"
++	depends on ARCH_REALTEK
++	depends on HAS_IOMEM && HAS_DMA
++	help
++	  This enables support for Realtek SPI-NOR flash controller.
++
+ endif # MTD_SPI_NOR
+diff --git a/drivers/mtd/spi-nor/Makefile b/drivers/mtd/spi-nor/Makefile
+index 5dd9c35f6b6f8..565049f265202 100644
+--- a/drivers/mtd/spi-nor/Makefile
++++ b/drivers/mtd/spi-nor/Makefile
+@@ -18,3 +18,4 @@ spi-nor-$(CONFIG_DEBUG_FS)	+= debugfs.o
+ obj-$(CONFIG_MTD_SPI_NOR)	+= spi-nor.o
+ 
+ obj-$(CONFIG_MTD_SPI_NOR)	+= controllers/
++obj-$(CONFIG_SPI_RTK_SFC)	+= rtk-sfc.o
+-- 
+2.47.0
+

@@ -21,16 +21,6 @@ index bf7e8b129b9f..33b224c8dcd7 100644
  	{ .layer_nr = VO_VIDEO_PLANE_V1,
  	  .type = DRM_PLANE_TYPE_OVERLAY,
  	  .plane_order = FIRST_DISPLAY_OVERLAY },
-@@ -763,9 +760,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
- 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
- 	  .type = DRM_PLANE_TYPE_PRIMARY,
- 	  .plane_order = FIRST_DISPLAY_PRIMARY },
--	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
--	  .type = DRM_PLANE_TYPE_CURSOR,
--	  .plane_order = FIRST_DISPLAY_CURSOR },
- 	{ .layer_nr = VO_VIDEO_PLANE_V1,
- 	  .type = DRM_PLANE_TYPE_OVERLAY,
- 	  .plane_order = FIRST_DISPLAY_OVERLAY },
 @@ -795,9 +789,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_ext[] = {
  	{ .layer_nr = VO_VIDEO_PLANE_SUB1,
  	  .type = DRM_PLANE_TYPE_PRIMARY,
@@ -41,16 +31,15 @@ index bf7e8b129b9f..33b224c8dcd7 100644
  	{ .layer_nr = VO_VIDEO_PLANE_V2,
  	  .type = DRM_PLANE_TYPE_OVERLAY,
  	  .plane_order = SECOND_DISPLAY_OVERLAY },
-@@ -824,9 +815,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
- 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+@@ -824,7 +815,7 @@ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+ 
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
++	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
  	  .type = DRM_PLANE_TYPE_PRIMARY,
  	  .plane_order = THIRD_DISPLAY_PRIMARY },
--	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
--	  .type = DRM_PLANE_TYPE_CURSOR,
--	  .plane_order = THIRD_DISPLAY_CURSOR },
  };
- #else
- static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
 -- 
 2.34.1
 

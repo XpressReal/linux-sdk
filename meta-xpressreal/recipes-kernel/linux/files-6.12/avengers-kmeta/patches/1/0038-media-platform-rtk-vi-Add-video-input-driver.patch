@@ -1,0 +1,36 @@
+From 0ffe8a362c5ff0eb64de76887897328edbc9a1d5 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 22:24:34 +0800
+Subject: [PATCH 38/73] media: platform: rtk-vi: Add video input driver
+
+Change-Id: I054ec865a8a3e36d0b115fbeb08ef25271a27df0
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 57fb0dfd644c0..6c7b1970ce0bf 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -91,4 +91,5 @@ source "drivers/media/platform/via/Kconfig"
+ source "drivers/media/platform/xilinx/Kconfig"
+ source "drivers/media/platform/rtk_dsi/Kconfig"
+ source "drivers/media/platform/rtk_tpdemux/Kconfig"
++source "drivers/media/platform/rtk-vi/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 0842005e9388b..b30d248a018cb 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -34,6 +34,7 @@ obj-y += via/
+ obj-y += xilinx/
+ obj-y += rtk_dsi/
+ obj-y += rtk_tpdemux/
++obj-y += rtk-vi/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

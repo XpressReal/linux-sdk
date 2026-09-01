@@ -1,0 +1,33 @@
+From f970d2f6a063f5a8958bc2f37c25782ecfd44193 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Mon, 1 Jun 2026 16:34:47 +0800
+Subject: [PATCH] mm/cma: only allow cma_alloc() to use CMA memory
+
+- improve cma_alloc() performance.
+- less memory usage on application and file cache.
+---
+ mm/page_alloc.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 124ab9324610..21fbe7d62417 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -3778,14 +3778,6 @@ alloc_flags_nofragment(struct zone *zone, gfp_t gfp_mask)
+ static inline unsigned int current_alloc_flags(gfp_t gfp_mask,
+ 					unsigned int alloc_flags)
+ {
+-#ifdef CONFIG_CMA
+-	unsigned int pflags = current->flags;
+-
+-	if (!(pflags & PF_MEMALLOC_NOCMA) &&
+-			gfp_migratetype(gfp_mask) == MIGRATE_MOVABLE)
+-		alloc_flags |= ALLOC_CMA;
+-
+-#endif
+ 	return alloc_flags;
+ }
+ 
+-- 
+2.43.0
+

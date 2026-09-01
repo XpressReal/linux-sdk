@@ -1,0 +1,43 @@
+From af1acebaf31ded6f03a220be549b337626e357b6 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:16:49 +0800
+Subject: [PATCH 57/73] power: supply: add simple charger driver for Realtek
+ DHC SoCs
+
+Change-Id: Ic763f041c8a7937462ed4447a846fc4831f8acde
+---
+ drivers/power/supply/Kconfig  | 6 ++++++
+ drivers/power/supply/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index bcfa63fb9f1e2..81a1f3db192a1 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -1,3 +1,4 @@
++
+ # SPDX-License-Identifier: GPL-2.0-only
+ menuconfig POWER_SUPPLY
+ 	bool "Power supply class support"
+@@ -1018,4 +1019,9 @@ config FUEL_GAUGE_MM8013
+ 	  the state of charge, temperature, cycle count, actual and design
+ 	  capacity, etc.
+ 
++config CHARGER_RTD1XXX
++	tristate "Simple charger driver for Realtek DHC SoCs"
++	help
++	  Simple charger driver for Realtek DHC SoCs.
++
+ endif # POWER_SUPPLY
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+index 8dcb415453171..70d775fd21eaf 100644
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -117,3 +117,4 @@ obj-$(CONFIG_CHARGER_SURFACE)	+= surface_charger.o
+ obj-$(CONFIG_BATTERY_UG3105)	+= ug3105_battery.o
+ obj-$(CONFIG_CHARGER_QCOM_SMB2)	+= qcom_pmi8998_charger.o
+ obj-$(CONFIG_FUEL_GAUGE_MM8013)	+= mm8013.o
++obj-$(CONFIG_CHARGER_RTD1XXX)	+= rtd1xxx_ac.o
+-- 
+2.47.0
+

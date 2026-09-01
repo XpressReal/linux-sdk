@@ -1,0 +1,27 @@
+define KFEATURE_DESCRIPTION "Realtek USB features based on DWC3"
+
+patch 205-add-usb-phy-notify-port-status-API.patch
+patch 206-add-realtek-usb-quirks-device-list.patch
+patch 207-01-BACKPORT-usb-dwc3-core-add-support-for-realtek-SoCs.patch
+patch 207-02-BACKPORT-usb-dwc3-core-configure-TX-RX-threshold-for.patch
+patch 207-03-BACKPORT-extcon-add-Realtek-DHC-RTD-SoC-Type-C-driver.patch
+patch 208-01-FEATURE-arm64-dts-realtek-stark-use-new-dwc3-rtk-dev.patch
+patch 208-02-FEATURE-arm64-dts-realtek-stark-use-new-realtek-type.patch
+patch 208-03-FEATURE-arm64-dts-realtek-stark-modify-the-rtk_usb_m.patch
+patch 208-04-FEATURE-arm64-dts-realtek-stark-usb-fix-the-reg-prop.patch
+patch 208-05-BUG_FIX-arm64-dts-realtek-stark-usb-add-the-compatib.patch
+patch 208-06-FEATURE-arm64-dts-realtek-stark-usb-move-clcok-reset.patch
+patch 208-07-FEATURE-arm64-dts-realtek-stark-move-the-properties-.patch
+patch 208-08-FEATURE-arm64-dts-realtek-stark-remove-the-ldo-enabl.patch
+patch 208-09-FEATURE-arm64-dts-realtek-stark-remove-the-TP1CK_MEM.patch
+patch 208-10-FEATURE-arm64-dts-realtek-stark-remove-unused-node-u.patch
+patch 827-add-usb-patch-for-Realtek-DHC-SoCs.patch
+patch 828-add-Realtek-DHC-RTD-SoC-dwc3-glue-layer-driver.patch
+patch 830-01-usb-misc-add-the-ftdi-spi-driver.patch
+patch 830-02-usb-misc-add-an-USB-device-driver-usbperf.patch
+patch 831-01-usb-core-add-an-usb-port-monitor-driver.patch
+patch 831-02-usb-core-add-an-usb-port-run-test-mode-driver.patch
+patch 832-FROMGIT-phy-realtek-usb-Add-driver-for-the-Realtek-SoCs.patch
+patch 833-Add-Realtek-ehci-and-ohci-host-support.patch
+
+kconf hardware usb.cfg

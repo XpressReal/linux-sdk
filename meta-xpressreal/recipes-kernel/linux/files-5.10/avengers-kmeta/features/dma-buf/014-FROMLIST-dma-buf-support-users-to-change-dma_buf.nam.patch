@@ -1,0 +1,125 @@
+From 03490ea53ff415f2ec064666ec10a0c06978c922 Mon Sep 17 00:00:00 2001
+From: Guangming Cao <Guangming.Cao@mediatek.com>
+Date: Wed, 1 Sep 2021 20:41:54 +0800
+Subject: [PATCH] FROMLIST: dma-buf: support users to change dma_buf.name
+
+User space user can call DMA_BUF_SET_NAME to set dma_buf.name,
+but until now we can't set it at kernel side, it's difficult to debug
+kernel dma_buf users.
+
+There are some kernel users of dma_heap also need it at MTK,
+such as camera, it's also have a allocator for other camera part,
+unlike most case in userspace, it's in kernel.
+For debug buffer owner, we need add it to let it can set debug name
+for each dmabuf, so that we can know dmabuf owner by dma_buf.name.
+
+Bug: 193623372
+Link: https://lore.kernel.org/patchwork/patch/1459719/
+Change-Id: Iac5c6b8838b9b4d976f4525d000e17a3abab94f6
+Signed-off-by: Guangming Cao <Guangming.Cao@mediatek.com>
+---
+ drivers/dma-buf/dma-buf.c | 52 +++++++++++++++++++++++++++++----------
+ include/linux/dma-buf.h   |  1 +
+ 2 files changed, 40 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/dma-buf/dma-buf.c b/drivers/dma-buf/dma-buf.c
+index 4a537f8793ef..583b2b487701 100644
+--- a/drivers/dma-buf/dma-buf.c
++++ b/drivers/dma-buf/dma-buf.c
+@@ -349,6 +349,25 @@ static __poll_t dma_buf_poll(struct file *file, poll_table *poll)
+ 	return events;
+ }
+ 
++static long _dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
++{
++	long ret = 0;
++
++	dma_resv_lock(dmabuf->resv, NULL);
++	if (!list_empty(&dmabuf->attachments)) {
++		ret = -EBUSY;
++		goto out_unlock;
++	}
++	spin_lock(&dmabuf->name_lock);
++	kfree(dmabuf->name);
++	dmabuf->name = name;
++	spin_unlock(&dmabuf->name_lock);
++
++out_unlock:
++	dma_resv_unlock(dmabuf->resv);
++	return ret;
++}
++
+ /**
+  * dma_buf_set_name - Set a name to a specific dma_buf to track the usage.
+  * The name of the dma-buf buffer can only be set when the dma-buf is not
+@@ -364,7 +383,23 @@ static __poll_t dma_buf_poll(struct file *file, poll_table *poll)
+  * devices, return -EBUSY.
+  *
+  */
+-static long dma_buf_set_name(struct dma_buf *dmabuf, const char __user *buf)
++long dma_buf_set_name(struct dma_buf *dmabuf, const char *name)
++{
++	long ret = 0;
++	char *buf = kstrndup(name, DMA_BUF_NAME_LEN, GFP_KERNEL);
++
++	if (!buf)
++		return -ENOMEM;
++
++	ret = _dma_buf_set_name(dmabuf, buf);
++	if (ret)
++		kfree(buf);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(dma_buf_set_name);
++
++static long dma_buf_set_name_user(struct dma_buf *dmabuf, const char __user *buf)
+ {
+ 	char *name = strndup_user(buf, DMA_BUF_NAME_LEN);
+ 	long ret = 0;
+@@ -372,19 +407,10 @@ static long dma_buf_set_name(struct dma_buf *dmabuf, const char __user *buf)
+ 	if (IS_ERR(name))
+ 		return PTR_ERR(name);
+ 
+-	dma_resv_lock(dmabuf->resv, NULL);
+-	if (!list_empty(&dmabuf->attachments)) {
+-		ret = -EBUSY;
++	ret = _dma_buf_set_name(dmabuf, name);
++	if (ret)
+ 		kfree(name);
+-		goto out_unlock;
+-	}
+-	spin_lock(&dmabuf->name_lock);
+-	kfree(dmabuf->name);
+-	dmabuf->name = name;
+-	spin_unlock(&dmabuf->name_lock);
+ 
+-out_unlock:
+-	dma_resv_unlock(dmabuf->resv);
+ 	return ret;
+ }
+ 
+@@ -429,7 +455,7 @@ static long dma_buf_ioctl(struct file *file,
+ 
+ 	case DMA_BUF_SET_NAME_A:
+ 	case DMA_BUF_SET_NAME_B:
+-		return dma_buf_set_name(dmabuf, (const char __user *)arg);
++		return dma_buf_set_name_user(dmabuf, (const char __user *)arg);
+ 
+ 	default:
+ 		return -ENOTTY;
+diff --git a/include/linux/dma-buf.h b/include/linux/dma-buf.h
+index 153e800ac5f3..f007871d674e 100644
+--- a/include/linux/dma-buf.h
++++ b/include/linux/dma-buf.h
+@@ -610,6 +610,7 @@ int dma_buf_mmap(struct dma_buf *, struct vm_area_struct *,
+ 		 unsigned long);
+ void *dma_buf_vmap(struct dma_buf *);
+ void dma_buf_vunmap(struct dma_buf *, void *vaddr);
++long dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
+ int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
+ int dma_buf_get_uuid(struct dma_buf *dmabuf, uuid_t *uuid);
+ 
+-- 
+2.47.0
+

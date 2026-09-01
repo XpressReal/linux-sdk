@@ -1,0 +1,15 @@
+define KFEATURE_DESCRIPTION "Patches not required in Android Common Kernel"
+
+# Paches included in android16-6.12-lts
+patch 0001-dma-buf-Sync-Android-dma-buf-patches-from-Google-and.patch
+patch 0002-BACKPORT-UPSTREAM-usb-typec-tcpm-Add-support-for-par.patch
+patch 0003-UPSTREAM-usb-typec-tcpm-Add-support-for-sink-bc12-co.patch
+patch 0004-UPSTREAM-usb-typec-tcpm-Add-support-for-parsing-pd-r.patch
+patch 0005-UPSTREAM-usb-typec-tcpm-Add-new-AMS-for-Get_Revision.patch
+
+patch 832-ANDROID-Define-use-MIGRATE_FALLBACKS.patch
+patch 833-ANDROID-cma-redirect-page-allocation-to-CMA.patch
+patch 834-ANDROID-mm-add-cma-pcp-list.patch
+patch 835-ANDROID-zram-allow-zram-to-allocate-CMA-pages.patch
+patch 836-ANDROID-fix-CONFIG_CMA-build.patch
+patch 837-ANDROID-cma-Change-restrict_cma_redirect-to-be-set-b.patch

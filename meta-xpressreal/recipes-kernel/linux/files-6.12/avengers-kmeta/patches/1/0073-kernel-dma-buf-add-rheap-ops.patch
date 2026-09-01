@@ -1,0 +1,26 @@
+From b6040d739494a06ec9944687eb61e8cc1c26574c Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 7 Apr 2026 00:10:26 -0400
+Subject: [PATCH] kernel: dma-buf: add rheap ops
+
+---
+ drivers/dma-buf/heaps/Kconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/dma-buf/heaps/Kconfig b/drivers/dma-buf/heaps/Kconfig
+index 082b11dfd560..b8234bfc5e79 100644
+--- a/drivers/dma-buf/heaps/Kconfig
++++ b/drivers/dma-buf/heaps/Kconfig
+@@ -16,7 +16,8 @@ config DMABUF_HEAPS_CMA
+ config DMABUF_HEAPS_REALTEK
+ 	tristate "DMA-BUF Realtek Heap"
+ 	depends on DMABUF_HEAPS && DMA_CMA
+-	select DMA_OPS
++	select DMA_OPS_HELPERS
++	select ARCH_HAS_DMA_OPS
+ 	help
+ 	  Choose this option to enable dma-buf Realtek heap. This heap is backed
+ 	  by the Contiguous Memory Allocator (CMA) & Reserved Memory for Realtek
+-- 
+2.34.1
+

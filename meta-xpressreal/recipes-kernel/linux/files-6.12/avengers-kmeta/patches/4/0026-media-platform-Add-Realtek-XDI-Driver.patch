@@ -1,0 +1,36 @@
+From 1e9050d226d5b120409256af6eb358857a2436a7 Mon Sep 17 00:00:00 2001
+From: Edgar Lee <cylee12@realtek.com>
+Date: Thu, 13 Nov 2025 15:51:32 +0800
+Subject: [PATCH 26/33] media: platform: Add Realtek XDI Driver
+
+Change-Id: I14a90905ffac0ac9b17a49ae2000594b5fd27a4a
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 2e3ce62814720..742997e36562d 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -95,4 +95,5 @@ source "drivers/media/platform/rtk-vi/Kconfig"
+ source "drivers/media/platform/rtk-mipi-csi/Kconfig"
+ source "drivers/media/platform/rtk_npp/Kconfig"
+ source "drivers/media/platform/rtk_dprx/Kconfig"
++source "drivers/media/platform/rtk-xdi/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 24ed2f366f03c..63733eb112fe9 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -38,6 +38,7 @@ obj-y += rtk-vi/
+ obj-y += rtk-mipi-csi/
+ obj-y += rtk_npp/
+ obj-y += rtk_dprx/
++obj-y += rtk-xdi/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

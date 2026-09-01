@@ -2,6 +2,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI:append = " \
 		file://001-dri-add-realtek_dri-support.patch \
+		file://002-mesa-add-prince-g310-support.patch \
 		file://drirc \
 		"
 

@@ -1,0 +1,95 @@
+From 1c8b71d991984bb7a0d8ef7bd40722aafadfb4b9 Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 24 Jun 2026 21:28:02 -0400
+Subject: [PATCH] using AFBC on ozone wayland
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ ui/gfx/linux/gbm_wrapper.cc | 48 ++++++++++++++++++++++++++++++++-----
+ 1 file changed, 42 insertions(+), 6 deletions(-)
+
+diff --git a/ui/gfx/linux/gbm_wrapper.cc b/ui/gfx/linux/gbm_wrapper.cc
+index 1b5d52cbb3..f508d4a3f4 100644
+--- a/ui/gfx/linux/gbm_wrapper.cc
++++ b/ui/gfx/linux/gbm_wrapper.cc
+@@ -27,7 +27,7 @@
+ #include "ui/gfx/linux/gbm_buffer.h"
+ #include "ui/gfx/linux/gbm_device.h"
+ #include "ui/gfx/linux/scoped_gbm_device.h"
+-
++#include <drm_fourcc.h>
+ #if !defined(MINIGBM)
+ #include <dlfcn.h>
+ #include <fcntl.h>
+@@ -36,6 +36,29 @@
+ #include "base/strings/stringize_macros.h"
+ #endif
+ 
++#define MODIFIER_MASK 0x0ff0000000000000
++#define RTK_AFBC_MASK DRM_FORMAT_MOD_ARM_AFBC(0)
++
++#define RTK_AFBC_MOD \
++    DRM_FORMAT_MOD_ARM_AFBC( \
++        AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 | AFBC_FORMAT_MOD_YTR \
++    )
++
++#define RTK_AFRC_CU16_MOD \
++    DRM_FORMAT_MOD_ARM_AFRC( \
++        AFRC_FORMAT_MOD_CU_SIZE_16 | AFRC_FORMAT_MOD_LAYOUT_SCAN \
++    )
++
++#define RTK_AFRC_CU24_MOD \
++    DRM_FORMAT_MOD_ARM_AFRC( \
++        AFRC_FORMAT_MOD_CU_SIZE_24 | AFRC_FORMAT_MOD_LAYOUT_SCAN \
++    )
++
++#define RTK_AFRC_CU32_MOD \
++    DRM_FORMAT_MOD_ARM_AFRC( \
++        AFRC_FORMAT_MOD_CU_SIZE_32 | AFRC_FORMAT_MOD_LAYOUT_SCAN \
++    )
++
+ namespace ui {
+ namespace gbm_wrapper {
+ namespace {
+@@ -318,20 +341,33 @@ class Device final : public ui::GbmDevice {
+     // of 1x1 BOs which are destroyed before creating the final BO creation used
+     // to instantiate the returned GbmBuffer.
+     gfx::Size size_for_verification =
+-#if BUILDFLAG(IS_LINUX)
+-        gfx::Size(1, 1);
+-#else
+         requested_size;
+-#endif
++
+     auto filtered_modifiers = GetFilteredModifiers(format, flags, modifiers);
+     struct gbm_bo* created_bo = nullptr;
+     bool valid_modifiers = false;
+ 
+     while (!valid_modifiers && !filtered_modifiers.empty()) {
+-      created_bo = gbm_bo_create_with_modifiers(
++      uint64_t rtk_modifier = DRM_FORMAT_MOD_LINEAR;
++      for (int i = 0; i < filtered_modifiers.size(); i++)
++      {
++        if ((filtered_modifiers[i] & MODIFIER_MASK) == RTK_AFBC_MASK) {
++          rtk_modifier = RTK_AFBC_MOD;
++          break;
++        }
++      }
++
++      if (rtk_modifier != DRM_FORMAT_MOD_LINEAR) {
++        created_bo = gbm_bo_create_with_modifiers(
++          device_.get(), size_for_verification.width(),
++          size_for_verification.height(), format, &rtk_modifier,
++          1);
++      } else {
++        created_bo = gbm_bo_create_with_modifiers(
+           device_.get(), size_for_verification.width(),
+           size_for_verification.height(), format, filtered_modifiers.data(),
+           filtered_modifiers.size());
++      }
+       if (!created_bo) {
+         return nullptr;
+       }
+-- 
+2.34.1
+

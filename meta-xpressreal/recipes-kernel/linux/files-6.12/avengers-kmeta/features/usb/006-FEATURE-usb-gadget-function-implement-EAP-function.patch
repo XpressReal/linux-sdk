@@ -1,0 +1,62 @@
+From 5963adf7dffcb3ce517fd73c1ff2139803824902 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Mon, 15 Sep 2025 14:36:32 +0800
+Subject: [PATCH 13/33] [FEATURE] usb: gadget: function: implement EAP function
+
+Implement EA Native Transport
+
+[PLATFORM] Kent
+[TEST] Kent
+[JIRA] AUT-2049
+
+Change-Id: I546c648e5a587e5eb5455c4008ec9cc9d28d5886
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ drivers/usb/gadget/Kconfig           | 10 ++++++++++
+ drivers/usb/gadget/function/Makefile |  2 ++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/usb/gadget/Kconfig b/drivers/usb/gadget/Kconfig
+index 0ffec6b2b36cb..d7f39f5c80e93 100644
+--- a/drivers/usb/gadget/Kconfig
++++ b/drivers/usb/gadget/Kconfig
+@@ -174,6 +174,9 @@ config USB_F_NCM
+ config USB_F_IAP
+ 	tristate
+ 
++config USB_F_EAP
++	tristate
++
+ config USB_F_ECM
+ 	tristate
+ 
+@@ -288,6 +291,13 @@ config USB_CONFIGFS_IAP
+ 	help
+ 	  USB gadget IAP support.
+ 
++config USB_CONFIGFS_EAP
++	tristate "EAP gadget"
++	depends on USB_CONFIGFS
++	select USB_F_EAP
++	help
++	  USB gadget EAP support.
++
+ config USB_CONFIGFS_ECM
+ 	bool "Ethernet Control Model (CDC ECM)"
+ 	depends on USB_CONFIGFS
+diff --git a/drivers/usb/gadget/function/Makefile b/drivers/usb/gadget/function/Makefile
+index ea6d7bdf88ab5..f4e922fbfb7c3 100644
+--- a/drivers/usb/gadget/function/Makefile
++++ b/drivers/usb/gadget/function/Makefile
+@@ -21,6 +21,8 @@ usb_f_ncm-y			:= f_ncm.o
+ obj-$(CONFIG_USB_F_NCM)		+= usb_f_ncm.o
+ usb_f_iap-y			:= f_iap.o
+ obj-$(CONFIG_USB_F_IAP)		+= usb_f_iap.o
++usb_f_eap-y			:= f_eap.o
++obj-$(CONFIG_USB_F_EAP)		+= usb_f_eap.o
+ usb_f_ecm-y			:= f_ecm.o
+ obj-$(CONFIG_USB_F_ECM)		+= usb_f_ecm.o
+ usb_f_phonet-y			:= f_phonet.o
+-- 
+2.47.0
+

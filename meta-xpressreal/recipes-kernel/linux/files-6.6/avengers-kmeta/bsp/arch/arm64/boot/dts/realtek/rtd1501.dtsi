@@ -343,10 +343,6 @@
 &usb_port0 {
 	realtek,power-gpio = <&gpio 63 GPIO_ACTIVE_LOW>;
 	status = "okay";
-
-	dwc3@20000 {
-		role-switch-default-mode = "host"; /* host, peripheral*/
-	};
 };
 
 &usb_port1 {
@@ -414,5 +410,17 @@
 };
 
 &watchdog {
+	status = "okay";
+};
+
+&CPU_SLEEP {
+	status = "okay";
+};
+
+&DSU_SLEEP {
+	status = "okay";
+};
+
+&systimer {
 	status = "okay";
 };

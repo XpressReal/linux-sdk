@@ -30,7 +30,9 @@
 MACHINE ??= "xpressreal-rtd1619b"
 #MACHINE ??= "badassium-rtd1315c"
 #MACHINE ??= "phantom-rtd1625-mini"
+#MACHINE ??= "phantom-vcodec-rtd1625"
 #MACHINE ??= "phantom-rtd1625"
+#MACHINE ??= "rose-rtd1635"
 
 #
 # Where to place downloads
@@ -264,6 +266,9 @@ MACHINE_FEATURES:append = " panfrost"
 
 # Enable rtk ui plus in qt environment
 #MACHINE_FEATURES:append = " rtk-ui-plus "
+
+# Enable Realtek boot logo support without virtual console
+#MACHINE_FEATURES:append = " drm bootlogo"
 
 # Ubuntu, Debian specific settings:
 # Use "bitbake debian-image" to generate either a Debian/Ubuntu image

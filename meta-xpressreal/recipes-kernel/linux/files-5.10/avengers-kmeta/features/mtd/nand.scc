@@ -1,0 +1,24 @@
+# Linux upstream fs/pstore patches
+patch 0001-pstore-zone-cap-the-maximum-device-size.patch
+patch 0002-pstore-blk-remove-un-register_pstore_blk.patch
+patch 0003-pstore-Move-kmsg_bytes-default-into-Kconfig.patch
+patch 0004-pstore-blk-Improve-failure-reporting.patch
+patch 0005-pstore-blk-Move-verify_size-macro-out-of-function.patch
+patch 0006-pstore-blk-Use-the-normal-block-device-I-O-path.patch
+patch 0007-pstore-blk-Fix-kerndoc-and-redundancy-on-blkdev-para.patch
+patch 0008-pstore-blk-Include-zone-in-pstore_device_info.patch
+patch 0009-Revert-mark-pstore-blk-as-broken.patch
+
+patch 400-Add-nand-flash-controller-driver.patch
+patch 401-Add-spi-nand-ecc-driver-for-kent.patch
+patch 402-backport-mtd-nand-from-kernel5.18-for-spi-nand.patch
+patch 403-mtd-spi-nand-Add-kernel-5.10-ECC-engine-support.patch
+patch 404-mtd-nand-spi-add-W25N01KV-support.patch
+patch 405-spi-nand-rtk-sn-skip-timeout-on-SPINAND_GET_FEATURE.patch
+patch 406-spi-nand-rtk-sn-return-rtknand-in-get_name.patch
+patch 407-mtd-nand-spi-register-_panic_write-to-mtd.patch
+patch 408-fs-pstore-support-pstore_blkdev-setup-in-bootargs.patch
+
+#kconf hardware nand.cfg
+kconf hardware snand.cfg
+kconf non-hardware pstore.cfg

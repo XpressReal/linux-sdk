@@ -1959,6 +1959,9 @@ struct video_transcode_picture_object {
 	unsigned int transferCharacteristics;
 	unsigned int video_full_range_flag;
 	unsigned int matrix_coefficients;
+
+	/*from 'TRA7' for V1 transcode new flow*/
+	unsigned int use_video_plane;
 };
 
 struct video_writeback_picture_object {

@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2022 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1315e-captainmarvel.dtsi"
+
+/ {
+	compatible = "realtek,captainmarvel", "realtek,rtd1315e";
+	model = "Realtek Captain Marvel EVB (3GB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x7ffc0000>,
+		      <0x80024000 0x080dc000>,
+		      <0x8a100000 0x0def0000>,
+		      <0x98700000 0x27900000>;
+	};
+
+	reserved-memory {
+		pcie_reserved: pcie_reserved {
+			size = <0x300000>;
+			alloc-ranges = <0xa0000000 0x0300000>;
+			no-map;
+		};
+	};
+};
+
+&cma_reserved_2 {
+	alloc-ranges=<0x00000000 0x60000000>;
+};

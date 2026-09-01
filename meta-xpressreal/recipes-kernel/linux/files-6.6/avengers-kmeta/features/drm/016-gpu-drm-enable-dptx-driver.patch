@@ -1,0 +1,253 @@
+From e1da3d962351b586aa32f736fa70859a7324d9d4 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Wed, 1 Apr 2026 18:31:01 +0800
+Subject: [PATCH] linux-6.6: drm: enable dptx driver
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_dptx.c     | 49 ++++++++++++++------------
+ drivers/gpu/drm/realtek/rtk_dptx.h     |  2 +-
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c |  8 +----
+ 3 files changed, 29 insertions(+), 30 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_dptx.c b/drivers/gpu/drm/realtek/rtk_dptx.c
+index 793eb5c6cccba..1c488875e3015 100644
+--- a/drivers/gpu/drm/realtek/rtk_dptx.c
++++ b/drivers/gpu/drm/realtek/rtk_dptx.c
+@@ -34,6 +34,7 @@
+ #include "rtk_dp_utils.h"
+ #include "rtk_dptx.h"
+ #include "rtk_dptx_phy.h"
++#include "rtk_drm_crtc.h"
+ 
+ #define to_rtk_dptx(x) container_of(x, struct rtk_dptx, x)
+ 
+@@ -187,7 +188,7 @@ static const struct drm_display_mode default_mode = {
+ 
+ void rtk_dptx14_update(struct rtk_dptx *dptx, u32 reg, u32 clear, u32 bits)
+ {
+-	unsigned int val;
++	unsigned int val = 0;
+ 
+ 	if (!dptx->dptx14_reg_base)
+ 		return;
+@@ -346,14 +347,13 @@ static int rtk_dptx_deinit_hw(struct rtk_dptx *dptx)
+ 	struct rtk_rpc_info *rpc_info = (dptx->rpc_info_vo == NULL) ?
+ 									 dptx->rpc_info : dptx->rpc_info_vo;
+ 	struct rpc_set_display_out_interface interface;
++	struct drm_connector *connector = &dptx->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 	int ret;
+ 	int mixer;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
+-	mixer = DISPLAY_INTERFACE_MIXER1;
+-#else
+ 	mixer = DISPLAY_INTERFACE_MIXER3;
+-#endif
+ 
+ 	interface.display_interface       = DISPLAY_INTERFACE_DP;
+ 	interface.width                   = mode->hdisplay;
+@@ -370,6 +370,9 @@ static int rtk_dptx_deinit_hw(struct rtk_dptx *dptx)
+ 
+ 
+ 	rtk_dptx_phy_disable_timing_gen(dptx);
++
++	rtk_crtc->change_tv_system(crtc);
++
+ 	return ret;
+ }
+ 
+@@ -442,7 +445,7 @@ static void rtk_dptx_set_bad_connector_link_status(struct rtk_dptx *dptx)
+ 	drm_modeset_unlock(&dev->mode_config.connection_mutex);
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static int rtk_dptx_get_link_status(struct rtk_dptx *dptx)
+ {
+ 	if (!dptx->connected)
+@@ -609,12 +612,12 @@ static void rtk_dptx_get_edid(struct rtk_dptx *dptx)
+ 	if (drm_edid_is_valid(edid)) {
+ 		kfree(dptx->edid);
+ 		dptx->edid = edid;
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 		/* DP Compliance Test 4.2.2.3 */
+ 		drm_dp_send_real_edid_checksum(&dptx->aux, edid->checksum);
+ #endif
+ 	} else {
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 		/* DP Compliance Test 4.2.2.6 */
+ 		if (connector->edid_corrupt)
+ 			drm_dp_send_real_edid_checksum(&dptx->aux, connector->real_edid_checksum);
+@@ -637,7 +640,7 @@ static void rtk_dptx_enc_mode_set(struct drm_encoder *encoder,
+ 	// dptx_set_sst_setting(dptx);
+ }
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static bool rtk_dptx_has_sink_count(struct rtk_dptx *dptx)
+ {
+ 	struct drm_connector *connector = &dptx->connector;
+@@ -758,7 +761,7 @@ static int rtk_dptx_read_dpcd(struct rtk_dptx *dptx)
+ {
+ 	int ret;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	struct drm_dp_aux *aux = &dptx->aux;
+ 	uint8_t downstream_ports[DP_MAX_DOWNSTREAM_PORTS];
+ 	uint8_t tmp;
+@@ -1164,14 +1167,13 @@ static void rtk_dptx_config_vo(struct rtk_dptx *dptx, struct drm_display_mode *m
+ 	struct rtk_rpc_info *rpc_info = (dptx->rpc_info_vo == NULL) ?
+ 									 dptx->rpc_info : dptx->rpc_info_vo;
+ 	struct rpc_set_display_out_interface interface;
++	struct drm_connector *connector = &dptx->connector;
++	struct drm_crtc *crtc = connector->state->crtc;
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
+ 	int ret;
+ 	int mixer;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
+-	mixer = DISPLAY_INTERFACE_MIXER1;
+-#else
+ 	mixer = DISPLAY_INTERFACE_MIXER3;
+-#endif
+ 
+ 	interface.display_interface       = DISPLAY_INTERFACE_DP;
+ 	interface.width                   = mode->hdisplay;
+@@ -1186,6 +1188,8 @@ static void rtk_dptx_config_vo(struct rtk_dptx *dptx, struct drm_display_mode *m
+ 	ret = rpc_set_out_interface(rpc_info, &interface);
+ 	if (ret)
+ 		DRM_ERROR("rpc_set_out_interface rpc fail\n");
++
++	rtk_crtc->change_tv_system(crtc);
+ }
+ 
+ static int rtk_dptx_init_hw(struct rtk_dptx *dptx, struct drm_display_mode *mode)
+@@ -1284,7 +1288,7 @@ static void rtk_dptx_enc_enable(struct drm_encoder *encoder)
+ 
+ 	dptx->bpc = rtk_dptx_get_bpc(dptx);
+ 	dptx->color_format = RTK_COLOR_FORMAT_RGB;
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (!dptx->is_autotest && !dptx->is_fallback_mode)
+ 		dptx->link_rate = rtk_dptx_change_link_rate_with_display_mode(dptx, mode);
+ #endif
+@@ -1293,7 +1297,7 @@ static void rtk_dptx_enc_enable(struct drm_encoder *encoder)
+ 	if (ret)
+ 		DRM_ERROR("dptx hw setting fail\n");
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	ret = rtk_dptx_get_link_status(dptx);
+ 	if (ret)
+ 		goto unlock;
+@@ -1438,7 +1442,7 @@ static const struct drm_encoder_helper_funcs rtk_dptx_encoder_helper_funcs = {
+ /* HPD */
+ static int rtk_dptx_handle_short_pulse(struct rtk_dptx *dptx)
+ {
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (rtk_dptx_short_pulse_need_retrain(dptx)) {
+ 		dev_info(dptx->dev, "dptx start retraining\n");
+ 		rtk_dptx_set_bad_connector_link_status(dptx);
+@@ -1676,7 +1680,7 @@ static enum drm_connector_status rtk_dptx_conn_detect
+ 		return connector_status_disconnected;
+ 	}
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	/* DP Compliance Test 4.2.2.7 */
+ 	if (rtk_dptx_get_sink_count(dptx) == 0) {
+ 		dev_info(dptx->dev, "dptx sink count is 0\n");
+@@ -1838,7 +1842,7 @@ static enum drm_mode_status rtk_dptx_conn_mode_valid
+ 	int max_rate;
+ 	int bpc;
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	if (dptx->is_fallback_mode || dptx->is_autotest) {
+ 		max_rate = dptx->link_rate * (int) dptx->lane_count;
+ 	} else {
+@@ -1894,7 +1898,7 @@ static struct drm_connector_helper_funcs rtk_dptx_connector_helper_funcs = {
+ 
+ int dptx_aux_isr(struct rtk_dptx *dptx)
+ {
+-	unsigned int val;
++	unsigned int val = 0;
+ 	int ret = 0;
+ 	int i;
+ 
+@@ -2122,13 +2126,14 @@ static void rtk_dptx_pd_event_work(struct work_struct *work)
+ 	dev_info(dptx->dev, "dptx: pd event work\n");
+ 	mutex_lock(&dptx->lock);
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	val = gpiod_get_value(dptx->hpd_gpio);
+ 	if (val < 0)
+ 		dev_err(dptx->dev, "failed to get hpd_gpio val");
+ 	dev_info(dptx->dev, "[%s] hpd: %s\n", __func__,
+ 						 (val) ? "connect" : "disconnect");
+ 	dptx->connected = val ? true : false;
++	printk("[YC][%s:%d] check...\n", __func__, __LINE__);
+ #else
+ 	dptx->connected = true;
+ #endif
+@@ -2348,7 +2353,7 @@ static int rtk_dptx_parse_dt(struct rtk_dptx *dptx)
+ 
+ 	check_iso_clock_is_on(dptx);
+ 
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	INIT_WORK(&dptx->retrain_link_work, rtk_dptx_retrain_link_worker);
+ #endif
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_dptx.h b/drivers/gpu/drm/realtek/rtk_dptx.h
+index d541bd76a838c..da3bd9066f457 100644
+--- a/drivers/gpu/drm/realtek/rtk_dptx.h
++++ b/drivers/gpu/drm/realtek/rtk_dptx.h
+@@ -93,7 +93,7 @@ struct rtk_dptx {
+ 	int color_format;
+ 	bool check_connector_limit;
+ 	uint32_t max_clock_k;
+-#ifdef CONFIG_CHROME_PLATFORMS
++#if defined (CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ 	struct work_struct retrain_link_work;
+ #endif
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index bf7e8b129b9f8..66d13e199ef07 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -763,9 +763,6 @@ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = FIRST_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = FIRST_DISPLAY_CURSOR },
+ 	{ .layer_nr = VO_VIDEO_PLANE_V1,
+ 	  .type = DRM_PLANE_TYPE_OVERLAY,
+ 	  .plane_order = FIRST_DISPLAY_OVERLAY },
+@@ -821,12 +818,9 @@ static const struct crtc_plane_data rtd_crtc_plane_ext[] = {
+ 
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
++	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+ 	  .plane_order = THIRD_DISPLAY_PRIMARY },
+-	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+-	  .type = DRM_PLANE_TYPE_CURSOR,
+-	  .plane_order = THIRD_DISPLAY_CURSOR },
+ };
+ #else
+ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+-- 
+2.48.0
+

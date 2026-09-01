@@ -1,0 +1,46 @@
+From 75e1c261fa4a2c344d56c8d25127d795ea760994 Mon Sep 17 00:00:00 2001
+From: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Date: Fri, 20 Nov 2020 14:42:41 -0700
+Subject: [PATCH 04/18] rpmsg: virtio: Rename rpmsg_create_channel
+
+Rename the internal function as it is internal, and as
+the name will be used in rpmsg_core.
+
+Tested-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Signed-off-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Reviewed-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Link: https://lore.kernel.org/r/20201120214245.172963-5-mathieu.poirier@linaro.org
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+Change-Id: Iaf28c004616520bd6a880085e83aa8959b2b2cd2
+---
+ drivers/rpmsg/virtio_rpmsg_bus.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/rpmsg/virtio_rpmsg_bus.c b/drivers/rpmsg/virtio_rpmsg_bus.c
+index 7b770b1f5c5d2..3c98b33118adc 100644
+--- a/drivers/rpmsg/virtio_rpmsg_bus.c
++++ b/drivers/rpmsg/virtio_rpmsg_bus.c
+@@ -366,8 +366,8 @@ static void virtio_rpmsg_release_device(struct device *dev)
+  * this function will be used to create both static and dynamic
+  * channels.
+  */
+-static struct rpmsg_device *rpmsg_create_channel(struct virtproc_info *vrp,
+-						 struct rpmsg_channel_info *chinfo)
++static struct rpmsg_device *__rpmsg_create_channel(struct virtproc_info *vrp,
++						   struct rpmsg_channel_info *chinfo)
+ {
+ 	struct virtio_rpmsg_channel *vch;
+ 	struct rpmsg_device *rpdev;
+@@ -843,7 +843,7 @@ static int rpmsg_ns_cb(struct rpmsg_device *rpdev, void *data, int len,
+ 		if (ret)
+ 			dev_err(dev, "rpmsg_destroy_channel failed: %d\n", ret);
+ 	} else {
+-		newch = rpmsg_create_channel(vrp, &chinfo);
++		newch = __rpmsg_create_channel(vrp, &chinfo);
+ 		if (!newch)
+ 			dev_err(dev, "rpmsg_create_channel failed\n");
+ 	}
+-- 
+2.47.0
+

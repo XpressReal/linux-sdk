@@ -1,0 +1,12 @@
+patch 0000-ANDROID-rpmsg-core-Add-signal-API-support.patch
+patch 0000-BACKPORT-net-add-skb_set_end_offset-helper.patch
+patch 0001-rpmsg-update-rpmsg-driver.patch
+patch 0002-rpmsg-virtio-Move-from-virtio-to-rpmsg-byte-conversi.patch
+patch 0003-rpmsg-Move-structure-rpmsg_ns_msg-to-header-file.patch
+patch 0004-rpmsg-virtio-Rename-rpmsg_create_channel.patch
+patch 0005-rpmsg-core-Add-channel-creation-internal-API.patch
+patch 0006-rpmsg-Introduce-__rpmsg-16-32-64-types.patch
+patch 0007-remoteproc-Remove-useless-check-in-rproc_del.patch
+patch 0008-remoteproc-Rename-function-rproc_actuate.patch
+patch 0009-remoteproc-Add-new-RPROC_ATTACHED-state.patch
+patch 0011-remoteproc-Properly-represent-the-attached-state.patch

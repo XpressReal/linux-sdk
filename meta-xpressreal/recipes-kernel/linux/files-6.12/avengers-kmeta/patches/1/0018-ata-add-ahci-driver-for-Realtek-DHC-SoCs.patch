@@ -1,0 +1,47 @@
+From d49713385a18288b46638bc3be2270ab492dbaa2 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 15:51:15 +0800
+Subject: [PATCH 18/73] ata: add ahci driver for Realtek DHC SoCs
+
+Change-Id: I80cd100483041fb92b19049756c19d076995c2f1
+---
+ drivers/ata/Kconfig  | 10 ++++++++++
+ drivers/ata/Makefile |  1 +
+ 2 files changed, 11 insertions(+)
+
+diff --git a/drivers/ata/Kconfig b/drivers/ata/Kconfig
+index e00536b495529..5d34d65adb8ba 100644
+--- a/drivers/ata/Kconfig
++++ b/drivers/ata/Kconfig
+@@ -283,6 +283,16 @@ config AHCI_QORIQ
+ 
+ 	  If unsure, say N.
+ 
++config AHCI_RTK
++	tristate "Realtek AHCI SATA support"
++	select PHY_RTK_SATA
++	select SATA_HOST
++	help
++	  This option enables support for Realtek AHCI Serial ATA
++	  controllers.
++
++	  If unsure, say N.
++
+ config SATA_FSL
+ 	tristate "Freescale 3.0Gbps SATA support"
+ 	depends on FSL_SOC || COMPILE_TEST
+diff --git a/drivers/ata/Makefile b/drivers/ata/Makefile
+index 20e6645ab7371..18125ab5734f0 100644
+--- a/drivers/ata/Makefile
++++ b/drivers/ata/Makefile
+@@ -27,6 +27,7 @@ obj-$(CONFIG_AHCI_ST)		+= ahci_st.o libahci.o libahci_platform.o
+ obj-$(CONFIG_AHCI_TEGRA)	+= ahci_tegra.o libahci.o libahci_platform.o
+ obj-$(CONFIG_AHCI_XGENE)	+= ahci_xgene.o libahci.o libahci_platform.o
+ obj-$(CONFIG_AHCI_QORIQ)	+= ahci_qoriq.o libahci.o libahci_platform.o
++obj-$(CONFIG_AHCI_RTK)		+= ahci_rtk.o libahci.o libahci_platform.o
+ 
+ # SFF w/ custom DMA
+ obj-$(CONFIG_PDC_ADMA)		+= pdc_adma.o
+-- 
+2.47.0
+

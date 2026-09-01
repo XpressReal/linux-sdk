@@ -1,0 +1,4 @@
+patch 0016-spi-add-nor-driver-for-Realtek-DHC-SoCs.patch
+patch 0049-mtd-nand-spi-nor-add-serial-flash-controller-driver-.patch
+
+kconf hardware spi.cfg

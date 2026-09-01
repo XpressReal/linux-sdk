@@ -39,6 +39,12 @@ static const struct rtd_gpio_info rtd1625_iso_gpio_info = {
 	.num_gpios		= 166,
 };
 
+/* RTD1625 ISO GPIO configuration - 166 GPIOs */
+static const struct rtd_gpio_info rtd1635_iso_gpio_info = {
+	.name			= "rtd1635_iso_gpio",
+	.num_gpios		= 166,
+};
+
 static int rtd_gpio_direction_input(struct udevice *dev, unsigned int offset)
 {
 	struct rtd_gpio_priv *priv = dev_get_priv(dev);
@@ -171,6 +177,7 @@ static const struct dm_gpio_ops rtd_gpio_ops = {
 
 static const struct udevice_id rtd_gpio_ids[] = {
 	{ .compatible = "realtek,rtd1625-iso-gpio", .data = (ulong)&rtd1625_iso_gpio_info },
+	{ .compatible = "realtek,rtd1635-iso-gpio", .data = (ulong)&rtd1635_iso_gpio_info },
 	{ }
 };
 

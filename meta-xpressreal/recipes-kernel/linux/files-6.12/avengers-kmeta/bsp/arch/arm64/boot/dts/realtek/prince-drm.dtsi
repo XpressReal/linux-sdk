@@ -1,0 +1,242 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+/* PLEASE include this file inside a node */
+/ {
+	display_subsystem: display-subsystem {
+		compatible = "realtek,display-subsystem";
+		ports = <&vo0_out>, <&vowb_io>;
+		syscon = <&sb2>;
+		hwlocks = <&sb2_lock5 1>;
+		krpc-vo-opt = <4>, <3>;
+		realtek,krpc-agent = <&kr4_kernel_agent>, <&hifi_kernel_agent>;
+		krpc-second = <0>;
+		max-pluggable-connectors = <1>;
+		status = "disabled";
+	};
+
+	vo0: vo0 {
+		compatible = "realtek,rtd-crtc-pipe-main";
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+
+		vo0_out: port {
+		};
+	};
+
+	vo1: vo1 {
+		compatible = "realtek,rtd-crtc-pipe-second";
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+
+		vo1_out: port {
+		};
+	};
+
+	vo2: vo2 {
+		compatible = "realtek,rtd-crtc-pipe-third";
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+
+		vo2_out: port {
+		};
+	};
+
+	hdmi: hdmi {
+		compatible = "realtek,rtk-hdmi";
+		clock-names = "clk_en_hdmi";
+		clocks = <&cc RTD1635_CRT_CLK_EN_HDMI>;
+		interrupts = <0 31 4>; /* RxSense */
+		reset-names = "rstn_hdmi";
+		resets = <&cc RTD1635_CRT_RSTN_HDMI>;
+		syscon = <&hdmi_tx>, <&crt>, <&hdmi_top>;
+		hdcp = <0>;
+		hpd-gpios = <&gpio 22 GPIO_PULL_DOWN>;
+		hdmi5v-gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+		is-new-mac = <1>;
+		rxsense-mode = <2>;
+		max-clock-k = <594000>;
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			hdmi_in: port@0 {
+				reg = <0>;
+			};
+
+			hdmi_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	dp: dp {
+		compatible = "realtek,rtk-1761-dptx";
+		syscon = <&crt>, <&edptx>, <&dptx14>, <&dptx14_mac>;
+		clock-names = "clk_en_dptx";
+		clocks = <&cc RTD1635_CRT_CLK_EN_DPTX>;
+		reset-names = "rstn_dptx";
+		resets = <&cc RTD1635_CRT_RSTN_DPTX>;
+		realtek,iso_sys = <&iso_sys>;
+		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+		hpd-gpios = <&gpio 22 GPIO_PULL_DOWN>;
+		dp5v-gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+		realtek,pinctrl = <&iso_pinctrl>;
+		max-clock-k = <148500>;
+		status = "disabled";
+		//normal-lane-table = <2 3 0 1>;
+		//flipped-lane-table = <1 0 3 2>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dp_in: port@0 {
+				reg = <0>;
+			};
+
+			dp_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	edp: edp {
+		compatible = "realtek,rtk-1761-edptx";
+		syscon = <&crt>, <&edptx>, <&edp_wrapper>;
+		clock-names = "clk_en_edptx";
+		clocks = <&cc RTD1635_CRT_CLK_EN_EDPTX>;
+		reset-names = "rstn_edptx";
+		resets = <&cc RTD1635_CRT_RSTN_EDPTX>;
+		realtek,iso_sys = <&iso_sys>;
+		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+		hpd-gpios = <&gpio 22 GPIO_PULL_DOWN>;
+		dp5v-gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+		realtek,pinctrl = <&iso_pinctrl>;
+		//realtek,iso = <&iso>;
+		//assr-en = <0>;
+		max-clock-k = <148500>;
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			edp_in: port@0 {
+				reg = <0>;
+			};
+
+			edp_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	dsi: dsi {
+		compatible = "realtek,rtk-dsi";
+		syscon = <&mipi_dsi>;
+		clocks = <&cc RTD1635_CRT_CLK_EN_MIPI_DSI>;
+		clock-names = "clk_en_dsi";
+		resets = <&cc RTD1635_CRT_RSTN_MIPI_DSI>;
+		reset-names = "dsi";
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dsi_in: port@0 {
+				reg = <0>;
+			};
+
+			dsi_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	dsi2: dsi2 {
+		compatible = "realtek,rtk-dsi";
+		syscon = <&mipi_dsi2>;
+		clocks = <&cc RTD1635_CRT_CLK_EN_MIPI_DSI2>;
+		clock-names = "clk_en_dsi";
+		resets = <&cc RTD1635_CRT_RSTN_MIPI_DSI2>;
+		reset-names = "dsi";
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dsi2_in: port@0 {
+				reg = <0>;
+			};
+
+			dsi2_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	vowb: vowb {
+		compatible = "realtek,prince-vo-writeback";
+		status = "disabled";
+
+		vowb_io: port {
+		};
+	};
+
+	lvds1: lvds1 {
+		compatible = "realtek,rtk-lvds";
+		syscon = <&lvds1_phy>;
+		clock-names = "clk_en_lvds";
+		clocks = <&cc RTD1635_CRT_CLK_EN_LVDS1>;
+		reset-names = "rstn_lvds";
+		resets = <&cc RTD1635_CRT_RSTN_LVDS1>;
+
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lvds1_in: port@0 {
+				reg = <0>;
+			};
+
+			lvds1_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	lvds2: lvds2 {
+		compatible = "realtek,rtk-lvds";
+		syscon = <&lvds2_phy>;
+		clock-names = "clk_en_lvds";
+		clocks = <&cc RTD1635_CRT_CLK_EN_LVDS2>;
+		reset-names = "rstn_lvds";
+		resets = <&cc RTD1635_CRT_RSTN_LVDS2>;
+
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lvds2_in: port@0 {
+				reg = <0>;
+			};
+
+			lvds2_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+};

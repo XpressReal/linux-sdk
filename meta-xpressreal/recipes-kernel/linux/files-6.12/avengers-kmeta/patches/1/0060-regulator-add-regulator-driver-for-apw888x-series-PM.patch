@@ -1,0 +1,59 @@
+From f2f87aa991cac570016b12a919a197d0200d5f41 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:26:58 +0800
+Subject: [PATCH 60/73] regulator: add regulator driver for apw888x series PMIC
+
+Change-Id: I419687a57d6ed2964937c57e53ae7db82b0858f9
+---
+ drivers/regulator/Kconfig  | 19 +++++++++++++++++++
+ drivers/regulator/Makefile |  3 +++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 39297f7d81771..cabbcddbda38e 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1,3 +1,4 @@
++
+ # SPDX-License-Identifier: GPL-2.0-only
+ menuconfig REGULATOR
+ 	bool "Voltage and Current Regulator Support"
+@@ -1720,4 +1721,22 @@ config REGULATOR_QCOM_LABIBB
+ 	  boost regulator and IBB can be used as a negative boost regulator
+ 	  for LCD display panel.
+ 
++config REGULATOR_APW888X_CORE
++	tristate
++
++config REGULATOR_APW8889
++	tristate "ANPEC APW8889 Power regulators"
++	depends on MFD_APW8889_I2C
++	select REGULATOR_APW888X_CORE
++	help
++	  This driver provides support for the voltage regulators on the
++	  Anpec APW8889.
++
++config REGULATOR_APW8886
++	tristate "ANPEC APW8886 Power regulators"
++	depends on MFD_APW8886_I2C
++	select REGULATOR_APW888X_CORE
++	help
++	  This driver provides support for the voltage regulators on the
++	  Anpec APW8886.
+ endif
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 3d5a803dce8a0..261b6c70b610f 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -201,5 +201,8 @@ obj-$(CONFIG_REGULATOR_WM831X) += wm831x-ldo.o
+ obj-$(CONFIG_REGULATOR_WM8350) += wm8350-regulator.o
+ obj-$(CONFIG_REGULATOR_WM8400) += wm8400-regulator.o
+ obj-$(CONFIG_REGULATOR_WM8994) += wm8994-regulator.o
++obj-$(CONFIG_REGULATOR_APW888X_CORE) += apw888x-regulator-core.o
++obj-$(CONFIG_REGULATOR_APW8889) += apw8889-regulator.o
++obj-$(CONFIG_REGULATOR_APW8886) += apw8886-regulator.o
+ 
+ ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+-- 
+2.47.0
+

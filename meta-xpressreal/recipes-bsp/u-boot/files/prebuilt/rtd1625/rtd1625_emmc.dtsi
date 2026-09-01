@@ -6,7 +6,7 @@
 
 	binman: binman {
 	emmc {
-		filename = "bind.bin";
+		filename = "rtd1625_emmc_bind.bin";
 		allow-repack;
 		bootcode: section@1 {
 			size = <0x3B000>;

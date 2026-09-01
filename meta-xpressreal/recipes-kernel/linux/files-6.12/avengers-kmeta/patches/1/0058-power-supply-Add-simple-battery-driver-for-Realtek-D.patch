@@ -1,0 +1,38 @@
+From 22ef5a42ba93e7f7e3c747e95c40a7f3716cb094 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:18:10 +0800
+Subject: [PATCH 58/73] power: supply: Add simple battery driver for Realtek
+ DHC SoCs
+
+Change-Id: Ic5ccaeec77066db96ef3907d957f8f63c7458f3f
+---
+ drivers/power/supply/Kconfig  | 5 +++++
+ drivers/power/supply/Makefile | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index 81a1f3db192a1..6e48b2aa61d5a 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -1024,4 +1024,9 @@ config CHARGER_RTD1XXX
+ 	help
+ 	  Simple charger driver for Realtek DHC SoCs.
+ 
++config BATTERY_RTD1XXX
++	tristate "Simple battery driver for Realtek DHC SoCs"
++	help
++	  Simple battery driver for Realtek DHC SoCs.
++
+ endif # POWER_SUPPLY
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+index 70d775fd21eaf..48ca7e84abe3d 100644
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -118,3 +118,4 @@ obj-$(CONFIG_BATTERY_UG3105)	+= ug3105_battery.o
+ obj-$(CONFIG_CHARGER_QCOM_SMB2)	+= qcom_pmi8998_charger.o
+ obj-$(CONFIG_FUEL_GAUGE_MM8013)	+= mm8013.o
+ obj-$(CONFIG_CHARGER_RTD1XXX)	+= rtd1xxx_ac.o
++obj-$(CONFIG_BATTERY_RTD1XXX)	+= rtd1xxx_battery.o
+-- 
+2.47.0
+

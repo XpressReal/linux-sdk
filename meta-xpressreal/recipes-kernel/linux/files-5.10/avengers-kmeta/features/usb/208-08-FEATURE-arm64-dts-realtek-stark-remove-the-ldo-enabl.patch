@@ -1,0 +1,27 @@
+From 4ec86dc9a4ec4e96283322009f08e9f38682c2a8 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Wed, 27 Dec 2023 12:26:29 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: remove the ldo-enable
+ property
+
+Change-Id: If9f338cd63b733a360c24b67437897dd7afb2b84
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index 929a02a7d612b..e9223351a5e88 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -7,7 +7,6 @@
+ 
+ &usb_manager {
+ 	realtek,usb-ctrl = <&usb_ctrl>;
+-	realtek,ldo-enable;
+ 
+ 	clocks = <&ic RTD1619B_ISO_CLK_EN_USB>; /* clk_en_usb */
+ 	clock-names = "usb"; /*clk_en_usb*/
+-- 
+2.47.0
+

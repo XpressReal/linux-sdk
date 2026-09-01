@@ -1,21 +1,21 @@
-From 55b3e7851821107bac9c56ef03130d157d34c84f Mon Sep 17 00:00:00 2001
+From 1b3935bf39bda0ec2e79d18ef46d427cd32b779c Mon Sep 17 00:00:00 2001
 From: mingjayli <mingjayli@realtek.com>
 Date: Mon, 5 Jan 2026 11:05:34 +0800
 Subject: [PATCH] Add WiFi Setting
 
 ---
  app/app.pro                  |   4 +-
- app/backend/WifiManager.cpp  | 258 ++++++++++++++++++++++++++++
- app/backend/WifiManager.h    |  44 +++++
- app/gui/WifiSettingsView.qml | 314 +++++++++++++++++++++++++++++++++++
- app/gui/main.qml             |  22 +++
+ app/backend/WifiManager.cpp  | 258 ++++++++++++++++++++++++++++++
+ app/backend/WifiManager.h    |  44 ++++++
+ app/gui/WifiSettingsView.qml | 296 +++++++++++++++++++++++++++++++++++
+ app/gui/main.qml             |  43 +++++
  app/main.cpp                 |   7 +
  app/qml.qrc                  |   1 +
  app/res/visibility-off.svg   |   2 +
  app/res/visibility.svg       |  20 +++
  app/res/wifi.svg             |   1 +
  app/resources.qrc            |   3 +
- 11 files changed, 675 insertions(+), 1 deletion(-)
+ 11 files changed, 678 insertions(+), 1 deletion(-)
  create mode 100644 app/backend/WifiManager.cpp
  create mode 100644 app/backend/WifiManager.h
  create mode 100644 app/gui/WifiSettingsView.qml
@@ -367,18 +367,15 @@ index 0000000..7ced6c5
 \ No newline at end of file
 diff --git a/app/gui/WifiSettingsView.qml b/app/gui/WifiSettingsView.qml
 new file mode 100644
-index 0000000..dec1de8
+index 0000000..c1720ac
 --- /dev/null
 +++ b/app/gui/WifiSettingsView.qml
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,296 @@
 +// WifiSettingsView.qml
 +
 +import QtQuick 2.15
 +import QtQuick.Controls 2.15
 +import QtQuick.Layouts 1.15
-+
-+import QtQuick.VirtualKeyboard 2.15
-+import QtQuick.VirtualKeyboard.Settings 2.15
 +
 +Page {
 +    id: wifiPage
@@ -562,7 +559,6 @@ index 0000000..dec1de8
 +        title: "Connect to " + ssid
 +        closePolicy: Popup.NoAutoClose
 +        standardButtons: Dialog.Ok | Dialog.Cancel
-+        height: parent.height * 0.4
 +
 +        ColumnLayout {
 +            Layout.fillWidth: true
@@ -670,27 +666,23 @@ index 0000000..dec1de8
 +            wifiPage.isConnecting = false
 +        }
 +    }
-+
-+    InputPanel {
-+        id: inputPanel
-+        z: 999999
-+        anchors.left: parent.left
-+        anchors.right: parent.right
-+        anchors.bottom: parent.bottom
-+        visible: active
-+        height: Math.min(parent.height * 0.35, 300)
-+
-+        Behavior on y {
-+            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
-+        }
-+    }
 +}
 \ No newline at end of file
 diff --git a/app/gui/main.qml b/app/gui/main.qml
-index dc50c3a..519657d 100644
+index dc50c3a..470ffba 100644
 --- a/app/gui/main.qml
 +++ b/app/gui/main.qml
-@@ -409,6 +409,28 @@ ApplicationWindow {
+@@ -10,6 +10,9 @@ import StreamingPreferences 1.0
+ import SystemProperties 1.0
+ import SdlGamepadKeyNavigation 1.0
+ 
++import QtQuick.VirtualKeyboard 2.15
++import QtQuick.VirtualKeyboard.Settings 2.15
++
+ ApplicationWindow {
+     property bool pollingActive: false
+ 
+@@ -409,6 +412,28 @@ ApplicationWindow {
                  }
              }
  
@@ -719,6 +711,36 @@ index dc50c3a..519657d 100644
              NavigableToolButton {
                  id: settingsButton
  
+@@ -509,6 +534,10 @@ ApplicationWindow {
+         onOpened: {
+             // Force keyboard focus on the textbox so keyboard navigation works
+             editText.forceActiveFocus()
++
++            y = Qt.inputMethod.keyboardRectangle.height > 0
++                ? parent.height - height - Qt.inputMethod.keyboardRectangle.height - 20
++                : parent.height / 2 - height / 2
+         }
+ 
+         onClosed: {
+@@ -542,4 +571,18 @@ ApplicationWindow {
+             }
+         }
+     }
++
++    InputPanel {
++        id: inputPanel
++        z: 999999
++        anchors.left: parent.left
++        anchors.right: parent.right
++        anchors.bottom: parent.bottom
++        visible: active
++        height: Math.min(parent.height * 0.35, 300)
++
++        Behavior on y {
++            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
++        }
++    }
+ }
 diff --git a/app/main.cpp b/app/main.cpp
 index 5d0b827..bd29586 100644
 --- a/app/main.cpp
@@ -745,7 +767,7 @@ index 5d0b827..bd29586 100644
      if (hasGUI) {
          engine.rootContext()->setContextProperty("initialView", initialView);
  
-+        WifiManager *wifiManager = new WifiManager(&engine);
++        WifiManager *wifiManager = new WifiManager(&engine);;
 +        engine.rootContext()->setContextProperty("wifiManager", wifiManager);
 +
          // Load the main.qml file

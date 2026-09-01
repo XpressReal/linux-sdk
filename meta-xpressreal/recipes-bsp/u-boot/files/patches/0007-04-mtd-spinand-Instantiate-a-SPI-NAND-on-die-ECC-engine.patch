@@ -1,0 +1,105 @@
+From 945845b54c9cf61809d1963492bb728ce8937964 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Wed, 30 Sep 2020 17:41:07 +0200
+Subject: [PATCH] mtd: spinand: Instantiate a SPI-NAND on-die ECC engine
+
+Make use of the existing functions taken from the SPI-NAND core to
+instantiate an on-die ECC engine specific to the SPI-NAND core. The
+next step will be to tweak the core to use this object instead of
+calling the helpers directly.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20200930154109.3922-4-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/spi/core.c | 26 +++++++++++++++++++++++++-
+ include/linux/mtd/spinand.h |  9 +++++++++
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 7d5484c912..996af3d05d 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -287,6 +287,17 @@ static int spinand_ondie_ecc_init_ctx(struct nand_device *nand)
+ {
+ 	struct spinand_device *spinand = nand_to_spinand(nand);
+ 	struct mtd_info *mtd = nanddev_to_mtd(nand);
++	struct spinand_ondie_ecc_conf *engine_conf;
++
++	nand->ecc.ctx.conf.engine_type = NAND_ECC_ENGINE_TYPE_ON_DIE;
++	nand->ecc.ctx.conf.step_size = nand->ecc.requirements.step_size;
++	nand->ecc.ctx.conf.strength = nand->ecc.requirements.strength;
++
++	engine_conf = kzalloc(sizeof(*engine_conf), GFP_KERNEL);
++	if (!engine_conf)
++		return -ENOMEM;
++
++	nand->ecc.ctx.priv = engine_conf;
+ 
+ 	if (spinand->eccinfo.ooblayout)
+ 		mtd_set_ooblayout(mtd, spinand->eccinfo.ooblayout);
+@@ -298,6 +309,7 @@ static int spinand_ondie_ecc_init_ctx(struct nand_device *nand)
+ 
+ static void spinand_ondie_ecc_cleanup_ctx(struct nand_device *nand)
+ {
++	kfree(nand->ecc.ctx.priv);
+ }
+ 
+ static int spinand_ondie_ecc_prepare_io_req(struct nand_device *nand,
+@@ -318,6 +330,7 @@ static int spinand_ondie_ecc_prepare_io_req(struct nand_device *nand,
+ static int spinand_ondie_ecc_finish_io_req(struct nand_device *nand,
+ 					   struct nand_page_io_req *req)
+ {
++	struct spinand_ondie_ecc_conf *engine_conf = nand->ecc.ctx.priv;
+ 	struct spinand_device *spinand = nand_to_spinand(nand);
+ 	struct mtd_info *mtd = spinand_to_mtd(spinand);
+ 	int ret;
+@@ -330,7 +343,7 @@ static int spinand_ondie_ecc_finish_io_req(struct nand_device *nand,
+ 		return 0;
+ 
+ 	/* Finish a page read: check the status, report errors/bitflips */
+-	ret = spinand_check_ecc_status(spinand, spinand->last_wait_status);
++	ret = spinand_check_ecc_status(spinand, engine_conf->status);
+ 	if (ret == -EBADMSG) {
+ 		mtd->ecc_stats.failed++;
+ 	} else if (ret > 0) {
+@@ -351,6 +364,17 @@ static int spinand_ondie_ecc_finish_io_req(struct nand_device *nand,
+ 	return ret;
+ }
+ 
++static struct nand_ecc_engine_ops spinand_ondie_ecc_engine_ops = {
++	.init_ctx = spinand_ondie_ecc_init_ctx,
++	.cleanup_ctx = spinand_ondie_ecc_cleanup_ctx,
++	.prepare_io_req = spinand_ondie_ecc_prepare_io_req,
++	.finish_io_req = spinand_ondie_ecc_finish_io_req,
++};
++
++static __maybe_unused struct nand_ecc_engine spinand_ondie_ecc_engine = {
++	.ops = &spinand_ondie_ecc_engine_ops,
++};
++
+ static void spinand_ondie_ecc_save_status(struct nand_device *nand, u8 status)
+ {
+ 	struct spinand_device *spinand = nand_to_spinand(nand);
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index 7b78c4ba9b3e9..6bb92f26833e7 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -286,6 +286,15 @@ struct spinand_ecc_info {
+ #define SPINAND_HAS_READ_PLANE_SELECT_BIT	BIT(3)
+ #define SPINAND_NO_RAW_ACCESS			BIT(4)
+ 
++/**
++ * struct spinand_ondie_ecc_conf - private SPI-NAND on-die ECC engine structure
++ * @status: status of the last wait operation that will be used in case
++ *          ->get_status() is not populated by the spinand device.
++ */
++struct spinand_ondie_ecc_conf {
++	u8 status;
++};
++
+ /**
+  * struct spinand_otp_layout - structure to describe the SPI NAND OTP area
+  * @npages: number of pages in the OTP
+-- 
+2.47.0
+

@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include <dt-bindings/regulator/ti,tps62860.h>
+
+&i2c_0 {
+	status = "okay";
+
+	cpu_supp:
+	tps62872_supp: tps62872@43 {
+		compatible = "ti,tps62872";
+		reg = <0x43>;
+		regulator-name = "cpudvs";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <11000000>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&tps628603_supp>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <1250>;
+	};
+
+	tps628603_supp: tps628603@40 {
+		compatible = "ti,tps628603";
+		reg = <0x40>;
+		regulator-name = "cpusram";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1100000>;
+		regulator-allowed-modes = <TPS62860_MODE_NORMAL>, <TPS62860_MODE_FPWM>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-coupled-with = <&tps62872_supp>;
+		regulator-coupled-max-spread = <20000>;
+		regulator-ramp-delay = <10000>;
+	};
+};
+
+&{/} {
+	hdmi_supp: hdmi-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "hdmi5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&gpio 23 GPIO_ACTIVE_HIGH>;
+	};
+
+	wlan_supp: wlan-supply {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio 135 GPIO_ACTIVE_HIGH>;
+	};
+};

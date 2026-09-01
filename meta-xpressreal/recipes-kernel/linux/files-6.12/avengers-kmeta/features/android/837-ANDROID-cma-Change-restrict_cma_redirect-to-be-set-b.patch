@@ -1,0 +1,69 @@
+From 5fea8a264638ed59fb2e4e431f34da1efbd78f40 Mon Sep 17 00:00:00 2001
+From: Suren Baghdasaryan <surenb@google.com>
+Date: Fri, 28 Feb 2025 20:37:01 +0000
+Subject: [PATCH 6/6] ANDROID: cma: Change restrict_cma_redirect to be set by
+ default
+
+When restrict_cma_redirect boot parameter was introduced, its default
+was set to follow the upstream behavior, which does not restrict any
+movable allocation from using CMA. However this poses an issue when
+partners upgrade from previous Android kernels and expect the same
+behavior, which is to restrict CMA usage to movable allocations with
+__GFP_CMA.
+Change the default value of restrict_cma_redirect boot parameter to
+keep backward compatibility with earlier ACK versions. Partners who
+need upstream behavior will need to set restrict_cma_redirect=false
+explicitly.
+
+Bug: 399727765
+Change-Id: Ia88008578557e38da54a455bc4ce3dc6f86fe52e
+Signed-off-by: Suren Baghdasaryan <surenb@google.com>
+---
+ mm/page_alloc.c | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 60dc301d03d8..0177fe65eebe 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -171,27 +171,29 @@ EXPORT_PER_CPU_SYMBOL(numa_node);
+ DEFINE_STATIC_KEY_TRUE(vm_numa_stat_key);
+ 
+ /*
+- * By default, when restrict_cma_redirect is false, all movable allocations
++ * By default, restrict_cma_redirect is set to true, so only MOVABLE allocations
++ * marked __GFP_CMA are eligible to be redirected to CMA region. These allocations
++ * are redirected if *any* free space is available in the CMA region.
++ * When restrict_cma_redirect is false, all movable allocations
+  * are eligible for redirection to CMA region (i.e movable allocations are
+  * not restricted from CMA region), when there is sufficient space there.
+  * (see __rmqueue()).
+- *
+- * If restrict_cma_redirect is set to true, only MOVABLE allocations marked
+- * __GFP_CMA are eligible to be redirected to CMA region. These allocations
+- * are redirected if *any* free space is available in the CMA region.
+  */
+-DEFINE_STATIC_KEY_FALSE(restrict_cma_redirect);
++DEFINE_STATIC_KEY_TRUE(restrict_cma_redirect);
+ 
+ static int __init restrict_cma_redirect_setup(char *str)
+ {
+ #ifdef CONFIG_CMA
+-	static_branch_enable(&restrict_cma_redirect);
++	bool res;
++
++	if (!kstrtobool(str, &res) && !res)
++		static_branch_disable(&restrict_cma_redirect);
+ #else
+ 	pr_warn("CONFIG_CMA not set. Ignoring restrict_cma_redirect option\n");
+ #endif
+ 	return 1;
+ }
+-__setup("restrict_cma_redirect", restrict_cma_redirect_setup);
++__setup("restrict_cma_redirect=", restrict_cma_redirect_setup);
+ 
+ static inline bool cma_redirect_restricted(void)
+ {
+-- 
+2.43.0
+

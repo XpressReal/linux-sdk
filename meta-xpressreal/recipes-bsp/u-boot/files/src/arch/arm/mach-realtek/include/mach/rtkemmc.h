@@ -63,7 +63,7 @@
                                 printf(fmt,## args)
 #endif
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 #define CR_BASE_ADDR			     (0x9814c000)
 #define ISO_MUXPAD0			     (0x9804f200)
 #define ISO_MUXPAD1			     (0x9804f204)
@@ -104,7 +104,7 @@
 #define EMMC_ADMA_SA_LOW_R                   (CR_BASE_ADDR + 0x058)
 #define EMMC_AT_CTRL_R                       (CR_BASE_ADDR + 0x240)
 
-#if defined(CONFIG_TARGET_RTD1625)
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
 #define EMMC_MSHC_CTRL_R		     (CR_BASE_ADDR + 0x108)
 #define EMMC_CTRL_R                          (CR_BASE_ADDR + 0x12c)
 #elif defined(CONFIG_TARGET_RTD1619B)

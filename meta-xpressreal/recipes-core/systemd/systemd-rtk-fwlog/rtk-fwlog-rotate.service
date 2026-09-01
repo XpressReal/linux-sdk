@@ -1,0 +1,6 @@
+[Unit]
+Description=Rotate Realtek firmware logs
+
+[Service]
+Type=oneshot
+ExecStart=@SBINDIR@/logrotate --state @LOCALSTATEDIR@/lib/rtk-fwlog-logrotate.status @SYSCONFDIR@/rtk-fwlog-logrotate.conf

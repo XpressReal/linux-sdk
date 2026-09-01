@@ -1,0 +1,201 @@
+From ebabc1fb0d7ec4f31aadcb7200e65c452ecf93b3 Mon Sep 17 00:00:00 2001
+From: Mathieu Poirier <mathieu.poirier@linaro.org>
+Date: Fri, 20 Nov 2020 14:42:38 -0700
+Subject: [PATCH 06/18] rpmsg: Introduce __rpmsg{16|32|64} types
+
+Introduce __rpmsg{16|32|64} types along with byte order conversion
+functions based on an rpmsg_device operation as a foundation to
+make RPMSG modular and transport agnostic.
+
+Tested-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Suggested-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Reviewed-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Reviewed-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Link: https://lore.kernel.org/r/20201120214245.172963-2-mathieu.poirier@linaro.org
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+Change-Id: I2cfe957873a46afd5180c6ec5aca942b72fa182f
+---
+ include/linux/rpmsg.h            | 51 ++++++++++++++++++++++++
+ include/linux/rpmsg/byteorder.h  | 67 ++++++++++++++++++++++++++++++++
+ include/uapi/linux/rpmsg_types.h | 11 ++++++
+ 3 files changed, 129 insertions(+)
+ create mode 100644 include/linux/rpmsg/byteorder.h
+ create mode 100644 include/uapi/linux/rpmsg_types.h
+
+diff --git a/include/linux/rpmsg.h b/include/linux/rpmsg.h
+index 9c601a18defbf..3f74d2cc1da10 100644
+--- a/include/linux/rpmsg.h
++++ b/include/linux/rpmsg.h
+@@ -18,6 +18,7 @@
+ #include <linux/kref.h>
+ #include <linux/mutex.h>
+ #include <linux/poll.h>
++#include <linux/rpmsg/byteorder.h>
+ 
+ #define RPMSG_ADDR_ANY		0xFFFFFFFF
+ 
+@@ -49,6 +50,7 @@ struct rpmsg_channel_info {
+  * @dst: destination address
+  * @ept: the rpmsg endpoint of this channel
+  * @announce: if set, rpmsg will announce the creation/removal of this channel
++ * @little_endian: True if transport is using little endian byte representation
+  */
+ struct rpmsg_device {
+ 	struct device dev;
+@@ -58,6 +60,7 @@ struct rpmsg_device {
+ 	u32 dst;
+ 	struct rpmsg_endpoint *ept;
+ 	bool announce;
++	bool little_endian;
+ 
+ 	const struct rpmsg_device_ops *ops;
+ };
+@@ -134,6 +137,54 @@ struct rpmsg_driver {
+ 		       void *priv, u32 old, u32 new);
+ };
+ 
++static inline u16 rpmsg16_to_cpu(struct rpmsg_device *rpdev, __rpmsg16 val)
++{
++	if (!rpdev)
++		return __rpmsg16_to_cpu(rpmsg_is_little_endian(), val);
++	else
++		return __rpmsg16_to_cpu(rpdev->little_endian, val);
++}
++
++static inline __rpmsg16 cpu_to_rpmsg16(struct rpmsg_device *rpdev, u16 val)
++{
++	if (!rpdev)
++		return __cpu_to_rpmsg16(rpmsg_is_little_endian(), val);
++	else
++		return __cpu_to_rpmsg16(rpdev->little_endian, val);
++}
++
++static inline u32 rpmsg32_to_cpu(struct rpmsg_device *rpdev, __rpmsg32 val)
++{
++	if (!rpdev)
++		return __rpmsg32_to_cpu(rpmsg_is_little_endian(), val);
++	else
++		return __rpmsg32_to_cpu(rpdev->little_endian, val);
++}
++
++static inline __rpmsg32 cpu_to_rpmsg32(struct rpmsg_device *rpdev, u32 val)
++{
++	if (!rpdev)
++		return __cpu_to_rpmsg32(rpmsg_is_little_endian(), val);
++	else
++		return __cpu_to_rpmsg32(rpdev->little_endian, val);
++}
++
++static inline u64 rpmsg64_to_cpu(struct rpmsg_device *rpdev, __rpmsg64 val)
++{
++	if (!rpdev)
++		return __rpmsg64_to_cpu(rpmsg_is_little_endian(), val);
++	else
++		return __rpmsg64_to_cpu(rpdev->little_endian, val);
++}
++
++static inline __rpmsg64 cpu_to_rpmsg64(struct rpmsg_device *rpdev, u64 val)
++{
++	if (!rpdev)
++		return __cpu_to_rpmsg64(rpmsg_is_little_endian(), val);
++	else
++		return __cpu_to_rpmsg64(rpdev->little_endian, val);
++}
++
+ #if IS_ENABLED(CONFIG_RPMSG)
+ 
+ int rpmsg_register_device_override(struct rpmsg_device *rpdev,
+diff --git a/include/linux/rpmsg/byteorder.h b/include/linux/rpmsg/byteorder.h
+new file mode 100644
+index 0000000000000..c0f565dbad6de
+--- /dev/null
++++ b/include/linux/rpmsg/byteorder.h
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Follows implementation found in linux/virtio_byteorder.h
++ */
++#ifndef _LINUX_RPMSG_BYTEORDER_H
++#define _LINUX_RPMSG_BYTEORDER_H
++#include <linux/types.h>
++#include <uapi/linux/rpmsg_types.h>
++
++static inline bool rpmsg_is_little_endian(void)
++{
++#ifdef __LITTLE_ENDIAN
++	return true;
++#else
++	return false;
++#endif
++}
++
++static inline u16 __rpmsg16_to_cpu(bool little_endian, __rpmsg16 val)
++{
++	if (little_endian)
++		return le16_to_cpu((__force __le16)val);
++	else
++		return be16_to_cpu((__force __be16)val);
++}
++
++static inline __rpmsg16 __cpu_to_rpmsg16(bool little_endian, u16 val)
++{
++	if (little_endian)
++		return (__force __rpmsg16)cpu_to_le16(val);
++	else
++		return (__force __rpmsg16)cpu_to_be16(val);
++}
++
++static inline u32 __rpmsg32_to_cpu(bool little_endian, __rpmsg32 val)
++{
++	if (little_endian)
++		return le32_to_cpu((__force __le32)val);
++	else
++		return be32_to_cpu((__force __be32)val);
++}
++
++static inline __rpmsg32 __cpu_to_rpmsg32(bool little_endian, u32 val)
++{
++	if (little_endian)
++		return (__force __rpmsg32)cpu_to_le32(val);
++	else
++		return (__force __rpmsg32)cpu_to_be32(val);
++}
++
++static inline u64 __rpmsg64_to_cpu(bool little_endian, __rpmsg64 val)
++{
++	if (little_endian)
++		return le64_to_cpu((__force __le64)val);
++	else
++		return be64_to_cpu((__force __be64)val);
++}
++
++static inline __rpmsg64 __cpu_to_rpmsg64(bool little_endian, u64 val)
++{
++	if (little_endian)
++		return (__force __rpmsg64)cpu_to_le64(val);
++	else
++		return (__force __rpmsg64)cpu_to_be64(val);
++}
++
++#endif /* _LINUX_RPMSG_BYTEORDER_H */
+diff --git a/include/uapi/linux/rpmsg_types.h b/include/uapi/linux/rpmsg_types.h
+new file mode 100644
+index 0000000000000..36e3b94043919
+--- /dev/null
++++ b/include/uapi/linux/rpmsg_types.h
+@@ -0,0 +1,11 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef _UAPI_LINUX_RPMSG_TYPES_H
++#define _UAPI_LINUX_RPMSG_TYPES_H
++
++#include <linux/types.h>
++
++typedef __u16 __bitwise __rpmsg16;
++typedef __u32 __bitwise __rpmsg32;
++typedef __u64 __bitwise __rpmsg64;
++
++#endif /* _UAPI_LINUX_RPMSG_TYPES_H */
+-- 
+2.47.0
+

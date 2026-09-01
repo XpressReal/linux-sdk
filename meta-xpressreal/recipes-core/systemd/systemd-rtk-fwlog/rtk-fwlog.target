@@ -1,0 +1,11 @@
+[Unit]
+Description=Realtek firmware log collection
+Requires=rtk-fwlog-prepare.service
+After=rtk-fwlog-prepare.service
+Wants=rtk-fwlog@alog.service
+Wants=rtk-fwlog@vlog.service
+Wants=rtk-fwlog@hlog.service
+Wants=rtk-fwlog-rotate.timer
+
+[Install]
+WantedBy=multi-user.target

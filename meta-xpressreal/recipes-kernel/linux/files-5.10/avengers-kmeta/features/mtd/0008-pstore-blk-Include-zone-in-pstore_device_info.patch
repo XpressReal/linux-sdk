@@ -1,0 +1,323 @@
+From 1d1f6cc5818c750ac69473e4951e7165913fbf16 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 15 Jun 2021 10:19:13 -0700
+Subject: [PATCH] pstore/blk: Include zone in pstore_device_info
+
+Information was redundant between struct pstore_zone_info and struct
+pstore_device_info. Use struct pstore_zone_info, with member name "zone".
+
+Additionally untangle the logic for the "best effort" block device
+instance.
+
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Fixed-by: Pu Lehui <pulehui@huawei.com>
+Link: https://lore.kernel.org/lkml/20210617005424.182305-1-pulehui@huawei.com
+
+diff --git a/drivers/mtd/mtdpstore.c b/drivers/mtd/mtdpstore.c
+index a3ae8778f6a9..e13d42c0acb0 100644
+--- a/drivers/mtd/mtdpstore.c
++++ b/drivers/mtd/mtdpstore.c
+@@ -423,13 +423,13 @@ static void mtdpstore_notify_add(struct mtd_info *mtd)
+ 	longcnt = BITS_TO_LONGS(div_u64(mtd->size, mtd->erasesize));
+ 	cxt->badmap = kcalloc(longcnt, sizeof(long), GFP_KERNEL);
+ 
+-	cxt->dev.total_size = mtd->size;
+ 	/* just support dmesg right now */
+ 	cxt->dev.flags = PSTORE_FLAGS_DMESG;
+-	cxt->dev.read = mtdpstore_read;
+-	cxt->dev.write = mtdpstore_write;
+-	cxt->dev.erase = mtdpstore_erase;
+-	cxt->dev.panic_write = mtdpstore_panic_write;
++	cxt->dev.zone.read = mtdpstore_read;
++	cxt->dev.zone.write = mtdpstore_write;
++	cxt->dev.zone.erase = mtdpstore_erase;
++	cxt->dev.zone.panic_write = mtdpstore_panic_write;
++	cxt->dev.zone.total_size = mtd->size;
+ 
+ 	ret = register_pstore_device(&cxt->dev);
+ 	if (ret) {
+diff --git a/fs/pstore/blk.c b/fs/pstore/blk.c
+index c373e0d73e6c..04ce58c939a0 100644
+--- a/fs/pstore/blk.c
++++ b/fs/pstore/blk.c
+@@ -70,7 +70,7 @@ MODULE_PARM_DESC(blkdev, "block device for pstore storage");
+  */
+ static DEFINE_MUTEX(pstore_blk_lock);
+ static struct file *psblk_file;
+-static struct pstore_zone_info *pstore_zone_info;
++static struct pstore_device_info *pstore_device_info;
+ 
+ #define check_size(name, alignsize) ({				\
+ 	long _##name_ = (name);					\
+@@ -91,7 +91,7 @@ static struct pstore_zone_info *pstore_zone_info;
+ 		_##name_ = 0;					\
+ 	/* Synchronize module parameters with resuls. */	\
+ 	name = _##name_ / 1024;					\
+-	pstore_zone_info->name = _##name_;			\
++	dev->zone.name = _##name_;				\
+ }
+ 
+ static int __register_pstore_device(struct pstore_device_info *dev)
+@@ -104,50 +104,42 @@ static int __register_pstore_device(struct pstore_device_info *dev)
+ 		pr_err("NULL device info\n");
+ 		return -EINVAL;
+ 	}
+-	if (!dev->total_size) {
++	if (!dev->zone.total_size) {
+ 		pr_err("zero sized device\n");
+ 		return -EINVAL;
+ 	}
+-	if (!dev->read) {
++	if (!dev->zone.read) {
+ 		pr_err("no read handler for device\n");
+ 		return -EINVAL;
+ 	}
+-	if (!dev->write) {
++	if (!dev->zone.write) {
+ 		pr_err("no write handler for device\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* someone already registered before */
+-	if (pstore_zone_info)
++	if (pstore_device_info)
+ 		return -EBUSY;
+ 
+-	pstore_zone_info = kzalloc(sizeof(struct pstore_zone_info), GFP_KERNEL);
+-	if (!pstore_zone_info)
+-		return -ENOMEM;
+-
+ 	/* zero means not limit on which backends to attempt to store. */
+ 	if (!dev->flags)
+ 		dev->flags = UINT_MAX;
+ 
++	/* Copy in module parameters. */
+ 	verify_size(kmsg_size, 4096, dev->flags & PSTORE_FLAGS_DMESG);
+ 	verify_size(pmsg_size, 4096, dev->flags & PSTORE_FLAGS_PMSG);
+ 	verify_size(console_size, 4096, dev->flags & PSTORE_FLAGS_CONSOLE);
+ 	verify_size(ftrace_size, 4096, dev->flags & PSTORE_FLAGS_FTRACE);
++	dev->zone.max_reason = max_reason;
++
++	/* Initialize required zone ownership details. */
++	dev->zone.name = KBUILD_MODNAME;
++	dev->zone.owner = THIS_MODULE;
++
++	ret = register_pstore_zone(&dev->zone);
++	if (ret == 0)
++		pstore_device_info = dev;
+ 
+-	pstore_zone_info->total_size = dev->total_size;
+-	pstore_zone_info->max_reason = max_reason;
+-	pstore_zone_info->read = dev->read;
+-	pstore_zone_info->write = dev->write;
+-	pstore_zone_info->erase = dev->erase;
+-	pstore_zone_info->panic_write = dev->panic_write;
+-	pstore_zone_info->name = KBUILD_MODNAME;
+-	pstore_zone_info->owner = THIS_MODULE;
+-
+-	ret = register_pstore_zone(pstore_zone_info);
+-	if (ret) {
+-		kfree(pstore_zone_info);
+-		pstore_zone_info = NULL;
+-	}
+ 	return ret;
+ }
+ /**
+@@ -174,10 +166,9 @@ EXPORT_SYMBOL_GPL(register_pstore_device);
+ static void __unregister_pstore_device(struct pstore_device_info *dev)
+ {
+ 	lockdep_assert_held(&pstore_blk_lock);
+-	if (pstore_zone_info && pstore_zone_info->read == dev->read) {
+-		unregister_pstore_zone(pstore_zone_info);
+-		kfree(pstore_zone_info);
+-		pstore_zone_info = NULL;
++	if (pstore_device_info && pstore_device_info == dev) {
++		unregister_pstore_zone(&dev->zone);
++		pstore_device_info = NULL;
+ 	}
+ }
+ 
+@@ -211,12 +202,9 @@ static ssize_t psblk_generic_blk_write(const char *buf, size_t bytes,
+ /*
+  * This takes its configuration only from the module parameters now.
+  */
+-static int __register_pstore_blk(const char *devpath)
++static int __register_pstore_blk(struct pstore_device_info *dev,
++				 const char *devpath)
+ {
+-	struct pstore_device_info dev = {
+-		.read = psblk_generic_blk_read,
+-		.write = psblk_generic_blk_write,
+-	};
+ 	struct inode *inode;
+ 	int ret = -ENODEV;
+ 
+@@ -236,9 +224,9 @@ static int __register_pstore_blk(const char *devpath)
+ 	}
+ 
+ 	inode = I_BDEV(psblk_file->f_mapping->host)->bd_inode;
+-	dev.total_size = i_size_read(inode);
++	dev->zone.total_size = i_size_read(inode);
+ 
+-	ret = __register_pstore_device(&dev);
++	ret = __register_pstore_device(dev);
+ 	if (ret)
+ 		goto err_fput;
+ 
+@@ -252,18 +240,6 @@ static int __register_pstore_blk(const char *devpath)
+ 	return ret;
+ }
+ 
+-static void __unregister_pstore_blk(struct file *device)
+-{
+-	struct pstore_device_info dev = { .read = psblk_generic_blk_read };
+-
+-	lockdep_assert_held(&pstore_blk_lock);
+-	if (psblk_file && psblk_file == device) {
+-		__unregister_pstore_device(&dev);
+-		fput(psblk_file);
+-		psblk_file = NULL;
+-	}
+-}
+-
+ /* get information of pstore/blk */
+ int pstore_blk_get_config(struct pstore_blk_config *info)
+ {
+@@ -308,18 +284,63 @@ static inline const char *early_boot_devpath(const char *initial_devname)
+ }
+ #endif
+ 
++static int __init __best_effort_init(void)
++{
++	struct pstore_device_info *best_effort_dev;
++	int ret;
++
++	/* No best-effort mode requested. */
++	if (!best_effort)
++		return 0;
++
++	/* Reject an empty blkdev. */
++	if (!blkdev[0]) {
++		pr_err("blkdev empty with best_effort=Y\n");
++		return -EINVAL;
++	}
++
++	best_effort_dev = kzalloc(sizeof(*best_effort_dev), GFP_KERNEL);
++	if (!best_effort_dev)
++		return -ENOMEM;
++
++	best_effort_dev->zone.read = psblk_generic_blk_read;
++	best_effort_dev->zone.write = psblk_generic_blk_write;
++
++	ret = __register_pstore_blk(best_effort_dev,
++				    early_boot_devpath(blkdev));
++	if (ret)
++		kfree(best_effort_dev);
++	else
++		pr_info("attached %s (%zu) (no dedicated panic_write!)\n",
++			blkdev, best_effort_dev->zone.total_size);
++
++	return ret;
++}
++
++static void __exit __best_effort_exit(void)
++{
++	/*
++	 * Currently, the only user of psblk_file is best_effort, so
++	 * we can assume that pstore_device_info is associated with it.
++	 * Once there are "real" blk devices, there will need to be a
++	 * dedicated pstore_blk_info, etc.
++	 */
++	if (psblk_file) {
++		struct pstore_device_info *dev = pstore_device_info;
++
++		__unregister_pstore_device(dev);
++		kfree(dev);
++		fput(psblk_file);
++		psblk_file = NULL;
++	}
++}
++
+ static int __init pstore_blk_init(void)
+ {
+-	int ret = 0;
++	int ret;
+ 
+ 	mutex_lock(&pstore_blk_lock);
+-	if (!pstore_zone_info && best_effort && blkdev[0]) {
+-		ret = __register_pstore_blk(early_boot_devpath(blkdev));
+-		if (ret == 0 && pstore_zone_info)
+-			pr_info("attached %s:%s (%zu) (no dedicated panic_write!)\n",
+-				pstore_zone_info->name, blkdev,
+-				pstore_zone_info->total_size);
+-	}
++	ret = __best_effort_init();
+ 	mutex_unlock(&pstore_blk_lock);
+ 
+ 	return ret;
+@@ -329,15 +350,9 @@ late_initcall(pstore_blk_init);
+ static void __exit pstore_blk_exit(void)
+ {
+ 	mutex_lock(&pstore_blk_lock);
+-	if (psblk_file)
+-		__unregister_pstore_blk(psblk_file);
+-	else {
+-		struct pstore_device_info dev = { };
+-
+-		if (pstore_zone_info)
+-			dev.read = pstore_zone_info->read;
+-		__unregister_pstore_device(&dev);
+-	}
++	__best_effort_exit();
++	/* If we've been asked to unload, unregister any remaining device. */
++	__unregister_pstore_device(pstore_device_info);
+ 	mutex_unlock(&pstore_blk_lock);
+ }
+ module_exit(pstore_blk_exit);
+diff --git a/include/linux/pstore_blk.h b/include/linux/pstore_blk.h
+index 99564f93d774..924ca07aafbd 100644
+--- a/include/linux/pstore_blk.h
++++ b/include/linux/pstore_blk.h
+@@ -10,36 +10,15 @@
+ /**
+  * struct pstore_device_info - back-end pstore/blk driver structure.
+  *
+- * @total_size: The total size in bytes pstore/blk can use. It must be greater
+- *		than 4096 and be multiple of 4096.
+  * @flags:	Refer to macro starting with PSTORE_FLAGS defined in
+  *		linux/pstore.h. It means what front-ends this device support.
+  *		Zero means all backends for compatible.
+- * @read:	The general read operation. Both of the function parameters
+- *		@size and @offset are relative value to bock device (not the
+- *		whole disk).
+- *		On success, the number of bytes should be returned, others
+- *		means error.
+- * @write:	The same as @read, but the following error number:
+- *		-EBUSY means try to write again later.
+- *		-ENOMSG means to try next zone.
+- * @erase:	The general erase operation for device with special removing
+- *		job. Both of the function parameters @size and @offset are
+- *		relative value to storage.
+- *		Return 0 on success and others on failure.
+- * @panic_write:The write operation only used for panic case. It's optional
+- *		if you do not care panic log. The parameters are relative
+- *		value to storage.
+- *		On success, the number of bytes should be returned, others
+- *		excluding -ENOMSG mean error. -ENOMSG means to try next zone.
++ * @zone:	The struct pstore_zone_info details.
++ *
+  */
+ struct pstore_device_info {
+-	unsigned long total_size;
+ 	unsigned int flags;
+-	pstore_zone_read_op read;
+-	pstore_zone_write_op write;
+-	pstore_zone_erase_op erase;
+-	pstore_zone_write_op panic_write;
++	struct pstore_zone_info zone;
+ };
+ 
+ int  register_pstore_device(struct pstore_device_info *dev);
+-- 
+2.47.0
+

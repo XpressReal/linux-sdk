@@ -9,12 +9,13 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 IMAGE_SRC_FILE = "image.its"
 IMAGE_SRC_FILE:stark = "image-rtd1619b.its"
-IMAGE_SRC_FILE:kent= "image-rtd1625.its"
+IMAGE_SRC_FILE:kent = "image-rtd1625.its"
+IMAGE_SRC_FILE:prince = "image-rtd1635.its"
+IMAGE_SRC_FILE:backinblack-rtd1619b = "image-rtd1619b-backinblack.its"
 IMAGE_SRC_FILE:xpressreal-rtd1619b = "image-rtd1619b-xpressreal.its"
 IMAGE_SRC_FILE:realtekevb-rtd16xx-android = "image-rtd16xx.its"
 
 SRC_URI:append = " file://${IMAGE_SRC_FILE}"
-SRC_URI:append:stark = " file://bootfile.image.lzo"
 
 include bootfiles.inc
 
@@ -22,7 +23,7 @@ do_deploy() {
 
 	install -d ${DEPLOYDIR}/${BOOTFILES_DIR}
 
-	cp ${DEPLOY_DIR_IMAGE}/${BOOTFILES_DIR}/* ${WORKDIR}/
+	cp -r ${DEPLOY_DIR_IMAGE}/${BOOTFILES_DIR}/* ${WORKDIR}/
 
 	mkimage -f ${WORKDIR}/${IMAGE_SRC_FILE} ${DEPLOYDIR}/yocto.itb
 }

@@ -4,6 +4,8 @@ Date: Tue, 8 Oct 2024 11:35:27 +0800
 Subject: [PATCH] support sw cursor config
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  compositor/main.c               | 4 ++++
  include/libweston/backend-drm.h | 3 +++

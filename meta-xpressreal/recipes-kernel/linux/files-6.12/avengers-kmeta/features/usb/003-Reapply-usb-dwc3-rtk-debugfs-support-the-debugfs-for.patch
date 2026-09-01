@@ -1,0 +1,23 @@
+From aab7482fe1f20aaee343ae59f76d7a5d1c6db48b Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Thu, 25 Sep 2025 11:02:02 +0800
+Subject: [PATCH 04/33] Reapply "usb: dwc3: rtk: debugfs: support the debugfs
+ for dwc3-rtk"
+
+This reverts commit 9347cd905da973972afee57bc11a12fde450f2ca.
+---
+ drivers/usb/dwc3/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/usb/dwc3/Makefile b/drivers/usb/dwc3/Makefile
+index 124eda2522d9c..b8bc0033f7636 100644
+--- a/drivers/usb/dwc3/Makefile
++++ b/drivers/usb/dwc3/Makefile
+@@ -56,3 +56,4 @@ obj-$(CONFIG_USB_DWC3_IMX8MP)		+= dwc3-imx8mp.o
+ obj-$(CONFIG_USB_DWC3_XILINX)		+= dwc3-xilinx.o
+ obj-$(CONFIG_USB_DWC3_OCTEON)		+= dwc3-octeon.o
+ obj-$(CONFIG_USB_DWC3_RTK)		+= dwc3-rtk.o
++obj-$(CONFIG_USB_DWC3_RTK)		+= dwc3-rtk-debugfs.o
+-- 
+2.47.0
+

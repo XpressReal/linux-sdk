@@ -1,0 +1,247 @@
+From 2c910082ec9c4c75b91521d85e0163a291ef81ad Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Fri, 12 Jun 2026 19:11:19 +0800
+Subject: [PATCH 1/1] Add V4L2 device tree
+
+---
+ arch/arm64/boot/dts/realtek/kent.dtsi         | 15 +++++++++++
+ arch/arm64/boot/dts/realtek/prince.dtsi       | 14 +++++++++++
+ .../dts/realtek/rtd1315c-badassium-2gb.dts    |  6 +++++
+ .../boot/dts/realtek/rtd1501s-phantom-8gb.dts |  8 ++++++
+ .../realtek/rtd1501s-phantom-chromium-8gb.dts |  8 ++++++
+ .../dts/realtek/rtd1619b-backinblack-2gb.dts  |  8 ++++++
+ .../dts/realtek/rtd1619b-bleedingedge-2gb.dts |  8 ++++++
+ .../dts/realtek/rtd1619b-bleedingedge-4gb.dts |  8 ++++++
+ .../dts/realtek/rtd1619b-hulkbuster-4gb.dts   |  8 ++++++
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi     | 25 +++++++++++--------
+ 10 files changed, 98 insertions(+), 10 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/kent.dtsi b/arch/arm64/boot/dts/realtek/kent.dtsi
+index e4da3fec27a7..5d5c193d4106 100644
+--- a/arch/arm64/boot/dts/realtek/kent.dtsi
++++ b/arch/arm64/boot/dts/realtek/kent.dtsi
+@@ -404,6 +404,21 @@ vcpu: vcpu {
+ 		status = "disabled";
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,kent-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		memory-region = <&cma_reserved_0>;
++		status = "disabled";
++	};
++
++	vpu_ve4: vcpu_ve4 {
++		compatible = "realtek,kent-vpu-ve4";
++		memory-region=<&cma_reserved_0>;
++		status = "disabled";
++	};
++
+ 	avcert_rproc: avcert-rproc {
+ 		compatible = "realtek,rtd-rproc-avcert";
+ 		firmware-name = "AFW_Certificate.bin";
+diff --git a/arch/arm64/boot/dts/realtek/prince.dtsi b/arch/arm64/boot/dts/realtek/prince.dtsi
+index 4382a7fdf8d6..326021fa2419 100644
+--- a/arch/arm64/boot/dts/realtek/prince.dtsi
++++ b/arch/arm64/boot/dts/realtek/prince.dtsi
+@@ -359,6 +359,20 @@ vcpu: vcpu {
+ 		status = "disabled";
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,prince-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		status = "disabled";
++	};
++
++	ve3_enc: ve3_enc {
++		compatible = "realtek,prince-ve3";
++		realtek,krpc-agent = <&ve3_kernel_agent>;
++		status = "disabled";
++	};
++
+ 	dlsr_rproc: dlsr-rproc {
+ 		compatible = "realtek,rtd-rproc-dlsr";
+ 		memory-region = <&dlsr_param>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1315c-badassium-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1315c-badassium-2gb.dts
+index a7de831adb54..ac52338795f3 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1315c-badassium-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1315c-badassium-2gb.dts
+@@ -90,7 +90,13 @@ ve3-rpmsg {
+ 	};
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
+ 
++&ve3_enc {
++	status = "okay";
++};
+ 
+ &pcie1 {
+ 	status = "disabled";
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+index 442aaeb92d9b..5faa20abd6b1 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+@@ -104,6 +104,14 @@ &gpu_cache {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
+ &ve4  {
+         status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
+index c7c3c9d97eeb..0b41fe0a48cb 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-chromium-8gb.dts
+@@ -88,6 +88,14 @@ &ve1 {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&vpu_ve4  {
++	status = "okay";
++};
++
+ &vo0 {
+ 	status = "okay";
+ 	memory-region = <&cma_reserved_2>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+index 5ab74c589ff2..1fae71472114 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-backinblack-2gb.dts
+@@ -126,6 +126,14 @@ &ve3_rproc {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&ve3_enc {
++	status = "okay";
++};
++
+ &sb2 {
+ 	acpu-rpmsg {
+ 		rproc = <&acpu_rproc>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+index 731f965d081b..7cc75fc6aa24 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-2gb.dts
+@@ -77,6 +77,14 @@ &ve3_rproc {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&ve3_enc {
++	status = "okay";
++};
++
+ &sb2 {
+ 	acpu-rpmsg {
+ 		rproc = <&acpu_rproc>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+index fd370e35bc09..3284959beb99 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+@@ -82,6 +82,14 @@ &ve3_rproc {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&ve3_enc {
++	status = "okay";
++};
++
+ &sb2 {
+ 	acpu-rpmsg {
+ 		rproc = <&acpu_rproc>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
+index b02feb22ec5c..50c12bee79e3 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-hulkbuster-4gb.dts
+@@ -114,6 +114,14 @@ &ve3_rproc {
+ 	status = "okay";
+ };
+ 
++&vpu_legacy {
++	status = "okay";
++};
++
++&ve3_enc {
++	status = "okay";
++};
++
+ &sb2 {
+ 	acpu-rpmsg {
+ 		rproc = <&acpu_rproc>;
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 5bd958b88945..626c36e4839b 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -348,6 +348,21 @@ psci: psci {
+ 	firmware {
+ 	};
+ 
++	vpu_legacy: vpu_legacy {
++		compatible = "realtek,rtd16xxb-vpu-legacy";
++		interrupt-parent = <&gic>;
++		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
++		realtek,krpc-agent = <&vcpu_kernel_agent>;
++		memory-region = <&cma_reserved_0>;
++		status = "disabled";
++	};
++
++	ve3_enc: ve3_enc {
++		compatible = "realtek,rtd16xxb-ve3";
++		realtek,krpc-agent = <&ve3_kernel_agent>;
++		status = "disabled";
++	};
++
+ 	avcert_rproc: avcert-rproc {
+ 		compatible = "realtek,rtd1619b-rproc-avcert";
+ 		firmware-name = "AFW_Certificate_final.bin";
+@@ -1143,16 +1158,6 @@ sound_compr: sound_compr {
+ 		status = "disabled";
+ 	};
+ 
+-	rtk_ve2rpc: rtk_ve2rpc {
+-		compatible = "realtek,ve2rpc";
+-		realtek,krpc-agent = <&vcpu_kernel_agent>;
+-	};
+-
+-	rtk_ve3rpc: rtk_ve3rpc {
+-		compatible = "realtek,ve3rpc";
+-		realtek,krpc-agent = <&ve3_kernel_agent>;
+-	};
+-
+ 	tee-mem {
+ 		compatible = "realtek,tee-mem";
+ 	};
+-- 
+2.34.1
+

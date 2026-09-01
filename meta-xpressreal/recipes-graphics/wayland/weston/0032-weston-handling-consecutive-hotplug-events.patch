@@ -1,16 +1,18 @@
-From 161ece7d8ba0c6a73d34965d3dbb95238ef429a7 Mon Sep 17 00:00:00 2001
+From ea64afd6643833c171d518e475951aa1559b6355 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Mon, 5 Jan 2026 21:11:42 -0500
+Date: Tue, 14 Apr 2026 05:39:54 -0400
 Subject: [PATCH] weston: handling consecutive hotplug event
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/drm-internal.h |   4 +
  libweston/backend-drm/drm.c          | 135 ++++++++++++++++++++++++++-
  2 files changed, 135 insertions(+), 4 deletions(-)
 
 diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
-index adc45e8..6f4f3c0 100644
+index 7172905..aabe02d 100644
 --- a/libweston/backend-drm/drm-internal.h
 +++ b/libweston/backend-drm/drm-internal.h
 @@ -367,6 +367,10 @@ struct drm_device {

@@ -2,6 +2,8 @@ From fe78017d0254d01781f94305eed4433c88f98834 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Tue, 29 Apr 2025 14:14:25 +0800
 Subject: [PATCH 14/14] Release encoder buffer pooling during flushing.
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 

@@ -1,0 +1,97 @@
+diff --git a/drivers/soc/realtek/Kconfig b/drivers/soc/realtek/Kconfig
+index d5387399b881..a30a04d24cee 100644
+--- a/drivers/soc/realtek/Kconfig
++++ b/drivers/soc/realtek/Kconfig
+@@ -6,16 +6,13 @@ config RTK_RESERVE_MEMORY
+ 
+ config RTK_PUWRAP
+ 	tristate
+-	select RTK_RESERVE_MEMORY
+ 
+ config RTK_IMAGE_CODEC
+ 	tristate "RTK Image Codec"
+-	select RTK_PUWRAP
+ 	default y
+ 
+ menuconfig RTD13XX_RTK_CODEC
+ 	tristate "Realtek RTD13XX Codec"
+-	select RTK_RESERVE_MEMORY
+ 	default n
+ 	help
+ 	  Realtek RTD13XX codec support.
+@@ -25,12 +22,10 @@ menuconfig RTD13XX_RTK_CODEC
+ config RTD13XX_VE1_CODEC
+ 	tristate "RTK Video Engine 1 Codec"
+ 	depends on RTD13XX_RTK_CODEC
+-	select RTK_PUWRAP
+ 	default n
+ 
+ menuconfig RTD13XXD_RTK_CODEC
+ 	tristate "Realtek RTD13XXD Codec"
+-	select RTK_RESERVE_MEMORY
+ 	default n
+ 	help
+ 	  Realtek RTD13XXD codec support.
+@@ -40,12 +35,10 @@ menuconfig RTD13XXD_RTK_CODEC
+ config RTD13XXD_VE1_CODEC
+ 	tristate "RTK Video Engine 1 Codec"
+ 	depends on RTD13XXD_RTK_CODEC
+-	select RTK_PUWRAP
+ 	default n
+ 
+ menuconfig RTD13XXE_RTK_CODEC
+         tristate "Realtek RTD13XXE Codec"
+-        select RTK_RESERVE_MEMORY
+         default n
+         help
+           Realtek RTD13XXE codec support.
+@@ -55,12 +48,10 @@ menuconfig RTD13XXE_RTK_CODEC
+ config RTD13XXE_VE1_CODEC
+         tristate "RTK Video Engine 1 Codec"
+         depends on RTD13XXE_RTK_CODEC
+-        select RTK_PUWRAP
+         default n
+ 
+ menuconfig RTD16XXB_RTK_CODEC
+ 	tristate "Realtek RTD16XXB Codec"
+-	select RTK_RESERVE_MEMORY
+ 	default n
+ 	help
+ 	  Realtek RTD16XXB codec support.
+@@ -70,9 +61,23 @@ menuconfig RTD16XXB_RTK_CODEC
+ config RTD16XXB_VE1_CODEC
+ 	tristate "RTK Video Engine 1 Codec"
+ 	depends on RTD16XXB_RTK_CODEC
+-	select RTK_PUWRAP
+ 	default n
+ 
++menuconfig RTK_KENT_CODEC
++	tristate "Realtek KENT Codec"
++	default n
++	help
++	  Realtek KENT codec support.
++
++	  If unsure, say N.
++
++config RTK_KENT_VE4
++	tristate "RTK Video Engine 4 Codec"
++	depends on RTK_KENT_CODEC
++	default n
++	help
++	  The encoder driver for Realtek Kent SoCs. If unsure, say N.
++
+ config REALTEK_SOC
+ 	bool
+ 	depends on ARCH_REALTEK
+diff --git a/drivers/soc/realtek/Makefile b/drivers/soc/realtek/Makefile
+index 3ac38cf6938e..e7e7670610b3 100644
+--- a/drivers/soc/realtek/Makefile
++++ b/drivers/soc/realtek/Makefile
+@@ -3,6 +3,7 @@ obj-y += rtd13xx/
+ obj-y += rtd13xxd/
+ obj-y += rtd16xxb/
+ obj-y += rtd13xxe/
++obj-y += kent/
+ obj-y += rtk_ve/
+ obj-y += cpudvfs/
+ obj-y += cpuhp/

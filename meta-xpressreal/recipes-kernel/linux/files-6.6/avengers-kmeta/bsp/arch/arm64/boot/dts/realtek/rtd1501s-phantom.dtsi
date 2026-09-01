@@ -48,9 +48,26 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		opp800: opp-800000000 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <830000 830000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp900: opp-900000000 {
+			opp-hz = /bits/ 64 <900000000>;
+			opp-microvolt = <850000 850000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
 		opp1000: opp-1000000000 {
 			opp-hz = /bits/ 64 <1000000000>;
 			opp-microvolt = <870000 870000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -58,6 +75,7 @@
 		opp1100: opp-1100000000 {
 			opp-hz = /bits/ 64 <1100000000>;
 			opp-microvolt = <890000 890000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -65,6 +83,7 @@
 		opp1200: opp-1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
 			opp-microvolt = <910000 910000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -72,6 +91,7 @@
 		opp1300: opp-1300000000 {
 			opp-hz = /bits/ 64 <1300000000>;
 			opp-microvolt = <930000 930000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -79,6 +99,7 @@
 		opp1400: opp-1400000000 {
 			opp-hz = /bits/ 64 <1400000000>;
 			opp-microvolt = <950000 950000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -86,6 +107,7 @@
 		opp1500: opp-1500000000 {
 			opp-hz = /bits/ 64 <1500000000>;
 			opp-microvolt = <970000 970000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -93,6 +115,7 @@
 		opp1600: opp-1600000000 {
 			opp-hz = /bits/ 64 <1600000000>;
 			opp-microvolt = <990000 990000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			opp-suspend;
 			status = "okay";
@@ -101,6 +124,7 @@
 		opp1700: opp-1700000000 {
 			opp-hz = /bits/ 64 <1700000000>;
 			opp-microvolt = <1010000 1010000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -108,6 +132,7 @@
 		opp1800: opp-1800000000 {
 			opp-hz = /bits/ 64 <1800000000>;
 			opp-microvolt = <1030000 1030000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -115,6 +140,7 @@
 		opp1900: opp-1900000000 {
 			opp-hz = /bits/ 64 <1900000000>;
 			opp-microvolt = <1050000 1050000 1100000>;
+			opp-microvolt-fss = <0 0 0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -190,5 +216,15 @@
 			opp-hz-real = /bits/ 64 <850500000>;
 			opp-microvolt = <800000>, <800000>;
 		};
+	};
+};
+
+&{/} {
+	cpu-dvfs {
+		fss-opp-updated = <0>;
+		fss-volt-correct = <80000>;
+		fss-volt-step = <10000>;
+		fss-volt-min = <750000>;
+		fss-volt-max = <1100000>;
 	};
 };

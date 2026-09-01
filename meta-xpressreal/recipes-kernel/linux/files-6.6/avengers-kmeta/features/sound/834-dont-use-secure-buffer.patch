@@ -1,3 +1,12 @@
+From b2f19df8d780eeba083f02499879be20d6b07768 Mon Sep 17 00:00:00 2001
+From: Phinex Hung <phinex@realtek.com>
+Date: Fri, 27 Jun 2025 21:05:59 +0800
+Subject: kernel: alsa: do not use secure buffer
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: I1ea32b5ee40017171e396c99b3529facd8a798d8
+---
 diff --git a/arch/arm64/boot/dts/realtek/kent-audio.dtsi b/arch/arm64/boot/dts/realtek/kent-audio.dtsi
 index e762d704bcc6..e3bdf2e26eb3 100644
 --- a/arch/arm64/boot/dts/realtek/kent-audio.dtsi

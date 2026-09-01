@@ -23,6 +23,7 @@ config USB_BOOT_GPIO_NUM
 	depends on USB_STORAGE
 	default 26 if TARGET_RTD1619B
 	default -1 if TARGET_RTD1625
+	default -1 if TARGET_RTD1635
 	help
 	  Set GPIO number to trigger USB boot in both U-Boot SPL/proper w/o pinmux change.
 	  Values:

@@ -1,16 +1,17 @@
-From 289724187c6ed0ab7f28db1fc943ef8a78bc321a Mon Sep 17 00:00:00 2001
+From 187582bd59dd99c31ec420da37b4f2aba0b519d6 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Wed, 8 Jan 2025 15:43:51 +0800
+Date: Tue, 14 Apr 2026 02:16:10 -0400
 Subject: [PATCH] fix video layer won't enter hw video plane when subtitle
- layer exist
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/backend-drm/state-propose.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/libweston/backend-drm/state-propose.c b/libweston/backend-drm/state-propose.c
-index 5bb11aa..8ac7f2d 100644
+index cb36ce0..a1c01ab 100644
 --- a/libweston/backend-drm/state-propose.c
 +++ b/libweston/backend-drm/state-propose.c
 @@ -740,7 +740,7 @@ drm_output_propose_state(struct weston_output *output_base,

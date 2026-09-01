@@ -29,6 +29,11 @@
 	status = "okay";
 };
 
+&sd {
+	bootph-all;
+	status = "okay";
+};
+
 &gpio {
 	bootph-all;
 	status = "okay";

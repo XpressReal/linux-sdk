@@ -1,0 +1,72 @@
+From f503237593def51a9ea763a05e0dbecea6f2bed2 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 22 Jun 2026 11:28:04 +0800
+Subject: [PATCH] fs: pstore: support pstore_blkdev setup in bootargs
+
+- zone.c: order entry by counter instead of current time
+---
+ fs/pstore/blk.c  |  9 +++++++++
+ fs/pstore/zone.c | 15 +++++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/fs/pstore/blk.c b/fs/pstore/blk.c
+index fa6b8cb788a1..9ec4b8ce70b5 100644
+--- a/fs/pstore/blk.c
++++ b/fs/pstore/blk.c
+@@ -64,6 +64,15 @@ static char blkdev[80] = CONFIG_PSTORE_BLK_BLKDEV;
+ module_param_string(blkdev, blkdev, 80, 0400);
+ MODULE_PARM_DESC(blkdev, "block device for pstore storage");
+ 
++static int __init pstore_blkdev_setup(char *line)
++{
++	strscpy(blkdev, line);
++	return 1;
++}
++
++// early_param("pstore_blkdev=", pstore_blkdev_setup);
++__setup("pstore_blkdev=", pstore_blkdev_setup);
++
+ /*
+  * All globals must only be accessed under the pstore_blk_lock
+  * during the register/unregister functions.
+diff --git a/fs/pstore/zone.c b/fs/pstore/zone.c
+index 694db616663f..1a84e93eeef4 100644
+--- a/fs/pstore/zone.c
++++ b/fs/pstore/zone.c
+@@ -375,7 +375,12 @@ static int psz_kmsg_recover_meta(struct psz_context *cxt)
+ 	ssize_t rcnt, len;
+ 	struct psz_buffer *buf;
+ 	struct psz_kmsg_header *hdr;
++/* Use counter instead of time */
++#if 1
++	unsigned long counter = 0;
++#else
+ 	struct timespec64 time = { };
++#endif
+ 	unsigned long i;
+ 	/*
+ 	 * Recover may on panic, we can't allocate any memory by kmalloc.
+@@ -427,10 +432,20 @@ static int psz_kmsg_recover_meta(struct psz_context *cxt)
+ 		 * we get the newest zone, and the next one must be the oldest
+ 		 * or unused zone, because we do write one by one like a circle.
+ 		 */
++/* Use counter instead of time */
++#if 1
++		if (hdr->counter > counter &&
++			((hdr->counter-counter) < cxt->kmsg_max_cnt || counter==0)) {
++			counter = hdr->counter;
++			cxt->kmsg_write_cnt = (i + 1) % cxt->kmsg_max_cnt;
++			pr_debug("cxt->kmsg_write_cn=%d\n", cxt->kmsg_write_cnt);
++		}
++#else
+ 		if (hdr->time.tv_sec >= time.tv_sec) {
+ 			time.tv_sec = hdr->time.tv_sec;
+ 			cxt->kmsg_write_cnt = (i + 1) % cxt->kmsg_max_cnt;
+ 		}
++#endif
+ 
+ 		if (hdr->reason == KMSG_DUMP_OOPS)
+ 			cxt->oops_counter =
+-- 
+2.47.0
+

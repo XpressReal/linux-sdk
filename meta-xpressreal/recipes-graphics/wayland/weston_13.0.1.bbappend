@@ -14,24 +14,28 @@ SRC_URI:append = " \
     file://0012-support-video-overlay-plane-on-weston.patch \
     file://0013-to-support-subtitle-layer-feature.patch \
     file://0014-fix-video-layer-won-t-enter-hw-video-plane-when-subt.patch \
-    file://0015-keep-v1-frame-to-avoid-tearing-issue.patch \
     file://0016-to-enable-or-disable-UI-hole-punch.patch \
     file://0017-fix-entering-wrong-view.patch \
-    file://0018-weston-add-feature-for-cts-testing.patch \
-    file://0019-weston-to-support-interlace-and-fps-shift-mode-setti.patch \
+    file://0018-add-default-max-mode-to-choose-max-tv-mode.patch \
+    file://0019-remove-max-bpc-setting.patch \
     file://0020-SW-9314-add-NV16-and-RGB888-to-support-mjpeg-render.patch \
     file://0021-weston-to-support-display-control-for-kms_ipc.patch \
     file://0022-weston-to-support-display-and-vo-control.patch \
-    file://0023-weston-fix-incorrect-display-after-hotplug-display.patch \
     file://0024-weston-add-P010-format-support.patch \
     file://0025-NASPRJ-1171-Add-NV24-to-support-mjpeg-render.patch \
-    file://0026-weston-auto-select-match-mode.patch \
-    file://0027-weston-fix-weston-crash-when-hotplug.patch \
-    file://0028-weston-release-all-target-framebuffer-when-drm-outpu.patch \
-    file://0029-weston-fix-video-is-covered-by-bg-after-hotplug-hdmi.patch \
+    file://0028-release-framebuffer-when-drm-output-was-destroyed.patch \
     file://0030-weston-fix-transparency-of-gui-fail-after-hotplug-hdmi.patch \
     file://0031-weston-modeset-fail-when-hotplug.patch \
     file://0032-weston-handling-consecutive-hotplug-events.patch \
     file://0033-weston-fix-weston-crash-when-receiving-consecutive-h.patch \
     file://0034-weston-avoid-background-transparent-sw-cursor-trailing.patch \
+    file://0035-NASPRJ-1360-support-mali-afrc-mode.patch \
+    file://0036-OPC-26-add-rtk-demo-app.patch \
+    file://0037-adjust-ui-and-tv-mode-select-method.patch \
+    file://0038-weston-add-drm-fence-flow.patch \
+    file://0039-reintegrated-weston-KMS-control-architecture.patch \
+    file://0040-xwayland-add-ac-flag-to-disable-access-control.patch \
+    file://0041-add-rtk-bg-layer-for-application.patch \
+    file://0042-fix-race-condition-for-fence_refcnt.patch \
+    file://0043-adjust-tv-mode-setting-flow.patch \
     "

@@ -2,6 +2,8 @@ From f6ee27a34c294f8fb3ed30ba49b481e91110c1b9 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 18 Dec 2024 19:52:59 +0800
 Subject: [PATCH 2/3] UPSTREAM:append non colorimetry structure to probed caps
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

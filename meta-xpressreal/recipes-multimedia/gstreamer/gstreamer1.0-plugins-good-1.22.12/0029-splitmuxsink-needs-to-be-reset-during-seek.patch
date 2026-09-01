@@ -1,0 +1,39 @@
+From e04e241a7d26e2a5c97bd7f8747d182841d3d10d Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Tue, 16 Dec 2025 19:49:59 +0800
+Subject: [PATCH] splitmuxsink needs to be reset during seek
+Upstream-Status: Inappropriate [rtk specific]
+
+Signed-off-by: hayward_ling <hayward_ling@realtek.com>
+---
+ gst/multifile/gstsplitmuxsink.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/gst/multifile/gstsplitmuxsink.c b/gst/multifile/gstsplitmuxsink.c
+index 012ca3e..c482ed4 100644
+--- a/gst/multifile/gstsplitmuxsink.c
++++ b/gst/multifile/gstsplitmuxsink.c
+@@ -224,6 +224,7 @@ static void gst_splitmux_sink_get_property (GObject * object, guint prop_id,
+     GValue * value, GParamSpec * pspec);
+ static void gst_splitmux_sink_dispose (GObject * object);
+ static void gst_splitmux_sink_finalize (GObject * object);
++static void gst_splitmux_sink_reset (GstSplitMuxSink * splitmux);
+ 
+ static GstPad *gst_splitmux_sink_request_new_pad (GstElement * element,
+     GstPadTemplate * templ, const gchar * name, const GstCaps * caps);
+@@ -1671,6 +1672,12 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
+           splitmux->queued_keyframes = 0;
+         ctx->flushing = FALSE;
+         wait = FALSE;
++        gst_splitmux_sink_reset (splitmux);
++        splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
++        splitmux->output_state = SPLITMUX_OUTPUT_STATE_START_NEXT_FILE;
++        splitmux->fragment_id = splitmux->start_index;
++        GST_SPLITMUX_BROADCAST_INPUT (splitmux);
++        GST_SPLITMUX_BROADCAST_OUTPUT (splitmux);
+         break;
+       case GST_EVENT_FLUSH_START:
+         GST_SPLITMUX_LOCK (splitmux);
+-- 
+2.45.2
+

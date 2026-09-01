@@ -1,0 +1,64 @@
+From 28af8e3f5442c346f542f7247dc39c09d1bb8262 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Thu, 7 May 2026 13:21:09 +0800
+Subject: [PATCH] drm/realtek: Fix NULL pointer dereference in rtk_edp_shutdown
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+During system restart (kernel_restart), the DRM subsystem calls
+drm_atomic_helper_shutdown() which disables all encoders. This
+triggers rtk_edp_shutdown() which accesses connector->state->crtc
+without checking if connector->state is NULL, causing a kernel panic.
+
+Panic log:
+  Unable to handle kernel NULL pointer dereference at virtual address 0000000000000cf8
+  pc : rtk_edp_shutdown+0xcc/0x1e8 [rtk_drm]
+
+Call stack:
+  kernel_restart → device_shutdown → platform_shutdown →
+  rtk_drm_shutdown → drm_atomic_helper_shutdown →
+  drm_atomic_helper_disable_all → drm_atomic_helper_commit_modeset_disables →
+  rtk_edp_enc_disable → rtk_edp_shutdown
+
+Fix by adding null check for connector->state before accessing crtc.
+
+Fixes: CHROME-906
+Signed-off-by: Edward Wu <edwardwu@realtek.com>
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/realtek/rtk_edp.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_edp.c b/drivers/gpu/drm/realtek/rtk_edp.c
+index 6ad980c7a8311..831d4f57a42e2 100644
+--- a/drivers/gpu/drm/realtek/rtk_edp.c
++++ b/drivers/gpu/drm/realtek/rtk_edp.c
+@@ -618,11 +618,11 @@ static bool rtk_edp_is_clock_on(struct rtk_edp *edp)
+ static void rtk_edp_shutdown(struct rtk_edp *edp)
+ {
+ 	struct rtk_rpc_info *rpc_info_vo = (edp->rpc_info_vo == NULL) ?
+-									 edp->rpc_info : edp->rpc_info_vo;
++						edp->rpc_info : edp->rpc_info_vo;
+ 	struct rpc_set_display_out_interface interface;
+ 	struct drm_connector *connector = &edp->connector;
+-	struct drm_crtc *crtc = connector->state->crtc;
+-	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++	struct drm_crtc *crtc = connector->state ? connector->state->crtc : NULL;
++	struct rtk_drm_crtc *rtk_crtc = crtc ? to_rtk_crtc(crtc) : NULL;
+ 	int ret;
+ 
+ 	dev_info(edp->dev, "edp: shutdown\n");
+@@ -637,7 +637,8 @@ static void rtk_edp_shutdown(struct rtk_edp *edp)
+ 
+ 	rtk_edp_phy_disable_timing_gen(edp);
+ 
+-	rtk_crtc->change_tv_system(crtc);
++	if (rtk_crtc)
++		rtk_crtc->change_tv_system(crtc);
+ 
+ 	edp->finished_training = false;
+ 
+-- 
+2.43.0
+

@@ -21,6 +21,9 @@ patch 817-Add-regulator-driver-for-apw888x-series-PMIC.patch
 patch 817-02-BACKPORT-regulator-add-ti-tps62860-driver.patch
 patch 817-03-WORKAROUND-regulator-tps6287x-set-PGBLNKDVS-to-1-for.patch
 patch 817-04-regulator-tps6287x-enable-regmap-cache.patch
+patch 817-05-WORKAROUND-regulator-tps6287x-force-vrange-to-2.patch
+patch 817-06-regulator-tps6287x-force-FPWM-mode-during-voltage-tr.patch
+patch 817-07-regulator-tps6287x-restore-boot-voltage-on-shutdown.patch
 patch 818-Add-m2tmx-reset-controller-for-Realtek-DHC-SoCs.patch
 patch 819-Add-rtc-driver-for-Realtek-DHC-SoCs.patch
 patch 820-Add-software-emulated-rtc-for-Realtek-DHC-SoCs.patch
@@ -30,12 +33,17 @@ patch 822-01-Add-spi-nand-flash-controller-driver-for-kent.patch
 patch 823-Add-thermal-sensor-driver.patch
 patch 824-Add-watchdog-driver-for-Realtek-DHC-SoCs.patch
 patch 825-Add-SD-MMC-host-controller-driver.patch
+patch 825-rtd1619b-xpressreal-fix-SD-card-write-protect-false-.patch
 patch 826-Add-SDHCI-controller-driver.patch
 patch 827-perf-realtek-Support-1619b-Dbus-PMU.patch
+patch 840-clocksource-Add-Realtek-system-timer-driver.patch
+patch 841-net-ethernet-realtek-enable-NETIF_F_GRO_UDP_FWD-feat.patch
 #patch 828-support_import_dmabuf.patch
 #patch 829-fixed-colorimetry-not-metch.patch
 #patch 830-Support-nv16-in-m2m-device.patch
 patch 831-kernel-upscale-SCPU-frequency-up-to-2.0GHz.patch
+patch 832-arm64-dts-rtd1501s-phantom-add-FSS-support-for-2GHz.patch
 patch 900-backinblack-gpu-align-with-bleedingedge.patch
+patch 900-regulator-Add-a-regulator-for-the-new-LCD-panels.patch
 
 kconf hardware avengers.cfg

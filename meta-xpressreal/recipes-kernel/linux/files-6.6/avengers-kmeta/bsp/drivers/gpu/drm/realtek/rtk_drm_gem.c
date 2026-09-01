@@ -302,9 +302,10 @@ struct drm_gem_object *rtk_gem_prime_import_sg_table(struct drm_device *dev,
 	if (ret)
 		DRM_ERROR("dma_buf_vmap fail\n");
 
-	vobj = (struct video_object *)(map.vaddr);
-	rtk_obj->vaddr = vobj;
+	rtk_obj->vaddr = map.vaddr;
+	rtk_obj->metadata_offset = attach->dmabuf->size - METADATA_SIZE;
 	rtk_obj->paddr = sg_dma_address(sg->sgl);
+	vobj = (struct video_object *)(map.vaddr + rtk_obj->metadata_offset);
 	if (vobj && vobj->header.type == METADATA_HEADER)
 		rtk_obj->dmabuf_type = DMABUF_TYPE_METADATA;
 	else

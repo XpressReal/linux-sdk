@@ -1,0 +1,49 @@
+From 15de9182368f5527fce0b2266b3b5eada0c1af1a Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Tue, 21 Jul 2026 23:16:51 -0400
+Subject: [PATCH] Resolved the mali vkcube execution issue
+
+mali doesn't support VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR bit
+use another alpha flags to replace it
+---
+ main.c | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/main.c b/main.c
+index 7bb4a7e..01800d8 100644
+--- a/main.c
++++ b/main.c
+@@ -735,8 +735,19 @@ create_swapchain(struct vkcube *vc)
+    VkSurfaceCapabilitiesKHR surface_caps;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vc->physical_device, vc->surface,
+                                              &surface_caps);
+-   assert(surface_caps.supportedCompositeAlpha &
+-          VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
++   VkCompositeAlphaFlagBitsKHR composite_alpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
++   static const VkCompositeAlphaFlagBitsKHR composite_alpha_prefs[] = {
++      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
++      VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
++      VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
++      VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
++   };
++   for (int i = 0; i < 4; i++) {
++      if (surface_caps.supportedCompositeAlpha & composite_alpha_prefs[i]) {
++         composite_alpha = composite_alpha_prefs[i];
++         break;
++      }
++   }
+ 
+    VkBool32 supported;
+    vkGetPhysicalDeviceSurfaceSupportKHR(vc->physical_device, 0, vc->surface,
+@@ -786,7 +797,7 @@ create_swapchain(struct vkcube *vc)
+          .queueFamilyIndexCount = 1,
+          .pQueueFamilyIndices = (uint32_t[]) { 0 },
+          .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+-         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
++         .compositeAlpha = composite_alpha,
+          .presentMode = present_mode,
+       }, NULL, &vc->swap_chain);
+ 
+-- 
+2.34.1
+

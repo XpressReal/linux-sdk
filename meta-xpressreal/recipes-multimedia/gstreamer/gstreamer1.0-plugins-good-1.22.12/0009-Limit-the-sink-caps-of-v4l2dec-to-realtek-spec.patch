@@ -2,6 +2,8 @@ From 82e9eb984868a14ad98860cebc45da02c3f34cbb Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Tue, 25 Mar 2025 18:31:57 +0800
 Subject: [PATCH 1/1] Limit the sink caps to realtek spec.
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

@@ -1,0 +1,993 @@
+From 17ac9e11690b7ba4fd1b44093e9e125d5d3d9490 Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Thu, 20 Aug 2026 16:46:12 +0800
+Subject: [PATCH] gpu: drm: share video overlay planes across CRTCs
+
+Make the video overlay planes a shared pool that any CRTC/mixer can use,
+instead of statically binding a fixed set of planes to each CRTC.
+
+ - Create the shared overlay planes once at bind time
+   (rtk_crtc_create_additional_planes) with possible_crtcs set to every
+   CRTC; on Kent this is V1-V4, other SoCs default to none. Planes start
+   unassigned (DISPLAY_INTERFACE_MIXER_NONE) and are routed to a mixer at
+   commit time.
+
+ - Program each mixer's layer z-order from the planes' normalized zpos in
+   atomic_flush (rtk_crtc_program_mixer_order), resending only when it
+   changed. Overlay planes get a mutable zpos property, and the per-layer
+   order table is filled through a shared rtk_mixer_order_set_layer()
+   helper.
+
+ - Cap the number of planes on a CRTC to what its mixer's hardware
+   compositor can blend (MIXER{1,2,3}_MAX_PLANES) in the CRTC
+   atomic_check, and expose that limit as a read-only "max_planes" CRTC
+   property. Expose each overlay plane's size limits as read-only
+   max_width/max_height plane properties (struct rtk_video_plane_caps).
+
+ - Defer a plane's mixer handover in the plane atomic_check until it is
+   safe: return -EBUSY while the plane is still committed to another CRTC
+   in DRM state, or while the VO firmware still reports it live on a mixer
+   (its deferred configureDisplayWindow has not retired yet). The check
+   runs only on migration commits, so steady-state frames are unaffected;
+   the -EBUSY lets user-space retry or pick a different free plane.
+
+ - Service out-fences for every plane routed to the ISR's mixer, since
+   shared overlays live on drm->dev rather than a single CRTC's plane
+   list.
+
+ - Enable the OSD4 cursor plane on mixer2 and program its display window
+   from a new plane atomic_enable hook so it lands in the same vsync.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.c  | 259 +++++++++++++++++++++---
+ drivers/gpu/drm/realtek/rtk_drm_crtc.h  |  34 ++++
+ drivers/gpu/drm/realtek/rtk_drm_drv.c   |   8 +
+ drivers/gpu/drm/realtek/rtk_drm_fb.c    |   6 +
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 252 ++++++++++++++++++++---
+ 5 files changed, 506 insertions(+), 53 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.c b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+index 7007002b7e8a8..357ecd41b45c5 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.c
+@@ -14,6 +14,7 @@
+ 
+ #include <drm/drm_crtc.h>
+ #include <drm/drm_crtc_helper.h>
++#include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_helper.h>
+ #include <drm/drm_print.h>
+ #include <drm/drm_vblank.h>
+@@ -24,6 +25,7 @@
+ #include <linux/of_irq.h>
+ #include <linux/of_device.h>
+ #include <linux/hwspinlock.h>
++#include <linux/sys_soc.h>
+ 
+ #ifdef CONFIG_CHROME_PLATFORMS
+ #include <linux/of_reserved_mem.h>
+@@ -40,6 +42,17 @@
+ #endif
+ #define to_rtk_crtc_state(s) container_of(s, struct rtk_crtc_state, base)
+ 
++/* Number of planes the given mixer's hardware compositor can blend. */
++static unsigned int rtk_mixer_max_planes(unsigned int mixer)
++{
++	switch (mixer) {
++	case DISPLAY_INTERFACE_MIXER1: return MIXER1_MAX_PLANES;
++	case DISPLAY_INTERFACE_MIXER2: return MIXER2_MAX_PLANES;
++	case DISPLAY_INTERFACE_MIXER3: return MIXER3_MAX_PLANES;
++	default:                       return MIXER1_MAX_PLANES;
++	}
++}
++
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+ static int rtk_crtc_set_mixer_order(struct rtk_rpc_info *rpc_info,
+                struct rpc_disp_mixer_order *mixer_order)
+@@ -49,10 +62,63 @@ static int rtk_crtc_set_mixer_order(struct rtk_rpc_info *rpc_info,
+    if(!rpc_info)
+        return -1;
+ 
++   DRM_INFO("%s: mixer=%u v1=%u v2=%u v3=%u v4=%u osd1=%u sub1=%u osd3=%u osd4=%u\n",
++       __func__, mixer_order->MixerNum,
++       mixer_order->v1, mixer_order->v2, mixer_order->v3, mixer_order->v4,
++       mixer_order->osd1, mixer_order->sub1, mixer_order->osd3, mixer_order->osd4);
++
+    ret = rpc_set_mixer_order(rpc_info, mixer_order);
+ 
+    return ret;
+ }
++
++/* Store @order for @layer_nr in the mixer's per-layer z-order table. */
++static void rtk_mixer_order_set_layer(struct rpc_disp_mixer_order *order,
++				      enum VO_VIDEO_PLANE layer_nr,
++				      unsigned char value)
++{
++	switch (layer_nr) {
++	case VO_VIDEO_PLANE_V1:   order->v1 = value;   break;
++	case VO_VIDEO_PLANE_V2:   order->v2 = value;   break;
++	case VO_VIDEO_PLANE_V3:   order->v3 = value;   break;
++	case VO_VIDEO_PLANE_V4:   order->v4 = value;   break;
++	case VO_VIDEO_PLANE_SUB1: order->sub1 = value; break;
++	case VO_VIDEO_PLANE_SUB2: order->sub2 = value; break;
++	case VO_VIDEO_PLANE_OSD1: order->osd1 = value; break;
++	case VO_VIDEO_PLANE_OSD2: order->osd2 = value; break;
++	case VO_VIDEO_PLANE_OSD3: order->osd3 = value; break;
++	case VO_VIDEO_PLANE_OSD4: order->osd4 = value; break;
++	case VO_VIDEO_PLANE_CSR:  order->csr = value;  break;
++	default: break;
++	}
++}
++
++/* Rebuild @crtc's mixer z-order from the normalized zpos of the planes on it
++ * and resend it if it changed. Called from atomic_flush, once the planes'
++ * windows have been (re)configured. */
++static void rtk_crtc_program_mixer_order(struct drm_crtc *crtc)
++{
++	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++	struct rpc_disp_mixer_order order;
++	struct drm_plane *plane;
++
++	memset(&order, MIXER_LAYER_UNUSED, sizeof(struct rpc_disp_mixer_order));
++	order.MixerNum = rtk_crtc->mixer;
++
++	drm_atomic_crtc_for_each_plane(plane, crtc) {
++		struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
++
++		rtk_mixer_order_set_layer(&order, rtk_plane->layer_nr,
++					  plane->state->normalized_zpos);
++	}
++
++	if (!memcmp(&order, &rtk_crtc->mixer_order, sizeof(order)))
++		return;
++
++	rtk_crtc->mixer_order = order;
++	if (rtk_crtc_set_mixer_order(rtk_crtc->rpc_info, &order))
++		DRM_ERROR("rtk crtc set mixer order fail\n");
++}
+ #endif
+ 
+ static const struct drm_prop_enum_list panel_usage_names[] = {
+@@ -174,6 +240,11 @@ static int rtk_crtc_atomic_get_property(struct drm_crtc *crtc,
+ 		*val = rtk_crtc->display_panel_usage;
+ 		return 0;
+ 	}
++
++	if (property == rtk_crtc->max_planes_prop) {
++		*val = rtk_mixer_max_planes(rtk_crtc->mixer);
++		return 0;
++	}
+ 	return 0;
+ }
+ 
+@@ -357,11 +428,15 @@ static bool rtk_crtc_mode_fixup(struct drm_crtc *crtc,
+ 	return true;
+ }
+ 
+-#if !defined(CONFIG_YOCTO_PLATFORMS)
+ static int rtk_crtc_atomic_check(struct drm_crtc *crtc,
+ 				struct drm_atomic_state *old_crtc_state)
+ {
+ 	struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++	struct drm_crtc_state *new_crtc_state =
++			  drm_atomic_get_new_crtc_state(old_crtc_state, crtc);
++	unsigned int max = rtk_mixer_max_planes(rtk_crtc->mixer);
++	unsigned int count = hweight32(new_crtc_state->plane_mask);
++#if !defined(CONFIG_YOCTO_PLATFORMS)
+ 	struct vo_color blueBorder = {0, 0, 255, 1};
+ 	int i;
+ 
+@@ -393,10 +468,18 @@ static int rtk_crtc_atomic_check(struct drm_crtc *crtc,
+ 			}
+ 		}
+ 	}
++#endif
++
++	/* Reject commits that place more planes on this mixer than its
++	* hardware compositor can blend (a hard limit on every SoC). */
++	if (count > max) {
++		DRM_ERROR("crtc %d (%s): %u planes exceed mixer capacity %u\n",
++			crtc->index, mixer_names[rtk_crtc->mixer], count, max);
++		return -EINVAL;
++	}
+ 
+ 	return 0;
+ }
+-#endif
+ 
+ static void rtk_crtc_atomic_flush(struct drm_crtc *crtc,
+ 				struct drm_atomic_state *old_crtc_state)
+@@ -408,6 +491,10 @@ static void rtk_crtc_atomic_flush(struct drm_crtc *crtc,
+ 
+ 	DRM_DEBUG_DRIVER("%d\n", __LINE__);
+ 
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++	rtk_crtc_program_mixer_order(crtc);
++#endif
++
+ 	spin_lock_irqsave(&drm->event_lock, flags);
+ 	if (rtk_crtc->event) {
+ 		rtk_crtc->pending_needs_vblank = true;
+@@ -461,9 +548,7 @@ static void rtk_crtc_atomic_disable(struct drm_crtc *crtc,
+ 
+ static const struct drm_crtc_helper_funcs rtk_crtc_helper_funcs = {
+ 	.mode_fixup = rtk_crtc_mode_fixup,
+-#if !defined(CONFIG_YOCTO_PLATFORMS)
+ 	.atomic_check = rtk_crtc_atomic_check,
+-#endif
+ 	.atomic_flush = rtk_crtc_atomic_flush,
+ 	.atomic_begin = rtk_crtc_atomic_begin,
+ 	.atomic_enable = rtk_crtc_atomic_enable,
+@@ -477,7 +562,7 @@ irqreturn_t rtk_crtc_isr(int irq, void *dev_id)
+ 	struct drm_crtc *crtc = &rtk_crtc->crtc;
+ 	unsigned long flags;
+ 	unsigned int feedback_notify;
+-	int i;
++	struct drm_plane *plane;
+ 
+ 	if (rpc_info->krpc_vo_opt != RPC_AUDIO) {
+ 		feedback_notify = 1U << (rtk_crtc->mixer * 2 + 1);
+@@ -509,9 +594,15 @@ irqreturn_t rtk_crtc_isr(int irq, void *dev_id)
+ 		rtk_crtc->present_time_en = 0;
+ 	}
+ 
+-	for (i = 0; i < rtk_crtc->plane_count; i++)
+-		if (rtk_crtc->nplanes[i].rtk_fence)
+-			rtk_drm_fence_update(&rtk_crtc->nplanes[i]);
++	/* Service the out-fence of every plane routed to this mixer (shared
++	 * overlays live on crtc->dev, not this CRTC). rtk_fence is only set for
++	 * PRIMARY/OVERLAY. */
++	drm_for_each_plane(plane, crtc->dev) {
++		struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
++
++		if (rtk_plane->rtk_fence && rtk_plane->mixer == rtk_crtc->mixer)
++			rtk_drm_fence_update(rtk_plane);
++	}
+ 
+ 	rtk_drm_vowb_isr(rtk_crtc->crtc.dev);
+ 
+@@ -544,6 +635,98 @@ static void rtk_crtc_stats_init(struct rtk_drm_crtc *rtk_crtc)
+ 	stats->last_pageflip_count = 0;
+ }
+ 
++#if defined(CONFIG_CHROME_PLATFORMS)
++static const struct soc_device_attribute rtk_soc_kent[] = {
++	{ .family = "Realtek Kent", },
++	{ /* sentinel */ }
++};
++
++/* Shared video overlay planes, assigned to a CRTC at commit time. Kent has 4
++ * (V1-V4), Stark 2 (V1-V2). */
++static const struct crtc_plane_data rtk_shared_overlay_kent[] = {
++	{ .layer_nr = VO_VIDEO_PLANE_V1,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++	{ .layer_nr = VO_VIDEO_PLANE_V2,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++	{ .layer_nr = VO_VIDEO_PLANE_V3,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++	{ .layer_nr = VO_VIDEO_PLANE_V4,
++	  .type = DRM_PLANE_TYPE_OVERLAY,
++	  .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++};
++
++static const struct crtc_plane_data rtk_shared_overlay_stark[] = {
++	// If stark need shared video plane, uncomment this
++	// { .layer_nr = VO_VIDEO_PLANE_V1,
++	//   .type = DRM_PLANE_TYPE_OVERLAY,
++	//   .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++	// { .layer_nr = VO_VIDEO_PLANE_V2,
++	//   .type = DRM_PLANE_TYPE_OVERLAY,
++	//   .plane_order = MIXER_LAYER_DEFAULT_ORDER },
++};
++
++/*
++ * Create the shared video overlay planes (usable by any CRTC), after all
++ * components are bound. They start on mixer 0 and inherit its panel usage
++ * until reassigned at commit time. Returns 0 on success, negative errno on
++ * failure.
++ */
++int rtk_crtc_create_additional_planes(struct drm_device *drm)
++{
++	struct rtk_drm_private *priv = drm->dev_private;
++	struct rtk_rpc_info *rpc_info = &priv->rpc_info[RTK_RPC_MAIN];
++	const struct crtc_plane_data *shared;
++	enum display_panel_usage usage = CHROME;
++	struct drm_crtc *crtc;
++	unsigned int num_shared;
++	int i;
++
++	drm_for_each_crtc(crtc, drm) {
++		struct rtk_drm_crtc *rtk_crtc = to_rtk_crtc(crtc);
++
++		if (rtk_crtc->mixer == 0) {
++			usage = rtk_crtc->display_panel_usage;
++			break;
++		}
++	}
++
++	if (soc_device_match(rtk_soc_kent)) {
++		shared = rtk_shared_overlay_kent;
++		num_shared = ARRAY_SIZE(rtk_shared_overlay_kent);
++	} else {
++		/* Default (Stark and others): 2 video overlay planes */
++		shared = rtk_shared_overlay_stark;
++		num_shared = ARRAY_SIZE(rtk_shared_overlay_stark);
++	}
++
++	for (i = 0; i < num_shared; i++) {
++		struct rtk_drm_plane *rtk_plane;
++
++		rtk_plane = kzalloc(sizeof(*rtk_plane), GFP_KERNEL);
++		if (!rtk_plane)
++			return -ENOMEM;
++
++		rtk_plane->mixer = DISPLAY_INTERFACE_MIXER_NONE;
++		rtk_plane->plane_order = shared[i].plane_order;
++		rtk_plane->display_panel_usage = usage;
++
++		if (rtk_plane_init(drm, rtk_plane,
++				   GENMASK(drm->mode_config.num_crtc - 1, 0),
++				   shared[i].type, shared[i].layer_nr,
++				   rpc_info)) {
++			DRM_ERROR("shared overlay plane %d init fail\n", i);
++			kfree(rtk_plane);
++			return -1;
++		}
++	}
++
++	return 0;
++}
++#endif
++
+ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ {
+ 	struct platform_device *pdev = to_platform_device(dev);
+@@ -587,8 +770,9 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 	dev_set_drvdata(dev, rtk_crtc);
+ 
+ 	rtk_crtc->rpc_info = &priv->rpc_info[RTK_RPC_MAIN];
+-	// set unused mixer order to 10
+-	memset(&rtk_crtc->mixer_order, 10, sizeof(struct rpc_disp_mixer_order));
++	/* mark every mixer layer unused, then flag the video layers in use */
++	memset(&rtk_crtc->mixer_order, MIXER_LAYER_UNUSED,
++	       sizeof(struct rpc_disp_mixer_order));
+ 
+ 	display_type = priv->display_type;
+ 
+@@ -634,6 +818,7 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 			DRM_DEV_ERROR(dev, "rtk plane init fail\n");
+ 			goto err_cleanup_plane;
+ 		}
++		rtk_crtc->nplanes[i].plane_order = plane->plane_order;
+ 
+ 		if (plane->type == DRM_PLANE_TYPE_PRIMARY)
+ 			primary = &rtk_crtc->nplanes[i].plane;
+@@ -641,15 +826,8 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 			cursor = &rtk_crtc->nplanes[i].plane;
+ 
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+-		if (plane->layer_nr == VO_VIDEO_PLANE_OSD1) {
+-			rtk_crtc->mixer_order.osd1 = plane->plane_order;
+-		} else if (plane->layer_nr == VO_VIDEO_PLANE_SUB1) {
+-			rtk_crtc->mixer_order.sub1 = plane->plane_order;
+-		} else if (plane->layer_nr == VO_VIDEO_PLANE_OSD3) {
+-			rtk_crtc->mixer_order.osd3 = plane->plane_order;
+-		}  else if (plane->layer_nr == VO_VIDEO_PLANE_OSD4) {
+-			rtk_crtc->mixer_order.osd4 = plane->plane_order;
+-		}
++		rtk_mixer_order_set_layer(&rtk_crtc->mixer_order,
++					  plane->layer_nr, plane->plane_order);
+ #endif
+ 	}
+ 
+@@ -681,14 +859,11 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 			DRM_DEV_ERROR(dev, "rtk plane init fail\n");
+ 			goto err_cleanup_crtc;
+ 		}
+-
++		rtk_crtc->nplanes[i].plane_order = plane->plane_order;
+ 
+ #if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
+-		if (plane->layer_nr == VO_VIDEO_PLANE_V1) {
+-			rtk_crtc->mixer_order.v1 = plane->plane_order;
+-		} else if (plane->layer_nr == VO_VIDEO_PLANE_V2) {
+-			rtk_crtc->mixer_order.v2 = plane->plane_order;
+-		}
++		rtk_mixer_order_set_layer(&rtk_crtc->mixer_order,
++					  plane->layer_nr, plane->plane_order);
+ #endif
+ 	}
+ 	rtk_crtc->mixer_order.MixerNum = rtk_crtc->mixer;
+@@ -730,6 +905,13 @@ static int rtk_crtc_bind(struct device *dev, struct device *master, void *data)
+ 				panel_usage_names, ARRAY_SIZE(panel_usage_names));
+ 	drm_object_attach_property(&rtk_crtc->crtc.base, rtk_crtc->display_panel_usage_prop, 0);
+ 
++	/* Read-only capability: number of planes this CRTC's mixer can composite,
++	 * so user-space knows how many planes it may assign to this CRTC. */
++	rtk_crtc->max_planes_prop = drm_property_create_range(drm, DRM_MODE_PROP_IMMUTABLE,
++				"max_planes", 0, MIXER1_MAX_PLANES);
++	drm_object_attach_property(&rtk_crtc->crtc.base, rtk_crtc->max_planes_prop,
++				rtk_mixer_max_planes(rtk_crtc->mixer));
++
+ 	rtk_crtc_stats_init(rtk_crtc);
+ 
+ 	return 0;
+@@ -815,7 +997,13 @@ static const struct crtc_plane_data rtd_crtc_plane_all[] = {
+ };
+ #endif
+ 
+-#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++#if defined(CONFIG_CHROME_PLATFORMS)
++static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
++	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
++	  .type = DRM_PLANE_TYPE_PRIMARY,
++	  .plane_order = MIXER1_MAX_PLANE_ORDER },
++};
++#elif defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_main[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+@@ -844,7 +1032,16 @@ static const struct crtc_plane_data rtd_crtc_plane_main[] = {
+ 	  .plane_order = FIRST_DISPLAY_OVERLAY },
+ };
+ 
+-#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++#if defined(CONFIG_CHROME_PLATFORMS)
++static const struct crtc_plane_data rtd_crtc_plane_data_ext[] = {
++	{ .layer_nr = VO_VIDEO_PLANE_SUB1,
++	  .type = DRM_PLANE_TYPE_PRIMARY,
++	  .plane_order = MIXER2_MAX_PLANE_ORDER - 1 },
++	{ .layer_nr = VO_VIDEO_PLANE_OSD4,
++	  .type = DRM_PLANE_TYPE_CURSOR,
++	  .plane_order = MIXER2_MAX_PLANE_ORDER },
++};
++#elif defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_ext[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_SUB1,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+@@ -873,7 +1070,13 @@ static const struct crtc_plane_data rtd_crtc_plane_ext[] = {
+ 	  .plane_order = SECOND_DISPLAY_OVERLAY },
+ };
+ 
+-#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++#if defined(CONFIG_CHROME_PLATFORMS)
++static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
++	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
++	  .type = DRM_PLANE_TYPE_PRIMARY,
++	  .plane_order = MIXER3_MAX_PLANE_ORDER },
++};
++#elif defined(CONFIG_YOCTO_PLATFORMS)
+ static const struct crtc_plane_data rtd_crtc_plane_data_third[] = {
+ 	{ .layer_nr = VO_VIDEO_PLANE_OSD3,
+ 	  .type = DRM_PLANE_TYPE_PRIMARY,
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_crtc.h b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+index 7ba5faf1498ee..575c6f6506abc 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_crtc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_crtc.h
+@@ -14,7 +14,25 @@
+ #define OVERLAY_PLANE_MAX	2
+ #define BUFLOCK_MAX		10
+ 
++/* z-order value that marks a mixer layer as unused/not present. */
++#define MIXER_LAYER_UNUSED 10
++/* default z-order for a present video layer (matches shared overlay plane_order). */
++#define MIXER_LAYER_DEFAULT_ORDER 0
++/* Maximum number of planes each mixer's hardware compositor can blend. */
++#define MIXER1_MAX_PLANES 8
++#define MIXER2_MAX_PLANES 6
++#define MIXER3_MAX_PLANES 4
++#define MIXER1_MAX_PLANE_ORDER (MIXER1_MAX_PLANES - 1)
++#define MIXER2_MAX_PLANE_ORDER (MIXER2_MAX_PLANES - 1)
++#define MIXER3_MAX_PLANE_ORDER (MIXER3_MAX_PLANES - 1)
++
++/* Upper bound of the mutable zpos property (largest per-mixer order).
++ * The core normalizes zpos per-CRTC and atomic_check caps plane count to
++ * the mixer capacity, so the value sent to hardware stays in range. */
++#define RTK_PLANE_MAX_ZPOS MIXER1_MAX_PLANE_ORDER
++
+ #define to_rtk_crtc(s) container_of(s, struct rtk_drm_crtc, crtc)
++#define to_rtk_plane(s) container_of(s, struct rtk_drm_plane, plane)
+ struct rtk_drm_crtc;
+ 
+ enum {
+@@ -56,6 +74,14 @@ struct rtk_crtc_stats {
+ 	u64 last_pageflip_count;
+ };
+ 
++/* Hardware limitations of a video overlay plane, exposed to user-space as
++ * read-only plane properties. Extend with new limits (e.g. HDR support,
++ * max scaling ratio) as needed. */
++struct rtk_video_plane_caps {
++	unsigned int max_width;
++	unsigned int max_height;
++};
++
+ struct rtk_drm_plane {
+ 	struct drm_plane plane;
+ 
+@@ -91,9 +117,15 @@ struct rtk_drm_plane {
+ 	struct drm_property *out_fence_ptr;
+ 	struct drm_property *rtk_meta_data_prop;
+ 	struct drm_property *vo_plane_name_prop;
++	struct drm_property *max_width_prop;
++	struct drm_property *max_height_prop;
++
++	/* Hardware limitations for this (video overlay) plane. */
++	struct rtk_video_plane_caps caps;
+ 
+ 	enum VO_VIDEO_PLANE layer_nr;
+ 	unsigned int mixer;
++	int plane_order;
+ 
+ 	ktime_t update_time;
+ 	unsigned int context;
+@@ -121,6 +153,7 @@ struct rtk_drm_crtc {
+ 	enum VO_VIDEO_PLANE layer_nr[VO_VIDEO_PLANE_NONE];
+ 	struct drm_property *present_time_prop;
+ 	struct drm_property *display_panel_usage_prop;
++	struct drm_property *max_planes_prop;
+ 	int present_time_en;
+ 	long long present_time;
+ 	unsigned int mixer;
+@@ -155,5 +188,6 @@ extern int rtk_drm_fence_update(struct rtk_drm_plane *rtk_plane);
+ 
+ int rtk_crtc_ioctl_get_mixer_id(struct drm_device *dev, void *data, struct drm_file *file);
+ int rtk_crtc_get_display_panel_usage_by_mixer(struct rtk_drm_crtc *rtk_crtc);
++int rtk_crtc_create_additional_planes(struct drm_device *drm);
+ 
+ #endif  /* _RTK_DRM_CRTC_H_ */
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_drv.c b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+index 5e8a3bcfa7ad4..8ab07a18a8996 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_drv.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+@@ -214,6 +214,14 @@ static int rtk_drm_bind(struct device *dev)
+ 	if (ret)
+ 		goto err_bind_device;
+ 
++#if defined(CONFIG_CHROME_PLATFORMS)
++	ret = rtk_crtc_create_additional_planes(drm);
++	if (ret) {
++		component_unbind_all(dev, drm);
++		goto err_bind_device;
++	}
++#endif
++
+ 	drm_kms_helper_poll_init(drm);
+ 
+ 	drm_mode_config_reset(drm);
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_fb.c b/drivers/gpu/drm/realtek/rtk_drm_fb.c
+index 9a2e62a195658..658cfcd9c7006 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_fb.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_fb.c
+@@ -281,4 +281,10 @@ void rtk_drm_mode_config_init(struct drm_device *dev)
+ 	dev->mode_config.cursor_height = RTK_DRM_FB_MIN_HEIGHT;
+ 	dev->mode_config.funcs = &rtk_drm_mode_config_funcs;
+ 	dev->mode_config.helper_private = &rtk_drm_mode_config_helpers;
++
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++	/* Planes expose a mutable zpos; let the core densify it per-CRTC
++	 * before we map it to the mixer z-order. */
++	dev->mode_config.normalize_zpos = true;
++#endif
+ }
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 1334f9bb17de3..089df19ceae58 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -16,6 +16,7 @@
+ #include <drm/drm_atomic_state_helper.h>
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_blend.h>
++#include <drm/drm_color_mgmt.h>
+ #include <drm/drm_fourcc.h>
+ #include <drm/drm_framebuffer.h>
+ #include <drm/drm_gem_framebuffer_helper.h>
+@@ -33,7 +34,6 @@
+ 
+ MODULE_IMPORT_NS(DMA_BUF);
+ 
+-#define to_rtk_plane(s) container_of(s, struct rtk_drm_plane, plane)
+ #define MAX_PLANE 5
+ 
+ #define INVERT_BITVAL_1 (~1)
+@@ -430,10 +430,14 @@ static int rtk_plane_update_scaling(struct drm_plane *plane)
+ 
+ 	old_disp_win = &rtk_plane->disp_win.videoWin;
+ 
++	/* Also resend when only the target mixer changed (shared plane moved to
++	 * another CRTC with identical geometry), otherwise the mixer switch in
++	 * atomic_update would never reach the VO. */
+ 	if (old_disp_win->x != plane->state->crtc_x ||
+ 		old_disp_win->y != plane->state->crtc_y ||
+ 		old_disp_win->width != plane->state->crtc_w ||
+-		old_disp_win->height != plane->state->crtc_h) {
++		old_disp_win->height != plane->state->crtc_h ||
++		((rtk_plane->disp_win.videoPlane >> 16) & 0xffff) != rtk_plane->mixer) {
+ 
+ 		DRM_DEBUG_DRIVER("plane type \x1b[31m%d\033[0m coordinate or size has changed\n", plane->type);
+ 		DRM_DEBUG_DRIVER("[type] : %d] [old] disp_win->x     : %d, disp_win->y      : %d\n",
+@@ -564,6 +568,21 @@ static int rtk_plane_update_cursor(struct drm_plane *plane)
+ 	return 0;
+ }
+ 
++/* Map the DRM COLOR_ENCODING enum to the video_object matrix_coefficients
++ * field (ITU-T H.273 / ISO 23091-2 codes, matching what a decoder emits). */
++static unsigned int rtk_matrix_from_color_encoding(enum drm_color_encoding enc)
++{
++	switch (enc) {
++	case DRM_COLOR_YCBCR_BT601:
++		return 6;  /* SMPTE 170M (BT.601) */
++	case DRM_COLOR_YCBCR_BT2020:
++		return 9;  /* BT.2020 non-constant luminance */
++	case DRM_COLOR_YCBCR_BT709:
++	default:
++		return 1;  /* BT.709 */
++	}
++}
++
+ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ {
+ 	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
+@@ -638,6 +657,15 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 		if (info->num_planes > 1)
+ 			obj->U_addr = rtk_gem[1]->paddr + fb->offsets[1];
+ 
++		/* No decoder metadata: take colorimetry from the plane's
++		 * COLOR_ENCODING/COLOR_RANGE properties */
++		obj->matrix_coefficients =
++			rtk_matrix_from_color_encoding(plane->state->color_encoding);
++		obj->video_full_range_flag =
++			(plane->state->color_range == DRM_COLOR_YCBCR_FULL_RANGE) ? 1 : 0;
++		DRM_DEBUG_DRIVER("matrix_coefficients: %d, full_range: %d\n",
++			 obj->matrix_coefficients, obj->video_full_range_flag);
++
+ 	} else {
+ #ifdef CONFIG_RTK_METADATA_AUTOJUDGE
+ 		struct video_object *decObj = (struct video_object *)(rtk_gem[0]->vaddr + rtk_gem[0]->metadata_offset);
+@@ -650,7 +678,6 @@ static int rtk_plane_update_video_obj(struct drm_plane *plane)
+ 		obj->header.size = sizeof(struct video_object);
+ 		obj->version = 0x72746B3F;
+ 
+-		rtk_plane->context = index;
+ 		obj->PTSH = decObj->PTSH;
+ 		obj->PTSL = decObj->PTSL;
+ 		obj->RPTSH = decObj->RPTSH;
+@@ -907,6 +934,14 @@ static int rtk_plane_rpc_init(struct rtk_drm_plane *rtk_plane,
+ 	struct vo_color blueBorder = {0, 0, 255, 1};
+ 
+ 	videoplane = layer_nr;
++
++#ifdef CONFIG_CHROME_PLATFORMS
++	/* Shared video overlays start on mixer 0; the real target mixer is set
++	 * per-commit in rtk_plane_atomic_update from plane->state->crtc. */
++	if (rtk_plane->plane.type == DRM_PLANE_TYPE_OVERLAY)
++		rtk_plane->mixer = DISPLAY_INTERFACE_MIXER_NONE;
++#endif
++
+ 	if (rpc_info->krpc_vo_opt != RPC_AUDIO)
+ 		flags = RTK_FLAG_NONCACHED | RTK_FLAG_SCPUACC | RTK_FLAG_HIFIACC;
+ 	else
+@@ -1136,20 +1171,6 @@ void rtk_plane_destroy(struct drm_plane *plane)
+ 	dma_buf_put(rtk_plane->refclock_dmabuf);
+ #endif
+ 
+-#if defined(CONFIG_CHROME_PLATFORMS)
+-	/* Put video/overlay channels into low-delay display mode at init */
+-	if (type == DRM_PLANE_TYPE_OVERLAY) {
+-		struct rpc_config_channel_lowdelay arg;
+-
+-		arg.mode = LOW_DELAY_DISPLAY;
+-		arg.instanceId = rtk_plane->info.instance;
+-
+-		if (rpc_video_config_channel_lowdelay(rpc_info, &arg))
+-			DRM_ERROR("%s: set LOW_DELAY_DISPLAY fail\n",
+-				  plane_names[rtk_plane->layer_nr]);
+-	}
+-#endif
+-
+ 	if (type == DRM_PLANE_TYPE_PRIMARY)
+ 		videoplane = VO_VIDEO_PLANE_OSD1;
+ 	else if (type == DRM_PLANE_TYPE_CURSOR)
+@@ -1296,6 +1317,16 @@ static int rtk_plane_atomic_get_property(struct drm_plane *plane,
+ 		return 0;
+ 	}
+ 
++	if (property == rtk_plane->max_width_prop) {
++		*val = rtk_plane->caps.max_width;
++		return 0;
++	}
++
++	if (property == rtk_plane->max_height_prop) {
++		*val = rtk_plane->caps.max_height;
++		return 0;
++	}
++
+ 	DRM_ERROR("failed to get rtk plane atomic property\n");
+ 	return -EINVAL;
+ }
+@@ -1330,12 +1361,90 @@ static const struct drm_plane_funcs rtk_plane_funcs = {
+ 	.format_mod_supported = rtk_plane_mod_supported,
+ };
+ 
++/* Hardware limitations per video overlay plane. Extend the struct (e.g. HDR
++ * support, max scaling ratio) and these entries as new limits are
++ * characterized. V1/V2 scale up to UHD, V3/V4 up to FHD. */
++static const struct {
++	enum VO_VIDEO_PLANE layer_nr;
++	struct rtk_video_plane_caps caps;
++} rtk_video_plane_caps[] = {
++	{ VO_VIDEO_PLANE_V1, { .max_width = 3840, .max_height = 2160 } },
++	{ VO_VIDEO_PLANE_V2, { .max_width = 3840, .max_height = 2160 } },
++	{ VO_VIDEO_PLANE_V3, { .max_width = 1920, .max_height = 1080 } },
++	{ VO_VIDEO_PLANE_V4, { .max_width = 1920, .max_height = 1080 } },
++};
++
++static int rtk_plane_check_handover_idle(struct rtk_drm_plane *rtk_plane,
++					   struct drm_plane_state *old_state,
++					   struct drm_plane_state *new_state)
++{
++	struct rpc_query_disp_win_in in;
++	struct rpc_query_disp_win_out out;
++
++	/* Not a mixer handover: nothing to serialize against. */
++	if (!new_state->crtc ||
++	    (old_state && new_state->crtc == old_state->crtc))
++		return 0;
++
++	/* CRTC has not released the plane in DRM yet */
++	if (old_state && old_state->crtc) {
++		DRM_INFO("%s: still owned by CRTC %d, not moving to CRTC %d\n",
++			  plane_names[rtk_plane->layer_nr],
++			  old_state->crtc->index,
++			  new_state->crtc->index);
++		return -EBUSY;
++	}
++
++	/* DRM says free, but the FW may still be scanning it out. */
++	memset(&in, 0, sizeof(in));
++	memset(&out, 0, sizeof(out));
++	in.plane = rtk_plane->info.videoPlane;
++
++	if (rpc_video_query_dis_win(rtk_plane->rpc_info, &in, &out)) {
++		DRM_ERROR("%s: query_dis_win RPC failed, treating plane as busy\n",
++				      plane_names[rtk_plane->layer_nr]);
++		return -EBUSY;
++	}
++
++	if (out.result != 0) {
++		DRM_INFO("%s: still live on a mixer (result %d), deferring handover\n",
++				      plane_names[rtk_plane->layer_nr],
++				      out.result);
++		return -EBUSY;
++	}
++
++	return 0;
++}
++
+ static int rtk_plane_atomic_check(struct drm_plane *plane,
+ 				  struct drm_atomic_state *state)
+ {
++	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
++	struct drm_plane_state *new_state =
++		drm_atomic_get_new_plane_state(state, plane);
++	struct drm_plane_state *old_state =
++		drm_atomic_get_old_plane_state(state, plane);
++	unsigned int src_w, src_h;
++
+ 	DRM_DEBUG_DRIVER("%d\n", __LINE__);
+ 
+-	return 0;
++	/* Only video overlays are limited by the mixer's scaler input size. */
++	if (!new_state || !new_state->fb ||
++	    plane->type != DRM_PLANE_TYPE_OVERLAY)
++		return 0;
++
++	src_w = new_state->src_w >> 16;
++	src_h = new_state->src_h >> 16;
++
++	if (src_w > rtk_plane->caps.max_width ||
++	    src_h > rtk_plane->caps.max_height) {
++		DRM_ERROR("%s: source %ux%u exceeds max resolution %ux%u\n",
++			  plane_names[rtk_plane->layer_nr], src_w, src_h,
++			  rtk_plane->caps.max_width, rtk_plane->caps.max_height);
++		return -EINVAL;
++	}
++
++	return rtk_plane_check_handover_idle(rtk_plane, old_state, new_state);
+ }
+ 
+ #define MIN_UPDATE_INTERVAL 20
+@@ -1352,9 +1461,12 @@ static void rtk_plane_atomic_update(struct drm_plane *plane,
+ 		return;
+ 	}
+ 
++	rtk_plane->mixer = to_rtk_crtc(crtc)->mixer;
+ 	DRM_DEBUG_DRIVER("crtc[%d]-%s\n",
+ 		crtc->index, mixer_names[rtk_plane->mixer]);
+ 
++	/* Shared video overlay: route to the mixer owned by the CRTC it is
++	 * currently assigned to. update_scaling() re-encodes videoPlane. */
+ 	if (plane->type == DRM_PLANE_TYPE_OVERLAY) {
+ 		struct rtk_drm_plane_state *s = to_rtk_plane_state(plane->state);
+ 		rtk_plane_update_video_obj(plane);
+@@ -1398,6 +1510,30 @@ static void rtk_plane_atomic_update(struct drm_plane *plane,
+ 	}
+ }
+ 
++static void rtk_plane_atomic_enable(struct drm_plane *plane,
++				struct drm_atomic_state *old_state)
++{
++	struct rtk_drm_plane *rtk_plane = to_rtk_plane(plane);
++	struct rtk_rpc_info *rpc_info = rtk_plane->rpc_info;
++
++	DRM_DEBUG_DRIVER("(%s) enable on %s\n", plane_names[rtk_plane->layer_nr],
++		 mixer_names[rtk_plane->mixer]);
++
++	if (plane->type != DRM_PLANE_TYPE_CURSOR)
++		return;
++
++	/* make sure VO config window in this vsync */
++	rtk_plane->disp_win.videoPlane = rtk_plane->info.videoPlane | (rtk_plane->mixer << 16);
++	rtk_plane->disp_win.videoWin.x       = plane->state->crtc_x;
++	rtk_plane->disp_win.videoWin.y       = plane->state->crtc_y;
++	rtk_plane->disp_win.videoWin.width   = plane->state->crtc_w;
++	rtk_plane->disp_win.videoWin.height  = plane->state->crtc_h;
++	rtk_plane->disp_win.enBorder         = 0;
++
++	if (rpc_video_config_disp_win(rpc_info, &rtk_plane->disp_win))
++		DRM_ERROR("rpc_video_config_disp_win RPC fail\n");
++}
++
+ static void rtk_plane_atomic_disable(struct drm_plane *plane,
+ 				struct drm_atomic_state *old_state)
+ {
+@@ -1405,7 +1541,8 @@ static void rtk_plane_atomic_disable(struct drm_plane *plane,
+ 	struct rtk_rpc_info *rpc_info = rtk_plane->rpc_info;
+ 	struct vo_rectangle rect;
+ 
+-	DRM_DEBUG_DRIVER("(%s)\n", plane_names[rtk_plane->layer_nr]);
++	DRM_DEBUG_DRIVER("(%s) on %s\n", plane_names[rtk_plane->layer_nr],
++		  mixer_names[rtk_plane->mixer]);
+ 
+ 	rect.x = 0;
+ 	rect.y = 0;
+@@ -1418,8 +1555,11 @@ static void rtk_plane_atomic_disable(struct drm_plane *plane,
+ 	if (rpc_video_config_disp_win(rpc_info, &rtk_plane->disp_win))
+ 		DRM_ERROR("rpc_video_config_disp_win RPC fail\n");
+ 
+-	if (plane->type == DRM_PLANE_TYPE_OVERLAY)
++	if (plane->type == DRM_PLANE_TYPE_OVERLAY) {
++		rtk_plane->mixer = DISPLAY_INTERFACE_MIXER_NONE;
++		rtk_plane->disp_win.videoPlane = rtk_plane->info.videoPlane | (rtk_plane->mixer << 16);
+ 		rtk_drm_fence_flush(rtk_plane);
++	}
+ 
+ 	if (plane->type == DRM_PLANE_TYPE_PRIMARY) {
+ 		rtk_plane->wait_a_vsync = false;
+@@ -1427,11 +1567,6 @@ static void rtk_plane_atomic_disable(struct drm_plane *plane,
+ 			rtk_plane->wait_a_vsync == true, msecs_to_jiffies(16));
+ 	}
+ 
+-	if (plane->type == DRM_PLANE_TYPE_CURSOR) {
+-		if (rtk_plane_inband_config_disp_win(plane, &rtk_plane->disp_win)) {
+-			DRM_ERROR("rtk_plane_inband_config_disp_win fail\n");
+-		}
+-	}
+ }
+ 
+ static int rtk_plane_atomic_async_check(struct drm_plane *plane,
+@@ -1479,6 +1614,7 @@ static void rtk_plane_atomic_async_update(struct drm_plane *plane,
+ static const struct drm_plane_helper_funcs rtk_plane_helper_funcs = {
+ 	.atomic_check = rtk_plane_atomic_check,
+ 	.atomic_update = rtk_plane_atomic_update,
++	.atomic_enable = rtk_plane_atomic_enable,
+ 	.atomic_disable = rtk_plane_atomic_disable,
+ 	.atomic_async_check = rtk_plane_atomic_async_check,
+ 	.atomic_async_update = rtk_plane_atomic_async_update,
+@@ -1528,7 +1664,13 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 	drm_plane_helper_add(plane, &rtk_plane_helper_funcs);
+ 
+ 	if(type == DRM_PLANE_TYPE_OVERLAY) {
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++		/* Mutable zpos; init 0 keeps the default stack (video <
++		 * graphics < cursor). */
++		drm_plane_create_zpos_property(plane, 0, 0, RTK_PLANE_MAX_ZPOS);
++#else
+ 		drm_plane_create_zpos_immutable_property(plane, 0);
++#endif
+ 
+ 		rtk_plane->out_fence_ptr = drm_property_create_range(plane->dev, DRM_MODE_PROP_ATOMIC,
+ 						"OUT_FENCE_PTR", 0, U64_MAX);
+@@ -1538,9 +1680,51 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 		}
+ 
+ 		drm_object_attach_property(&plane->base, rtk_plane->out_fence_ptr, 0);
++
++		/* Read-only: this video plane's hardware limitations, so
++		 * user-space can pick a suitable plane. */
++		{
++			int i;
++
++			for (i = 0; i < ARRAY_SIZE(rtk_video_plane_caps); i++) {
++				if (rtk_video_plane_caps[i].layer_nr == layer_nr) {
++					rtk_plane->caps = rtk_video_plane_caps[i].caps;
++					break;
++				}
++			}
++		}
++
++		rtk_plane->max_width_prop = drm_property_create_range(plane->dev,
++				DRM_MODE_PROP_IMMUTABLE, "max_width", 0,
++				rtk_plane->caps.max_width);
++		drm_object_attach_property(&plane->base,
++				rtk_plane->max_width_prop, rtk_plane->caps.max_width);
++
++		rtk_plane->max_height_prop = drm_property_create_range(plane->dev,
++				DRM_MODE_PROP_IMMUTABLE, "max_height", 0,
++				rtk_plane->caps.max_height);
++		drm_object_attach_property(&plane->base,
++				rtk_plane->max_height_prop, rtk_plane->caps.max_height);
++
++		/* Standard YCbCr colorimetry for the video planes. Mapped to the
++		 * video_object in rtk_plane_update_video_obj(); decoder metadata,
++		 * when present, still takes precedence. Defaults match the previous
++		 * hardcoded behaviour (BT.709, limited range). */
++		drm_plane_create_color_properties(plane,
++				BIT(DRM_COLOR_YCBCR_BT601) |
++				BIT(DRM_COLOR_YCBCR_BT709) |
++				BIT(DRM_COLOR_YCBCR_BT2020),
++				BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
++				BIT(DRM_COLOR_YCBCR_FULL_RANGE),
++				DRM_COLOR_YCBCR_BT709,
++				DRM_COLOR_YCBCR_LIMITED_RANGE);
+ 	}
+ 	else if (type == DRM_PLANE_TYPE_PRIMARY) {
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++		drm_plane_create_zpos_property(plane, 1, 0, RTK_PLANE_MAX_ZPOS);
++#else
+ 		drm_plane_create_zpos_immutable_property(plane, 1);
++#endif
+ 
+ 		rtk_plane->out_fence_ptr = drm_property_create_range(plane->dev, DRM_MODE_PROP_ATOMIC,
+ 					"OUT_FENCE_PTR", 0, U64_MAX);
+@@ -1552,7 +1736,11 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 		drm_object_attach_property(&plane->base, rtk_plane->out_fence_ptr, 0);
+ 	}
+ 	else {
++#if defined(CONFIG_CHROME_PLATFORMS) || defined(CONFIG_YOCTO_PLATFORMS)
++		drm_plane_create_zpos_property(plane, 2, 0, RTK_PLANE_MAX_ZPOS);
++#else
+ 		drm_plane_create_zpos_immutable_property(plane, 2);
++#endif
+ 	}
+ 
+ 	rtk_plane->vo_plane_name_prop = drm_property_create_enum(plane->dev, 0, "plane name",
+@@ -1581,6 +1769,20 @@ int rtk_plane_init(struct drm_device *drm, struct rtk_drm_plane *rtk_plane,
+ 
+ 	rtk_plane_rpc_init(rtk_plane, layer_nr);
+ 
++#if defined(CONFIG_CHROME_PLATFORMS)
++	/* Put video/overlay channels into low-delay display mode at init */
++	if (type == DRM_PLANE_TYPE_OVERLAY) {
++		struct rpc_config_channel_lowdelay arg;
++
++		arg.mode = LOW_DELAY_DISPLAY;
++		arg.instanceId = rtk_plane->info.instance;
++
++		if (rpc_video_config_channel_lowdelay(rpc_info, &arg))
++			DRM_ERROR("%s: set LOW_DELAY_DISPLAY fail\n",
++				  plane_names[rtk_plane->layer_nr]);
++	}
++#endif
++
+ 	if (type == DRM_PLANE_TYPE_PRIMARY || type == DRM_PLANE_TYPE_OVERLAY)
+ 		rtk_drm_fence_init(rtk_plane);
+ 
+-- 
+2.50.1
+

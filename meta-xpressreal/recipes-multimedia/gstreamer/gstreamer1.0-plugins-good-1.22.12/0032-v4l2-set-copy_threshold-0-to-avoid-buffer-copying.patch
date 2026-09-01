@@ -1,0 +1,28 @@
+From cb71b6fbb5762a4ace04dde7277cbe8594c81ccd Mon Sep 17 00:00:00 2001
+From: hayward_ling <hayward_ling@realtek.com>
+Date: Fri, 3 Jul 2026 14:13:36 +0800
+Subject: v4l2 set copy_threshold 0 to avoid buffer copying
+Source: Realtek
+License: LGPL-2.1-or-later
+Upstream-Status: Inappropriate [rtk specific]
+
+---
+ sys/v4l2/gstv4l2bufferpool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 14d8cb0..a44a371 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -871,7 +871,7 @@ gst_v4l2_buffer_pool_start (GstBufferPool * bpool)
+         GST_WARNING_OBJECT (pool,
+             "Uncertain or not enough buffers, enabling copy threshold");
+         min_buffers = count;
+-        copy_threshold = min_latency;
++        copy_threshold = 0;
+       }
+ 
+       break;
+-- 
+2.43.0
+

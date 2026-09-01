@@ -1,0 +1,108 @@
+From 3bf0d6bb2f65878a642ab9deebff52cc92301490 Mon Sep 17 00:00:00 2001
+From: Mathieu Poirier <mathieu.poirier@linaro.org>
+Date: Fri, 12 Mar 2021 09:24:40 -0700
+Subject: [PATCH 11/18] remoteproc: Properly represent the attached state
+
+There is a need to know when a remote processor has been attached
+to rather than booted by the remoteproc core.  In order to avoid
+manipulating two variables, i.e rproc::autonomous and
+rproc::state, get rid of the former and simply use the newly
+introduced RPROC_ATTACHED state.
+
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Reviewed-by: Peng Fan <peng.fan@nxp.com>
+Reviewed-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Link: https://lore.kernel.org/r/20210312162453.1234145-5-mathieu.poirier@linaro.org
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+Change-Id: I1a3cad16fda5795805db13928681aadb4ac2ccb9
+---
+ drivers/remoteproc/remoteproc_core.c  | 20 +-------------------
+ drivers/remoteproc/remoteproc_sysfs.c |  5 +----
+ include/linux/remoteproc.h            |  2 --
+ 3 files changed, 2 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/remoteproc/remoteproc_core.c b/drivers/remoteproc/remoteproc_core.c
+index d54ffd74c3ce8..69de9e4f15fe6 100644
+--- a/drivers/remoteproc/remoteproc_core.c
++++ b/drivers/remoteproc/remoteproc_core.c
+@@ -1455,7 +1455,7 @@ static int __rproc_attach(struct rproc *rproc)
+ 		goto stop_rproc;
+ 	}
+ 
+-	rproc->state = RPROC_RUNNING;
++	rproc->state = RPROC_ATTACHED;
+ 
+ 	dev_info(dev, "remote processor %s is now attached\n", rproc->name);
+ 
+@@ -1670,14 +1670,6 @@ static int rproc_stop(struct rproc *rproc, bool crashed)
+ 
+ 	rproc->state = RPROC_OFFLINE;
+ 
+-	/*
+-	 * The remote processor has been stopped and is now offline, which means
+-	 * that the next time it is brought back online the remoteproc core will
+-	 * be responsible to load its firmware.  As such it is no longer
+-	 * autonomous.
+-	 */
+-	rproc->autonomous = false;
+-
+ 	dev_info(dev, "stopped remote processor %s\n", rproc->name);
+ 
+ 	return 0;
+@@ -2101,16 +2093,6 @@ int rproc_add(struct rproc *rproc)
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	/*
+-	 * Remind ourselves the remote processor has been attached to rather
+-	 * than booted by the remoteproc core.  This is important because the
+-	 * RPROC_DETACHED state will be lost as soon as the remote processor
+-	 * has been attached to.  Used in firmware_show() and reset in
+-	 * rproc_stop().
+-	 */
+-	if (rproc->state == RPROC_DETACHED)
+-		rproc->autonomous = true;
+-
+ 	/* if rproc is marked always-on, request it to boot */
+ 	if (rproc->auto_boot) {
+ 		ret = rproc_trigger_auto_boot(rproc);
+diff --git a/drivers/remoteproc/remoteproc_sysfs.c b/drivers/remoteproc/remoteproc_sysfs.c
+index 3570c6a711ce5..750fdaa7e4e55 100644
+--- a/drivers/remoteproc/remoteproc_sysfs.c
++++ b/drivers/remoteproc/remoteproc_sysfs.c
+@@ -141,11 +141,8 @@ static ssize_t firmware_show(struct device *dev, struct device_attribute *attr,
+ 	 * If the remote processor has been started by an external
+ 	 * entity we have no idea of what image it is running.  As such
+ 	 * simply display a generic string rather then rproc->firmware.
+-	 *
+-	 * Here we rely on the autonomous flag because a remote processor
+-	 * may have been attached to and currently in a running state.
+ 	 */
+-	if (rproc->autonomous)
++	if (rproc->state == RPROC_ATTACHED)
+ 		firmware = "unknown";
+ 
+ 	return sprintf(buf, "%s\n", firmware);
+diff --git a/include/linux/remoteproc.h b/include/linux/remoteproc.h
+index 42f6632df06c0..6784753d4ed4a 100644
+--- a/include/linux/remoteproc.h
++++ b/include/linux/remoteproc.h
+@@ -514,7 +514,6 @@ struct rproc_dump_segment {
+  * @table_sz: size of @cached_table
+  * @has_iommu: flag to indicate if remote processor is behind an MMU
+  * @auto_boot: flag to indicate if remote processor should be auto-started
+- * @autonomous: true if an external entity has booted the remote processor
+  * @dump_segments: list of segments in the firmware
+  * @nb_vdev: number of vdev currently handled by rproc
+  * @char_dev: character device of the rproc
+@@ -551,7 +550,6 @@ struct rproc {
+ 	size_t table_sz;
+ 	bool has_iommu;
+ 	bool auto_boot;
+-	bool autonomous;
+ 	struct list_head dump_segments;
+ 	int nb_vdev;
+ 	u8 elf_class;
+-- 
+2.47.0
+

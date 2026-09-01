@@ -1,1 +1,3 @@
 SRCREV = "9a8d823b3c0d49b9eba993d2af1f3d50b206ee90"
+
+include ${BPN}.inc

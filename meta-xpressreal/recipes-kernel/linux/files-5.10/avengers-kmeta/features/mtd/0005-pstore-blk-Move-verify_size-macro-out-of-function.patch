@@ -1,0 +1,60 @@
+From 2a03ddbde1e1268f15de6f15b09f305a33bff4ba Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Wed, 16 Jun 2021 07:51:28 -0700
+Subject: [PATCH] pstore/blk: Move verify_size() macro out of function
+
+There's no good reason for the verify_size macro to live inside the
+function. Move it up with the check_size() macro and fix indenting.
+
+Cc: Anton Vorontsov <anton@enomsg.org>
+Cc: Colin Cross <ccross@android.com>
+Cc: Tony Luck <tony.luck@intel.com>
+Signed-off-by: Kees Cook <keescook@chromium.org>
+
+diff --git a/fs/pstore/blk.c b/fs/pstore/blk.c
+index eca83820fb5d..7d8e5a1ddd5b 100644
+--- a/fs/pstore/blk.c
++++ b/fs/pstore/blk.c
+@@ -108,6 +108,17 @@ struct bdev_info {
+ 	_##name_;						\
+ })
+ 
++#define verify_size(name, alignsize, enabled) {			\
++	long _##name_;						\
++	if (enabled)						\
++		_##name_ = check_size(name, alignsize);		\
++	else							\
++		_##name_ = 0;					\
++	/* Synchronize module parameters with resuls. */	\
++	name = _##name_ / 1024;					\
++	pstore_zone_info->name = _##name_;			\
++}
++
+ static int __register_pstore_device(struct pstore_device_info *dev)
+ {
+ 	int ret;
+@@ -143,21 +154,10 @@ static int __register_pstore_device(struct pstore_device_info *dev)
+ 	if (!dev->flags)
+ 		dev->flags = UINT_MAX;
+ 
+-#define verify_size(name, alignsize, enabled) {				\
+-		long _##name_;						\
+-		if (enabled)						\
+-			_##name_ = check_size(name, alignsize);		\
+-		else							\
+-			_##name_ = 0;					\
+-		name = _##name_ / 1024;					\
+-		pstore_zone_info->name = _##name_;			\
+-	}
+-
+ 	verify_size(kmsg_size, 4096, dev->flags & PSTORE_FLAGS_DMESG);
+ 	verify_size(pmsg_size, 4096, dev->flags & PSTORE_FLAGS_PMSG);
+ 	verify_size(console_size, 4096, dev->flags & PSTORE_FLAGS_CONSOLE);
+ 	verify_size(ftrace_size, 4096, dev->flags & PSTORE_FLAGS_FTRACE);
+-#undef verify_size
+ 
+ 	pstore_zone_info->total_size = dev->total_size;
+ 	pstore_zone_info->max_reason = max_reason;
+-- 
+2.47.0
+

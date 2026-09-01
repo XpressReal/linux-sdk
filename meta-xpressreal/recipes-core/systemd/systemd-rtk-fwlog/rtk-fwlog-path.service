@@ -1,0 +1,12 @@
+[Unit]
+Description=Set up Realtek firmware log storage
+After=local-fs.target
+PartOf=rtk-fwlog.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=@SYSCONFDIR@/default/rtk-fwlog
+RuntimeDirectory=rtk-fwlog
+RuntimeDirectoryMode=0750
+ExecStart=@LIBEXECDIR@/rtk-fwlog-path-setup
+RemainAfterExit=yes

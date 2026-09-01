@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __DT_BINDINGS_REGULATOR_RAA271003_H
+#define __DT_BINDINGS_REGULATOR_RAA271003_H
+
+#define RAA271003_MODE_AUTO       0
+#define RAA271003_MODE_FORCE_PWM  1
+
+#endif

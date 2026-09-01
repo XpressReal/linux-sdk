@@ -1,0 +1,49 @@
+From f62ae1cad2a09bf102d595ef246f072371bab663 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 22 Jun 2026 10:40:20 +0800
+Subject: [PATCH] mtd: nand: spi: register _panic_write to mtd
+
+- panic_spinand_mtd_write: call spinand_mtd_write() with mtd_oob_ops
+---
+ drivers/mtd/nand/spi/core.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 7e21e627fed8..fdf208e799c4 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -893,6 +893,23 @@ static int spinand_mtd_write(struct mtd_info *mtd, loff_t to,
+ 	return ret;
+ }
+ 
++static int panic_spinand_mtd_write(struct mtd_info *mtd, loff_t to, size_t len,
++			    size_t *retlen, const uint8_t *buf)
++{
++	struct mtd_oob_ops ops;
++	int ret;
++
++	memset(&ops, 0, sizeof(ops));
++	ops.len = len;
++	ops.datbuf = (uint8_t *)buf;
++	ops.mode = MTD_OPS_PLACE_OOB;
++
++	ret = spinand_mtd_write(mtd, to, &ops);
++
++	*retlen = ops.retlen;
++	return ret;
++}
++
+ static bool spinand_isbad(struct nand_device *nand, const struct nand_pos *pos)
+ {
+ 	struct spinand_device *spinand = nand_to_spinand(nand);
+@@ -1450,6 +1467,7 @@ static int spinand_init(struct spinand_device *spinand)
+ 
+ 	mtd->_read_oob = spinand_mtd_read;
+ 	mtd->_write_oob = spinand_mtd_write;
++	mtd->_panic_write = panic_spinand_mtd_write;
+ 	mtd->_block_isbad = spinand_mtd_block_isbad;
+ 	mtd->_block_markbad = spinand_mtd_block_markbad;
+ 	mtd->_block_isreserved = spinand_mtd_block_isreserved;
+-- 
+2.47.0
+

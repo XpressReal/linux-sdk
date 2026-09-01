@@ -1,0 +1,91 @@
+From fbae8090d89ae8c2afe6d86d75c5d2911f50a5cc Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Thu, 16 Apr 2026 13:24:21 +0800
+Subject: [PATCH 1/1] Remove rheap dma APIs for rpc
+
+---
+ drivers/soc/realtek/common/rtk_rpc_mem.c      |  9 ---------
+ drivers/soc/realtek/common/rtk_urpc_service.c | 12 ------------
+ 2 files changed, 21 deletions(-)
+
+diff --git a/drivers/soc/realtek/common/rtk_rpc_mem.c b/drivers/soc/realtek/common/rtk_rpc_mem.c
+index 7892e1b63a29..7947a8707ff8 100644
+--- a/drivers/soc/realtek/common/rtk_rpc_mem.c
++++ b/drivers/soc/realtek/common/rtk_rpc_mem.c
+@@ -533,9 +533,6 @@ unsigned int rpc_ion_alloc_handler_legacy(struct rtk_rpc_client *client, bool se
+ 	if (fw_send_value & FW_ALLOC_VCPU_EXTRA)
+ 		alloc_flags |= RTK_FLAG_CMA;
+ 
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	rheap_setup_dma_pools(dev, "rtk_media_heap", alloc_flags, client->name);
+-#endif
+ 	cookie = dma_alloc_attrs(dev, alloc_val, &daddr, GFP_KERNEL, DMA_ATTR_NO_KERNEL_MAPPING);
+ 
+ 	if (!cookie)
+@@ -613,9 +610,6 @@ unsigned int rpc_ion_alloc_handler(struct rtk_rpc_client *client, const struct f
+ 	pr_info("%s alloc_size=0x%lx  ion_alloc_flags=0x%x \n", __func__,
+ 				alloc_val, ion_alloc_flags);
+ 
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	rheap_setup_dma_pools(dev, "rtk_media_heap", ion_alloc_flags, client->name);
+-#endif
+ 	cookie = dma_alloc_attrs(dev, alloc_val, &daddr, GFP_KERNEL,
+ 						 DMA_ATTR_NO_KERNEL_MAPPING);
+ 	if (!cookie)
+@@ -798,9 +792,6 @@ static int rtk_rpc_probe(struct rpmsg_device *rpdev)
+ 
+ 	client->dev->coherent_dma_mask = DMA_BIT_MASK(32);
+ 	client->dev->dma_mask = (u64 *)&client->dev->coherent_dma_mask;
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	set_dma_ops(client->dev, &rheap_dma_ops);
+-#endif
+ 	client->big_endian = !rpdev->little_endian;
+ 
+ 	client->rpdev = rpdev;
+diff --git a/drivers/soc/realtek/common/rtk_urpc_service.c b/drivers/soc/realtek/common/rtk_urpc_service.c
+index 6cb4a93f2ba3..f7f6bdfbf908 100644
+--- a/drivers/soc/realtek/common/rtk_urpc_service.c
++++ b/drivers/soc/realtek/common/rtk_urpc_service.c
+@@ -352,9 +352,6 @@ static int acpu_self_destroy(pid_t pid)
+ 
+ 	/* Allocate memory */
+ 	mutex_lock(&urpc_mutex);
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+-#endif
+ 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
+ 	mutex_unlock(&urpc_mutex);
+ 	if (!vaddr) {
+@@ -403,9 +400,6 @@ static int vcpu_self_destroy(pid_t pid)
+ 	void *vaddr;
+ 
+ 	mutex_lock(&urpc_mutex);
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+-#endif
+ 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
+ 	mutex_unlock(&urpc_mutex);
+ 	if (!vaddr) {
+@@ -454,9 +448,6 @@ static int hifi_self_destroy(pid_t pid)
+ 
+ 	/* Allocate memory */
+ 	mutex_lock(&urpc_mutex);
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	rheap_setup_dma_pools(urpc_dev, NULL, AUDIO_ION_FLAG, __func__);
+-#endif
+ 	vaddr = dma_alloc_coherent(urpc_dev, PAGE_SIZE, &paddr, GFP_KERNEL);
+ 	mutex_unlock(&urpc_mutex);
+ 	if (!vaddr) {
+@@ -679,9 +670,6 @@ static int rtk_urpc_probe(struct platform_device *pdev)
+ 	mutex_init(&proc_mutex);
+ 
+ 	urpc_dev = &pdev->dev;
+-#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+-	set_dma_ops(urpc_dev, &rheap_dma_ops);
+-#endif
+ 	dev_info(&pdev->dev, "probe\n");
+ 
+ 	return 0;
+-- 
+2.34.1
+

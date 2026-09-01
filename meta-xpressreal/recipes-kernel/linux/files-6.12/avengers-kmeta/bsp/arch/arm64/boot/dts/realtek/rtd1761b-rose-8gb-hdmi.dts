@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761B Rose EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1761b-rose.dtsi"
+
+/ {
+	compatible = "realtek,rose", "realtek,rtd1761b";
+	model = "Realtek Rose EVB (8GB, HDMI)";
+
+	memory: memory@50000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x7ffb0000>,
+		      <0x00000000 0x8a100000 0x00000000 0x0def0000>,
+		      <0x00000000 0x98700000 0x00000000 0x07900000>,
+		      <0x00000000 0xa0600000 0x00000000 0x5ea00000>,
+		      <0x00000001 0x00000000 0x00000000 0xa0000000>,
+		      <0x00000001 0xa0600000 0x00000000 0x5fa00000>;
+	};
+
+	aliases {
+		ethernet = &nic;
+	};
+};
+
+&avcert_rproc {
+	status = "okay";
+};
+
+&kr4_rproc {
+	status = "disabled";
+};
+
+&kr4_rpmsg {
+	rproc = <&kr4_rproc>;
+	status = "disabled";
+};
+
+&hifi_rproc {
+	/delete-property/ is-booted;
+	/delete-property/ need-ext-fw;
+	status = "okay";
+};
+
+&hifi_rpmsg {
+	/delete-property/ skip-handshake;
+	rproc = <&hifi_rproc>;
+	status = "okay";
+};
+
+&dlsr_rproc {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+};
+
+&dsi {
+	status = "disabled";
+};
+
+/delete-node/ &vo0_out_dp;
+/delete-node/ &dp_in_vo0;
+
+&hdmi {
+	status = "okay";
+	hdcp = <2>;
+	ports {
+		hdmi_in: port@0 {
+			reg = <0>;
+			hdmi_in_vo0: endpoint {
+				remote-endpoint = <&vo0_out_hdmi>;
+			};
+		};
+	};
+};
+
+&vo0 {
+	status = "okay";
+
+	vo0_out: port {
+		vo0_out_hdmi: endpoint {
+			remote-endpoint = <&hdmi_in_vo0>;
+		};
+	};
+};
+
+&vo1 {
+	status = "disabled";
+};
+
+&cec {
+	status = "okay";
+};
+
+&rtk_ve3_uart {
+	status = "okay";
+};
+
+&ve3_rproc {
+	status = "okay";
+};
+
+&ve3_rpmsg {
+	status = "okay";
+};
+
+&reserved_memory {
+	/delete-node/default-cma;
+	/delete-node/tp_ssc2;
+	/delete-node/audio_ssc1;
+	/delete-node/video_dsc5;
+	/delete-node/ao_ssc6;
+	/delete-node/ota_dsc8;
+	/delete-node/vo_s_dsc3;
+	/delete-node/hifi_ssc12;
+
+	default_cma: linux,cma {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x10000000>;            /* 256M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x30000000 0x0 0x10000000>;
+		linux,cma-default;
+		reusable;
+	};
+
+	cma_vo_dsc3:vo_dsc3 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x10000000>;            /* 256M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges=<0x0 0x50000000 0x0 0x10000000>;
+		reusable;
+	};
+
+
+	heap_b1p5: heap_b1p5 {
+		compatible = "shared-dma-pool";
+		size = <0x0 0x40000000>;            /* 1024M */
+		alignment = <0x0 0x00400000>;
+		alloc-ranges = <0x0 0xa1000000 0x0 0x40000000>;
+		reusable;
+	};
+};

@@ -2,6 +2,8 @@ From e4c710565b7ccac5e67f4dedc5ca0a989db7e62c Mon Sep 17 00:00:00 2001
 From: hayward_ling <hayward_ling@realtek.com>
 Date: Fri, 25 Apr 2025 20:07:54 +0800
 Subject: [PATCH] V4l2transform: add property to configure crop/compose
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

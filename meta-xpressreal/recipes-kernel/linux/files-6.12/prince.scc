@@ -1,0 +1,7 @@
+define KMACHINE evb-rtd1635
+define KTYPE standard
+define KARCH arm64
+
+include features/android/ack.scc
+include avengers.scc
+kconf hardware prince.cfg

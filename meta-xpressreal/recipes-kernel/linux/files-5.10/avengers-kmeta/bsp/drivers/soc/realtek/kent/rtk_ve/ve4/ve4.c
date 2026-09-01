@@ -1,0 +1,2360 @@
+/*
+ * ve4.c
+ *
+ * linux device driver for VE4.
+ *
+ * Copyright (C) 2006 - 2013  REALTEK INC.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301  USA
+ *
+ */
+
+#include <linux/kernel.h>
+#include <linux/mm.h>
+#include <linux/interrupt.h>
+#include <linux/ioport.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
+#include <linux/wait.h>
+#include <linux/list.h>
+#include <linux/delay.h>
+#include <linux/uaccess.h>
+#include <linux/cdev.h>
+#include <linux/slab.h>
+#include <linux/sched.h>
+#include <linux/kfifo.h>
+#include <linux/fs.h>
+#include <linux/export.h>
+#include <linux/miscdevice.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
+#include <linux/sched/signal.h>
+#include <linux/pm_runtime.h>
+#include <linux/clk.h>
+#include <linux/reset.h>
+#include <linux/dma-map-ops.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
+#include <soc/realtek/memory.h>
+#include <soc/realtek/rtk_media_heap.h>
+
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
+
+#include "ve4.h"
+#include "compat_ve4.h"
+
+//#define ENABLE_DEBUG_MSG
+#ifdef ENABLE_DEBUG_MSG
+#define DPRINTK(args...) pr_info(args);
+#else
+#define DPRINTK(args...)
+#endif /* ENABLE_DEBUG_MSG */
+
+#define DEV_NAME "[RTK_VE4]"
+#define DISABLE_ORIGIN_SUSPEND
+#define USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT
+
+/* definitions to be changed as customer  configuration */
+/* if you want to have clock gating scheme frame by frame */
+/* #define VPU_SUPPORT_CLOCK_CONTROL */
+
+/* if the platform driver knows the name of this driver */
+/* VPU_PLATFORM_DEVICE_NAME */
+#define VPU_SUPPORT_PLATFORM_DRIVER_REGISTER
+
+/* if this driver knows the dedicated video memory address */
+//#define CONFIG_RTK_PLATFORM_FPGA
+#ifdef CONFIG_RTK_PLATFORM_FPGA
+#define VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+#endif
+
+#define VPU_PLATFORM_DEVICE_NAME "vdec"
+#define VPU_CLK_NAME "vcodec"
+#define VPU_DEV_NAME "vpu_enc"
+
+/* if the platform driver knows this driver */
+#define VE4_REG_BASE_ADDR 0x9814e000
+#define VPU_REG_SIZE (0xC000)
+//#define MS_TO_NS(x) (x * 1E6L)
+#define MS_TO_NS(x) ((s64)(x) * 1000000L)
+
+#define VE4_IRQ_NUM (85)
+
+/* this definition is only for realtek FPGA board env */
+/* so for SOC env of customers can be ignored */
+
+#ifndef VM_RESERVED	/*for kernel up to 3.7.0 version*/
+# define  VM_RESERVED   (VM_DONTEXPAND | VM_DONTDUMP)
+#endif
+
+#define VE_SECURE_NORMAL 1
+#define VE_SECURE_PROTECTION 2
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+#define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE 0x0b800000 //(62*1024*1024)
+#define VPU_DRAM_PHYSICAL_BASE 0x03200000 //0x86C00000
+#include "vmm.h"
+static video_mm_t s_vmem;
+static vpudrv_buffer_t s_video_memory = {0};
+#endif /*VPU_SUPPORT_RESERVED_VIDEO_MEMORY*/
+
+//static int vpu_hw_reset(u32 coreIdx);
+
+/* end customer definition */
+static vpudrv_buffer_t s_instance_pool = {0};
+static vpudrv_buffer_t s_common_memory = {0};
+static vpu_drv_context_t s_vpu_drv_context;
+static struct miscdevice s_vpu_dev;
+
+static struct device *p_vpu_dev;
+static int s_vpu_open_ref_count;
+
+static int s_ve4_irq = VE4_IRQ_NUM;
+
+static vpudrv_buffer_t s_ve4_register = {0};
+static vpudrv_buffer_t s_ve4_register2 = {0};
+
+static atomic_t s_interrupt_flag_ve4;
+static wait_queue_head_t s_interrupt_wait_q_ve4;
+static DEFINE_SPINLOCK(s_intr_lock_ve4);   /* serializes fifo+flag writes; atomic_read in wait condition is lock-free by design */
+#define MAX_INTERRUPT_QUEUE 16
+typedef struct kfifo kfifo_t;
+static kfifo_t s_interrupt_pending_q_ve4;
+
+/*
+ * Locking model:
+ *   s_vpu_lock (spinlock) is the authority for list integrity of s_vbp_head
+ *   and s_inst_list_head (and for s_vpu_open_ref_count). Take it locally at
+ *   every add/del/iterate. NEVER hold it across a sleeping call (e.g.
+ *   dma_free_coherent): detach nodes under the lock, then free them after
+ *   releasing it (see vpu_free_buffers()/vpu_suspend()).
+ *
+ *   s_vpu_sem serializes most higher-level flows -- vpu_open()/vpu_release(),
+ *   vpu_suspend(), and the ioctl paths that acquire it explicitly (buffer
+ *   ALLOCATE/FREE, common-memory/instance-pool setup, etc.). It is the sole
+ *   lock for s_vpu_drv_context.open_count (bumped in vpu_open(), dropped in
+ *   vpu_release(), reset in vpu_suspend() -- all process context) and for
+ *   s_instance_pool. It does NOT by itself guarantee list integrity.
+ *
+ *   How s_vpu_sem is acquired differs by caller, on purpose:
+ *     - vpu_open() uses down_interruptible(): it runs in the open() syscall,
+ *       which may legitimately fail with -EINTR/-ERESTARTSYS, and nothing has
+ *       been allocated yet, so bailing out on a signal leaks nothing.
+ *     - vpu_release() and vpu_suspend() use down() (uninterruptible): the VFS
+ *       does not retry a failed ->release(), and suspend must complete its
+ *       teardown; bailing out on a signal would skip the cleanup below and
+ *       leak permanently. These paths must NOT use down_interruptible().
+ *
+ *   Exception -- instance open/close does NOT hold s_vpu_sem: the
+ *   VDI_IOCTL_OPEN_INSTANCE/CLOSE_INSTANCE ioctls, the compat ioctl, and any
+ *   external caller of the exported kent_ve4_open_inst()/kent_ve4_close_inst()
+ *   all run serialized only by s_vpu_lock. Therefore s_inst_list_head and
+ *   s_vpu_open_ref_count may be mutated by these paths even while another
+ *   thread holds s_vpu_sem. Any sem-holding code that reads them (e.g.
+ *   vpu_suspend()) must still take s_vpu_lock and snapshot/iterate under it --
+ *   never assume the semaphore excludes a concurrent open/close.
+ *
+ *   Nesting order is always s_vpu_sem -> s_vpu_lock, never the reverse.
+ */
+static spinlock_t s_vpu_lock = __SPIN_LOCK_UNLOCKED(s_vpu_lock);
+static DEFINE_SEMAPHORE(s_vpu_sem);
+static struct list_head s_vbp_head = LIST_HEAD_INIT(s_vbp_head);
+static struct list_head s_inst_list_head = LIST_HEAD_INIT(s_inst_list_head);
+
+static vpu_bit_firmware_info_t s_bit_firmware_info[MAX_NUM_VPU_CORE];
+struct regmap *regmap_isosys;
+
+#define W6_REG_BASE		0x0000
+#define W6_VPU_VINT_REASON_CLR	(W6_REG_BASE + 0x0034)
+#define W6_VPU_VINT_CLEAR	(W6_REG_BASE + 0x003C)
+#define W6_VPU_VPU_INT_STS	(W6_REG_BASE + 0x0044)
+#define W6_VPU_VINT_REASON	(W6_REG_BASE + 0x004C)
+
+#define VE4_SETUP_ISR		(0x011c)
+
+#ifdef CONFIG_PM
+/* Product register */
+#define VE4_PRODUCT_CODE_REGISTER   (BIT_BASE + 0x94)
+
+#ifndef DISABLE_ORIGIN_SUSPEND
+static u32 s_vpu_reg_store[MAX_NUM_VPU_CORE][64];
+#endif
+#endif /* CONFIG_PM */
+
+/*
+ * common struct and definition
+ */
+#define ReadVe4Register(addr, core) *(volatile unsigned int *)(s_ve4_register.virt_addr + addr)
+#define ReadVe4Register2(addr, core) *(volatile unsigned int *)(s_ve4_register2.virt_addr + addr)
+#define WriteVe4Register(addr, val, core) *(volatile unsigned int *)(s_ve4_register.virt_addr + addr) = (unsigned int)val
+#define WriteVe4Register2(addr, val, core) *(volatile unsigned int *)(s_ve4_register2.virt_addr + addr) = (unsigned int)val
+
+/*#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+static unsigned int to_heapflag(unsigned int mem_type)
+{
+	unsigned int flags;
+	switch(mem_type) {
+	case VE_SECURE_NORMAL:
+		flags = (RTK_FLAG_SCPUACC | RTK_FLAG_HWIPACC |
+			 RTK_FLAG_NONCACHED | RTK_FLAG_VE_SPEC);
+		break;
+	case VE_SECURE_PROTECTION:
+		flags = (RTK_FLAG_HWIPACC | RTK_FLAG_PROTECTED_V2_VIDEO_POOL);
+		break;
+        default:
+		flags = (RTK_FLAG_SCPUACC | RTK_FLAG_HWIPACC |
+			 RTK_FLAG_NONCACHED);
+        }
+	return flags;
+}
+#endif*/
+
+#define VE4_WRAP_CLKEN      0x100
+#define VE4_WRAP_SW_RSTN    0x104
+#define VE4_WRAP_AXI_STOP   0x108
+#define VE4_WRAP_STS0       0x1e0
+
+static int wait_axi_idle(void)
+{
+	void __iomem *reg = (void *)s_ve4_register2.virt_addr;
+	u32 val;
+
+	return readl_poll_timeout(reg + VE4_WRAP_STS0, val, (val & 7) == 7, 0, 100);
+}
+
+static void vpu_wrapper_pwr(unsigned int enable)
+{
+	int ret;
+
+	if(enable) {
+		WriteVe4Register2(0x108, 0x0001, 0);
+		ret = wait_axi_idle();
+		if (ret == -ETIMEDOUT)
+			pr_warn("%s: timedout in wait_axi_idle() during power on\n", __func__);
+		WriteVe4Register2(0x104, 0xfff0, 0);
+		WriteVe4Register2(0x104, 0xffff, 0);
+		WriteVe4Register2(0x100, 0xffff, 0);
+		WriteVe4Register2(0x108, 0x0000, 0);
+		regmap_update_bits(regmap_isosys, 0x300, BIT(10), 0);
+	} else {
+		WriteVe4Register2(0x108, 0x0001, 0);
+		ret = wait_axi_idle();
+		if (ret == -ETIMEDOUT)
+			pr_warn("%s: timedout in wait_axi_idle() during power off\n", __func__);
+		WriteVe4Register2(0x100, 0xfff0, 0);
+		WriteVe4Register2(0x104, 0xfff0, 0);
+		regmap_update_bits(regmap_isosys, 0x300, BIT(10), BIT(10));
+	}
+	DPRINTK("%s,%s,%d,enable:%d\n", DEV_NAME,__func__, __LINE__,enable);
+}
+
+static void vpu_wrapper_setup(void)
+{
+	WriteVe4Register2(VE4_SETUP_ISR, 0xf, 0);
+}
+
+#define WRITE_DATA BIT(0)
+#define POLLING_TIME 1000
+#define INTR_OFFSET 0xa80
+#define INTR_EN_OFFSET 0xa84
+#define TO_PCPU_INTR_BIT BIT(3)
+#define TO_PCPU_IPC_REGOFF 0x470
+#define IPC_CMD_BLOCKING 1
+#define IPC_CATE_PPC		0x2
+#define IPC_PPC_VE4_START	0x8009
+static struct regmap *intr_regmap;
+static struct regmap *ipc_regmap;
+
+#if 0 // need to check how to do for ve4
+static struct reset_control *rstc_ve1;
+static struct reset_control *rstc_ve1_mmu;
+static struct reset_control *rstc_ve1_mmu_func;
+static struct reset_control *rstc_iso_bist;
+
+static int vpu_hw_reset(u32 coreIdx)
+{
+	reset_control_reset(rstc_ve1);
+	vpu_wrapper_setup();
+	return 0;
+}
+
+static void vpu_setup_mmu(void)
+{
+	reset_control_deassert(rstc_ve1_mmu);
+	reset_control_deassert(rstc_ve1_mmu_func);
+}
+#endif
+
+int kent_ve4_alloc_dma_buffer(vpudrv_buffer_t *vb)
+{
+	if (!vb)
+		return -1;
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
+	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
+		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+		return -1;
+	}
+
+	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
+	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+#else
+	mutex_lock(&p_vpu_dev->mutex);
+/*#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
+				to_heapflag(vb->mem_type), __func__);
+#endif*/
+
+	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+	mutex_unlock(&p_vpu_dev->mutex);
+	if ((void *)(vb->base) == NULL) {
+		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+		return -1;
+	}
+	vb->virt_addr = vb->base;
+	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%llx.phys_addr:0x%llx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+	return 0;
+}
+
+__maybe_unused
+static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
+{
+	if (!vb)
+		return -1;
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
+	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
+		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+		return -1;
+	}
+
+	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
+#else
+	mutex_lock(&p_vpu_dev->mutex);
+/*#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+	rheap_setup_dma_pools(s_vpu_dev.this_device, "rtk_media_heap",
+				to_heapflag(vb->mem_type), __func__);
+#endif*/
+
+	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+	mutex_unlock(&p_vpu_dev->mutex);
+	if ((void *)(vb->base) == NULL) {
+		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+		return -1;
+	}
+	vb->virt_addr = vb->base;
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+	DPRINTK("%s [%d]vpu_alloc_dma_buffer2.base:0x%llx.phys_addr:0x%llx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+	return 0;
+}
+
+void kent_ve4_free_dma_buffer(vpudrv_buffer_t *vb)
+{
+	if (!vb)
+		return;
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	if (vb->base)
+		vmem_free(&s_vmem, vb->phys_addr, 0);
+#else
+	if (vb->base) {
+		DPRINTK("%s [%d]%s.base:0x%llx.phys_addr:0x%llx\n", DEV_NAME, __LINE__, __func__,
+			vb->base, vb->phys_addr);
+		dma_free_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (void *)vb->base, vb->phys_addr);
+	}
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+}
+
+/* size=40 for Android M */
+#define PTHREAD_MUTEX_T_HANDLE_SIZE 40
+
+static int kent_ve4_free_instances(struct file *filp)
+{
+	vpudrv_instanace_list_t *vil, *n;
+	vpudrv_instance_pool_t *vip;
+	void *vip_base;
+	void *vdi_mutexes_base;
+	const int PTHREAD_MUTEX_T_DESTROY_VALUE[10] = {0xdead10cc};
+	LIST_HEAD(to_free);
+
+	DPRINTK("%s [+] [%d]%s\n", DEV_NAME, __LINE__, __func__);
+
+	/* phase 1: detach this filp's nodes and drop the ref count under the
+	 * spinlock (no sleeping).  s_inst_list_head and s_vpu_open_ref_count are
+	 * both s_vpu_lock-protected.  The instance-pool teardown below touches
+	 * s_instance_pool (s_vpu_sem-protected, held by the caller) and ends in
+	 * kfree(), so it runs in phase 2 outside the spinlock -- on PREEMPT_RT
+	 * the spinlock is a sleeping mutex and kfree() may sleep. */
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		if (vil->filp == filp) {
+			s_vpu_open_ref_count--;
+			list_move(&vil->list, &to_free);
+		}
+	}
+	spin_unlock(&s_vpu_lock);
+
+	/* phase 2: tear down the instance pool slot and free outside the lock */
+	list_for_each_entry_safe(vil, n, &to_free, list) {
+		vip_base = (void *)(s_instance_pool.base);
+		vip = (vpudrv_instance_pool_t *)vip_base;
+		DPRINTK("%s [%d]%s.vip:0x%px.size:%d\n", DEV_NAME, __LINE__, __func__,
+			vip, s_instance_pool.size);
+
+		if (vip) {
+			/* only first 4 byte is key point(inUse of CodecInst in vpuapi) to free the corresponding instance. */
+			memset(&vip->codecInstPool[vil->inst_idx], 0x00, 4);
+
+			if (vil->inst_idx == (vip->pendingInstIdxPlus1-1) && vip->pendingInst != 0) {
+				pr_warn("%s [%d]%s.vil->inst_idx:%d, vil->core_idx:%d is pending, clear in here\n",
+					DEV_NAME, __LINE__, __func__,
+					(int)vil->inst_idx, (int)vil->core_idx);
+				vip->pendingInst = 0;
+				vip->pendingInstIdxPlus1 = 0;
+			}
+
+			vdi_mutexes_base = (vip_base + (s_instance_pool.size - PTHREAD_MUTEX_T_HANDLE_SIZE*VDI_NUM_LOCK_HANDLES));
+			DPRINTK("%s [%d]%s.force to destroy vdi_mutexes_base=%px in userspace\n",
+				DEV_NAME, __LINE__, __func__, vdi_mutexes_base);
+			if (vdi_mutexes_base) {
+				int i;
+				for (i = 0; i < VDI_NUM_LOCK_HANDLES; i++) {
+					memcpy(vdi_mutexes_base, &PTHREAD_MUTEX_T_DESTROY_VALUE, PTHREAD_MUTEX_T_HANDLE_SIZE);
+					vdi_mutexes_base += PTHREAD_MUTEX_T_HANDLE_SIZE;
+				}
+			}
+		}
+		list_del(&vil->list);
+		kfree(vil);
+	}
+	DPRINTK("%s [-] [%d]%s\n", DEV_NAME, __LINE__, __func__);
+	return 1;
+}
+
+static int vpu_free_buffers(struct file *filp)
+{
+	vpudrv_buffer_pool_t *pool, *n;
+	LIST_HEAD(to_free);
+
+	DPRINTK("%s vpu_free_buffers\n", DEV_NAME);
+
+	/* phase 1: detach this filp's nodes under the spinlock (no sleeping) */
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(pool, n, &s_vbp_head, list) {
+		if (pool->filp == filp)
+			list_move(&pool->list, &to_free);
+	}
+	spin_unlock(&s_vpu_lock);
+
+	/* phase 2: free outside the lock */
+	list_for_each_entry_safe(pool, n, &to_free, list) {
+		if (pool->vb.base)
+			kent_ve4_free_dma_buffer(&pool->vb);
+		list_del(&pool->list);
+		kfree(pool);
+	}
+
+	return 0;
+}
+
+static irqreturn_t ve4_irq_handler(int irq, void *dev_id)
+{
+	vpu_drv_context_t *dev = (vpu_drv_context_t *)dev_id;
+
+	/* this can be removed. it also work in VPU_WaitInterrupt of API function */
+	int core = 0;
+	unsigned long interrupt_reason_ve4 = 0;
+	unsigned int vpu_int_sts_ve4 = 0;
+
+	/* it means that we didn't get an information the current core from API layer. No core activated.*/
+	if (s_bit_firmware_info[core].size == 0) {
+		pr_err("[VPUDRV] :  s_bit_firmware_info[core].size is zero\n");
+		return IRQ_HANDLED;
+	}
+
+	vpu_int_sts_ve4 = ReadVe4Register(W6_VPU_VPU_INT_STS, 0);
+	if (vpu_int_sts_ve4) {
+		interrupt_reason_ve4 = ReadVe4Register(W6_VPU_VINT_REASON, 0);
+		WriteVe4Register(W6_VPU_VINT_REASON_CLR, interrupt_reason_ve4, 0);
+		WriteVe4Register(W6_VPU_VINT_CLEAR, 1, 0);
+		DPRINTK("%s VE4 interrupt_reason_ve4=0x%lx\n", DEV_NAME, interrupt_reason_ve4);
+	}
+
+	if (dev->async_queue)
+		kill_fasync(&dev->async_queue, SIGIO, POLL_IN); /* notify the interrupt to user space */
+
+	if (vpu_int_sts_ve4) {
+		if (core == 0) {
+			/* hardirq: local IRQ already off, plain spin_lock is correct */
+			spin_lock(&s_intr_lock_ve4);
+			if (!kfifo_is_full(&s_interrupt_pending_q_ve4)) {
+				kfifo_in(&s_interrupt_pending_q_ve4,
+					 &interrupt_reason_ve4, sizeof(unsigned long));
+			}
+			else {
+				pr_err("%s %d.kfifo_is_full kfifo_count=%d.reason:0x%lx\n",
+					DEV_NAME, __LINE__,
+					kfifo_len(&s_interrupt_pending_q_ve4),
+					interrupt_reason_ve4);
+			}
+			atomic_set(&s_interrupt_flag_ve4, 1);
+			spin_unlock(&s_intr_lock_ve4);
+			wake_up_interruptible(&s_interrupt_wait_q_ve4);
+		}
+		//DPRINTK("%s [-]%s\n", DEV_NAME, __func__);
+	}
+
+	return IRQ_HANDLED;
+}
+
+int kent_ve4_down_interruptible(void)
+{
+	return down_interruptible(&s_vpu_sem);
+}
+
+void kent_ve4_sem_up(void)
+{
+	up(&s_vpu_sem);
+}
+
+static int vpu_open(struct inode *inode, struct file *filp)
+{
+	int ret = 0;
+	DPRINTK("%s [+] %s\n", DEV_NAME, __func__);
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	s_vpu_drv_context.open_count++;
+
+	filp->private_data = (void *)(&s_vpu_drv_context);
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] %s\n", DEV_NAME, __func__);
+
+	return 0;
+}
+
+void kent_ve4_clock_getting(vpu_clock_info_t *clockInfo)
+{
+	if (clockInfo->enable) {
+		pm_runtime_get_sync(p_vpu_dev);
+		DPRINTK("%s,%s,%d,pwron\n", DEV_NAME,__func__, __LINE__);
+	} else {
+		pm_runtime_mark_last_busy(p_vpu_dev);
+		pm_runtime_put_autosuspend(p_vpu_dev);
+		DPRINTK("%s,%s,%d,pwroff\n", DEV_NAME,__func__, __LINE__);
+	}
+}
+
+void kent_ve4_add_vbp_list(vpudrv_buffer_pool_t *vbp, struct file *filp)
+{
+	vbp->filp = filp;
+	spin_lock(&s_vpu_lock);
+	list_add(&vbp->list, &s_vbp_head);
+	spin_unlock(&s_vpu_lock);
+}
+
+int kent_ve4_open_inst(vpudrv_inst_info_t *inst_info, struct file *filp)
+{
+	vpudrv_instanace_list_t *vil, *n;
+
+	vil = kzalloc(sizeof(*vil), GFP_KERNEL);
+	if (!vil)
+		return -ENOMEM;
+
+	vil->inst_idx = inst_info->inst_idx;
+	vil->core_idx = inst_info->core_idx;
+	vil->filp = filp;
+
+	spin_lock(&s_vpu_lock);
+	list_add(&vil->list, &s_inst_list_head);
+	s_vpu_open_ref_count++;
+
+	inst_info->inst_open_count = 0;
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		if (vil->core_idx == inst_info->core_idx)
+			inst_info->inst_open_count++;
+	}
+	spin_unlock(&s_vpu_lock);
+
+	return 0;
+}
+
+void kent_ve4_close_inst(vpudrv_inst_info_t *inst_info)
+{
+	vpudrv_instanace_list_t *vil, *n;
+	bool found = false;
+
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		if (vil->inst_idx == inst_info->inst_idx && vil->core_idx == inst_info->core_idx) {
+			list_del(&vil->list);
+			kfree(vil);
+			found = true;
+			break;
+		}
+	}
+	/* only drop the ref count if an instance was actually removed, so a
+	 * stray close of a non-existent inst (e.g. double-close) cannot
+	 * underflow s_vpu_open_ref_count and skew the suspend teardown check */
+	if (found)
+		s_vpu_open_ref_count--;
+
+	inst_info->inst_open_count = 0;
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		if (vil->core_idx == inst_info->core_idx)
+			inst_info->inst_open_count++;
+	}
+	spin_unlock(&s_vpu_lock);
+}
+
+void kent_ve4_get_inst_num(vpudrv_inst_info_t *inst_info)
+{
+	vpudrv_instanace_list_t *vil, *n;
+
+	inst_info->inst_open_count = 0;
+
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		if (vil->core_idx == inst_info->core_idx)
+			inst_info->inst_open_count++;
+	}
+	spin_unlock(&s_vpu_lock);
+}
+
+void kent_ve4_get_total_inst_num(vpudrv_inst_info_t *inst_info)
+{
+	vpudrv_instanace_list_t *vil, *n;
+
+	inst_info->inst_open_count = 0;
+
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+		inst_info->inst_open_count++;
+	}
+	spin_unlock(&s_vpu_lock);
+}
+
+void kent_ve4_free_mem(vpudrv_buffer_t *vb)
+{
+	vpudrv_buffer_pool_t *vbp, *n;
+
+	spin_lock(&s_vpu_lock);
+	list_for_each_entry_safe(vbp, n, &s_vbp_head, list) {
+		if (vbp->vb.phys_addr == vb->phys_addr) {
+			list_del(&vbp->list);
+			kfree(vbp);
+			break;
+		}
+	}
+	spin_unlock(&s_vpu_lock);
+}
+
+int kent_ve4_wait_init(vpu_drv_context_t *dev, vpudrv_intr_info_t *info)
+{
+	int ret = 0;
+	unsigned long intr_reason_in_q;
+	int interrupt_flag_in_q;
+	unsigned long flags;
+#ifdef USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT
+	ktime_t ktime;
+	//unsigned long delay_in_ms = 1L;
+	//ktime = ktime_set(0, MS_TO_NS(delay_in_ms));
+	unsigned long delay_in_ms = info->timeout;
+	ktime = ktime_set(0, MS_TO_NS(delay_in_ms));
+#endif /* USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT */
+
+	/* drain anything already queued before we sleep */
+	intr_reason_in_q = 0;
+	spin_lock_irqsave(&s_intr_lock_ve4, flags);
+	interrupt_flag_in_q = kfifo_out(&s_interrupt_pending_q_ve4,
+			&intr_reason_in_q, sizeof(unsigned long));
+	if (kfifo_is_empty(&s_interrupt_pending_q_ve4))
+		atomic_set(&s_interrupt_flag_ve4, 0);   /* flag mirrors fifo */
+	spin_unlock_irqrestore(&s_intr_lock_ve4, flags);
+	//pr_info("%s %d.interrupt_flag_in_q:%d.intr_reason_in_q:0x%lx.kfifo_count=%d\n",DEV_NAME,__LINE__,interrupt_flag_in_q,intr_reason_in_q,kfifo_len(&s_interrupt_pending_q_ve4));
+	if (interrupt_flag_in_q > 0)
+	{
+		//pr_info("%s %d.interrupt_flag_in_q:%d.intr_reason_in_q:0x%lx.kfifo_count=%d\n",DEV_NAME,__LINE__,interrupt_flag_in_q,intr_reason_in_q,kfifo_len(&s_interrupt_pending_q_ve4));
+		dev->interrupt_reason_ve4 = intr_reason_in_q;
+		goto INTERRUPT_REMAIN_IN_QUEUE;
+	}
+	dev->interrupt_reason_ve4 = 0;
+
+	smp_rmb();
+
+#ifdef USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT
+	wait_event_interruptible_hrtimeout(s_interrupt_wait_q_ve4,
+			atomic_read(&s_interrupt_flag_ve4) != 0, ktime);
+#else /* USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT */
+	wait_event_interruptible_timeout(s_interrupt_wait_q_ve4,
+			atomic_read(&s_interrupt_flag_ve4) != 0,
+			msecs_to_jiffies(info->timeout));
+#endif /* USE_HRTIMEOUT_INSTEAD_OF_TIMEOUT */
+
+	if (signal_pending(current)) {
+		//pr_err("%s %d.signal_pending\n",DEV_NAME,__LINE__);
+		return -ERESTARTSYS;
+	}
+
+	/*
+	 * One consume path for BOTH the woken and the timed-out case,
+	 * done under the ISR lock so flag and fifo can never disagree.
+	 * An interrupt that lands right at the timeout boundary is
+	 * picked up here instead of being left behind as stale state
+	 * for the next wait.
+	 */
+	intr_reason_in_q = 0;
+	spin_lock_irqsave(&s_intr_lock_ve4, flags);
+	interrupt_flag_in_q = kfifo_out(&s_interrupt_pending_q_ve4,
+					&intr_reason_in_q, sizeof(unsigned long));
+	if (kfifo_is_empty(&s_interrupt_pending_q_ve4))
+		atomic_set(&s_interrupt_flag_ve4, 0);
+	spin_unlock_irqrestore(&s_intr_lock_ve4, flags);
+	//pr_info("%s %d.interrupt_flag_in_q:%d.intr_reason_in_q:0x%lx.kfifo_count=%d\n",DEV_NAME,__LINE__,interrupt_flag_in_q,intr_reason_in_q,kfifo_len(&s_interrupt_pending_q_ve4));
+	if (interrupt_flag_in_q > 0) {
+		dev->interrupt_reason_ve4 = intr_reason_in_q;
+	}
+	else {
+		/* genuinely nothing pending -> real timeout, exit clean */
+		dev->interrupt_reason_ve4 = 0;
+		return -ETIME;
+	}
+
+INTERRUPT_REMAIN_IN_QUEUE:
+	info->intr_reason = dev->interrupt_reason_ve4;
+	dev->interrupt_reason_ve4 = 0;   /* flag already maintained under lock */
+
+	return ret;
+}
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+vpudrv_buffer_t vpu_get_video_memory(void)
+{
+	return s_video_memory;
+}
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+vpudrv_buffer_t *kent_ve4_get_instance_pool(void)
+{
+	return &s_instance_pool;
+}
+
+vpudrv_buffer_t *kent_ve4_get_common_memory(void)
+{
+	return &s_common_memory;
+}
+
+vpudrv_buffer_t *kent_ve4_get_vpu_register(void)
+{
+	return &s_ve4_register;
+}
+
+vpudrv_buffer_t *kent_ve4_get_vpu_register2(void)
+{
+        return &s_ve4_register2;
+}
+
+int kent_ve4_alloc_from_vm(void)
+{
+	int ret = 0;
+
+	s_instance_pool.size = PAGE_ALIGN(s_instance_pool.size);
+	s_instance_pool.base = (unsigned long)vmalloc(s_instance_pool.size);
+	s_instance_pool.phys_addr = s_instance_pool.base;
+	DPRINTK("%s [%d]%s.s_instance_pool.size:%d.base:%px\n",
+		DEV_NAME, __LINE__, __func__,
+		s_instance_pool.size, (void *)(s_instance_pool.base));
+
+	if (s_instance_pool.base == 0) {
+		return -ENOMEM;
+	}
+
+	memset((void *)s_instance_pool.base, 0x0, s_instance_pool.size);
+
+	return ret;
+}
+
+int kent_ve4_alloc_from_dmabuffer2(void)
+{
+	int ret = 0;
+
+	if (vpu_alloc_dma_buffer2(&s_instance_pool) != 0) {
+		return -ENOMEM;
+	}
+
+	memset((void *)s_instance_pool.base, 0x0, s_instance_pool.size);
+
+	return ret;
+}
+static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
+{
+	int ret = 0;
+	vpu_drv_context_t *dev = (vpu_drv_context_t *)filp->private_data;
+
+	switch (cmd) {
+	case VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY:
+	{
+		vpudrv_buffer_pool_t *vbp;
+
+		DPRINTK("%s [+]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n", DEV_NAME);
+
+		ret = kent_ve4_down_interruptible();
+		if (ret != 0)
+			return ret;
+
+		vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
+		if (!vbp) {
+			kent_ve4_sem_up();
+			return -ENOMEM;
+		}
+
+		ret = copy_from_user(&(vbp->vb), (vpudrv_buffer_t *)arg,
+							 sizeof(vpudrv_buffer_t));
+		if (ret) {
+			kfree(vbp);
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+
+		ret = kent_ve4_alloc_dma_buffer(&(vbp->vb));
+		if (ret != 0) {
+			kfree(vbp);
+			kent_ve4_sem_up();
+			return -ENOMEM;
+		}
+
+		ret = copy_to_user((void __user *)arg, &(vbp->vb),
+						   sizeof(vpudrv_buffer_t));
+		if (ret) {
+			/* the buffer is not on s_vbp_head yet; free its DMA
+			 * backing by the base we still hold, then the node */
+			kent_ve4_free_dma_buffer(&(vbp->vb));
+			kfree(vbp);
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+
+		kent_ve4_add_vbp_list(vbp, filp);
+		kent_ve4_sem_up();
+
+		DPRINTK("%s [-]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n", DEV_NAME);
+	}
+	break;
+	case VDI_IOCTL_FREE_PHYSICALMEMORY:
+	{
+		vpudrv_buffer_t vb;
+
+		DPRINTK("%s [+]VDI_IOCTL_FREE_PHYSICALMEMORY\n", DEV_NAME);
+
+		ret = kent_ve4_down_interruptible();
+		if (ret != 0)
+			return ret;
+
+		ret = copy_from_user(&vb, (vpudrv_buffer_t *)arg,
+				     sizeof(vpudrv_buffer_t));
+		if (ret) {
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+
+		if (vb.base)
+			kent_ve4_free_dma_buffer(&vb);
+
+		kent_ve4_free_mem(&vb);
+		kent_ve4_sem_up();
+
+		DPRINTK("%s [-]VDI_IOCTL_FREE_PHYSICALMEMORY\n", DEV_NAME);
+	}
+	break;
+	case VDI_IOCTL_GET_RESERVED_VIDEO_MEMORY_INFO:
+	{
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+		DPRINTK("%s [+]VDI_IOCTL_GET_RESERVED_VIDEO_MEMORY_INFO\n", DEV_NAME);
+
+		if (s_video_memory.base == 0)
+			return -EFAULT;
+
+		ret = copy_to_user((void __user *)arg, &s_video_memory, sizeof(vpudrv_buffer_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s [-]VDI_IOCTL_GET_RESERVED_VIDEO_MEMORY_INFO\n", DEV_NAME);
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+	}
+	break;
+	case VDI_IOCTL_WAIT_INTERRUPT:
+	{
+		vpudrv_intr_info_t info;
+
+		DPRINTK("[VPUDRV][+]VDI_IOCTL_WAIT_INTERRUPT\n");
+
+		ret = copy_from_user(&info, (vpudrv_intr_info_t *)arg,
+				     sizeof(vpudrv_intr_info_t));
+		if (ret)
+			return -EFAULT;
+
+		ret = kent_ve4_wait_init(dev, &info);
+		if (ret != 0)
+			return -EFAULT;
+
+		ret = copy_to_user((void __user *)arg, &info,
+				sizeof(vpudrv_intr_info_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("[VPUDRV][-]VDI_IOCTL_WAIT_INTERRUPT, info.intr_reason:0x%x\n", info.intr_reason);
+	}
+	break;
+
+	case VDI_IOCTL_SET_CLOCK_GATE:
+	{
+		u32 clkgate;
+
+		//DPRINTK("[VPUDRV][+]VDI_IOCTL_SET_CLOCK_GATE\n");
+		if (get_user(clkgate, (u32 __user *) arg))
+			return -EFAULT;
+
+#ifdef VPU_SUPPORT_CLOCK_CONTROL
+		return -EFAULT;
+#endif /* VPU_SUPPORT_CLOCK_CONTROL */
+		//DPRINTK("[VPUDRV][-]VDI_IOCTL_SET_CLOCK_GATE\n");
+	}
+	break;
+	case VDI_IOCTL_GET_INSTANCE_POOL:
+	{
+		DPRINTK("%s [+]VDI_IOCTL_GET_INSTANCE_POOL\n", DEV_NAME);
+
+		ret = kent_ve4_down_interruptible();
+		if (ret != 0)
+			return ret;
+
+		if (s_instance_pool.base != 0) {
+			ret = copy_to_user((void __user *)arg, &s_instance_pool,
+							   sizeof(vpudrv_buffer_t));
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+		} else {
+			ret = copy_from_user(&s_instance_pool,
+					     (vpudrv_buffer_t *)arg,
+					     sizeof(vpudrv_buffer_t));
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+			ret = kent_ve4_alloc_from_vm();
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+#else
+			ret = kent_ve4_alloc_from_dmabuffer2();
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+			memset((void *)s_instance_pool.base, 0x0, s_instance_pool.size); /*clearing memory*/
+			ret = copy_to_user((void __user *)arg, &s_instance_pool, sizeof(vpudrv_buffer_t));
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+		}
+
+		kent_ve4_sem_up();
+
+		DPRINTK("%s [-]VDI_IOCTL_GET_INSTANCE_POOL\n", DEV_NAME);
+	}
+	break;
+	case VDI_IOCTL_GET_COMMON_MEMORY:
+	{
+		DPRINTK("%s [+]VDI_IOCTL_GET_COMMON_MEMORY\n", DEV_NAME);
+
+		/* s_common_memory is shared state; serialize like GET_INSTANCE_POOL */
+		ret = kent_ve4_down_interruptible();
+		if (ret != 0)
+			return ret;
+
+		if (s_common_memory.base != 0) {
+			ret = copy_to_user((void __user *)arg, &s_common_memory,
+					   sizeof(vpudrv_buffer_t));
+			if (ret != 0) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+		} else {
+			ret = copy_from_user(&s_common_memory,
+					     (vpudrv_buffer_t *)arg,
+					     sizeof(vpudrv_buffer_t));
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+
+			ret = kent_ve4_alloc_dma_buffer(&s_common_memory);
+			if (ret != 0) {
+				kent_ve4_sem_up();
+				return -ENOMEM;
+			}
+
+			ret = copy_to_user((void __user *)arg, &s_common_memory,
+					   sizeof(vpudrv_buffer_t));
+			if (ret) {
+				kent_ve4_sem_up();
+				return -EFAULT;
+			}
+		}
+
+		kent_ve4_sem_up();
+
+		DPRINTK("%s [-]VDI_IOCTL_GET_COMMON_MEMORY\n", DEV_NAME);
+	}
+	break;
+	case VDI_IOCTL_OPEN_INSTANCE:
+	{
+		vpudrv_inst_info_t inst_info;
+
+		ret = copy_from_user(&inst_info, (vpudrv_inst_info_t *)arg,
+				     sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		ret = kent_ve4_open_inst(&inst_info, filp);
+		if (ret)
+			return -ENOMEM;
+
+		ret = copy_to_user((void __user *)arg, &inst_info,
+				   sizeof(vpudrv_inst_info_t));
+		if (ret) {
+			/* roll back the instance opened above: user space never
+			 * sees the success, so leaving it on s_inst_list_head
+			 * (with s_vpu_open_ref_count bumped) would desync caller
+			 * state until release.  close_inst undoes both. */
+			kent_ve4_close_inst(&inst_info);
+			return -EFAULT;
+		}
+
+		DPRINTK("%s VDI_IOCTL_OPEN_INSTANCE core_idx=%d, inst_idx=%d, s_vpu_open_ref_count=%d, inst_open_count=%d\n", DEV_NAME, (int)inst_info.core_idx, (int)inst_info.inst_idx, s_vpu_open_ref_count, inst_info.inst_open_count);
+	}
+	break;
+	case VDI_IOCTL_CLOSE_INSTANCE:
+	{
+		vpudrv_inst_info_t inst_info;
+
+		DPRINTK("%s [+]VDI_IOCTL_CLOSE_INSTANCE\n", DEV_NAME);
+
+		ret = copy_from_user(&inst_info, (vpudrv_inst_info_t *)arg,
+				     sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		kent_ve4_close_inst(&inst_info);
+
+		ret = copy_to_user((void __user *)arg, &inst_info,
+						   sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s VDI_IOCTL_CLOSE_INSTANCE core_idx=%d, inst_idx=%d, s_vpu_open_ref_count=%d, inst_open_count=%d\n", DEV_NAME, (int)inst_info.core_idx, (int)inst_info.inst_idx, s_vpu_open_ref_count, inst_info.inst_open_count);
+	}
+	break;
+	case VDI_IOCTL_GET_INSTANCE_NUM:
+	{
+		vpudrv_inst_info_t inst_info;
+
+		DPRINTK("%s [+]VDI_IOCTL_GET_INSTANCE_NUM\n", DEV_NAME);
+
+		ret = copy_from_user(&inst_info, (vpudrv_inst_info_t *)arg,
+				     sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		kent_ve4_get_inst_num(&inst_info);
+
+
+		ret = copy_to_user((void __user *)arg, &inst_info,
+				   sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s VDI_IOCTL_GET_INSTANCE_NUM core_idx=%d, inst_idx=%d, open_count=%d\n", DEV_NAME, (int)inst_info.core_idx, (int)inst_info.inst_idx, inst_info.inst_open_count);
+	}
+	break;
+	case VDI_IOCTL_RESET:
+	{
+		u32 coreIdx;
+
+		if (get_user(coreIdx, (u32 __user *) arg))
+			return -EFAULT;
+
+		//vpu_hw_reset(coreIdx);
+	}
+	break;
+	case VDI_IOCTL_GET_REGISTER_INFO:
+	{
+		DPRINTK("%s [+]VDI_IOCTL_GET_REGISTER_INFO\n", DEV_NAME);
+
+		ret = copy_to_user((void __user *)arg, &s_ve4_register,
+				   sizeof(vpudrv_buffer_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER_INFO s_ve4_register.phys_addr=0x%llx, s_ve4_register.virt_addr=0x%lx, s_ve4_register.size=%d\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
+	}
+	break;
+	case VDI_IOCTL_GET_REGISTER2_INFO:
+	{
+		DPRINTK("%s [+]VDI_IOCTL_GET_REGISTER2_INFO\n", DEV_NAME);
+
+		ret = copy_to_user((void __user *)arg, &s_ve4_register2,
+				   sizeof(vpudrv_buffer_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER2_INFO s_ve4_register2.phys_addr=0x%llx, s_ve4_register2.virt_addr=0x%lx, s_ve4_register2.size=%d\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
+	}
+	break;
+	/* RTK ioctl */
+	case VDI_IOCTL_SET_RTK_CLK_GATING:
+	{
+		vpu_clock_info_t clockInfo;
+
+		DPRINTK("%s [+]VDI_IOCTL_SET_RTK_CLK_GATING\n", DEV_NAME);
+
+		ret = copy_from_user(&clockInfo, (vpu_clock_info_t *)arg,
+				     sizeof(vpu_clock_info_t));
+		if (ret)
+			return -EFAULT;
+
+		kent_ve4_clock_getting(&clockInfo);
+
+		DPRINTK("%s [-]VDI_IOCTL_SET_RTK_CLK_GATING clockInfo.core_idx:%d, clockInfo.enable:%d\n", DEV_NAME, clockInfo.core_idx, clockInfo.enable);
+	}
+	break;
+	case VDI_IOCTL_GET_TOTAL_INSTANCE_NUM:
+	{
+		vpudrv_inst_info_t inst_info;
+
+		DPRINTK("%s [+]VDI_IOCTL_GET_TOTAL_INSTANCE_NUM\n", DEV_NAME);
+
+		ret = copy_from_user(&inst_info, (vpudrv_inst_info_t *)arg,
+				     sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+		kent_ve4_get_total_inst_num(&inst_info);
+
+		ret = copy_to_user((void __user *)arg, &inst_info,
+						   sizeof(vpudrv_inst_info_t));
+		if (ret)
+			return -EFAULT;
+
+		DPRINTK("%s VDI_IOCTL_GET_TOTAL_INSTANCE_NUM core_idx=%d, inst_idx=%d, open_count=%d\n", DEV_NAME, (int)inst_info.core_idx, (int)inst_info.inst_idx, inst_info.inst_open_count);
+	}
+	break;
+	default:
+	{
+		pr_err("%s No such IOCTL, cmd is %d\n", DEV_NAME, cmd);
+	}
+	break;
+	}
+
+	return ret;
+}
+
+int kent_ve4_vdi_ioctl_get_instance_pool(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	if (s_instance_pool.base != 0) {
+		DPRINTK("%s [%d]%s.s_instance_pool(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).\n",DEV_NAME,__LINE__,__func__,s_instance_pool.base,s_instance_pool.virt_addr,s_instance_pool.phys_addr,s_instance_pool.size);
+		*vdb = s_instance_pool;
+	} else {
+		s_instance_pool = *vdb;
+
+	#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+		ret = kent_ve4_alloc_from_vm();
+		if (ret) {
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+	#else
+		ret = kent_ve4_alloc_from_dmabuffer2();
+		if (ret) {
+			kent_ve4_sem_up();
+			return -EFAULT;
+		}
+	#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+		DPRINTK("%s [%d]%s.s_instance_pool(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).\n",DEV_NAME,__LINE__,__func__,s_instance_pool.base,s_instance_pool.virt_addr,s_instance_pool.phys_addr,s_instance_pool.size);
+		memset((void *)s_instance_pool.base, 0x0, s_instance_pool.size); /*clearing memory*/
+		*vdb = s_instance_pool;
+	}
+
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_instance_pool);
+
+int kent_ve4_vdi_ioctl_get_register_info(vpudrv_buffer_t *vdb)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+	*vdb = s_ve4_register;
+	DPRINTK("%s [%d]%s.s_ve4_register(virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_ve4_register.virt_addr,s_ve4_register.phys_addr,s_ve4_register.size);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_register_info);
+
+int kent_ve4_vdi_ioctl_get_wrap_register_info(vpudrv_buffer_t *vdb)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+	*vdb = s_ve4_register2;
+	DPRINTK("%s [%d]%s.s_ve4_register2(virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_ve4_register2.virt_addr,s_ve4_register2.phys_addr,s_ve4_register2.size);
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_wrap_register_info);
+
+int kent_ve4_vdi_ioctl_set_rtk_clk_gating(vpu_clock_info_t* clockInfo)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	if (clockInfo == NULL)
+	{
+		pr_err("%s [%d]%s.clockInfo == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	kent_ve4_clock_getting(clockInfo);
+
+	DPRINTK("%s [-] [%d]%s.core_idx:%d.enable:%d\n",DEV_NAME,__LINE__,__func__,clockInfo->core_idx,clockInfo->enable);
+	return 0;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_set_rtk_clk_gating);
+
+int kent_ve4_vdi_ioctl_get_common_memory(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	if (s_common_memory.base != 0)
+	{
+		DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+		*vdb = s_common_memory;
+	} else {
+		s_common_memory = *vdb;
+		DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+		ret = kent_ve4_alloc_dma_buffer(&s_common_memory);
+		if (ret != 0) {
+			kent_ve4_sem_up();
+			return -ENOMEM;
+		}
+		DPRINTK("%s [%d]%s.s_common_memory(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,__func__,s_common_memory.base,s_common_memory.virt_addr,s_common_memory.phys_addr,s_common_memory.size);
+		memset((void *)s_common_memory.virt_addr, 0x0, s_common_memory.size); /*clearing memory*/
+		*vdb = s_common_memory;
+	}
+
+	kent_ve4_sem_up();
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_get_common_memory);
+
+ssize_t kent_ve4_vdi_write_bit_firmware(vpu_bit_firmware_info_t *buf, size_t len)
+{
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (!buf) {
+		pr_err("%s [%d]%s.buf == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	if (len == sizeof(vpu_bit_firmware_info_t))	{
+		vpu_bit_firmware_info_t *bit_firmware_info;
+
+		bit_firmware_info = kmalloc(sizeof(vpu_bit_firmware_info_t), GFP_KERNEL);
+		if (!bit_firmware_info) {
+			pr_err("%s [%d]%s.bit_firmware_info allocation error\n",DEV_NAME,__LINE__,__func__);
+			return -EFAULT;
+		}
+
+		if (len == sizeof(vpu_bit_firmware_info_t)) {
+			*bit_firmware_info = *buf;
+		}
+
+		if (bit_firmware_info->size == sizeof(vpu_bit_firmware_info_t)) {
+			DPRINTK("%s [%d]%s.set bit_firmware_info coreIdx=0x%x, reg_base_offset=0x%x size=0x%x, bit_code[0]=0x%x\n",
+					DEV_NAME,__LINE__,__func__,bit_firmware_info->core_idx,(int)bit_firmware_info->reg_base_offset,bit_firmware_info->size,bit_firmware_info->bit_code[0]);
+
+			if (bit_firmware_info->core_idx >= MAX_NUM_VPU_CORE) {
+				pr_err("%s [%d]%s.coreIdx[%d] is exceeded than MAX_NUM_VPU_CORE[%d]\n",DEV_NAME,__LINE__,__func__,bit_firmware_info->core_idx,MAX_NUM_VPU_CORE);
+				kfree(bit_firmware_info);
+				return -ENODEV;
+			}
+
+			memcpy((void *)&s_bit_firmware_info[bit_firmware_info->core_idx], bit_firmware_info, sizeof(vpu_bit_firmware_info_t));
+			kfree(bit_firmware_info);
+
+			DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+			return len;
+		}
+
+		kfree(bit_firmware_info);
+	}
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return -EINVAL;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_write_bit_firmware);
+
+int kent_ve4_vdi_ioctl_allocate_physical_memory(void *filp, vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	vpudrv_buffer_pool_t *vbp;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || vdb == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
+	if (!vbp) {
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.kzalloc() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	vbp->vb = *vdb;
+
+	ret = kent_ve4_alloc_dma_buffer(&(vbp->vb));
+	if (ret != 0) {
+		kfree(vbp);
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.vpu_alloc_dma_buffer() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+	DPRINTK("%s [%d]vbp->vb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d)\n",DEV_NAME,__LINE__,vbp->vb.base,vbp->vb.virt_addr,vbp->vb.phys_addr,vbp->vb.size);
+
+	*vdb = vbp->vb;
+	DPRINTK("%s [%d]%s.vdb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).filp:0x%px\n",DEV_NAME,__LINE__,__func__,vdb->base,vdb->virt_addr,vdb->phys_addr,vdb->size,filp);
+
+	kent_ve4_add_vbp_list(vbp, filp);
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_allocate_physical_memory);
+
+int kent_ve4_vdi_ioctl_free_physical_memory(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	if (vdb->base)
+	{
+		kent_ve4_free_dma_buffer(vdb);
+		DPRINTK("%s [%d]%s.af vpu_free_dma_buffer\n",DEV_NAME,__LINE__,__func__);
+	}
+
+	kent_ve4_free_mem(vdb);
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_free_physical_memory);
+
+int kent_ve4_vdi_ioctl_allocate_physical_memory_no_mmap(void *filp, vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+	vpudrv_buffer_pool_t *vbp;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || vdb == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
+	if (!vbp) {
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.kzalloc() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	vbp->vb = *vdb;
+
+	ret = kent_ve4_alloc_dma_buffer(&(vbp->vb));
+	if (ret != 0) {
+		kfree(vbp);
+		kent_ve4_sem_up();
+		pr_err("%s [%d]%s.vpu_alloc_dma_buffer() fail\n",DEV_NAME,__LINE__,__func__);
+		return -ENOMEM;
+	}
+
+	*vdb = vbp->vb;
+	DPRINTK("%s [%d]%s.vdb(base:0x%lx,virt:0x%lx,phys:0x%lx,size:%d).filp:0x%px\n",DEV_NAME,__LINE__,__func__,vdb->base,vdb->virt_addr,vdb->phys_addr,vdb->size,filp);
+
+	kent_ve4_add_vbp_list(vbp, filp);
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_allocate_physical_memory_no_mmap);
+
+int kent_ve4_vdi_ioctl_free_physical_memory_no_mmap(vpudrv_buffer_t *vdb)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (vdb == NULL)
+	{
+		pr_err("%s [%d]%s.vdb == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_down_interruptible();
+	if (ret != 0)
+		return ret;
+
+	if (vdb->base)
+	{
+		kent_ve4_free_dma_buffer(vdb);
+		DPRINTK("%s [%d]%s.af vpu_free_dma_buffer\n",DEV_NAME,__LINE__,__func__);
+	}
+
+	kent_ve4_free_mem(vdb);
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_free_physical_memory_no_mmap);
+
+int kent_ve4_vdi_ioctl_open_instance(void *filp, vpudrv_inst_info_t *inst_info)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (filp == NULL || inst_info == NULL)
+	{
+		pr_err("%s [%d]%s.filp == NULL || inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_open_inst(inst_info, filp);
+	if (ret)
+		return ret;
+
+	DPRINTK("%s [-] [%d]%s.core_idx=%d.inst_idx=%d.s_vpu_open_ref_count=%d.inst_open_count=%d\n",DEV_NAME,__LINE__,__func__,inst_info->core_idx,inst_info->inst_idx,s_vpu_open_ref_count,inst_info->inst_open_count);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_open_instance);
+
+int kent_ve4_vdi_ioctl_close_instance(vpudrv_inst_info_t *inst_info)
+{
+	int ret = 0;
+
+	DPRINTK("%s [+] [%d]%s\n",DEV_NAME,__LINE__,__func__);
+
+	if (inst_info == NULL)
+	{
+		pr_err("%s [%d]%s.inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	kent_ve4_close_inst(inst_info);
+
+	DPRINTK("%s [-] [%d]%s.core_idx=%d.inst_idx=%d.s_vpu_open_ref_count=%d.inst_open_count=%d\n",DEV_NAME,__LINE__,__func__,inst_info->core_idx,inst_info->inst_idx,s_vpu_open_ref_count,inst_info->inst_open_count);
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_close_instance);
+
+int kent_ve4_vdi_ioctl_wait_interrupt(vpudrv_intr_info_t *intr_info)
+{
+	int ret = 0;
+	struct vpu_drv_context_t *dev = (struct vpu_drv_context_t *)(&s_vpu_drv_context);
+
+	if (intr_info == NULL)
+	{
+		pr_err("%s [%d]%s.inst_info == NULL\n",DEV_NAME,__LINE__,__func__);
+		return -EFAULT;
+	}
+
+	ret = kent_ve4_wait_init(dev, intr_info);
+	if (ret != 0)
+		return -EFAULT;
+
+	return ret;
+}
+EXPORT_SYMBOL(kent_ve4_vdi_ioctl_wait_interrupt);
+
+static ssize_t vpu_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
+{
+	return -1;
+}
+
+#ifdef CONFIG_COMPAT
+static int get_from_compat_vpu_bit_firmware_info(const char __user *buf,
+	vpu_bit_firmware_info_t *info)
+{
+	compat_vpu_bit_firmware_info_t *compat_info;
+
+	compat_info = kzalloc(sizeof(*compat_info), GFP_KERNEL);
+	if (!compat_info)
+		return -ENOMEM;
+
+	if (copy_from_user(compat_info, buf, sizeof(*compat_info))) {
+		kfree(compat_info);
+		return -EFAULT;
+	}
+
+	info->size = sizeof(*info);
+	info->core_idx = compat_info->core_idx;
+	info->reg_base_offset = compat_info->reg_base_offset;
+	memcpy(info->bit_code, compat_info->bit_code, sizeof(compat_info->bit_code));
+
+	kfree(compat_info);
+	return 0;
+}
+#endif
+
+
+
+static ssize_t vpu_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
+{
+
+	/* DPRINTK("[VPUDRV] vpu_write len=%d\n", (int)len); */
+	if (!buf) {
+		pr_err("%s vpu_write buf = NULL error \n", DEV_NAME);
+		return -EFAULT;
+	}
+
+	if (len == sizeof(vpu_bit_firmware_info_t) || len == sizeof(compat_vpu_bit_firmware_info_t))	{
+		vpu_bit_firmware_info_t *bit_firmware_info;
+
+		bit_firmware_info = kmalloc(sizeof(vpu_bit_firmware_info_t), GFP_KERNEL);
+		if (!bit_firmware_info) {
+			pr_err("%s vpu_write  bit_firmware_info allocation error\n", DEV_NAME);
+			return -EFAULT;
+		}
+
+		if (len == sizeof(vpu_bit_firmware_info_t)) {
+			if (copy_from_user(bit_firmware_info, buf, len)) {
+				pr_err("%s vpu_write copy_from_user error for bit_firmware_info\n", DEV_NAME);
+				kfree(bit_firmware_info);
+				return -EFAULT;
+			}
+		}
+#ifdef CONFIG_COMPAT
+		 else {
+			int err = get_from_compat_vpu_bit_firmware_info(buf, bit_firmware_info);
+
+			if (err) {
+				pr_err("%s get_from_compat_vpu_bit_firmware_info return %d\n", DEV_NAME, err);
+				kfree(bit_firmware_info);
+				return -EFAULT;
+			}
+		}
+#endif /* CONFIG_COMPAT */
+
+		if (bit_firmware_info->size == sizeof(vpu_bit_firmware_info_t)) {
+			DPRINTK("%s vpu_write set bit_firmware_info coreIdx=0x%x, reg_base_offset=0x%x size=0x%x, bit_code[0]=0x%x\n",
+					DEV_NAME, bit_firmware_info->core_idx, (int)bit_firmware_info->reg_base_offset, bit_firmware_info->size, bit_firmware_info->bit_code[0]);
+
+			if (bit_firmware_info->core_idx >= MAX_NUM_VPU_CORE) {
+				pr_err("%s vpu_write coreIdx[%u] is exceeded than MAX_NUM_VPU_CORE[%d]\n", DEV_NAME, bit_firmware_info->core_idx, MAX_NUM_VPU_CORE);
+				kfree(bit_firmware_info);
+				return -ENODEV;
+			}
+
+			memcpy((void *)&s_bit_firmware_info[bit_firmware_info->core_idx], bit_firmware_info, sizeof(vpu_bit_firmware_info_t));
+			kfree(bit_firmware_info);
+
+			return len;
+		}
+
+		kfree(bit_firmware_info);
+	}
+
+	return -EINVAL;
+}
+
+static int vpu_release(struct inode *inode, struct file *filp)
+{
+	DPRINTK("%s [+] [%d]%s.vpu_release\n", DEV_NAME, __LINE__, __func__);
+
+	/*
+	 * Use down() (uninterruptible), NOT down_interruptible(): the VFS does
+	 * not retry a failed ->release(), so bailing out on a signal would skip
+	 * the buffer/instance teardown and the open_count decrement below and
+	 * leak those resources permanently. The teardown must always run.
+	 */
+	down(&s_vpu_sem);
+
+	/* found and free the not handled buffer by user applications */
+	vpu_free_buffers(filp);
+	/* found and free the not closed instance by user applications */
+	kent_ve4_free_instances(filp);
+	s_vpu_drv_context.open_count--;
+	if (s_vpu_drv_context.open_count == 0) {
+		if (s_instance_pool.base) {
+			DPRINTK("%s [%d]%s.free s_instance_pool.base:0x%px\n",
+				DEV_NAME, __LINE__, __func__,
+				(void *)(s_instance_pool.base));
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+			vfree((const void *)s_instance_pool.base);
+#else
+			kent_ve4_free_dma_buffer(&s_instance_pool);
+#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+			s_instance_pool.base = 0;
+		}
+	}
+	kent_ve4_sem_up();
+
+	DPRINTK("%s [-] [%d]%s.vpu_release\n", DEV_NAME, __LINE__, __func__);
+	return 0;
+}
+
+static int vpu_fasync(int fd, struct file *filp, int mode)
+{
+	struct vpu_drv_context_t *dev = (struct vpu_drv_context_t *)filp->private_data;
+	return fasync_helper(fd, filp, mode, &dev->async_queue);
+}
+
+static int vpu_map_to_register(struct file *fp, struct vm_area_struct *vm)
+{
+	unsigned long pfn;
+
+	vm->vm_flags |= VM_IO | VM_RESERVED;
+	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
+	pfn = vm->vm_pgoff;
+
+	//pr_err("%d flags:0x%x, pfn:0x%x, vm_start:0x%x, vm_end-vm->vm_start:0x%x\n", __LINE__,
+	//	vm->vm_flags, pfn, vm->vm_start, vm->vm_end-vm->vm_start);
+
+	return remap_pfn_range(vm, vm->vm_start, pfn, vm->vm_end-vm->vm_start, vm->vm_page_prot) ? -EAGAIN : 0;
+}
+
+static int vpu_map_to_physical_memory(struct file *fp, struct vm_area_struct *vm)
+{
+	vm->vm_flags |= VM_IO | VM_RESERVED;
+	vm->vm_page_prot = pgprot_writecombine(vm->vm_page_prot);
+
+	//pr_err("%d flags:0x%x, vm_start:0x%x, vm->vm_pgoff:0x%x, vm_end-vm->vm_start:0x%x\n", __LINE__,
+	//	vm->vm_flags, vm->vm_start, vm->vm_pgoff, vm->vm_end-vm->vm_start);
+
+	return remap_pfn_range(vm, vm->vm_start, vm->vm_pgoff, vm->vm_end-vm->vm_start, vm->vm_page_prot) ? -EAGAIN : 0;
+}
+
+static int vpu_map_to_instance_pool_memory(struct file *fp, struct vm_area_struct *vm)
+{
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+	int ret;
+	long length = vm->vm_end - vm->vm_start;
+	unsigned long start = vm->vm_start;
+	char *vmalloc_area_ptr = (char *)s_instance_pool.base;
+	unsigned long pfn;
+
+	vm->vm_flags |= VM_IO | VM_RESERVED;
+	//pr_err("%d flags:0x%x\n", __LINE__, vm->vm_flags);
+
+	/* loop over all pages, map it page individually */
+	while (length > 0) {
+		pfn = vmalloc_to_pfn(vmalloc_area_ptr);
+		ret = remap_pfn_range(vm, start, pfn, PAGE_SIZE, PAGE_SHARED);
+		//pr_err("%d ret:0x%x, length:0x%x, pfn:0x%x, start:0x%x, vmalloc_area_ptr:0x%x, PAGE_SIZE:0x%x\n", __LINE__,
+		//	ret, length, pfn, start, vmalloc_area_ptr, PAGE_SIZE);
+		if (ret < 0) {
+			return ret;
+		}
+		start += PAGE_SIZE;
+		vmalloc_area_ptr += PAGE_SIZE;
+		length -= PAGE_SIZE;
+	}
+	//pr_err("%d end if vpu_map_to_instance_pool_memory\n", __LINE__);
+
+	return 0;
+#else
+	vm->vm_flags |= VM_RESERVED;
+	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
+	return remap_pfn_range(vm, vm->vm_start, vm->vm_pgoff, vm->vm_end-vm->vm_start, vm->vm_page_prot) ? -EAGAIN : 0;
+#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+}
+
+/*!
+ * @brief memory map interface for vpu file operation
+ * @return  0 on success or negative error code on error
+ */
+static int vpu_mmap(struct file *fp, struct vm_area_struct *vm)
+{
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+	//pr_err("%d vm_pgoff:0x%x, vpu_phys_addr:0x%x, page_shift:0x%x\n", __LINE__, vm->vm_pgoff, s_ve4_register.phys_addr, PAGE_SHIFT);
+	if (vm->vm_pgoff == 0){
+		//pr_err("%d vm->vm_pgoff == 0\n");
+		return vpu_map_to_instance_pool_memory(fp, vm);
+	}
+
+	if (vm->vm_pgoff == (s_ve4_register.phys_addr>>PAGE_SHIFT)){
+		//pr_err("%d vm->vm_pgoff == (s_ve4_register.phys_addr>>PAGE_SHIFT\n", __LINE__);
+		return vpu_map_to_register(fp, vm);
+	}
+
+	if (vm->vm_pgoff == (s_ve4_register2.phys_addr>>PAGE_SHIFT)){
+		//pr_err("%d vm->vm_pgoff == (s_ve4_register2.phys_addr>>PAGE_SHIFT\n", __LINE__);
+		return vpu_map_to_register(fp, vm);
+	}
+
+	return vpu_map_to_physical_memory(fp, vm);
+#else
+	//pr_err("%d vm_pgoff:0x%x, page_shift:0x%x\n", __LINE__, vm->vm_pgoff, PAGE_SHIFT);
+	if (vm->vm_pgoff) {
+		if (vm->vm_pgoff == (s_instance_pool.phys_addr>>PAGE_SHIFT))
+			return vpu_map_to_instance_pool_memory(fp, vm);
+
+		return vpu_map_to_physical_memory(fp, vm);
+	} else {
+		return vpu_map_to_register(fp, vm);
+	}
+#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+}
+
+static struct file_operations vpu_fops = {
+	.owner = THIS_MODULE,
+	.open = vpu_open,
+	.read = vpu_read,
+	.write = vpu_write,
+	/*.ioctl = vpu_ioctl, // for kernel 2.6.9*/
+	.unlocked_ioctl = vpu_ioctl,
+	.compat_ioctl = compat_vpu_ioctl,
+	.release = vpu_release,
+	.fasync = vpu_fasync,
+	.mmap = vpu_mmap,
+};
+
+static int ve4_pcpu_ipc_init(struct device *dev)
+{
+	struct device_node *node = dev->of_node;
+	struct resource res;
+	int ret = 0;
+	int val;
+
+	ret = of_address_to_resource(node, 0, &res);
+	if (ret) {
+		pr_err("%s %d.%s.failed to get resource\n", DEV_NAME, __LINE__, __func__);
+		return ret;
+	}
+	//pr_info("%s %d.%s.dev:0x%px.node:0x%px.res.start:0x%lx\n", DEV_NAME, __LINE__, __func__, dev, node, res.start);
+	intr_regmap = syscon_regmap_lookup_by_phandle(node, "intr-syscon");
+	if (IS_ERR_OR_NULL(intr_regmap)) {
+		dev_err(dev, "%s %d.%s.cannot get intr regmap\n", DEV_NAME, __LINE__, __func__);
+		return -EINVAL;
+	}
+	//pr_info("%s %d.%s.intr_regmap:0x%px\n", DEV_NAME, __LINE__, __func__, intr_regmap);
+	ipc_regmap = syscon_regmap_lookup_by_phandle(node, "ipc-syscon");
+	if (IS_ERR_OR_NULL(ipc_regmap)) {
+		dev_err(dev, "%s %d.%s.cannot get intr regmap\n", DEV_NAME, __LINE__, __func__);
+		return -EINVAL;
+	}
+	//pr_info("%s %d.%s.ipc_regmap:0x%px\n", DEV_NAME, __LINE__, __func__, ipc_regmap);
+	regmap_read(intr_regmap, INTR_EN_OFFSET, &val);
+	//pr_info("%s %d.%s.TO_PCPU_INTR_BIT:0x%x.val:0x%x\n", DEV_NAME, __LINE__, __func__,
+	//	TO_PCPU_INTR_BIT, val);
+	if (!(val & TO_PCPU_INTR_BIT)) {
+		//pr_info("%s %d.%s.regmap_write INTR_EN_OFFSET:0x%x.val:0x%x\n", DEV_NAME, __LINE__, __func__,
+		//	INTR_EN_OFFSET, (TO_PCPU_INTR_BIT | WRITE_DATA));
+		regmap_write(intr_regmap, INTR_EN_OFFSET,
+		    TO_PCPU_INTR_BIT | WRITE_DATA);
+	}
+
+	return ret;
+}
+
+static int ve4_pcpu_ipc_ve4_start(struct device *dev)
+{
+	int ret = 0;
+	int val;
+	int val1;
+	int val2;
+	u32 parity;
+	u32 cmd;
+
+	parity = IPC_CATE_PPC ^ (IPC_PPC_VE4_START & GENMASK(7, 0)) ^ ((IPC_PPC_VE4_START >> 8) & GENMASK(7, 0)) ^ IPC_CMD_BLOCKING;
+	cmd = (IPC_CMD_BLOCKING << 31) | (IPC_CATE_PPC << 24) | (parity << 16) | IPC_PPC_VE4_START;
+	//pr_info("%s %d.%s.cmd:0x%x.opcode:0x%x.parity:0x%x\n", DEV_NAME, __LINE__, __func__, cmd, IPC_PPC_VE4_START, parity);
+	regmap_write(ipc_regmap, TO_PCPU_IPC_REGOFF, cmd);
+	regmap_write(ipc_regmap, TO_PCPU_IPC_REGOFF + 0x4, 0);
+	regmap_write(intr_regmap, INTR_OFFSET, TO_PCPU_INTR_BIT | WRITE_DATA);
+	ret = regmap_read_poll_timeout(intr_regmap, INTR_OFFSET, val,
+			!(val & TO_PCPU_INTR_BIT), POLLING_TIME, 1000 * POLLING_TIME);
+	if (ret) {
+		dev_err(dev, "%d.%s.send pcpu interrupt timeout\n", __LINE__, __func__);
+		return ret;
+	}
+	// pcpu interrupt blocking
+	ret = regmap_read_poll_timeout(ipc_regmap, TO_PCPU_IPC_REGOFF + 0x4, val,
+			val == 0x1, POLLING_TIME, 1000 * POLLING_TIME);
+	if (ret) {
+		regmap_read(intr_regmap, INTR_OFFSET, &val);
+		regmap_read(ipc_regmap, TO_PCPU_IPC_REGOFF, &val1);
+		regmap_read(ipc_regmap, TO_PCPU_IPC_REGOFF + 0x4, &val2);
+		dev_err(dev,
+			"%d.%s.send pcpu ipc timeout(intr:0x%x cmd_reg:0x%x cmd_arg:0x%x)\n",
+			__LINE__, __func__, val, val1, val2);
+	}
+	regmap_write(ipc_regmap, TO_PCPU_IPC_REGOFF, 0);
+	regmap_write(ipc_regmap, TO_PCPU_IPC_REGOFF + 0x4, 0);
+
+	return ret;
+}
+
+static int vpu_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	int err = 0;
+	struct resource res;
+	void __iomem *iobase;
+	int irq;
+	struct device_node *node = pdev->dev.of_node;
+
+	pr_info("%s vpu_probe\n", DEV_NAME);
+
+	err = of_address_to_resource(node, 0, &res);
+	if (err) {
+		pr_err("%s %d.%s.failed to get resource\n", DEV_NAME, __LINE__, __func__);
+		return err;
+	}
+	iobase = of_iomap(node, 0);
+	if (!iobase) {
+		pr_err("%s %d.%s.failed to iomap\n", DEV_NAME, __LINE__, __func__);
+		return -ENOMEM;
+	}
+
+	s_ve4_register.phys_addr = res.start;
+	s_ve4_register.virt_addr = (unsigned long)iobase;
+	s_ve4_register.size = res.end - res.start + 1;
+
+	pr_info("%s ve4 base address get from DTB physical base addr=0x%llx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
+
+	err = of_address_to_resource(node, 1, &res);
+	if (err) {
+		pr_err("%s %d.%s.failed to get reg2 resource\n", DEV_NAME, __LINE__, __func__);
+		iounmap((void *)s_ve4_register.virt_addr);
+		s_ve4_register.virt_addr = 0;
+		return err;
+	}
+	iobase = of_iomap(node, 1);
+	if (!iobase) {
+		pr_err("%s %d.%s.failed to iomap reg2\n", DEV_NAME, __LINE__, __func__);
+		iounmap((void *)s_ve4_register.virt_addr);
+		s_ve4_register.virt_addr = 0;
+		return -ENOMEM;
+	}
+	s_ve4_register2.phys_addr = res.start;
+	s_ve4_register2.virt_addr = (unsigned long)iobase;
+	s_ve4_register2.size = res.end - res.start + 1;
+
+	pr_info("%s ve4 reg2 base address get from DTB physical base addr=0x%llx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
+
+	/* IRQ not acquired yet: keep guard reliable for early cleanup paths */
+	s_ve4_irq = 0;
+
+	s_vpu_dev.minor = MISC_DYNAMIC_MINOR;
+	s_vpu_dev.name = VPU_DEV_NAME;
+	s_vpu_dev.fops = &vpu_fops;
+	s_vpu_dev.parent = NULL;
+	err = misc_register(&s_vpu_dev);
+	if (err) {
+		pr_err("%s %d.%s.failed to register misc device\n", DEV_NAME, __LINE__, __func__);
+		goto ERROR_UNMAP;
+	}
+
+	s_vpu_dev.this_device->coherent_dma_mask = DMA_BIT_MASK(32);
+	s_vpu_dev.this_device->dma_mask = (u64 *)&s_vpu_dev.this_device
+						->coherent_dma_mask;
+/*#ifdef CONFIG_DMABUF_HEAPS_REALTEK
+	set_dma_ops(s_vpu_dev.this_device, &rheap_dma_ops);
+#endif*/
+
+	p_vpu_dev = &pdev->dev;
+
+	init_waitqueue_head(&s_interrupt_wait_q_ve4);
+	err = kfifo_alloc(&s_interrupt_pending_q_ve4, MAX_INTERRUPT_QUEUE*sizeof(unsigned long), GFP_KERNEL);
+	if (err) {
+		pr_err("%s %d.%s.kfifo_alloc failed 0x%x\n", DEV_NAME, __LINE__, __func__, err);
+		goto ERROR_PROVE_DEVICE;
+	}
+	s_common_memory.base = 0;
+	s_instance_pool.base = 0;
+
+	irq = irq_of_parse_and_map(node, 0);
+	if (irq <= 0) {
+		pr_err("%s %d.%s.failed to parse IRQ\n", DEV_NAME, __LINE__, __func__);
+		err = -EINVAL;
+		s_ve4_irq = 0;   /* IRQ not acquired: cleanup must not free_irq */
+		goto ERROR_PROVE_DEVICE;
+	}
+
+	s_ve4_irq = irq;
+	pr_info("%s s_ve4_irq:%d want to register ve4_irq_handler\n", DEV_NAME, s_ve4_irq);
+	err = request_irq(s_ve4_irq, ve4_irq_handler, 0, "VE4_CODEC_IRQ", (void *)(&s_vpu_drv_context));
+	pr_info("%s s_ve4_irq:%d err:0x%x\n", DEV_NAME, s_ve4_irq, err);
+	if (err != 0) {
+		if (err == -EINVAL)
+			pr_err("%s Bad s_ve4_irq number or handler\n", DEV_NAME);
+		else if (err == -EBUSY)
+			pr_err("%s s_ve4_irq <%d> busy, change your config\n", DEV_NAME, s_ve4_irq);
+		s_ve4_irq = 0;   /* request_irq failed: no handler registered to free later */
+		goto ERROR_PROVE_DEVICE;
+	}
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	s_video_memory.size = VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE;
+	s_video_memory.phys_addr = VPU_DRAM_PHYSICAL_BASE;
+	s_video_memory.base = (unsigned long)ioremap_nocache(s_video_memory.phys_addr, PAGE_ALIGN(s_video_memory.size));
+	if (!s_video_memory.base) {
+		pr_err("%s %d.%s.fail to remap video memory physical phys_addr=0x%x, base=0x%x, size=%d\n", DEV_NAME, __LINE__, __func__,
+			(int)s_video_memory.phys_addr, (int)s_video_memory.base, (int)s_video_memory.size);
+		err = -ENOMEM;
+		goto ERROR_PROVE_DEVICE;
+	}
+
+	if (vmem_init(&s_vmem, s_video_memory.phys_addr, s_video_memory.size) < 0) {
+		pr_err("%s %d.%s.fail to init vmem system\n", DEV_NAME, __LINE__, __func__);
+		iounmap((void *)s_video_memory.base);
+		s_video_memory.base = 0;
+		err = -ENOMEM;
+		goto ERROR_PROVE_DEVICE;
+	}
+	pr_info("%s success to probe vpu device with reserved video memory phys_addr=0x%x, base = 0x%x\n", DEV_NAME, (int) s_video_memory.phys_addr, (int)s_video_memory.base);
+#else
+	pr_info("%s success to probe vpu device with non reserved video memory\n", DEV_NAME);
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+	err = ve4_pcpu_ipc_init(dev);
+	if (err < 0) {
+		goto ERROR_PROVE_DEVICE;
+	}
+
+	regmap_isosys = syscon_regmap_lookup_by_phandle(node, "realtek,isosys");
+	if (IS_ERR(regmap_isosys)) {
+		pr_err("%s fail to regmap_isosys\n", DEV_NAME);
+	}
+
+	pm_runtime_set_suspended(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 15000);
+	pm_runtime_enable(dev);
+	pm_runtime_mark_last_busy(&pdev->dev);
+
+	return 0;
+
+
+ERROR_PROVE_DEVICE:
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	if (s_video_memory.base) {
+		iounmap((void *)s_video_memory.base);
+		s_video_memory.base = 0;
+		vmem_exit(&s_vmem);
+	}
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+	if (s_ve4_irq) {
+		free_irq(s_ve4_irq, &s_vpu_drv_context);
+		s_ve4_irq = 0;
+	}
+
+	/* safe even on the misc_register-fail path: data is NULL, kfree(NULL) is a no-op */
+	kfifo_free(&s_interrupt_pending_q_ve4);
+
+	misc_deregister(&s_vpu_dev);
+
+ERROR_UNMAP:
+	iounmap((void *)s_ve4_register2.virt_addr);
+	s_ve4_register2.virt_addr = 0;
+	iounmap((void *)s_ve4_register.virt_addr);
+	s_ve4_register.virt_addr = 0;
+
+	return err;
+}
+
+static int vpu_remove(struct platform_device *pdev)
+{
+	DPRINTK("%s vpu_remove\n", DEV_NAME);
+
+	pm_runtime_disable(&pdev->dev);
+	kfifo_free(&s_interrupt_pending_q_ve4);
+
+#ifdef VPU_SUPPORT_PLATFORM_DRIVER_REGISTER
+	if (s_instance_pool.base) {
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+		vfree((const void *)s_instance_pool.base);
+#else
+		kent_ve4_free_dma_buffer(&s_instance_pool);
+#endif /* VPU_SUPPORT_PLATFORM_DRIVER_REGISTER */
+		s_instance_pool.base = 0;
+	}
+
+	if (s_common_memory.base) {
+		kent_ve4_free_dma_buffer(&s_common_memory);
+		s_common_memory.base = 0;
+	}
+
+#ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	if (s_video_memory.base) {
+		iounmap((void *)s_video_memory.base);
+		s_video_memory.base = 0;
+		vmem_exit(&s_vmem);
+	}
+#endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+
+	misc_deregister(&s_vpu_dev);
+
+	if (s_ve4_irq)
+		free_irq(s_ve4_irq, &s_vpu_drv_context);
+
+#endif /* VPU_SUPPORT_PLATFORM_DRIVER_REGISTER */
+
+	if (s_ve4_register2.virt_addr) {
+		iounmap((void *)s_ve4_register2.virt_addr);
+		s_ve4_register2.virt_addr = 0;
+	}
+	if (s_ve4_register.virt_addr) {
+		iounmap((void *)s_ve4_register.virt_addr);
+		s_ve4_register.virt_addr = 0;
+	}
+
+	return 0;
+}
+
+static void vpu_shutdown(struct platform_device *pdev)
+{
+	pr_info("%s Enter %s\n", DEV_NAME, __func__);
+
+	pm_runtime_force_suspend(&pdev->dev);
+}
+
+#ifdef CONFIG_PM
+/* DO NOT CHANGE */
+
+static int vpu_suspend(struct device *pdev)
+{
+	int ref_count;
+
+	pr_info("%s %d.%s.enter\n", DEV_NAME, __LINE__, __func__);
+
+	pm_runtime_get_sync(pdev);
+
+	/* RTK wrapper */
+	down(&s_vpu_sem);   /* serialize teardown with open/release and the sem-taking ioctls (open_count, instance_pool) */
+
+	/* Instance open/close does NOT take s_vpu_sem (see locking model above):
+	 * s_vpu_open_ref_count and s_inst_list_head are guarded by s_vpu_lock
+	 * alone, so snapshot/iterate them under the spinlock like vpu_resume()
+	 * does instead of reading them bare. */
+	spin_lock(&s_vpu_lock);
+	ref_count = s_vpu_open_ref_count;
+	spin_unlock(&s_vpu_lock);
+	if (ref_count > 0) {
+#ifdef DISABLE_ORIGIN_SUSPEND
+		vpudrv_instanace_list_t *vil, *n;
+		vpudrv_instance_pool_t *vip;
+		void *vip_base;
+		int instance_pool_size_per_core;
+		vpudrv_buffer_pool_t *pool, *nn;
+		unsigned long flags;
+		LIST_HEAD(vbp_to_free);
+
+		/* s_instance_pool.size  assigned to the size of all core once call VDI_IOCTL_GET_INSTANCE_POOL by user. */
+		instance_pool_size_per_core = (s_instance_pool.size/MAX_NUM_VPU_CORE);
+
+		wake_up_interruptible_all(&s_interrupt_wait_q_ve4);
+		spin_lock_irqsave(&s_intr_lock_ve4, flags);
+		kfifo_reset(&s_interrupt_pending_q_ve4);
+		atomic_set(&s_interrupt_flag_ve4, 0);
+		spin_unlock_irqrestore(&s_intr_lock_ve4, flags);
+		s_vpu_drv_context.open_count = 0;
+
+		spin_lock(&s_vpu_lock);
+		s_vpu_open_ref_count = 0;
+		list_for_each_entry_safe(vil, n, &s_inst_list_head, list) {
+			vip_base = (void *)(s_instance_pool.base + (instance_pool_size_per_core*vil->core_idx));
+			vip = (vpudrv_instance_pool_t *)vip_base;
+			if (vip) {
+				/* only first 4 byte is key point(inUse of CodecInst in vpuapi) to free the corresponding instance. */
+				memset(&vip->codecInstPool[vil->inst_idx], 0x00, 4);
+			}
+			list_del(&vil->list);
+			kfree(vil);
+		}
+		spin_unlock(&s_vpu_lock);
+
+		/* phase 1: detach the whole buffer list under the spinlock */
+		spin_lock(&s_vpu_lock);
+		list_splice_init(&s_vbp_head, &vbp_to_free);
+		spin_unlock(&s_vpu_lock);
+
+		/* phase 2: free outside the lock; base is the full kernel base */
+		list_for_each_entry_safe(pool, nn, &vbp_to_free, list) {
+			if (pool->vb.base)
+				kent_ve4_free_dma_buffer(&pool->vb);
+			list_del(&pool->list);
+			kfree(pool);
+		}
+
+		if (s_instance_pool.base) {
+#ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+			vfree((const void *)s_instance_pool.base);
+#else
+			kent_ve4_free_dma_buffer(&s_instance_pool);
+#endif /* USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY */
+			s_instance_pool.base = 0;
+		}
+#else /* else of DISABLE_ORIGIN_SUSPEND */
+		int i;
+		int core;
+		unsigned long timeout = jiffies + HZ; /* vpu wait timeout to 1sec */
+		int product_code = 0;
+
+		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
+			if (s_bit_firmware_info[core].size == 0)
+				continue;
+			product_code = ReadVe4Register(VE4_PRODUCT_CODE_REGISTER, core);
+
+			while (ReadVpuRegister(BIT_BUSY_FLAG, core)) {
+				if (time_after(jiffies, timeout))
+					goto DONE_SUSPEND;
+			}
+
+			for (i = 0; i < 64; i++)
+				s_vpu_reg_store[core][i] = ReadVpuRegister(BIT_BASE+(0x100+(i * 4)), core);
+		}
+#endif /* end of DISABLE_ORIGIN_SUSPEND */
+	}
+	up(&s_vpu_sem);
+
+	pm_runtime_force_suspend(pdev);
+
+	pr_info("%s %d.%s.exit\n", DEV_NAME, __LINE__, __func__);
+
+	return 0;
+
+#ifndef DISABLE_ORIGIN_SUSPEND
+DONE_SUSPEND:
+	up(&s_vpu_sem);
+#endif
+
+	pm_runtime_put_sync(pdev);
+
+	pr_info("%s %d.%s.exit\n", DEV_NAME, __LINE__, __func__);
+
+	return -EAGAIN;
+}
+
+static int vpu_resume(struct device *pdev)
+{
+	pr_info("%s %d.%s.enter\n", DEV_NAME, __LINE__, __func__);
+
+	pm_runtime_force_resume(pdev);
+
+	//RTK wrapper
+	vpu_wrapper_setup();
+
+#ifdef DISABLE_ORIGIN_SUSPEND
+#else /* else of DISABLE_ORIGIN_SUSPEND */
+	int i;
+	int core;
+	int product_code = 0;
+	unsigned long timeout = jiffies + HZ; /* vpu wait timeout to 1sec */
+	u32 val;
+
+	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
+
+		if (s_bit_firmware_info[core].size == 0)
+			continue;
+
+		product_code = ReadVe4Register(VE4_PRODUCT_CODE_REGISTER, core);
+		//VE4 product_code
+		{
+			WriteVpuRegister(BIT_CODE_RUN, 0, core);
+
+			/*---- LOAD BOOT CODE*/
+			for (i = 0; i < 512; i++) {
+				val = s_bit_firmware_info[core].bit_code[i];
+				WriteVpuRegister(BIT_CODE_DOWN, ((i << 16) | val), core);
+			}
+
+			for (i = 0 ; i < 64 ; i++)
+				WriteVpuRegister(BIT_BASE+(0x100+(i * 4)), s_vpu_reg_store[core][i], core);
+
+			WriteVpuRegister(BIT_BUSY_FLAG, 1, core);
+			WriteVpuRegister(BIT_CODE_RESET, 1, core);
+			WriteVpuRegister(BIT_CODE_RUN, 1, core);
+
+			while (ReadVpuRegister(BIT_BUSY_FLAG, core)) {
+				if (time_after(jiffies, timeout))
+					goto DONE_WAKEUP;
+			}
+		}
+	}
+#endif /* end of DISABLE_ORIGIN_SUSPEND */
+
+#ifndef DISABLE_ORIGIN_SUSPEND
+DONE_WAKEUP:
+#endif /* DISABLE_ORIGIN_SUSPEND */
+
+	pm_runtime_put_sync(pdev);
+
+	pr_info("%s %d.%s.exit\n", DEV_NAME, __LINE__, __func__);
+
+	return 0;
+}
+#else
+static int vpu_suspend(struct device *pdev);
+static int vpu_resume(struct device *pdev);
+#endif /* CONFIG_PM */
+static const struct of_device_id rtk_ve4_dt_match[] = {
+	{ .compatible = "realtek,kent-ve4" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, rtk_ve4_dt_match);
+
+static int rtk_ve4_runtime_suspend(struct device *dev)
+{
+	pr_info("%s %d.%s.enter\n", DEV_NAME, __LINE__, __func__);
+	vpu_wrapper_pwr(0);
+	pr_info("%s %d.%s.exit\n", DEV_NAME, __LINE__, __func__);
+	return 0;
+}
+
+static int rtk_ve4_runtime_resume(struct device *dev)
+{
+	int ret;
+	pr_info("%s %d.%s.enter\n", DEV_NAME, __LINE__, __func__);
+
+	ret = ve4_pcpu_ipc_ve4_start(dev);
+	if (ret < 0) {
+		dev_err(dev, "%d.%s.ve4_pcpu_ipc_ve4_start() fail.err:%d\n", __LINE__, __func__, ret);
+		return ret;
+	}
+
+	vpu_wrapper_pwr(1);
+	vpu_wrapper_setup();
+	pr_info("%s %d.%s.exit\n", DEV_NAME, __LINE__, __func__);
+	return 0;
+}
+
+static const struct dev_pm_ops rtk_ve4_pmops = {
+	.runtime_suspend = rtk_ve4_runtime_suspend,
+	.runtime_resume = rtk_ve4_runtime_resume,
+	.suspend = vpu_suspend,
+	.resume = vpu_resume,
+};
+
+static struct platform_driver rtk_ve4_driver = {
+	.driver = {
+		.name = "rtk-kent-ve4",
+		.owner = THIS_MODULE,
+		.of_match_table = rtk_ve4_dt_match,
+		.pm = &rtk_ve4_pmops,
+	},
+	.probe = vpu_probe,
+	.remove = vpu_remove,
+	.shutdown = vpu_shutdown,
+};
+module_platform_driver(rtk_ve4_driver);
+
+MODULE_AUTHOR("A customer using RTK VPU, Inc.");
+MODULE_DESCRIPTION("VPU linux driver");
+MODULE_LICENSE("GPL");

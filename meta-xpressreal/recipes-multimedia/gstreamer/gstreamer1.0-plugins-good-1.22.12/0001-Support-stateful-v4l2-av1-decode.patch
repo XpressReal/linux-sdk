@@ -2,6 +2,8 @@ From 4a9ea77d9b15aa0d90b81c3bb1c3d9241a8dfdbe Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 11 Dec 2024 15:30:59 +0800
 Subject: [PATCH 1/1] Support stateful v4l2 av1 decode
+Source: Realtek
+License: LGPL-2.1-or-later
 
 Upstream-Status: Inappropriate [rtk specific]
 ---

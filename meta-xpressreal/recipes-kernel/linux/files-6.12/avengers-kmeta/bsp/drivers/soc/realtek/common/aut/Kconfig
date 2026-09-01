@@ -1,0 +1,12 @@
+config RTK_AUT_CONTROL
+	tristate "Realtek Automotive Control driver"
+	default y
+	help
+	  This enables Realtek Automotive-Control interface.
+
+config RTK_AUT_RCAM
+	tristate "Realtek Automotive Rear Camera Interface"
+	default n
+	help
+	  This enables Realtek Automotive rear-camer interface
+	  for platforms w/o cluster.

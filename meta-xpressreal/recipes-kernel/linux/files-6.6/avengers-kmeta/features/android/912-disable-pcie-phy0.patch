@@ -1,0 +1,18 @@
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501.dtsi b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+index ecbf3f6c381fc..79c49077d26f9 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501.dtsi
+@@ -178,11 +178,11 @@ &npu_pp {
+ };
+ 
+ &pcie0 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &pcie0_phy {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &pcie1 {

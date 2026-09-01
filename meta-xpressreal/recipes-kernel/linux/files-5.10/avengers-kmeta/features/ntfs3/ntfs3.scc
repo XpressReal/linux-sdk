@@ -1,0 +1,13 @@
+define KFEATURE_DESCRIPTION "NTFS3 backport from kernel 5.15"
+
+patch 900-NAS-550-fs-ntfs3-Add-NTFS3-in-fs-Kconfig-and-fs-Makefile.patch
+patch 900-NAS-551-fs-ntfs3-Fix-some-memory-leaks-in-an-error-handling-.patch
+patch 900-NAS-552-fs-ntfs3-Keep-preallocated-only-if-option-prealloc-e.patch
+patch 900-NAS-553-fs-ntfs3-Restore-ntfs_xattr_get_acl-and-ntfs_xattr_s.patch
+patch 900-NAS-554-fs-ntfs3-Update-i_ctime-when-xattr-is-added.patch
+patch 900-NAS-555-fs-ntfs3-Optimize-locking-in-ntfs_save_wsl_perm.patch
+patch 900-NAS-556-fs-ntfs3-In-function-ntfs_set_acl_ex-do-not-change-i.patch
+patch 900-NAS-557-fs-ntfs3-Fix-fiemap-fix-shrink-file-size-to-remove-p.patch
+patch 900-NAS-558-fs-ntfs3-Check-new-size-for-limits.patch
+patch 900-NAS-559-fs-ntfs3-Update-valid-size-if-EIOCBQUEUED.patch
+patch 900-NAS-560-fs-ntfs3-fix-backport-build-for-5.10.x.patch

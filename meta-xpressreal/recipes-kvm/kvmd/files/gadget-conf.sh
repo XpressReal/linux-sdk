@@ -19,6 +19,10 @@ case "$BOARD" in
         echo "Handling USB Port for 1315C"
         # Put commands specific to boardC here
         ;;
+    rose-rtd1635)
+        echo "Enable USB Port0 Device Mode for rose"
+        echo device > /sys/class/usb_role/98013200.usb-port0-role-switch/role
+        ;;
     *)
         echo "Unknown board or hostname: $HOSTNAME"
         # Default or error handling

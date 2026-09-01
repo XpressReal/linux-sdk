@@ -1,18 +1,20 @@
-From a4f7fb6aed97bc2b6ece2e9f1e13ed1f3ceb0da4 Mon Sep 17 00:00:00 2001
+From a1b3ce84ba91a28ea5045fff9eaf8f239dcc95e4 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
-Date: Tue, 8 Oct 2024 14:32:35 +0800
-Subject: [PATCH] weston: seperate UI size and tv system with tv mode
+Date: Mon, 13 Apr 2026 22:08:25 -0400
+Subject: [PATCH] seperate UI size and tv system with tv mode
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
- compositor/main.c                    | 23 +++++++++++---
- include/libweston/backend-drm.h      |  4 +++
- include/libweston/libweston.h        |  1 +
- libweston/backend-drm/drm-internal.h |  5 +++
- libweston/backend-drm/drm.c          |  1 +
- libweston/backend-drm/kms.c          | 36 +++++++++++++++++-----
- libweston/backend-drm/modes.c        | 46 ++++++++++++++++++++++++++++
- 7 files changed, 103 insertions(+), 13 deletions(-)
+ compositor/main.c                    |  23 +++-
+ include/libweston/backend-drm.h      |   4 +
+ include/libweston/libweston.h        |   1 +
+ libweston/backend-drm/drm-internal.h |   5 +
+ libweston/backend-drm/drm.c          |   1 +
+ libweston/backend-drm/kms.c          |  36 ++++--
+ libweston/backend-drm/modes.c        | 181 +++++++++++++++++++++------
+ 7 files changed, 203 insertions(+), 48 deletions(-)
 
 diff --git a/compositor/main.c b/compositor/main.c
 index 2f77dca..d81b96d 100644
@@ -120,7 +122,7 @@ index 4b41df1..5f1b85e 100644
  
  static struct drm_backend *
 diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
-index ba1c169..4f4795b 100644
+index ba1c169..a602b4c 100644
 --- a/libweston/backend-drm/kms.c
 +++ b/libweston/backend-drm/kms.c
 @@ -846,7 +846,11 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
@@ -201,13 +203,190 @@ index ba1c169..4f4795b 100644
  			ret |= plane_add_prop(req, plane, WDRM_PLANE_FB_DAMAGE_CLIPS,
  					      plane_state->damage_blob_id);
 diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
-index 7b43119..b215dc6 100644
+index 7b43119..2d0e233 100644
 --- a/libweston/backend-drm/modes.c
 +++ b/libweston/backend-drm/modes.c
-@@ -899,3 +899,49 @@ drm_output_set_mode(struct weston_output *base,
+@@ -522,8 +522,8 @@ drm_output_print_modes(struct drm_output *output)
+ 		dm = to_drm_mode(m);
+ 
+ 		aspect_ratio = aspect_ratio_to_string(m->aspect_ratio);
+-		weston_log_continue(STAMP_SPACE "%dx%d@%.1f%s%s%s, %.1f MHz\n",
+-				    m->width, m->height, m->refresh / 1000.0,
++		weston_log_continue(STAMP_SPACE "%dx%d%s@%.2f%s%s%s, %.1f MHz\n",
++				    m->width, m->height, dm->mode_info.flags & DRM_MODE_FLAG_INTERLACE ? "i" : "" , m->refresh / 1000.0,
+ 				    aspect_ratio,
+ 				    m->flags & WL_OUTPUT_MODE_PREFERRED ?
+ 				    ", preferred" : "",
+@@ -635,7 +635,7 @@ update_head_from_connector(struct drm_head *head)
+  * @param current_mode Mode currently being displayed on this output
+  * @returns A mode from the output's mode list, or NULL if none available
+  */
+-static struct drm_mode *
++struct drm_mode *
+ drm_output_choose_initial_mode(struct drm_device *device,
+ 			       struct drm_output *output,
+ 			       enum weston_drm_backend_output_mode mode,
+@@ -645,21 +645,24 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	struct drm_mode *preferred = NULL;
+ 	struct drm_mode *current = NULL;
+ 	struct drm_mode *configured = NULL;
++	struct drm_mode *full_match_configured = NULL;
++	struct drm_mode *fps_match_configured = NULL;
+ 	struct drm_mode *config_fall_back = NULL;
+ 	struct drm_mode *best = NULL;
+ 	struct drm_mode *drm_mode;
+ 	drmModeModeInfo drm_modeline;
+ 	int32_t width = 0;
+ 	int32_t height = 0;
+-	uint32_t refresh = 0;
++	float refresh = 0;
+ 	uint32_t aspect_width = 0;
+ 	uint32_t aspect_height = 0;
+ 	enum weston_mode_aspect_ratio aspect_ratio = WESTON_MODE_PIC_AR_NONE;
+ 	int n;
++	char interlace[64] = {0};
+ 
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_PREFERRED && modeline) {
+-		n = sscanf(modeline, "%dx%d@%d %u:%u", &width, &height,
+-			   &refresh, &aspect_width, &aspect_height);
++		n = sscanf(modeline, "%dx%d@%f%s %u:%u", &width, &height,
++			   &refresh, interlace, &aspect_width, &aspect_height);
+ 		if (device->aspect_ratio_supported && n == 5) {
+ 			if (aspect_width == 4 && aspect_height == 3)
+ 				aspect_ratio = WESTON_MODE_PIC_AR_4_3;
+@@ -673,7 +676,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 				weston_log("Invalid modeline \"%s\" for output %s\n",
+ 					   modeline, output->base.name);
+ 		}
+-		if (n != 2 && n != 3 && n != 5) {
++		if (n != 2 && n != 3 && n != 4 && n != 5) {
+ 			width = -1;
+ 
+ 			if (parse_modeline(modeline, &drm_modeline) == 0) {
+@@ -689,12 +692,40 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 
+ 	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
+ 		if (width == drm_mode->base.width &&
+-		    height == drm_mode->base.height &&
+-		    (refresh == 0 || refresh == drm_mode->mode_info.vrefresh)) {
+-			if (!device->aspect_ratio_supported ||
+-			    aspect_ratio == drm_mode->base.aspect_ratio)
++		    height == drm_mode->base.height) {
++			int match_scan = false;
++			int match_fps = false;
++			int mode_refresh = (drm_mode->base.refresh + 5) / 10;
++			int config_refresh = (int)(refresh * 100);
++			if (refresh == 0 || config_refresh == mode_refresh) {
++				match_fps = true;
++			}
++			if (strncmp(interlace, "i", strlen("i")) == 0) {
++				if (drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) {
++					match_scan = true;
++				} else {
++					match_scan = false;
++				}
++			} else if (strncmp(interlace, "p", strlen("p")) == 0){
++				if ((drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) == 0) {
++					match_scan = true;
++				} else {
++					match_scan = false;
++				}
++			} else {
++				match_scan = true;
++			}
++
++			if (match_scan == true && match_fps == true && (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio)) {
++				full_match_configured = drm_mode;
++			} else if (match_fps == true && (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio)) {
++				fps_match_configured = drm_mode;
++			} else if (!device->aspect_ratio_supported ||
++				aspect_ratio == DRM_MODE_PICTURE_ASPECT_NONE || aspect_ratio == drm_mode->base.aspect_ratio) {
+ 				configured = drm_mode;
+-			else
++			} else
+ 				config_fall_back = drm_mode;
+ 		}
+ 
+@@ -717,6 +748,12 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_CURRENT)
+ 		configured = current;
+ 
++	if (full_match_configured)
++		return full_match_configured;
++
++	if (fps_match_configured)
++		return fps_match_configured;
++
+ 	if (configured)
+ 		return configured;
+ 
+@@ -801,32 +838,12 @@ drm_mode_pick_equivalent(const drmModeModeInfo *a, const drmModeModeInfo *b)
+ static int
+ drm_output_try_add_mode(struct drm_output *output, const drmModeModeInfo *info)
+ {
+-	struct weston_mode *base;
+ 	struct drm_mode *mode = NULL;
+-	struct drm_device *device = output->device;
+-	const drmModeModeInfo *chosen = NULL;
+-
+ 	assert(info);
+ 
+-	wl_list_for_each(base, &output->base.mode_list, link) {
+-		mode = to_drm_mode(base);
+-		chosen = drm_mode_pick_equivalent(&mode->mode_info, info);
+-		if (chosen)
+-			break;
+-	}
+-
+-	if (chosen == info) {
+-		assert(mode);
+-		drm_output_destroy_mode(device, mode);
+-		chosen = NULL;
+-	}
+-
+-	if (!chosen) {
+-		mode = drm_output_add_mode(output, info);
+-		if (!mode)
+-			return -1;
+-	}
+-	/* else { the equivalent mode is already in the list } */
++	mode = drm_output_add_mode(output, info);
++	if (!mode)
++		return -1;
  
  	return 0;
  }
+@@ -899,3 +916,97 @@ drm_output_set_mode(struct weston_output *base,
+ 
+ 	return 0;
+ }
++
++static struct drm_mode *
++drm_output_force_add_mode(const drmModeModeInfo *info)
++{
++	struct drm_mode *mode;
++
++	mode = malloc(sizeof *mode);
++	if (mode == NULL)
++		return NULL;
++
++	mode->base.flags = 0;
++	mode->base.width = info->hdisplay;
++	mode->base.height = info->vdisplay;
++
++	mode->base.refresh = drm_refresh_rate_mHz(info);
++	mode->mode_info = *info;
++	mode->blob_id = 0;
++
++	if (info->type & DRM_MODE_TYPE_PREFERRED)
++		mode->base.flags |= WL_OUTPUT_MODE_PREFERRED;
++
++	mode->base.aspect_ratio = drm_to_weston_mode_aspect_ratio(info->flags);
++
++	return mode;
++}
 +
 +int
 +drm_output_set_mode_with_tv_mode(struct weston_output *base,
@@ -218,9 +397,9 @@ index 7b43119..b215dc6 100644
 +	struct drm_device *device = output->device;
 +	struct drm_head *head = to_drm_head(weston_output_get_first_head(base));
 +
-+	struct drm_mode *current;
-+	struct drm_mode *tv_current;
-+	drmModeModeInfo dummy_mode;
++	struct drm_mode *current = NULL;
++	struct drm_mode *tv_current = NULL;
++	struct drm_mode *drm_mode = NULL;
 +
 +	if (tv_modeline == NULL)
 +		return -1;
@@ -231,11 +410,34 @@ index 7b43119..b215dc6 100644
 +	if (drm_output_update_modelist_from_heads(output) < 0)
 +		return -1;
 +
-+	current = drm_output_choose_initial_mode(device, output, mode, modeline,
-+						&head->inherited_mode);
++	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
++		if (drm_mode->base.width * drm_mode->base.height > 1920*1080) {
++			continue;
++		}
++
++		if (current == NULL)
++			current = drm_mode;
++
++		if (drm_mode->base.width >= current->base.width) {
++			if (drm_mode->base.width > current->base.width)
++				current = drm_mode;
++
++			if (drm_mode->base.refresh >= current->base.refresh) {
++				if (drm_mode->base.refresh > current->base.refresh)
++					current = drm_mode;
++
++				if ((drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) == 0) {
++					current = drm_mode;
++				}
++			}
++		}
++	}
++
++//	current = drm_output_choose_initial_mode(device, output, mode, modeline,
++//						&head->inherited_mode);
 +
 +	tv_current = drm_output_choose_initial_mode(device, output, mode, tv_modeline,
-+						&dummy_mode);
++						&current->mode_info);
 +
 +	if (!current)
 +		return -1;

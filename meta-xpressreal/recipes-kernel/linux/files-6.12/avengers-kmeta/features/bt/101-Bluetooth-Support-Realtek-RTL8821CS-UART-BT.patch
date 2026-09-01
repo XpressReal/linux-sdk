@@ -1,0 +1,40 @@
+diff --git a/arch/arm64/boot/dts/realtek/rtd1761.dtsi b/arch/arm64/boot/dts/realtek/rtd1761.dtsi
+index 90ded3fb5f2c..aa4471d40371 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1761.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1761.dtsi
+@@ -474,6 +474,11 @@ &uart0 {
+ 
+ &uart1 {
+ 	status = "okay";
++
++	bluetooth {
++		compatible = "realtek,rtl8821cs-bt";
++		enable-gpios = <&gpio 76 GPIO_ACTIVE_HIGH>;
++	};
+ };
+ 
+ &uart5 {
+diff --git a/drivers/bluetooth/hci_h5.c b/drivers/bluetooth/hci_h5.c
+index da284bdcf43b..0c2080c09306 100644
+--- a/drivers/bluetooth/hci_h5.c
++++ b/drivers/bluetooth/hci_h5.c
+@@ -1092,6 +1092,10 @@ static const struct h5_device_data h5_data_rtl8822cs = {
+ 	.vnd = &rtl_vnd,
+ };
+ 
++static const struct h5_device_data h5_data_rtl8821cs = {
++	.driver_info = H5_VOLT_DETECT_LSADC,
++	.vnd = &rtl_vnd,
++};
+ static const struct h5_device_data h5_data_rtl8822es = {
+ 	.driver_info = H5_VOLT_DETECT_LSADC,
+ 	.vnd = &rtl_vnd,
+@@ -1123,6 +1127,8 @@ static const struct of_device_id rtl_bluetooth_of_match[] = {
+ #ifdef CONFIG_BT_HCIUART_RTL
+ 	{ .compatible = "realtek,rtl8822cs-bt",
+ 	  .data = (const void *)&h5_data_rtl8822cs },
++	{ .compatible = "realtek,rtl8821cs-bt",
++	  .data = (const void *)&h5_data_rtl8821cs },
+ 	{ .compatible = "realtek,rtl8822es-bt",
+ 	  .data = (const void *)&h5_data_rtl8822es },
+ 	{ .compatible = "realtek,rtl8723bs-bt",

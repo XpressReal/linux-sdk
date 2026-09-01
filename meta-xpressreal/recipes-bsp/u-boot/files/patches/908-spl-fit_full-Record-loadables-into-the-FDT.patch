@@ -1,0 +1,57 @@
+From 0ba69bd5aa8585b3ca72f892573f65b5a7ab2e27 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 4 May 2026 12:50:16 +0800
+Subject: [PATCH] spl: fit_full: Record loadables into the FDT
+
+- spl: support board_fit_config_name_match on FIT_FULL with MULTI_DTB_FIT
+-- fit_conf_get_node->fit_find_config_node->board_fit_config_name_match
+
+---
+ boot/image-fit.c     | 2 +-
+ common/spl/spl_fit.c | 9 +++++++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/boot/image-fit.c b/boot/image-fit.c
+index 80b65df4e1..4ce5bd720d 100644
+--- a/boot/image-fit.c
++++ b/boot/image-fit.c
+@@ -1839,7 +1839,7 @@ int fit_conf_get_node(const void *fit, const char *conf_uname)
+ 	if (conf_uname == NULL) {
+ 		/* get configuration unit name from the default property */
+ 		debug("No configuration specified, trying default...\n");
+-		if (!tools_build() && IS_ENABLED(CONFIG_MULTI_DTB_FIT)) {
++		if (!tools_build() && CONFIG_IS_ENABLED(MULTI_DTB_FIT)) {
+ 			noffset = fit_find_config_node(fit);
+ 			if (noffset < 0)
+ 				return noffset;
+diff --git a/common/spl/spl_fit.c b/common/spl/spl_fit.c
+index 63f72090e9..78d277ef46 100644
+--- a/common/spl/spl_fit.c
++++ b/common/spl/spl_fit.c
+@@ -945,7 +945,11 @@ int spl_load_fit_image(struct spl_image_info *spl_image,
+ 			fdt_hack = (fdt_hack + 3) & ~3;
+ 			debug("Relocating FDT to %p\n", spl_image->fdt_addr);
+ 			memcpy((void *)fdt_hack, spl_image->fdt_addr, dt_len);
++			/* HACK: update for spl_perform_fixups() */
++			spl_image->fdt_addr = (void *)fdt_hack;
+ 		}
++		/* Try to make space, so we can inject details on the loadables */
++		fdt_shrink_to_minimum(spl_image->fdt_addr, 8192);
+ 	}
+ 
+ 	conf_noffset = fit_conf_get_node((const void *)header,
+@@ -968,6 +972,11 @@ int spl_load_fit_image(struct spl_image_info *spl_image,
+ 				     &img_data, &img_len);
+ 		if (ret < 0)
+ 			return ret;
++		/* Record our loadables into the FDT */
++		else if (spl_image->fdt_addr) {
++			fdt_record_loadable(spl_image->fdt_addr, idx, uname,
++				img_data, img_len, -1, NULL, NULL, NULL);
++		}
+ 	}
+ 
+ 	return 0;
+-- 
+2.47.0
+

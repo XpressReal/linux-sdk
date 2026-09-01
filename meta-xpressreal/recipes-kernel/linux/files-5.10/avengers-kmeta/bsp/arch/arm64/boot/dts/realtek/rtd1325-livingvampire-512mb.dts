@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2023 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1325-livingvampire.dtsi"
+
+/ {
+	compatible = "realtek,livingvampire", "realtek,rtd1325";
+	model = "Realtek Living Vampire EVB (512MB)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x1ffc0000>; /* 512 MB */
+	};
+
+	bootlogo {
+		status = "disabled";
+    };
+};
+
+&reserved_memory {
+	tee: tee@10100000 {
+		reg = <0x10100000 0x01a00000>;	/* TEE: 26MB */
+		no-map;
+	};
+
+	linux,default_cma {
+		size = <0x01000000>;
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_1 {
+		size = <0x0b000000>;		/* VO: 176MB  */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_2 {
+		size = <0x00400000>;		/* TP: 4MB(CAS legacy path 2K) */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_3 {
+		size = <0x00c00000>;		/* AUDIO: 12MB */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_4 {
+		size = <0x03000000>;		/* VIDEO: 48MB */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_5 {
+		size = <0x00400000>;		/* AO: 4MB */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_6 {
+		size = <0x01400000>;		/* OTA: 20MB */
+        alloc-ranges=<0x00040000 0x1ffc0000>;
+	};
+
+	linux,cma_8 {
+		status = "disabled";		/* HIFI: Disabled */
+	};
+
+	linux,cma_9 {
+		status = "disabled";		/* VO2: Disabled */
+	};
+
+	linux,cma_a {
+		status = "disabled";
+	};
+
+	linux,cma_b {
+		status = "disabled";		/* HIFI fw: Disabled */
+	};
+};
+
+&rtk_fb {
+	resolution = <1280 720>;
+};
+
+&bootlogo_reserved  {
+    status = "disabled";
+};
+
+&rtk_avcpu {
+	alog {
+		addr = <0x0487d000>;
+		size = <0x8000>;
+		lvl = <0x0>;
+	};
+
+	vlog {
+		addr = <0x04885000>;
+		size = <0x8000>;
+	};
+
+	hlog {
+		addr = <0x0488d000>;
+		size = <0x8000>;
+		lvl = <0x0>;
+	};
+};

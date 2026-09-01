@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Copyright (c) 2023 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1325-martine.dtsi"
+
+/ {
+	compatible = "realtek,martine", "realtek,rtd1325";
+	model = "Realtek Martine EVB (1GB LPDDR)";
+
+	memory@40000 {
+		device_type = "memory";
+		reg = <0x00040000 0x3ffc0000>; /* 1 GB */
+	};
+};
+
+&reserved_memory {
+	tee: tee@10100000 {
+		reg = <0x10100000 0x01300000>;	/* TEE: 19MB */
+		no-map;
+	};
+
+	linux,cma_1 {
+		size = <0x0f000000>;		/* VO: 160MB + 66MB(gen) + extra*/
+	};
+
+	linux,cma_2 {
+		size = <0x00400000>;		/* TP: 4MB(CAS legacy path 2K) */
+		status = "disabled";            /* TP: Disabled */
+	};
+
+	linux,cma_3 {
+		size = <0x00400000>;		/* AUDIO: 4MB */
+	};
+
+	linux,cma_4 {
+		size = <0x03400000>;		/* VIDEO: 52MB */
+	};
+
+	linux,cma_5 {
+		size = <0x00400000>;		/* AO: 4MB */
+	};
+
+	linux,cma_6 {
+		size = <0x01400000>;		/* OTA: 20MB */
+	};
+
+	linux,cma_8 {
+		status = "disabled";		/* HIFI: Disabled */
+	};
+
+	linux,cma_9 {
+		status = "disabled";		/* VO2: Disabled */
+	};
+
+	linux,cma_a {
+		status = "disabled";
+	};
+
+	linux,cma_b {
+		status = "disabled";		/* HIFI fw: Disabled */
+	};
+};
+
+&rtk_media_heap {
+	tp_non-vc-ac-ve_secure2 {
+		rtk,extflags = < (RTK_FLAG_SCPUACC |
+		RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_PROTECTED_DYNAMIC |
+		RTK_FLAG_PROTECTED_V2_TP_POOL) >;
+	};
+
+	audio_u1p5_non-ve_secure1 {
+		rtk,extflags = < (RTK_FLAG_SCPUACC |
+		RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_VCPU_FWACC |
+		RTK_FLAG_ACPUACC | RTK_FLAG_PROTECTED_DYNAMIC |
+		RTK_FLAG_PROTECTED_V2_AUDIO_POOL) >;
+	};
+
+	ao_u1p5_non-ve_secure6 {
+		rtk,extflags = < (RTK_FLAG_SCPUACC |
+		RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_VCPU_FWACC |
+		RTK_FLAG_ACPUACC | RTK_FLAG_PROTECTED_DYNAMIC |
+		RTK_FLAG_PROTECTED_V2_AO_POOL) >;
+	};
+
+	fwstack_u1p5_non-ve_secure4 {
+		rtk,extflags = < (RTK_FLAG_SCPUACC |
+		RTK_FLAG_HWIPACC | RTK_FLAG_CMA | RTK_FLAG_VCPU_FWACC |
+		RTK_FLAG_ACPUACC | RTK_FLAG_PROTECTED_DYNAMIC |
+		RTK_FLAG_PROTECTED_V2_FW_STACK) >;
+	};
+};
+
+&rtk_fb {
+	resolution = <1280 720>;
+};

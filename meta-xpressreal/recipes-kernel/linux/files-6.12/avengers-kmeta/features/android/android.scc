@@ -1,0 +1,20 @@
+define KFEATURE_DESCRIPTION "Realtek patches for Android"
+
+patch 201-CHROMIUM-drm-realtek-fix-compile-error-for-file-not-.patch
+patch 202-drm-make-some-helpers-selectable.patch
+patch 304-CHROMIUM-soc-realtek-common-rpc-bind-CMA-memory-regi.patch
+patch 305-ANDROID-soc-realtek-common-drm-driver-bind-CMA-memor.patch
+patch 306-dma-buf-heaps-add-all-cma-areas-into-cma-heaps.patch
+patch 307-arm64-dts-realtek-rename-cma_2-to-vo5-for-cmaheap-pu.patch
+
+patch 906-CHROMIUM-sound-soc-sof-Add-RTK-flow-in-SOF-framework.patch
+patch 907-gpu-drm-realtek-Add-startup-shutdown-callback-for-ke.patch
+patch 908-sound-soc-realtek-refine-SOF-driver-and-machine-rt56.patch
+patch 909-sound-soc-realtek-refine-machine-driver-without-code.patch
+patch 910-modify-for-stark-SOF-driver-with-codec-rt5650.patch
+patch 911-fix-hdmi-audio.patch
+patch 912-disable-pcie-phy0.patch
+
+kconf non-hardware gki_defconfig
+kconf non-hardware rtkaiot_gki.fragment
+kconf non-hardware yocto_aosp.cfg

@@ -2,6 +2,8 @@ From 9af56b1b465769ef4a2d80bc41e5b173302f9661 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Thu, 14 Aug 2025 14:31:23 +0800
 Subject: [PATCH 5/5] Add robust PTS fallback for frames with missing
+Source: Realtek
+License: LGPL-2.1-or-later
  timestamps
 Upstream-Status: Inappropriate [rtk specific]
 ---

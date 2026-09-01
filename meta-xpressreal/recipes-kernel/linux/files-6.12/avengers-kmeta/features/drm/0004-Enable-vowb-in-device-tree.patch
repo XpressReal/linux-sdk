@@ -1,0 +1,94 @@
+From 7f86152ecc1bccd9871127ef362e430c77008f58 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 18 May 2026 16:49:34 +0800
+Subject: [PATCH 1/1] Enable vowb in device tree:wq
+
+---
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts      | 6 +++++-
+ arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts | 6 +++++-
+ arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts    | 5 +++++
+ 3 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+index c36d8448..22b786cd 100755
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-1gb.dts
+@@ -71,10 +71,14 @@
+ 
+ &display_subsystem {
+ 	status = "okay";
+-	ports = <&vo0_out>;
++	ports = <&vo0_out>, <&vowb_io>;
+ 	krpc-second = <0>;
+ };
+ 
++&vowb {
++	status = "okay";
++};
++
+ &edp {
+ 	status = "disabled";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+index a0b166477bd5..ed75bd71f28a 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom-8gb.dts
+@@ -100,10 +100,14 @@ &kr4_rpmsg {
+ 
+ &display_subsystem {
+ 	status = "okay";
+-	ports = <&vo0_out>;
++	ports = <&vo0_out>, <&vowb_io>;
+ 	krpc-second = <0>;
+ };
+ 
++&vowb {
++	status = "okay";
++};
++
+ &edp {
+ 	status = "disabled";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+index b707df539765..70c275948667 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1619b-bleedingedge-4gb.dts
+@@ -51,7 +51,7 @@ &rtk_vad {
+ };
+ 
+ &display_subsystem {
+-	ports = <&vo_out>, <&voext_out>;
++	ports = <&vo_out>, <&voext_out>, <&vowb_io>;
+ 	status = "okay";
+ };
+ 
+@@ -64,6 +64,10 @@ voext_dsi: endpoint {
+ 	};
+ };
+ 
++&vowb {
++	status = "okay";
++};
++
+ &cvbs {
+ 	status = "disabled";
+ };
+diff --git a/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts b/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
+index 0b6f59bf6979..0a4ae8c58d53 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
++++ b/arch/arm64/boot/dts/realtek/rtd1761b-rose-8gb-hdmi.dts
+@@ -58,6 +58,11 @@ &dlsr_rproc {
+ };
+ 
+ &display_subsystem {
++	ports = <&vo0_out>, <&vowb_io>;
++	status = "okay";
++};
++
++&vowb {
+ 	status = "okay";
+ };
+ 
+-- 
+2.34.1
+

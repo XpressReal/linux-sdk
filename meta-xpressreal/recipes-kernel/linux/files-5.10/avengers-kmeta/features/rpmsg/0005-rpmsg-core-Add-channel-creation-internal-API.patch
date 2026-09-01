@@ -1,0 +1,114 @@
+From c258f29210f5581a410fba441778488ee0fa2ec5 Mon Sep 17 00:00:00 2001
+From: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Date: Fri, 20 Nov 2020 14:42:42 -0700
+Subject: [PATCH 05/18] rpmsg: core: Add channel creation internal API
+
+Add the channel creation API as a first step to be able to define the
+name service announcement as a rpmsg driver independent from the RPMsg
+virtio bus.
+
+Tested-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Signed-off-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Reviewed-by: Guennadi Liakhovetski <guennadi.liakhovetski@linux.intel.com>
+Link: https://lore.kernel.org/r/20201120214245.172963-6-mathieu.poirier@linaro.org
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+Change-Id: I5bb1d9ef40af8bf2d234e81281b7c6ba3605c185
+---
+ drivers/rpmsg/rpmsg_core.c     | 44 ++++++++++++++++++++++++++++++++++
+ drivers/rpmsg/rpmsg_internal.h | 10 ++++++++
+ 2 files changed, 54 insertions(+)
+
+diff --git a/drivers/rpmsg/rpmsg_core.c b/drivers/rpmsg/rpmsg_core.c
+index ac71c4d124f9d..4b47843277346 100644
+--- a/drivers/rpmsg/rpmsg_core.c
++++ b/drivers/rpmsg/rpmsg_core.c
+@@ -23,6 +23,50 @@
+ struct class *rpmsg_class;
+ EXPORT_SYMBOL(rpmsg_class);
+ 
++/**
++ * rpmsg_create_channel() - create a new rpmsg channel
++ * using its name and address info.
++ * @rpdev: rpmsg device
++ * @chinfo: channel_info to bind
++ *
++ * Returns a pointer to the new rpmsg device on success, or NULL on error.
++ */
++struct rpmsg_device *rpmsg_create_channel(struct rpmsg_device *rpdev,
++					  struct rpmsg_channel_info *chinfo)
++{
++	if (WARN_ON(!rpdev))
++		return NULL;
++	if (!rpdev->ops || !rpdev->ops->create_channel) {
++		dev_err(&rpdev->dev, "no create_channel ops found\n");
++		return NULL;
++	}
++
++	return rpdev->ops->create_channel(rpdev, chinfo);
++}
++EXPORT_SYMBOL(rpmsg_create_channel);
++
++/**
++ * rpmsg_release_channel() - release a rpmsg channel
++ * using its name and address info.
++ * @rpdev: rpmsg device
++ * @chinfo: channel_info to bind
++ *
++ * Returns 0 on success or an appropriate error value.
++ */
++int rpmsg_release_channel(struct rpmsg_device *rpdev,
++			  struct rpmsg_channel_info *chinfo)
++{
++	if (WARN_ON(!rpdev))
++		return -EINVAL;
++	if (!rpdev->ops || !rpdev->ops->release_channel) {
++		dev_err(&rpdev->dev, "no release_channel ops found\n");
++		return -ENXIO;
++	}
++
++	return rpdev->ops->release_channel(rpdev, chinfo);
++}
++EXPORT_SYMBOL(rpmsg_release_channel);
++
+ /**
+  * rpmsg_create_ept() - create a new rpmsg_endpoint
+  * @rpdev: rpmsg channel device
+diff --git a/drivers/rpmsg/rpmsg_internal.h b/drivers/rpmsg/rpmsg_internal.h
+index dc9c610198bed..ae5cc289421f4 100644
+--- a/drivers/rpmsg/rpmsg_internal.h
++++ b/drivers/rpmsg/rpmsg_internal.h
+@@ -23,6 +23,8 @@ extern struct class *rpmsg_class;
+ 
+ /**
+  * struct rpmsg_device_ops - indirection table for the rpmsg_device operations
++ * @create_channel:	create backend-specific channel, optional
++ * @release_channel:	release backend-specific channel, optional
+  * @create_ept:		create backend-specific endpoint, required
+  * @announce_create:	announce presence of new channel, optional
+  * @announce_destroy:	announce destruction of channel, optional
+@@ -32,6 +34,10 @@ extern struct class *rpmsg_class;
+  * advertise new channels implicitly by creating the endpoints.
+  */
+ struct rpmsg_device_ops {
++	struct rpmsg_device *(*create_channel)(struct rpmsg_device *rpdev,
++					       struct rpmsg_channel_info *chinfo);
++	int (*release_channel)(struct rpmsg_device *rpdev,
++			       struct rpmsg_channel_info *chinfo);
+ 	struct rpmsg_endpoint *(*create_ept)(struct rpmsg_device *rpdev,
+ 					    rpmsg_rx_cb_t cb, void *priv,
+ 					    struct rpmsg_channel_info chinfo);
+@@ -83,6 +89,10 @@ int rpmsg_unregister_device(struct device *parent,
+ struct device *rpmsg_find_device(struct device *parent,
+ 				 struct rpmsg_channel_info *chinfo);
+ 
++struct rpmsg_device *rpmsg_create_channel(struct rpmsg_device *rpdev,
++					  struct rpmsg_channel_info *chinfo);
++int rpmsg_release_channel(struct rpmsg_device *rpdev,
++			  struct rpmsg_channel_info *chinfo);
+ /**
+  * rpmsg_ctrldev_register_device() - register a char device for control based on rpdev
+  * @rpdev:	prepared rpdev to be used for creating endpoints
+-- 
+2.47.0
+

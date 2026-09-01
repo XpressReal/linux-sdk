@@ -1,0 +1,43 @@
+From 3660d4b61bf42657c4e1a4e1c9c000e966154d51 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Fri, 14 Mar 2025 16:28:33 +0800
+Subject: [PATCH 23/73] firmware: add ifcp firmware driver for Realtek DHC SoCs
+
+Change-Id: Ic1d8d1a3b386ae6b4a882cab7ebb988f22e32ff1
+---
+ drivers/firmware/Kconfig  | 6 ++++++
+ drivers/firmware/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/firmware/Kconfig b/drivers/firmware/Kconfig
+index 71d8b26c4103b..837beccfcc066 100644
+--- a/drivers/firmware/Kconfig
++++ b/drivers/firmware/Kconfig
+@@ -257,6 +257,12 @@ config TURRIS_MOX_RWTM
+ 	  other manufacturing data and also utilize the Entropy Bit Generator
+ 	  for hardware random number generation.
+ 
++config RTK_IFCP
++	tristate "Realtek IFCP firmware driver"
++	depends on ARCH_REALTEK && HAVE_ARM_SMCCC
++	help
++	  Realtek IFCP firmware driver
++
+ source "drivers/firmware/arm_ffa/Kconfig"
+ source "drivers/firmware/broadcom/Kconfig"
+ source "drivers/firmware/cirrus/Kconfig"
+diff --git a/drivers/firmware/Makefile b/drivers/firmware/Makefile
+index 7a8d486e718f8..91ed5d904555d 100644
+--- a/drivers/firmware/Makefile
++++ b/drivers/firmware/Makefile
+@@ -21,6 +21,7 @@ obj-$(CONFIG_SYSFB_SIMPLEFB)	+= sysfb_simplefb.o
+ obj-$(CONFIG_TI_SCI_PROTOCOL)	+= ti_sci.o
+ obj-$(CONFIG_TRUSTED_FOUNDATIONS) += trusted_foundations.o
+ obj-$(CONFIG_TURRIS_MOX_RWTM)	+= turris-mox-rwtm.o
++obj-$(CONFIG_RTK_IFCP)		+= rtk_ifcp.o
+ 
+ obj-y				+= arm_ffa/
+ obj-y				+= arm_scmi/
+-- 
+2.47.0
+

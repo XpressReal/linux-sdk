@@ -1,3 +1,12 @@
+From a6c05a6aa63fa4b17a58a260346a9019511e89f7 Mon Sep 17 00:00:00 2001
+From: Jyan Chou <jyanchou@realtek.com>
+Date: Mon, 20 Jan 2025 13:45:03 +0800
+Subject: [PATCH] Revert "USB: xhci-plat: fix legacy PHY double init"
+Source: Realtek
+License: GPL-2.0
+
+Change-Id: Id93c7f50f3912f12f6e3c34dfc4a84386e21827b
+---
 diff --git a/drivers/usb/host/xhci-plat.c b/drivers/usb/host/xhci-plat.c
 index d68e9abcdc69..aaf219b27a8d 100644
 --- a/drivers/usb/host/xhci-plat.c
@@ -10,15 +19,6 @@ index d68e9abcdc69..aaf219b27a8d 100644
  #include <linux/platform_device.h>
  #include <linux/usb/phy.h>
  #include <linux/slab.h>
-@@ -149,7 +148,7 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
- 	int			ret;
- 	int			irq;
- 	struct xhci_plat_priv	*priv = NULL;
--	bool			of_match;
-+
- 
- 	if (usb_disabled())
- 		return -ENODEV;
 @@ -257,23 +256,16 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
  					 &xhci->imod_interval);
  	}

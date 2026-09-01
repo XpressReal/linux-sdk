@@ -1,0 +1,129 @@
+From ccc6b42adcabd0fb16103410985dae7d96f2036a Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 03:21:03 +0300
+Subject: [PATCH 30/38] mtd: spinand: Enhance the logic when picking a variant
+
+Currently the best variant picked in the first one in the list provided
+in the manufacturer driver. This worked well while all operations where
+performed at the same speed, but with the introduction of DTR transfers
+this no longer works correctly.
+
+Let's continue iterating over all the alternatives, even if we find a
+match, keeping a reference over the theoretically fastest
+operation. Only at the end we can tell which variant is the best.
+
+This logic happening only once at boot.
+
+The patch is based on linux commit
+666c299be696 (mtd: spinand: Enhance the logic when picking a variant)
+created by Miquel Raynal <miquel.raynal@bootlin.com>
+
+The code was a bit restricted in the functionality since not all
+required functionality is supported in the u-boot.
+
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 13 ++++++++++---
+ drivers/spi/spi-mem.c       | 32 ++++++++++++++++++++++++++++++++
+ include/spi-mem.h           |  1 +
+ 3 files changed, 43 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index f16d3b0335f..daf6efb87d8 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1266,10 +1266,13 @@ spinand_select_op_variant(struct spinand_device *spinand,
+ 			  const struct spinand_op_variants *variants)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
++	const struct spi_mem_op *best_variant = NULL;
++	u64 best_op_duration_ns = ULLONG_MAX;
+ 	unsigned int i;
+ 
+ 	for (i = 0; i < variants->nops; i++) {
+ 		struct spi_mem_op op = variants->ops[i];
++		u64 op_duration_ns = 0;
+ 		unsigned int nbytes;
+ 		int ret;
+ 
+@@ -1286,13 +1289,17 @@ spinand_select_op_variant(struct spinand_device *spinand,
+ 				break;
+ 
+ 			nbytes -= op.data.nbytes;
++
++			op_duration_ns += spi_mem_calc_op_duration(&op);
+ 		}
+ 
+-		if (!nbytes)
+-			return &variants->ops[i];
++		if (!nbytes && op_duration_ns < best_op_duration_ns) {
++			best_op_duration_ns = op_duration_ns;
++			best_variant = &variants->ops[i];
++		}
+ 	}
+ 
+-	return NULL;
++	return best_variant;
+ }
+ 
+ static int spinand_setup_slave(struct spinand_device *spinand,
+diff --git a/drivers/spi/spi-mem.c b/drivers/spi/spi-mem.c
+index 6f06650384c..db44a7b26eb 100644
+--- a/drivers/spi/spi-mem.c
++++ b/drivers/spi/spi-mem.c
+@@ -499,6 +499,38 @@ int spi_mem_adjust_op_size(struct spi_slave *slave, struct spi_mem_op *op)
+ }
+ EXPORT_SYMBOL_GPL(spi_mem_adjust_op_size);
+ 
++/**
++ * spi_mem_calc_op_duration() - Derives the theoretical length (in cpu cycles)
++ *				of an operation. This helps finding the best
++ *				variant among a list of possible choices.
++ * @op: the operation to benchmark
++ *
++ * Some chips have per-op frequency limitations, PCBs usually have their own
++ * limitations as well, and controllers can support dual, quad or even octal
++ * modes, sometimes in DTR. All these combinations make it impossible to
++ * statically list the best combination for all situations. If we want something
++ * accurate, all these combinations should be rated (eg. with a time estimate)
++ * and the best pick should be taken based on these calculations.
++ *
++ * Returns a estimate for the time this op would take.
++ */
++u64 spi_mem_calc_op_duration(struct spi_mem_op *op)
++{
++	u64 ncycles = 0;
++
++	ncycles += ((op->cmd.nbytes * 8) / op->cmd.buswidth) / (op->cmd.dtr ? 2 : 1);
++	ncycles += ((op->addr.nbytes * 8) / op->addr.buswidth) / (op->addr.dtr ? 2 : 1);
++
++	/* Dummy bytes are optional for some SPI flash memory operations */
++	if (op->dummy.nbytes)
++		ncycles += ((op->dummy.nbytes * 8) / op->dummy.buswidth) / (op->dummy.dtr ? 2 : 1);
++
++	ncycles += ((op->data.nbytes * 8) / op->data.buswidth) / (op->data.dtr ? 2 : 1);
++
++	return ncycles;
++}
++EXPORT_SYMBOL_GPL(spi_mem_calc_op_duration);
++
+ static ssize_t spi_mem_no_dirmap_read(struct spi_mem_dirmap_desc *desc,
+ 				      u64 offs, size_t len, void *buf)
+ {
+diff --git a/include/spi-mem.h b/include/spi-mem.h
+index e68e2b50e85..36281a62f77 100644
+--- a/include/spi-mem.h
++++ b/include/spi-mem.h
+@@ -392,6 +392,7 @@ bool spi_mem_default_supports_op(struct spi_mem *mem,
+ #endif /* __UBOOT__ */
+ 
+ int spi_mem_adjust_op_size(struct spi_slave *slave, struct spi_mem_op *op);
++u64 spi_mem_calc_op_duration(struct spi_mem_op *op);
+ 
+ bool spi_mem_supports_op(struct spi_slave *slave, const struct spi_mem_op *op);
+ bool spi_mem_dtr_supports_op(struct spi_slave *slave,
+-- 
+2.47.0
+

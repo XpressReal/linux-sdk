@@ -1,0 +1,64 @@
+From 366c332e68f646a296a43e3d4c3beff3595215c9 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Tue, 11 Aug 2026 13:02:10 +0800
+Subject: [PATCH] bootm: android: support adtbo_idx for dtbo
+
+---
+ boot/bootm.c | 20 ++++++++++++++++++++
+ cmd/bootm.c  |  2 ++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/boot/bootm.c b/boot/bootm.c
+index 35384c9fd8..5e2401ec9d 100644
+--- a/boot/bootm.c
++++ b/boot/bootm.c
+@@ -32,6 +32,7 @@
+ #include "mkimage.h"
+ #endif
+ 
++#include <image-android-dt.h>
+ #include <bootm.h>
+ #include <image.h>
+ 
+@@ -830,6 +830,25 @@ int do_bootm_states(struct cmd_tbl *cmdtp, int flag, int argc,
+ 		boot_fdt_add_mem_rsv_regions(&images->lmb, images->ft_addr);
+ 		ret = boot_relocate_fdt(&images->lmb, &images->ft_addr,
+ 					&images->ft_len);
++#if defined(CONFIG_ANDROID_BOOT_IMAGE) && defined(CONFIG_OF_LIBFDT_OVERLAY)
++		ulong		img_addr;
++		void		*buf;
++		img_addr = (argc == 0) ? image_load_addr : hextoul(argv[0], NULL);
++		buf = map_sysmem(img_addr, 0);
++		if (!ret && genimg_get_format(buf) == IMAGE_FORMAT_ANDROID) {
++			ulong dtbo_img_addr, fdt_addr;
++			u32 dtbo_idx, fdt_size;
++			dtbo_img_addr = env_get_ulong("dtbo_addr_r", 16, 0);
++			dtbo_idx = (u32)env_get_ulong("adtbo_idx", 10, -1);
++			/* Check if DTB area of boot image is in DTBO format */
++			if (dtbo_idx != (u32)(-1) && android_dt_check_header(dtbo_img_addr)
++				&& android_dt_get_fdt_by_index(dtbo_img_addr, dtbo_idx, &fdt_addr, &fdt_size)) {
++				/* Make room in FDT for changes from the overlay */
++				fdt_increase_size(images->ft_addr, fdt_size);
++				fdt_overlay_apply_verbose(images->ft_addr, (void *)fdt_addr);
++			}
++		}
++#endif
+ 	}
+ #endif
+ 
+diff --git a/cmd/bootm.c b/cmd/bootm.c
+index 13cb33283c..75c7306543 100644
+--- a/cmd/bootm.c
++++ b/cmd/bootm.c
+@@ -156,6 +156,8 @@ int do_bootm(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+ 		states |= BOOTM_STATE_MEASURE;
+ 	if (IS_ENABLED(CONFIG_PPC) || IS_ENABLED(CONFIG_MIPS))
+ 		states |= BOOTM_STATE_OS_CMDLINE;
++	if (IS_ENABLED(CONFIG_ANDROID_BOOT_IMAGE) || IS_ENABLED(CONFIG_OF_LIBFDT_OVERLAY))
++		states |= BOOTM_STATE_FDT;
+ 	ret = do_bootm_states(cmdtp, flag, argc, argv, states, &images, 1);
+ 
+ 	return ret ? CMD_RET_FAILURE : 0;
+-- 
+2.47.0
+

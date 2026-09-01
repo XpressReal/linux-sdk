@@ -1,0 +1,156 @@
+From 49b855662f7076d2eea3cd3e12a434f7be9a8449 Mon Sep 17 00:00:00 2001
+From: Cheng Ming Lin <chengminglin@mxic.com.tw>
+Date: Tue, 30 Sep 2025 03:21:01 +0300
+Subject: [PATCH 28/38] mtd: spinand: Add read retry support
+
+When the host ECC fails to correct the data error of NAND device,
+there's a special read for data recovery method which can be setup
+by the host for the next read. There are several retry levels that
+can be attempted until the lost data is recovered or definitely
+assumed lost.
+
+This is the port of linux commit
+f2cb43c98010 (mtd: spinand: Add read retry support)
+
+Signed-off-by: Cheng Ming Lin <chengminglin@mxic.com.tw>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu> # U-Boot port
+Reviewed-by: Frieder Schrempf <frieder.schrempf@kontron.de>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 35 +++++++++++++++++++++++++++++++++--
+ include/linux/mtd/spinand.h | 15 +++++++++++++++
+ 2 files changed, 48 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index d4777ec7c8f..33d0c27f788 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -687,11 +687,15 @@ static int spinand_mtd_regular_page_read(struct mtd_info *mtd, loff_t from,
+ {
+ 	struct spinand_device *spinand = mtd_to_spinand(mtd);
+ 	struct nand_device *nand = mtd_to_nanddev(mtd);
++	struct mtd_ecc_stats old_stats;
+ 	struct nand_io_iter iter;
+ 	bool disable_ecc = false;
+ 	bool ecc_failed = false;
++	unsigned int retry_mode = 0;
+ 	int ret;
+ 
++	old_stats = mtd->ecc_stats;
++
+ 	if (ops->mode == MTD_OPS_RAW || !mtd->ooblayout)
+ 		disable_ecc = true;
+ 
+@@ -704,18 +708,43 @@ static int spinand_mtd_regular_page_read(struct mtd_info *mtd, loff_t from,
+ 		if (ret)
+ 			break;
+ 
++read_retry:
+ 		ret = spinand_read_page(spinand, &iter.req);
+ 		if (ret < 0 && ret != -EBADMSG)
+ 			break;
+ 
+-		if (ret == -EBADMSG)
++		if (ret == -EBADMSG && spinand->set_read_retry) {
++			if (spinand->read_retries && (++retry_mode <= spinand->read_retries)) {
++				ret = spinand->set_read_retry(spinand, retry_mode);
++				if (ret < 0) {
++					spinand->set_read_retry(spinand, 0);
++					return ret;
++				}
++
++				/* Reset ecc_stats; retry */
++				mtd->ecc_stats = old_stats;
++				goto read_retry;
++			} else {
++				/* No more retry modes; real failure */
++				ecc_failed = true;
++			}
++		} else if (ret == -EBADMSG) {
+ 			ecc_failed = true;
+-		else
++		} else {
+ 			*max_bitflips = max_t(unsigned int, *max_bitflips, ret);
++		}
+ 
+ 		ret = 0;
+ 		ops->retlen += iter.req.datalen;
+ 		ops->oobretlen += iter.req.ooblen;
++
++		/* Reset to retry mode 0 */
++		if (retry_mode) {
++			retry_mode = 0;
++			ret = spinand->set_read_retry(spinand, retry_mode);
++			if (ret < 0)
++				return ret;
++		}
+ 	}
+ 
+ 	if (ecc_failed && !ret)
+@@ -1309,6 +1338,8 @@ int spinand_match_and_init(struct spinand_device *spinand,
+ 		spinand->id.len = 1 + table[i].devid.len;
+ 		spinand->select_target = table[i].select_target;
+ 		spinand->set_cont_read = table[i].set_cont_read;
++		spinand->read_retries = table[i].read_retries;
++		spinand->set_read_retry = table[i].set_read_retry;
+ 
+ 		op = spinand_select_op_variant(spinand,
+ 					       info->op_variants.read_cache);
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index 2f8212e4037..44c616a4acf 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -337,6 +337,8 @@ struct spinand_ecc_info {
+  * @select_target: function used to select a target/die. Required only for
+  *		   multi-die chips
+  * @set_cont_read: enable/disable continuous cached reads
++ * @read_retries: the number of read retry modes supported
++ * @set_read_retry: enable/disable read retry for data recovery
+  *
+  * Each SPI NAND manufacturer driver should have a spinand_info table
+  * describing all the chips supported by the driver.
+@@ -357,6 +359,9 @@ struct spinand_info {
+ 			     unsigned int target);
+ 	int (*set_cont_read)(struct spinand_device *spinand,
+ 			     bool enable);
++	unsigned int read_retries;
++	int (*set_read_retry)(struct spinand_device *spinand,
++			     unsigned int read_retry);
+ };
+ 
+ #define SPINAND_ID(__method, ...)					\
+@@ -385,6 +390,10 @@ struct spinand_info {
+ #define SPINAND_CONT_READ(__set_cont_read)				\
+ 	.set_cont_read = __set_cont_read,
+ 
++#define SPINAND_READ_RETRY(__read_retries, __set_read_retry)		\
++	.read_retries = __read_retries,					\
++	.set_read_retry = __set_read_retry
++
+ #define SPINAND_INFO(__model, __id, __memorg, __eccreq, __op_variants,	\
+ 		     __flags, ...)					\
+ 	{								\
+@@ -435,6 +444,8 @@ struct spinand_dirmap {
+  *		actually relevant to enable this feature.
+  * @set_cont_read: Enable/disable the continuous read feature
+  * @priv: manufacturer private data
++ * @read_retries: the number of read retry modes supported
++ * @set_read_retry: Enable/disable the read retry feature
+  * @last_wait_status: status of the last wait operation that will be used in case
+  *		      ->get_status() is not populated by the spinand device.
+  */
+@@ -475,6 +486,10 @@ struct spinand_device {
+ 	bool cont_read_possible;
+ 	int (*set_cont_read)(struct spinand_device *spinand,
+ 			     bool enable);
++
++	unsigned int read_retries;
++	int (*set_read_retry)(struct spinand_device *spinand,
++			     unsigned int retry_mode);
+ };
+ 
+ /**
+-- 
+2.47.0
+

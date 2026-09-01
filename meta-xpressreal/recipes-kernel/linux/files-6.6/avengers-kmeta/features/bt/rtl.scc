@@ -1,0 +1,4 @@
+patch 100-Bluetooth-Support-Realtek-RTL8822ES-UART-BT.patch
+patch 102-Bluetooth-Realtek-disable-UART-HW-flow-control.patch
+
+kconf hardware rtl.cfg

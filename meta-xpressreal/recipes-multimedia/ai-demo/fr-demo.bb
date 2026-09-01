@@ -23,6 +23,7 @@ inherit pkgconfig
 SOC_NAME:hank= "stark"
 SOC_NAME:stark = "stark"
 SOC_NAME:kent = "kent"
+SOC_NAME:prince = "kent"
 SOC_NAME:rtd16xx = "stark"
 
 SRC_URI:append = " \

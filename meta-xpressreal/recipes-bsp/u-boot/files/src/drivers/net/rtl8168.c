@@ -46,6 +46,7 @@
 #include <asm/arch/io.h>
 #include <asm/arch/cpu.h>
 #include <asm/arch/rbus/sb2_reg.h>
+#include <linux/bitops.h>
 
 #define KYLIN_CHIP_ID   0x00006421
 static inline u32 get_asic_chip_id(void) {
@@ -151,6 +152,24 @@ static inline u32 get_asic_chip_id(void) {
 #define IDAC_FINE_MDIX_DEFAULT  0x12    /* Rx */
 
 #define ISO_TESTMUX_MUXPAD2     0x9804e008
+#elif defined(CONFIG_TARGET_RTD1635)
+#define CRT_CLOCK_ENABLE4		0x9800005c
+
+#define M2TMX_PWRCUT_ETN		0x9804f180
+#define M2TMX_ETN_MISC			0x9804f194
+#define M2TMX_ETN_SGPHY_MISC		0x9804f198
+
+#define NPU_MUXPAD0			0x98086b00 /* MDC/MDIO pinmux */
+
+#define SDS_REG2			0x981c8008
+#define SDS_ANA0C			0x981c9030
+#define SDS_ANA0D			0x981c9034
+#define SDS_ANA0E			0x981c9038
+#define SDS_ANA0F			0x981c903c
+#define SDS_ANA10			0x981c9040
+#define SDS_ANA11			0x981c9044
+#define SDS_MISC			0x981c9804
+#define SDS_LINK			0x981c980c
 #endif /* CONFIG_TARGET */
 
 //#define ETH_FRAME_LEN   MAX_ETH_FRAME_SIZE
@@ -828,6 +847,11 @@ struct rtl8168_private {
 	uint8_t tx_delay; /* 0: 0ns, 1: 2ns */
 	uint8_t rx_delay; /* 0 ~ 7 x 0.5ns */
 #endif /* CONFIG_TARGET_RTD1319 */
+#if defined(CONFIG_TARGET_RTD1635)
+	uint8_t sgmii_swing;	/* 0:640mV, 1:380mV, 2:250mV, 3:190mV */
+	uint8_t poll;		/* 0: interrupt mode, 1: polling mode */
+	uint16_t force_speed;	/* 0: autonegotiation, 10: 10Mbps, 100: 100Mbps, 1000: 1Gbps */
+#endif /* CONFIG_TARGET_RTD1635 */
 };
 
 #define ALIGN_8                 (0x7)
@@ -5611,11 +5635,17 @@ static void rtl8168_get_env_para(struct rtl8168_private *tp)
 	tp->voltage = 1;
 	tp->tx_delay = 0;
 	tp->rx_delay = 0;
+#elif defined(CONFIG_TARGET_RTD1635)
 #else
 	tp->acp_enable = 0;
 	tp->phy_type = PHY_TYPE_PHY;
 	tp->bypass_enable = 1;
 #endif /* CONFIG_TARGET */
+#if defined(CONFIG_TARGET_RTD1635)
+	tp->sgmii_swing = 0;	/* 0:640mV, 1:380mV, 2:250mV, 3:190mV */
+	tp->poll = 0;
+	tp->force_speed = 0;	/* 0: autonegotiation, 10: 10Mbps, 100: 100Mbps, 1000: 1Gbps */
+#endif /* CONFIG_TARGET_RTD1635 */
 
     eth_drv_para = env_get("eth_drv_para");
     if (eth_drv_para == NULL)
@@ -5671,6 +5701,26 @@ static void rtl8168_get_env_para(struct rtl8168_private *tp)
         else if (strcmp(ptr, "rxd7") == 0)
             tp->rx_delay = 7;
 
+        ptr = strtok(NULL, delim);
+    }
+#elif defined(CONFIG_TARGET_RTD1635)
+    while (ptr != NULL) {
+        if (strcmp(ptr, "SWING0") == 0)
+            tp->sgmii_swing = 0;
+        else if (strcmp(ptr, "SWING1") == 0)
+            tp->sgmii_swing = 1;
+        else if (strcmp(ptr, "SWING2") == 0)
+            tp->sgmii_swing = 2;
+        else if (strcmp(ptr, "SWING3") == 0)
+            tp->sgmii_swing = 3;
+        else if (strcmp(ptr, "POLL") == 0)
+            tp->poll = 1;
+        else if (strcmp(ptr, "SPD1000") == 0)
+            tp->force_speed = SPEED_1000;
+        else if (strcmp(ptr, "SPD100") == 0)
+            tp->force_speed = SPEED_100;
+        else if (strcmp(ptr, "SPD10") == 0)
+            tp->force_speed = SPEED_10;
         ptr = strtok(NULL, delim);
     }
 #else
@@ -6270,7 +6320,9 @@ static void r8168_reset_phy_gmac(void)
     tmp = rtd_inl(0x98129300);
     tmp &= ~(BIT_16 | BIT_17);
     rtd_outl(0x98129300, tmp);
+#endif /* CONFIG_TARGET_RTD1625 */
 
+#if defined(CONFIG_TARGET_RTD1625) || defined(CONFIG_TARGET_RTD1635)
     /* 0x98000000[1:0]=0x3: Deassert rstn_misc */
     tmp = rtd_inl(0x98000000);
     tmp |= BIT_0 | BIT_1;
@@ -6280,7 +6332,9 @@ static void r8168_reset_phy_gmac(void)
     tmp = rtd_inl(0x98000050);
     tmp |= BIT_10 | BIT_11;
     rtd_outl(0x98000050, tmp);
+#endif
 
+#if defined(CONFIG_TARGET_RTD1625)
     /* 0x98007088[10]=0x1: Deassert FEPHY reset */
     tmp = rtd_inl(ETN_RESET_CTRL);
     tmp |= BIT_10;
@@ -6304,11 +6358,42 @@ static void r8168_reset_phy_gmac(void)
     tmp &= ~(BIT_9 | BIT_10);
     rtd_outl(ETN_RESET_CTRL, tmp);
 
+#if defined(CONFIG_TARGET_RTD1635)
+    /* int PHY addr = 1 */
+    /* ext PHY addr = 3 */
+    /* 0x9804f180 default value */
+    rtd_outl(M2TMX_PWRCUT_ETN, 0x04612703);
+
+    /* 0x98000050[13:12]=0x2: Deassert clk_en_sgmii */
+    tmp = rtd_inl(CRT_CLOCK_ENABLE1);
+    tmp &= ~GENMASK(13, 12);
+    tmp |= BIT_13;
+    rtd_outl(CRT_CLOCK_ENABLE1, tmp);
+
+    /* 0x9800005c[1:0]=0x2: Deassert clk_en_sgmii_sys */
+    tmp = rtd_inl(CRT_CLOCK_ENABLE4);
+    tmp &= ~GENMASK(1, 0);
+    tmp |= BIT_1;
+    rtd_outl(CRT_CLOCK_ENABLE4, tmp);
+
+    /* 0x98000000[11:6]=0x2a: Assert rstn_sgmii, rstn_sgmii_reg, rstn_sds_phy */
+    tmp = rtd_inl(CRT_SOFT_RESET1);
+    tmp &= ~GENMASK(11, 6);
+    tmp |= BIT_7 | BIT_9 | BIT_11;
+    rtd_outl(CRT_SOFT_RESET1, tmp);
+
+    /* 0x98000000[15:14]=0x2: Deassert rstn_sgmii_mdio */
+    tmp = rtd_inl(CRT_SOFT_RESET1);
+    tmp &= ~GENMASK(15, 14);
+    tmp |= BIT_15;
+    rtd_outl(CRT_SOFT_RESET1, tmp);
+#else
     /* reg_0x98007060[1] = 1 */
     /* ISO spec, bypass mode enable */
     tmp = rtd_inl(ETN_GPHY_BYPASS);
     tmp |= BIT_1;
     rtd_outl(ETN_GPHY_BYPASS, tmp);
+#endif /* CONFIG_TARGET_RTD1635 */
 
 #if defined(CONFIG_TARGET_RTD1625)
     /* reg_0x9804f180[5] = 0 */
@@ -6327,6 +6412,77 @@ static void r8168_reset_phy_gmac(void)
     mdelay(1);
 }
 
+#if defined(CONFIG_TARGET_RTD1635)
+static void r8168_pll_clock_init(struct rtl8168_private *tp)
+{
+	u32 tmp;
+
+	/* reg_0x98007004[27] = 1 */
+	/* ISO spec, ETN_PHY_INTR, disable ETN interrupt for ByPassMode */
+	rtd_outl(ISO_UMSK_ISR, BIT_27);
+
+	/* 0x98000000[11:6]=0x3f: Deassert rstn_sgmii, rstn_sgmii_reg, rstn_sds_phy */
+	tmp = rtd_inl(CRT_SOFT_RESET1);
+	tmp |= GENMASK(11, 6);
+	rtd_outl(CRT_SOFT_RESET1, tmp);
+
+	/* 0x98000000[15:14]=0x3: Deassert rstn_sgmii_mdio */
+	tmp = rtd_inl(CRT_SOFT_RESET1);
+	tmp |= GENMASK(15, 14);
+	rtd_outl(CRT_SOFT_RESET1, tmp);
+
+	/* 0x9800005c[1:0]=0x3: Assert clk_en_sgmii_sys */
+	tmp = rtd_inl(CRT_CLOCK_ENABLE4);
+	tmp |= GENMASK(1, 0);
+	rtd_outl(CRT_CLOCK_ENABLE4, tmp);
+
+	/* 0x9804f194[10]=0x1: Wait RSTB_N of SGMII PHY is high */
+	tmp = 0;
+	while (0 == (rtd_inl(M2TMX_ETN_MISC) & BIT_10)) {
+		tmp += 1;
+		mdelay(1);
+		if (tmp >= 100) {
+			tp->hw_fail = true;
+			printf("RSTB_N_SGMII is not ready\n");
+			return;
+		}
+	}
+
+	/* 0x9804f198[3:2]=0x3: Set SGMII CMU_EN and CPHY_MBIAS_EN */
+	tmp = rtd_inl(M2TMX_ETN_SGPHY_MISC);
+	tmp |= GENMASK(3, 2);
+	rtd_outl(M2TMX_ETN_SGPHY_MISC, tmp);
+
+	/* 0x981c980c[24]=0x1: Wait SGMII PHY clock ready */
+	tmp = 0;
+	while (0 == (rtd_inl(SDS_LINK) & BIT_24)) {
+		tmp += 1;
+		mdelay(1);
+		if (tmp >= 100) {
+			tp->hw_fail = true;
+			printf("sds0_clk_rdy is not ready\n");
+			return;
+		}
+	}
+
+	/* 0x9804f194[8]=0x1: Wait CKOUT_ETN_MAC_250M is ready */
+	tmp = 0;
+	while (0 == (rtd_inl(M2TMX_ETN_MISC) & BIT_8)) {
+		tmp += 1;
+		mdelay(1);
+		if (tmp >= 100) {
+			tp->hw_fail = true;
+			printf("clk_rdy_sgmii is not ready\n");
+			return;
+		}
+	}
+
+	/* 0x98000050[13:12]=0x3: Set SGMII clock enable */
+	tmp = rtd_inl(CRT_CLOCK_ENABLE1);
+	tmp |= (BIT_13 | BIT_12);
+	rtd_outl(CRT_CLOCK_ENABLE1, tmp);
+}
+#else
 static void r8168_pll_clock_init(struct rtl8168_private *tp)
 {
     u32 tmp;
@@ -6396,6 +6552,7 @@ static void r8168_pll_clock_init(struct rtl8168_private *tp)
     }
     //printf("GMAC wait %d ms for init_autoload_done\n", tmp);
 }
+#endif /* CONFIG_TARGET_RTD1635 */
 
 #if defined(CONFIG_TARGET_RTD1625)
 static void r8168_load_otp_content(struct rtl8168_private *tp)
@@ -6616,10 +6773,184 @@ static void r8168_patch_phy_uc_code(struct rtl8168_private *tp)
 {
 }
 
+#if defined(CONFIG_TARGET_RTD1635)
+static u32 r8168_serdes_init(struct rtl8168_private *tp)
+{
+	u32 tmp;
+
+	/* 0x981c9804[16]=0x1: Set sds auto ability reg */
+	tmp = rtd_inl(SDS_MISC);
+	tmp |= (BIT_16);
+	rtd_outl(SDS_MISC, tmp);
+
+	/* 0x98007088[9]=0x1: Assert rstn_gmac */
+	tmp = rtd_inl(ETN_RESET_CTRL);
+	tmp |= BIT_9;
+	rtd_outl(ETN_RESET_CTRL, tmp);
+
+	/* 0x9800708c[12:11]=0x3: Assert clk_en_etn_sys & clk_en_etn_250m */
+	tmp = rtd_inl(ETN_CLK_CTRL);
+	tmp |= GENMASK(12, 11);
+	rtd_outl(ETN_CLK_CTRL, tmp);
+
+	/* Update DPHY reg */
+	/* 0x981c9030[7:4]=0x7 */
+	tmp = rtd_inl(SDS_ANA0C);
+	tmp &= ~GENMASK(7, 4);
+	tmp |= GENMASK(6, 4);
+	rtd_outl(SDS_ANA0C, tmp);
+
+	/* 0x981c9034[8:6]=0x2 */
+	tmp = rtd_inl(SDS_ANA0D);
+	tmp &= ~GENMASK(8, 6);
+	tmp |= BIT_7;
+	rtd_outl(SDS_ANA0D, tmp);
+
+	/* 0x981c9034[15:13]=0x3 */
+	tmp = rtd_inl(SDS_ANA0D);
+	tmp &= ~GENMASK(15, 13);
+	tmp |= GENMASK(14, 13);
+	rtd_outl(SDS_ANA0D, tmp);
+
+	/* 0x981c9038[0]=0x1 */
+	tmp = rtd_inl(SDS_ANA0E);
+	tmp |= BIT_0;
+	rtd_outl(SDS_ANA0E, tmp);
+
+	/* 0x981c903c[9:5]=0xc */
+	tmp = rtd_inl(SDS_ANA0F);
+	tmp &= ~GENMASK(9, 5);
+	tmp |= GENMASK(8, 7);
+	rtd_outl(SDS_ANA0F, tmp);
+
+	/* 0x981c903c[15:10]=0x7 */
+	tmp = rtd_inl(SDS_ANA0F);
+	tmp &= ~GENMASK(15, 10);
+	tmp |= GENMASK(12, 10);
+	rtd_outl(SDS_ANA0F, tmp);
+
+	/* 0x981c9040[1:0]=0x1 */
+	tmp = rtd_inl(SDS_ANA10);
+	tmp &= ~GENMASK(1, 0);
+	tmp |= BIT_0;
+	rtd_outl(SDS_ANA10, tmp);
+
+	/* 0x981c9044[14]=0x1 */
+	tmp = rtd_inl(SDS_ANA11);
+	tmp |= BIT_14;
+	rtd_outl(SDS_ANA11, tmp);
+
+	/* 0x981c8008[9:8]=0x3: Set serdes force N-way enable */
+	tmp = rtd_inl(SDS_REG2);
+	tmp |= GENMASK(9, 8);
+	rtd_outl(SDS_REG2, tmp);
+
+	/* 0x9804f180[4]=0x1: Set GMAC to SGMII interface */
+	tmp = rtd_inl(M2TMX_PWRCUT_ETN);
+	tmp |= BIT_4;
+	rtd_outl(M2TMX_PWRCUT_ETN, tmp);
+
+	/* 0x98007070[0]=0x1: Check ETN MAC init_autoload_done */
+	tmp = 0;
+	while (0 == (rtd_inl(ISO_PLL_WDOUT) & BIT_0)) {
+		tmp += 1;
+		mdelay(1);
+		if (tmp >= 100) {
+			tp->hw_fail = true;
+			printf("GMAC init timeout\n");
+			return -ENODEV;
+		}
+	}
+
+	/* OCP 0xEA34[1:0]=0x3: Set GMAC data path to SGMII */
+	tmp = mac_ocp_read(tp, 0xea34);
+	tmp |= GENMASK(1, 0);
+	mac_ocp_write(tp, 0xea34, tmp);
+
+	/* 0x981c9804[12]=0x1: Wait sds_link_ok */
+	tmp = 0;
+	while (0 == (rtd_inl(SDS_MISC) & BIT_12)) {
+		tmp += 1;
+		mdelay(1);
+		if (tmp >= 100) {
+			tp->hw_fail = true;
+			printf("SGMII link down\n");
+			return -ENODEV;
+		}
+	}
+
+	tp->ext_phy = true;
+
+	return 0;
+}
+
+#endif /* CONFIG_TARGET_RTD1635 */
+
 static void r8168_acp_cfg(struct rtl8168_private *tp)
 {
 }
 
+#if defined(CONFIG_TARGET_RTD1635)
+static void r8168_mdio_init(struct rtl8168_private *tp)
+{
+	u32 tmp;
+
+	/* adjust PHY SRAM table */
+	r8168_phy_sram_table(tp);
+
+	/* PHY patch code */
+	r8168_patch_phy_uc_code(tp);
+
+#if 0
+	/* adjust PHY electrical characteristics */
+	r8168_phy_iol_tuning(tp);
+
+	/* load OTP contents (R-K, Amp) */
+	r8168_load_otp_content(tp);
+#endif
+
+	/* ISO mux spec, GPIO14 is set to MDC pin */
+	/* ISO mux spec, GPIO15 is set to MDIO pin */
+	tmp = rtd_inl(NPU_MUXPAD0);
+	tmp &= ~GENMASK(31, 24);
+	tmp |= BIT_24 | BIT_28;
+	rtd_outl(NPU_MUXPAD0, tmp);
+
+	if (0 != r8168_serdes_init(tp)) {
+			tp->hw_fail = true;
+			printf("SERDES init failed\n");
+			goto ERR_OUT;
+	}
+
+	/* OCP 0xDE10[7:6]=0x1: set internal PHY MDC freq = 8.9MHZ */
+	tmp = mac_ocp_read(tp, 0xde10) & ~(BIT_7 | BIT_6);
+	tmp |= BIT_6;		/* MDC freq = 8.9MHz */
+	mac_ocp_write(tp, 0xde10, tmp);
+	/* OCP 0xDE30[7:6]=0x1: set external PHY MDC freq = 8.9MHZ */
+	tmp = mac_ocp_read(tp, 0xde30) & ~(BIT_7 | BIT_6);
+	tmp |= BIT_6;		/* MDC freq = 8.9MHz */
+	mac_ocp_write(tp, 0xde30, tmp);
+
+	/* check if external PHY is available */
+	MDIO_LOCK;
+	mdio_write(tp, 31, 0x0a43);
+	tmp = 0;
+	while (0x0a43 != mdio_read(tp, 31)) {
+		tmp += 10;
+		mdelay(10);
+		if (tmp >= 2000) {
+			//tp->hw_fail = true;
+			printf("\n External SGMII PHY not found, current = 0x%02x\n",
+			       mdio_read(tp, 31));
+			printf("PHY status is not 0x3, current = 0x%02x\n",
+				(mdio_read(tp, 16) & 0x07));
+			//goto ERR_OUT;
+			break;
+		}
+	}
+ERR_OUT:
+}
+#else
 static void r8168_mdio_init(struct rtl8168_private *tp)
 {
     u32 tmp;
@@ -6739,6 +7070,7 @@ static void r8168_pinmux_init(struct rtl8168_private *tp)
     rtd_outl(ISO_TESTMUX_PFUNC12, tmp);
 #endif
 }
+#endif /* CONFIG_TARGET_RTD1635 */
 #endif /* CONFIG_TARGET_RTD1319 */
 
 static int rtl8168_initialize(struct udevice *dev)
@@ -6780,7 +7112,9 @@ static int rtl8168_initialize(struct udevice *dev)
         if (tp->hw_fail == 1)
             return -ENODEV;
 
+#if !defined(CONFIG_TARGET_RTD1635)
         r8168_pinmux_init(tp);
+#endif /* !CONFIG_TARGET_RTD1635 */
 
         r8168_mdio_init(tp);
         if (tp->hw_fail == 1)
@@ -6835,6 +7169,9 @@ static const struct udevice_id rtk_eth_ids[] = {
 #endif
 #if defined(CONFIG_TARGET_RTD1625)
 	{ .compatible = "realtek,rtd1625-r8169soc" },
+#endif
+#if defined(CONFIG_TARGET_RTD1635)
+	{ .compatible = "realtek,prince-r8169soc" },
 #endif
 	{}
 };

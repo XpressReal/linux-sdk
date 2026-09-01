@@ -1,0 +1,571 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761B Rose EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/regulator/anpec,apw888x.h>
+#include "rtd1761.dtsi"
+
+/ {
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x98007800 console=ttyS0,460800 8250.nr_uarts=11 8250.share_irqs=1 init=/init loglevel=8 max_loop=64 loop.max_part=7 firmware_class.path=/vendor/firmware/,/vendor/av_fw";
+		stdout-path = "serial0:460800n8";
+	};
+
+	vcc_ddr: vcc1v2-ddr {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc1v2-ddr";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+	};
+};
+
+&{/} {
+	gpu_supp: fixed-gpu {
+		compatible = "regulator-fixed";
+		regulator-name = "gpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+};
+
+&gpu {
+	mali-supply = <&gpu_supp>;
+	shadercores-supply = <&gpu_supp>;
+	operating-points-v2 = <&gpu_opps>;
+
+	gpu_opps: opp-table-gpu {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-405000000 {
+			opp-hz = /bits/ 64 <405000000>;
+			opp-hz-real = /bits/ 64 <405000000>;
+			opp-microvolt = <800000>, <800000>;
+			opp-suspend;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-hz-real = /bits/ 64 <540000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-729000000 {
+			opp-hz = /bits/ 64 <729000000>;
+			opp-hz-real = /bits/ 64 <729000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+
+		opp-810000000 {
+			opp-hz = /bits/ 64 <810000000>;
+			opp-hz-real = /bits/ 64 <810000000>;
+			opp-microvolt = <800000>, <800000>;
+		};
+	};
+};
+
+&i2c_3 {
+	status = "okay";
+
+	tp2815a: tp2815@44 {
+		compatible = "techpoint,tp2815";
+		reg = <0x44>;
+		reset-gpios = <&gpio 65 GPIO_ACTIVE_LOW>;
+	};
+
+	/* RRB86848 Buck-Boost Charger */
+	rrb86848: charger@12 {
+		compatible = "renesas,rrb86848";
+		reg = <0x9>;
+
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			vbus_reg: rrb86848-vbus@0 {
+				reg = <0>;
+				regulator-name = "usbc-vbus-output";
+				regulator-min-microvolt = <2400000>;
+				regulator-max-microvolt = <12000000>;
+				regulator-min-microamp = <0>;
+				regulator-max-microamp = <3000000>;    /* 3A */
+				regulator-allow-set-voltage-while-enabled;
+			};
+
+			otg_reg: rrb86848-otg@1 {
+				reg = <1>;
+				regulator-name = "usbc-otg-output";
+				regulator-min-microvolt =  <5000000>;
+				regulator-max-microvolt = <12000000>;
+				regulator-allow-set-voltage-while-enabled;
+			};
+		};
+	};
+};
+
+&i2c_4 {
+	status = "okay";
+
+	pr2000a: pr2000@5c {
+		compatible = "pixelplus,pr2k";
+		reg = <0x5c>;
+		reset-gpios = <&gpio 26 GPIO_ACTIVE_LOW>;
+		camera-fmt = <3>;
+		bt-mode = <0>;
+		cascade-mode = <0>;
+	};
+};
+
+&i2c_6 {
+	status = "okay";
+
+	synaptics_tcm@2c{
+		compatible = "synaptics,tcm-i2c";
+		reg = <0x2c>;
+
+		synaptics,avdd-name = "avdd";
+		synaptics,vdd-name = "vdd";
+		synaptics,power-delay-ms = <200>;
+		synaptics,irq-gpio = <&gpio 96 IRQ_TYPE_EDGE_FALLING>;
+		synaptics,irq-on-state = <0>;
+		synaptics,reset-gpio = <&gpio 66 0x0>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+	};
+
+	goodix@14{
+		compatible = "goodix,gt928";
+		reg = <0x14>;
+		edge-falling-trigger;
+		interrupt-parent = <&gpio>;
+		interrupts = <96 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio 96 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio 66 GPIO_ACTIVE_HIGH>;
+		//touchscreen-size-x = <1024>;
+		//touchscreen-size-y = <600>;
+		touchscreen-inverted-x;
+		status = "okay";
+	};
+
+	focaltech@38{
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		interrupt-parent = <&gpio>;
+		interrupts = <96 IRQ_TYPE_EDGE_FALLING>;
+		focaltech,reset-gpio = <&gpio 66 GPIO_ACTIVE_HIGH>;
+		focaltech,irq-gpio = <&gpio 96 IRQ_TYPE_EDGE_FALLING>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords =  <0 0 1920 720>;
+	};
+
+	jadard@68{
+		compatible = "jadard,jdcommon";
+		reg = <0x68>;
+
+		jadard,panel-max-points = <10>;
+		jadard,int-is-edge = <1>;
+		jadard,stylus = <0>;
+		jadard,panel-sense-nums = <1 1>;
+		jadard,panel-coords = <0 1920 0 1200>;
+		jadard,irq-gpio = <&gpio 96 GPIO_ACTIVE_HIGH>;
+		jadard,rst-gpio = <&gpio 66 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	mcu_touch@1a{
+		compatible = "mcu,mcu_touch";
+		reg = <0x1a>;
+
+		mcu,irq-gpio = <&gpio 96 IRQ_TYPE_EDGE_FALLING>;
+		status = "okay";
+	};
+};
+
+/* link regulators to extcon typec */
+&type_c {
+	vbus-supply = <&vbus_reg>;  /* rrb86848-vbus */
+	otg-supply = <&otg_reg>;   /* rrb86848-otg */
+	status = "disabled";
+};
+
+/* link regulators to tcpm/tcpc */
+&usb_tcpc {
+	vbus-supply = <&vbus_reg>;  /* rrb86848-vbus */
+	otg-supply = <&otg_reg>;   /* rrb86848-otg */
+	status = "okay";
+};
+
+&irda {
+	status = "okay";
+};
+
+&mipicsi_0 {
+	status = "okay";
+};
+
+&mipicsi_1 {
+	status = "okay";
+};
+
+&mipicsi_2 {
+	status = "okay";
+};
+
+&mipicsi_3 {
+	status = "okay";
+};
+
+&vi_0 {
+	pad-cfg = <3>;
+	status = "okay";
+};
+
+&i2c_0 {
+	status = "okay";
+	clock-frequency = <3400000>;
+	pinctrl-0 = <&i2c0_HS_pins>;
+	status = "okay";
+
+	apw7899e@12 {
+		compatible = "anpec,apw7899";
+		reg = <0x12>;
+
+		regulators {
+			compatible = "anpec,apw8886-regulator";
+
+			vd33_supp: dc1 {
+				regulator-name = "vd33";
+				regulator-min-microvolt = <2200000>;
+				regulator-max-microvolt = <3777500>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_DC_MODE_FORCE_PWM>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
+			};
+
+			core_supp: dc2 {
+				regulator-name = "core";
+				regulator-min-microvolt = <550000>;
+				regulator-max-microvolt = <1337500>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_DC_MODE_AUTO>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <800000>;
+				};
+			};
+
+			cpu_supp: dc3 {
+				regulator-name = "cpudvs";
+				regulator-min-microvolt = <550000>;
+				regulator-max-microvolt = <1337500>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_DC_MODE_AUTO>;
+				regulator-ramp-delay = <625>;
+				apw888x-disabled-in-shutdown;
+
+				regulator-state-mem {
+					regulator-off-in-suspend;
+					regulator-changeable-in-suspend;
+				};
+			};
+
+			vd18_supp: dc4 {
+				regulator-name = "vd18";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <2060000>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_DC_MODE_AUTO>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
+			};
+
+			ddr_supp: dc5 {
+				regulator-name = "ddr";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_DC_MODE_AUTO>;
+				vin-supply = <&vcc_ddr>;
+				apw888x-disabled-in-shutdown;
+
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
+			};
+
+			vd25_supp: ldo1 {
+				regulator-name = "vd25";
+				regulator-min-microvolt = <1780000>;
+				regulator-max-microvolt = <3020000>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-initial-mode = <APW888X_LDO_MODE_NORMAL>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
+			};
+
+			vfb5 {
+				regulator-name = "vfb5";
+				regulator-min-microvolt = <512500>;
+				regulator-max-microvolt = <700000>;
+
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
+			};
+		};
+	};
+};
+
+&rtk_avcpu {
+	status = "okay";
+};
+
+&{/} {
+	clk_scpu: clk-scpu {
+		compatible = "realtek,rtd1635-scpu-clk";
+		realtek,cc = <&cc>;
+		#clock-cells = <1>;
+	};
+
+	cpu_opps: opp-table-cpu {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp1100: opp-1100000000 {
+			opp-hz = /bits/ 64 <1100000000>;
+			opp-microvolt = <950000 950000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1500: opp-1500000000 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <1000000 1000000 1100000>;
+			opp-suspend;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		opp1700: opp-1700000000 {
+			opp-hz = /bits/ 64 <1700000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+
+	cpu3_opps: opp-table-cpu3 {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		cpu3_opp1200: opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <950000 950000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+
+		cpu3_opp1600: opp-1600000000 {
+			opp-hz = /bits/ 64 <1600000000>;
+			opp-microvolt = <1000000 1000000 1100000>;
+			clock-latency-ns = <150000>;
+			opp-suspend;
+			status = "okay";
+		};
+
+		cpu3_opp1900: opp-1900000000 {
+			opp-hz = /bits/ 64 <1900000000>;
+			opp-microvolt = <1050000 1050000 1100000>;
+			clock-latency-ns = <150000>;
+			status = "okay";
+		};
+	};
+};
+
+&cpu0 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu1 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu2 {
+	clocks = <&clk_scpu 0>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu_opps>;
+	#cooling-cells = <2>;
+};
+
+&cpu3 {
+	clocks = <&clk_scpu 1>;
+	cpu-supply = <&cpu_supp>;
+	operating-points-v2 = <&cpu3_opps>;
+	#cooling-cells = <2>;
+};
+
+&rtk_pm {
+	wakeup-gpio-list = <25 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>,
+			   <77 GPIO_WAKEUP_ENABLE GPIO_WAKEUP_ACTIVE_LOW>;
+};
+
+&rtk_vad {
+	status = "okay";
+};
+
+&rtk_soc {
+	status = "okay";
+};
+
+&rtk_asoc_machine {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ao_i2s0_pins>,
+		    <&ao_spdif_pins>,
+		    <&pcm_pins>;
+	realtek,audio-platform = <&rtk_soc>;
+	realtek,dai-link = "RDAI_DL0_FE", "RDAI_DL1_FE", "RDAI_DL2_FE",
+			   "RDAI_DL3_FE", "RDAI_DL4_FE", "RDAI_DL5_FE",
+			   "RDAI_DL6_FE", "RDAI_DL7_FE",
+			   "RDAI_UL0_FE", "RDAI_UL1_FE",
+			   "RDAI_SOC_AO0",
+			   "RDAI_SOC_ADC0", "RDAI_SOC_ADC1",
+			   "RDAI_SOC_I2S", "RDAI_SOC_I2S0_LOOPBACK";
+	status = "okay";
+};
+
+&reboot_mode {
+	status = "okay";
+};
+
+&pwr_ur_top {
+	realtek,always-on;
+};
+
+&usb_port2 {
+	realtek,power-gpio = <&gpio 63 1>;
+};
+
+&rfkill {
+	rfkill-gpios = <&gpio 76 0>;
+};
+
+&i2c_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	clock-frequency = <100000>;
+	pinctrl-0 = <&i2c0_pins>;
+
+	apw7899e@12 {
+		reg = <0x12>;
+		status = "disabled";
+	};
+
+	raa271003@70 {
+		compatible = "renesas,raa271003";
+		reg = <0x70>;
+
+		regulators {
+			compatible = "renesas,raa271003-regulator";
+
+			raa271003_buck1: buck1 {
+				regulator-name = "cpudvs";
+				regulator-min-microvolt = <275000>;
+				regulator-max-microvolt = <1871875>;
+				regulator-allowed-modes = <0>, // RAA271003_MODE_AUTO
+					      <1>; // RAA271003_MODE_FORCE_PWM
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			raa271003_buck2: buck2 {
+				regulator-name = "vd18";
+				regulator-min-microvolt = <843740>;
+				regulator-max-microvolt = <4679687>;
+				regulator-allowed-modes = <0>, // RAA271003_MODE_AUTO
+					      <1>; // RAA271003_MODE_FORCE_PWM
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			raa271003_buck3: buck3 {
+				regulator-name = "vd33";
+				regulator-min-microvolt = <687500>;
+				regulator-max-microvolt = <4679687>;
+				regulator-allowed-modes = <0>, // RAA271003_MODE_AUTO
+					      <1>; // RAA271003_MODE_FORCE_PWM
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			raa271003_buck4: buck4 {
+				regulator-name = "ip";
+				regulator-min-microvolt = <275000>;
+				regulator-max-microvolt = <1871875>;
+				regulator-allowed-modes = <0>, // RAA271003_MODE_AUTO
+					       <1>; // RAA271003_MODE_FORCE_PWM
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			raa271003_buck5: buck5 {
+				regulator-name = "vs06";
+				regulator-min-microvolt = <275000>;
+				regulator-max-microvolt = <1871875>;
+				regulator-allowed-modes = <0>, // RAA271003_MODE_AUTO
+					        <1>; // RAA271003_MODE_FORCE_PWM
+				regulator-boot-on;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&raa271003_buck1>;
+};
+
+&cpu1 {
+	cpu-supply = <&raa271003_buck1>;
+};
+
+&cpu2 {
+	cpu-supply = <&raa271003_buck1>;
+};
+
+&cpu3 {
+	cpu-supply = <&raa271003_buck1>;
+};
+
+

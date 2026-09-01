@@ -4,17 +4,17 @@ Date: Wed, 3 Jan 2024 20:08:29 +0800
 Subject: [PATCH] u-boot: add u-boot patch and drivers from openwrt 22.03
 
 ---
- drivers/mtd/spi/Kconfig  | 6 ++++++
- drivers/mtd/spi/Makefile | 1 +
+ drivers/spi/Kconfig  | 6 ++++++
+ drivers/spi/Makefile | 1 +
  2 files changed, 7 insertions(+)
 
-diff --git a/drivers/mtd/spi/Kconfig b/drivers/mtd/spi/Kconfig
-index abed392c28..795d40eae3 100644
---- a/drivers/mtd/spi/Kconfig
-+++ b/drivers/mtd/spi/Kconfig
-@@ -26,6 +26,12 @@ config SPI_FLASH_SANDBOX
- 	  device. Typically the contents of the emulated SPI flash device is
- 	  stored in a file on the host filesystem.
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 69b184b0d9..2382230937 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -422,6 +422,24 @@ config ROCKCHIP_SPI
+ 	  This uses driver model and requires a device tree binding to
+ 	  operate.
  
 +config SPI_RTK_SFC
 +	bool "Realtek SPI-NOR Flash Controller(SFC)"
@@ -22,15 +22,34 @@ index abed392c28..795d40eae3 100644
 +	help
 +	  This enables support for Realtek SPI-NOR flash controller.
 +
- config SPI_FLASH
- 	bool "SPI Flash Core Interface support"
- 	select SPI_MEM
-diff --git a/drivers/mtd/spi/Makefile b/drivers/mtd/spi/Makefile
-index 409395382f..f139560e6b 100644
---- a/drivers/mtd/spi/Makefile
-+++ b/drivers/mtd/spi/Makefile
-@@ -22,3 +22,4 @@ obj-$(CONFIG_SPI_FLASH_DATAFLASH) += sf_dataflash.o
- obj-$(CONFIG_$(SPL_TPL_)SPI_FLASH_MTD) += sf_mtd.o
- obj-$(CONFIG_SPI_FLASH_SANDBOX) += sandbox.o
- obj-$(CONFIG_$(SPL_TPL_)BOOTDEV_SPI_FLASH) += sf_bootdev.o
++config SPI_RTK_NAND
++	bool "RTK SPI NAND controller"
++	depends on MTD_NAND_ECC && MTD_SPI_NAND
++	help
++	  Enables SPI Nand controller driver for RTK SoC.
++
++config SPL_SPI_RTK_NAND
++	bool "RTK SPI NAND controller in SPL"
++	depends on MTD_NAND_ECC && MTD_SPI_NAND && SPL
++	help
++	  Enables SPI Nand controller driver for RTK SoC.
++
+ config SANDBOX_SPI
+ 	bool "Sandbox SPI driver"
+ 	depends on SANDBOX && DM
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index 14bdb97f18..a34a03aa05 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -67,6 +67,8 @@ obj-$(CONFIG_SPI_MXIC) += spi-mxic.o
+ obj-$(CONFIG_RENESAS_RPC_SPI) += renesas_rpc_spi.o
+ obj-$(CONFIG_ROCKCHIP_SFC) += rockchip_sfc.o
+ obj-$(CONFIG_ROCKCHIP_SPI) += rk_spi.o
 +obj-$(CONFIG_SPI_RTK_SFC) += rtk-sfc.o
++obj-$(CONFIG_$(SPL_)SPI_RTK_NAND) += spi-rtk-sn.o
+ obj-$(CONFIG_SANDBOX_SPI) += sandbox_spi.o
+ obj-$(CONFIG_SPI_SIFIVE) += spi-sifive.o
+ obj-$(CONFIG_SPI_SN_F_OSPI) += spi-sn-f-ospi.o
+-- 
+2.47.0
+

@@ -1,0 +1,251 @@
+From 6db25928e93c14068ac4e7a7bddb8a10d37faf0e Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 20 Aug 2026 23:00:02 -0400
+Subject: [PATCH] OPC-52: provide pq control
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_drv.c   |  3 +-
+ drivers/gpu/drm/realtek/rtk_drm_drv.h   |  7 ++-
+ drivers/gpu/drm/realtek/rtk_drm_plane.c | 23 ++++++++--
+ drivers/gpu/drm/realtek/rtk_drm_plane.h |  3 +-
+ drivers/gpu/drm/realtek/rtk_drm_rpc.c   | 60 +++++++++++++++++++++----
+ drivers/gpu/drm/realtek/rtk_drm_rpc.h   | 32 ++++++++++++-
+ 6 files changed, 111 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_drv.c b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+index d6f18156b069..c6a5a5b254a3 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_drv.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_drv.c
+@@ -293,7 +293,8 @@ static struct drm_ioctl_desc rtk_drm_ioctls[] = {
+ 	DRM_IOCTL_DEF_DRV(RTK_CONF_PLANE_MIXER, rtk_plane_conf_plane_mixer, DRM_AUTH|DRM_RENDER_ALLOW),
+ 	DRM_IOCTL_DEF_DRV(RTK_SET_SDRFLAG, rtk_plane_set_sdrflag, DRM_AUTH|DRM_RENDER_ALLOW),
+ 	DRM_IOCTL_DEF_DRV(RTK_SET_FLUSH, rtk_plane_set_flush_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
+-	DRM_IOCTL_DEF_DRV(RTK_SET_DLSR_ENABLE, rtk_plane_set_dlsr_enable, DRM_AUTH|DRM_RENDER_ALLOW),
++	DRM_IOCTL_DEF_DRV(RTK_SET_PQ_STATUS, rtk_plane_set_pq_status, DRM_AUTH|DRM_RENDER_ALLOW),
++	DRM_IOCTL_DEF_DRV(RTK_GET_PQ_STATUS, rtk_plane_get_pq_status, DRM_AUTH|DRM_RENDER_ALLOW),
+ 	DRM_IOCTL_DEF_DRV(RTK_SET_TV_SYSTEM, rtk_plane_set_tv_system, DRM_AUTH|DRM_RENDER_ALLOW),
+ 	DRM_IOCTL_DEF_DRV(RTK_GET_TV_SYSTEM, rtk_plane_get_tv_system, DRM_AUTH|DRM_RENDER_ALLOW),
+ 	DRM_IOCTL_DEF_DRV(RTK_SET_DISPOUT_FORMAT, rtk_plane_set_dispout_format, DRM_AUTH|DRM_RENDER_ALLOW),
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_drv.h b/drivers/gpu/drm/realtek/rtk_drm_drv.h
+index 1a0f0fc1a9cb..4f8f84232a46 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_drv.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_drv.h
+@@ -51,7 +51,9 @@
+ #define RTK_IOCTL_RESERVED16 0x16 /* RESERVED */
+ #define RTK_SET_SDRFLAG 0x17
+ #define RTK_SET_FLUSH 0x18
+-#define RTK_SET_DLSR_ENABLE 0x19
++#define RTK_SET_PQ_STATUS 0x19
++#define RTK_GET_PQ_STATUS 0x1A
++
+ /* HDMI specific ioctl */
+ #define RTK_SET_TV_SYSTEM 0x20
+ #define RTK_GET_TV_SYSTEM 0x21
+@@ -102,7 +104,8 @@
+ #define DRM_IOCTL_RTK_CONF_PLANE_MIXER      DRM_IOWR(DRM_COMMAND_BASE + RTK_CONF_PLANE_MIXER, struct rpc_config_plane_mixer)
+ #define DRM_IOCTL_RTK_SET_SDRFLAG           DRM_IOWR(DRM_COMMAND_BASE + RTK_SET_SDRFLAG, struct rpc_set_sdrflag)
+ #define DRM_IOCTL_RTK_SET_FLUSH             DRM_IOWR(DRM_COMMAND_BASE + RTK_SET_FLUSH, uint32_t)
+-#define DRM_IOCTL_RTK_SET_DLSR_ENABLE       DRM_IOWR(DRM_COMMAND_BASE + RTK_SET_DLSR_ENABLE, uint32_t)
++#define DRM_IOCTL_RTK_SET_PQ_STATUS         DRM_IOWR(DRM_COMMAND_BASE + RTK_SET_PQ_STATUS, struct rtk_pqstatus)
++#define DRM_IOCTL_RTK_GET_PQ_STATUS         DRM_IOWR(DRM_COMMAND_BASE + RTK_GET_PQ_STATUS, struct rtk_pqstatus)
+ 
+ #define DRM_IOCTL_RTK_SET_TV_SYSTEM         DRM_IOWR(DRM_COMMAND_BASE + RTK_SET_TV_SYSTEM, struct rpc_config_tv_system)
+ #define DRM_IOCTL_RTK_GET_TV_SYSTEM         DRM_IOWR(DRM_COMMAND_BASE + RTK_GET_TV_SYSTEM, struct rpc_config_tv_system)
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.c b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+index 13559c435738..1588097c4d37 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.c
+@@ -2516,11 +2516,11 @@ int rtk_plane_get_cvbs_format(struct drm_device *dev, void *data, struct drm_fil
+ 	return rpc_get_cvbs_format(rpc_info, (u32 *)data);
+ }
+ 
+-int rtk_plane_set_dlsr_enable(struct drm_device *dev, void *data, struct drm_file *file)
++int rtk_plane_set_pq_status(struct drm_device *dev, void *data, struct drm_file *file)
+ {
+ 	struct rtk_drm_private *priv = dev->dev_private;
+ 	struct rtk_rpc_info *rpc_info;
+-	uint32_t *enable = (uint32_t *)data;
++	struct rtk_pqstatus *pqstatus = (struct rtk_pqstatus *)data;
+ 
+ 	if (priv->krpc_second == 1)
+ 		rpc_info = &priv->rpc_info[RTK_RPC_SECONDARY];
+@@ -2530,5 +2530,22 @@ int rtk_plane_set_dlsr_enable(struct drm_device *dev, void *data, struct drm_fil
+ 	if (!rpc_info)
+ 		return -ENODEV;
+ 
+-	return rpc_set_dlsr_enable(rpc_info, *enable);
++	return rpc_set_pq_status(rpc_info, pqstatus);
++}
++
++int rtk_plane_get_pq_status(struct drm_device *dev, void *data, struct drm_file *file)
++{
++	struct rtk_drm_private *priv = dev->dev_private;
++	struct rtk_rpc_info *rpc_info;
++	struct rtk_pqstatus *pqstatus = (struct rtk_pqstatus *)data;
++
++	if (priv->krpc_second == 1)
++		rpc_info = &priv->rpc_info[RTK_RPC_SECONDARY];
++	else
++		rpc_info = &priv->rpc_info[RTK_RPC_MAIN];
++
++	if (!rpc_info)
++		return -ENODEV;
++
++	return rpc_get_pq_status(rpc_info, pqstatus);
+ }
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_plane.h b/drivers/gpu/drm/realtek/rtk_drm_plane.h
+index 9fb21b26892e..b1dc541aa002 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_plane.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_plane.h
+@@ -55,5 +55,6 @@ int rtk_plane_set_quick_dv_switch(struct drm_device *dev, void *data, struct drm
+ int rtk_plane_get_quick_dv_switch(struct drm_device *dev, void *data, struct drm_file *file);
+ int rtk_plane_set_cvbs_format(struct drm_device *dev, void *data, struct drm_file *file);
+ int rtk_plane_get_cvbs_format(struct drm_device *dev, void *data, struct drm_file *file);
+-int rtk_plane_set_dlsr_enable(struct drm_device *dev, void *data, struct drm_file *file);
++int rtk_plane_set_pq_status(struct drm_device *dev, void *data, struct drm_file *file);
++int rtk_plane_get_pq_status(struct drm_device *dev, void *data, struct drm_file *file);
+ #endif  /* _RTK_DRM_PLANE_H_ */
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.c b/drivers/gpu/drm/realtek/rtk_drm_rpc.c
+index 80a8d23d667c..bda676e54267 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.c
+@@ -2780,8 +2780,8 @@ int rpc_get_cvbs_connection_status(struct rtk_rpc_info *rpc_info,
+ 	return ret;
+ }
+ 
+-int rpc_set_dlsr_enable(struct rtk_rpc_info *rpc_info,
+-		unsigned int enable)
++int rpc_set_pq_status(struct rtk_rpc_info *rpc_info,
++		struct rtk_pqstatus *pqstatus)
+ {
+ 	struct rpc_privateinfo_param *i_rpc;
+ 	struct rpc_privateinfo_returnval __attribute__((unused)) *o_rpc;
+@@ -2800,13 +2800,11 @@ int rpc_set_dlsr_enable(struct rtk_rpc_info *rpc_info,
+ 	memset_io(i_rpc, 0, sizeof(*i_rpc));
+ 
+ 	if (opt != RPC_AUDIO) {
+-		i_rpc->instanceId = 0;
+-		i_rpc->type = ENUM_PRIVATEINFO_VIDEO_SET_DLSR_ENABLED;
+-		i_rpc->privateInfo[0] = enable;
++		i_rpc->type = pqstatus->type;
++		i_rpc->privateInfo[0] = pqstatus->value;
+ 	} else {
+-		i_rpc->instanceId = htonl(0);
+-		i_rpc->type = htonl(ENUM_PRIVATEINFO_VIDEO_SET_DLSR_ENABLED);
+-		i_rpc->privateInfo[0] = htonl(enable);
++		i_rpc->type = htonl(pqstatus->type);
++		i_rpc->privateInfo[0] = htonl(pqstatus->value);
+ 	}
+ 
+ 	ret = send_rpc(rpc_info,
+@@ -2819,6 +2817,52 @@ int rpc_set_dlsr_enable(struct rtk_rpc_info *rpc_info,
+ 	return ret;
+ }
+ 
++int rpc_get_pq_status(struct rtk_rpc_info *rpc_info,
++		struct rtk_pqstatus *pqstatus)
++{
++	struct rpc_privateinfo_param *i_rpc;
++	struct rpc_privateinfo_returnval *o_rpc;
++	unsigned int offset;
++	unsigned int rpc_ret;
++	int ret;
++	int opt;
++
++	mutex_lock(&rpc_info->lock);
++
++	i_rpc = (struct rpc_privateinfo_param *)rpc_info->vaddr;
++	offset = ALIGN(sizeof(struct rpc_privateinfo_param), RPC_ALIGN_SZ);
++	o_rpc = (struct rpc_privateinfo_returnval *)((unsigned long)i_rpc + offset);
++	opt = rpc_info->krpc_vo_opt;
++
++	memset_io(i_rpc, 0, sizeof(*i_rpc));
++
++	if (opt != RPC_AUDIO) {
++		i_rpc->type = ENUM_PRIVATEINFO_VIDEO_GET_PQ_STATUS;
++		i_rpc->privateInfo[0] = pqstatus->type;
++	} else {
++		i_rpc->type = htonl(ENUM_PRIVATEINFO_VIDEO_GET_PQ_STATUS);
++		i_rpc->privateInfo[0] = htonl(pqstatus->type);
++	}
++
++	ret = send_rpc(rpc_info,
++			ENUM_VIDEO_KERNEL_RPC_PRIVATEINFO,
++			rpc_info->paddr, rpc_info->paddr + offset,
++			&rpc_ret);
++
++	if (ret)
++		goto exit;
++
++	if (opt != RPC_AUDIO)
++		pqstatus->value = o_rpc->privateInfo[0];
++	else
++		pqstatus->value = htonl(o_rpc->privateInfo[0]);
++
++exit:
++	mutex_unlock(&rpc_info->lock);
++
++	return ret;
++}
++
+ int rtk_rpc_init(struct device *dev, struct rtk_rpc_info *rpc_info, int of_index)
+ {
+ 	struct drm_device *drm = dev_get_drvdata(dev);
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_rpc.h b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+index 5e0f080d6e9d..82f8ab19298a 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_rpc.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_rpc.h
+@@ -689,7 +689,29 @@ enum VIDEO_ENUM_PRIVATEINFO {
+ 	ENUM_PRIVATEINFO_VIDEO_SET_SHARPNESS_PARAM              = 42,
+ 	ENUM_PRIVATEINFO_VIDEO_OOTF_LEVEL                       = 43,
+ 	ENUM_PRIVATEINFO_VIDEO_MNR_LEVEL                        = 44,
+-	ENUM_PRIVATEINFO_VIDEO_SET_HDMI_AVIINFOFRAME            = 45
++	ENUM_PRIVATEINFO_VIDEO_SET_HDMI_AVIINFOFRAME            = 45,
++	ENUM_PRIVATEINFO_VIDEO_PLANE_SWAP                       = 46,
++	ENUM_PRIVATEINFO_VIDEO_DARKNESS_LEVEL                   = 47,
++	ENUM_PRIVATEINFO_VIDEO_CA_LO                            = 48,
++	ENUM_PRIVATEINFO_VIDEO_CA_HI                            = 49,
++	ENUM_PRIVATEINFO_VIDEO_SM_DELT                          = 50,
++	ENUM_PRIVATEINFO_VIDEO_HDR_COLOR_COLD                   = 51,
++	ENUM_PRIVATEINFO_VIDEO_HDR_COLOR_WARM                   = 52,
++	ENUM_PRIVATEINFO_VIDEO_GET_MIXER_MAX_PLANE              = 53,
++	ENUM_PRIVATEINFO_VIDEO_DEWRAP_CONFIG                    = 54,
++	ENUM_PRIVATEINFO_VIDEO_AISR_DEMO_ENABLE                 = 55,
++	ENUM_PRIVATEINFO_VIDEO_FORCE_SCALER_FIR_COEFF           = 56,
++	ENUM_PRIVATEINFO_VIDEO_LCE_ENABLE                       = 57,
++	ENUM_PRIVATEINFO_VIDEO_DVCP_PARSE_DV_EDID_BLOCK         = 58,
++	ENUM_PRIVATEINFO_VIDEO_COLOR_CORRECTION                 = 59,
++	ENUM_PRIVATEINFO_VIDEO_CAR_DI_MEMORY                    = 60,
++	ENUM_PRIVATEINFO_VIDEO_AIGQ_MODE                        = 61,
++	ENUM_PRIVATEINFO_VIDEO_DEJAGGY_MODE                     = 62,
++	ENUM_PRIVATEINFO_VIDEO_PEAKING_MODE                     = 63,
++	ENUM_PRIVATEINFO_VO_MNR_LEVEL                           = 64,
++	ENUM_PRIVATEINFO_VO_AIPQ_LEVEL                          = 65,
++	ENUM_PRIVATEINFO_VO_LCE_LEVEL                           = 66,
++	ENUM_PRIVATEINFO_VO_DEJAGGY_LEVEL                       = 67,
+ };
+ 
+ enum VO_HDMI_OFF_MODE {
+@@ -807,6 +829,11 @@ enum ENUM_VIDEO_KEEP_CUR_SVP_TYPE {
+ 	ENUM_VIDEO_KEEP_CUR_SVP_TYPE_GET_FW_MALLOC_SVP_BUFFER = 2
+ };
+ 
++struct rtk_pqstatus {
++	uint32_t type;
++	uint32_t value;
++};
++
+ struct inband_cmd_pkg_header {
+ 	enum INBAND_CMD_TYPE type;
+ 	unsigned int size;
+@@ -2125,5 +2152,6 @@ int rpc_query_mixer_by_plane(struct rtk_rpc_info *rpc_info,
+ 				struct rpc_query_mixer_by_plane_in *argp_in,
+ 				struct rpc_query_mixer_by_plane_out *argp_out);
+ 
+-int rpc_set_dlsr_enable(struct rtk_rpc_info *rpc_info, unsigned int enable);
++int rpc_set_pq_status(struct rtk_rpc_info *rpc_info, struct rtk_pqstatus *pqstatus);
++int rpc_get_pq_status(struct rtk_rpc_info *rpc_info, struct rtk_pqstatus *pqstatus);
+ #endif
+-- 
+2.34.1
+

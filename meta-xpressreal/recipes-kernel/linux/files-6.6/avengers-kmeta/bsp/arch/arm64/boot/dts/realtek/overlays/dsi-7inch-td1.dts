@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Raspberry Pi Touch Display 1 (7" 800x480)
+ * Overlay for the panel-neutral base (rtd1619b-backinblack-2gb.dts):
+ *   - add the dsi_out_panel endpoint pointing at the panel
+ *   - panel + attiny regulator via i2c_5 @0x45 (raspberrypi,7inch-touchscreen-panel)
+ *   - FT5406-class touch via i2c_5 @0x38 (realtek,dfr0550_ts)
+ */
+/dts-v1/;
+/plugin/;
+
+&dsi_out {
+	dsi_out_panel: endpoint {
+		remote-endpoint = <&panel_in_dsi>;
+	};
+};
+
+&i2c_5 {
+	dfr0550_ts@38 {
+		compatible = "realtek,dfr0550_ts";
+		reg = <0x38>;
+		rotate = <0>;
+	};
+
+	dsi_panel: dsi_panel@45 {
+		compatible = "raspberrypi,7inch-touchscreen-panel";
+		reg = <0x45>;
+		rotation = <0>;
+		port {
+			panel_in_dsi: endpoint {
+				remote-endpoint = <&dsi_out_panel>;
+			};
+		};
+	};
+};

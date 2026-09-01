@@ -761,7 +761,10 @@ out:
 
 void rcpu_set_flag(struct rtk_rcpu *rcpu, uint32_t flag)
 {
-	writel(__cpu_to_be32(flag), rcpu->sync_flag);
+	if (rcpu->info->big_endian)
+		writel(__cpu_to_be32(flag), rcpu->sync_flag);
+	else
+		writel(flag, rcpu->sync_flag);
 }
 
 uint32_t rcpu_get_flag(struct rtk_rcpu *rcpu)

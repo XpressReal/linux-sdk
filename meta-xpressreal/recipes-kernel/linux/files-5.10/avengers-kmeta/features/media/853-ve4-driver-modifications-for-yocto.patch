@@ -1,0 +1,183 @@
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.c b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.c
+index 140dd9c64412..66b6af8ed1fe 100755
+--- a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.c
++++ b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.c
+@@ -303,13 +303,13 @@ int kent_ve4_alloc_dma_buffer(vpudrv_buffer_t *vb)
+ 		return -1;
+ 
+ #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+-	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
++	vb->phys_addr = (unsigned long)vmem_alloc(&s_vmem, vb->size, 0);
+ 	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+ 		return -1;
+ 	}
+ 
+-	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
++	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
+ 	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+ #else
+ 	mutex_lock(&p_vpu_dev->mutex);
+@@ -318,14 +318,14 @@ int kent_ve4_alloc_dma_buffer(vpudrv_buffer_t *vb)
+ 				to_heapflag(vb->mem_type), __func__);
+ #endif
+ 
+-	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
++	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+ 	mutex_unlock(&p_vpu_dev->mutex);
+ 	if ((void *)(vb->base) == NULL) {
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+ 		return -1;
+ 	}
+ 	vb->virt_addr = vb->base;
+-	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%llx.phys_addr:0x%llx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
++	DPRINTK("%s [%d]kent_ve4_alloc_dma_buffer.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+ #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+ 
+ 	return 0;
+@@ -338,13 +338,13 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
+ 		return -1;
+ 
+ #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+-	vb->phys_addr = vmem_alloc(&s_vmem, vb->size, 0);
++	vb->phys_addr = (unsigned long)vmem_alloc(&s_vmem, vb->size, 0);
+ 	if ((unsigned long)vb->phys_addr  == (unsigned long)-1) {
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+ 		return -1;
+ 	}
+ 
+-	vb->base = s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr);
++	vb->base = (unsigned long)(s_video_memory.base + (vb->phys_addr - s_video_memory.phys_addr));
+ #else
+ 	mutex_lock(&p_vpu_dev->mutex);
+ #ifdef CONFIG_DMABUF_HEAPS_REALTEK
+@@ -352,7 +352,7 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
+ 				to_heapflag(vb->mem_type), __func__);
+ #endif
+ 
+-	vb->base = (unsigned long long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
++	vb->base = (unsigned long)dma_alloc_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (dma_addr_t *) (&vb->phys_addr), GFP_DMA | GFP_KERNEL);
+ 	mutex_unlock(&p_vpu_dev->mutex);
+ 	if ((void *)(vb->base) == NULL) {
+ 		pr_err("%s Physical memory allocation error size=%d\n", DEV_NAME, vb->size);
+@@ -361,7 +361,7 @@ static int vpu_alloc_dma_buffer2(vpudrv_buffer_t *vb)
+ 	vb->virt_addr = vb->base;
+ #endif /* VPU_SUPPORT_RESERVED_VIDEO_MEMORY */
+ 
+-	DPRINTK("%s [%d]vpu_alloc_dma_buffer2.base:0x%llx.phys_addr:0x%llx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
++	DPRINTK("%s [%d]vpu_alloc_dma_buffer2.base:0x%lx.phys_addr:0x%lx.size:%d\n",DEV_NAME,__LINE__,vb->base,vb->phys_addr,vb->size);
+ 	return 0;
+ }
+ 
+@@ -375,7 +375,7 @@ void kent_ve4_free_dma_buffer(vpudrv_buffer_t *vb)
+ 		vmem_free(&s_vmem, vb->phys_addr, 0);
+ #else
+ 	if (vb->base) {
+-		DPRINTK("%s [%d]%s.base:0x%llx.phys_addr:0x%llx\n", DEV_NAME, __LINE__, __func__,
++		DPRINTK("%s [%d]%s.base:0x%lx.phys_addr:0x%lx\n", DEV_NAME, __LINE__, __func__,
+ 			vb->base, vb->phys_addr);
+ 		dma_free_coherent(s_vpu_dev.this_device, PAGE_ALIGN(vb->size), (void *)vb->base, vb->phys_addr);
+ 	}
+@@ -1076,7 +1076,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
+ 		if (ret)
+ 			return -EFAULT;
+ 
+-		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER_INFO s_ve4_register.phys_addr=0x%llx, s_ve4_register.virt_addr=0x%lx, s_ve4_register.size=%d\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
++		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER_INFO s_ve4_register.phys_addr=0x%lx, s_ve4_register.virt_addr=0x%lx, s_ve4_register.size=%d\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
+ 	}
+ 	break;
+ 	case VDI_IOCTL_GET_REGISTER2_INFO:
+@@ -1088,7 +1088,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
+ 		if (ret)
+ 			return -EFAULT;
+ 
+-		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER2_INFO s_ve4_register2.phys_addr=0x%llx, s_ve4_register2.virt_addr=0x%lx, s_ve4_register2.size=%d\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
++		DPRINTK("%s [-]VDI_IOCTL_GET_REGISTER2_INFO s_ve4_register2.phys_addr=0x%lx, s_ve4_register2.virt_addr=0x%lx, s_ve4_register2.size=%d\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
+ 	}
+ 	break;
+ 	/* RTK ioctl */
+@@ -1729,7 +1729,7 @@ static int vpu_map_to_instance_pool_memory(struct file *fp, struct vm_area_struc
+ static int vpu_mmap(struct file *fp, struct vm_area_struct *vm)
+ {
+ #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+-	//pr_err("%d vm_pgoff:0x%x, vpu_phys_addr:0x%x, page_shift:0x%x\n", __LINE__, vm->vm_pgoff, s_ve4_register.phys_addr, PAGE_SHIFT);
++	//pr_err("%d vm_pgoff:0x%x, vpu_phys_addr:0x%lx, page_shift:0x%x\n", __LINE__, vm->vm_pgoff, s_ve4_register.phys_addr, PAGE_SHIFT);
+ 	if (vm->vm_pgoff == 0){
+ 		//pr_err("%d vm->vm_pgoff == 0\n");
+ 		return vpu_map_to_instance_pool_memory(fp, vm);
+@@ -1874,7 +1874,7 @@ static int vpu_probe(struct platform_device *pdev)
+ 	s_ve4_register.virt_addr = (unsigned long)iobase;
+ 	s_ve4_register.size = res.end - res.start + 1;
+ 
+-	pr_info("%s ve4 base address get from DTB physical base addr=0x%llx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
++	pr_info("%s ve4 base address get from DTB physical base addr=0x%lx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register.phys_addr, s_ve4_register.virt_addr, s_ve4_register.size);
+ 
+ 	err = of_address_to_resource(node, 1, &res);
+ 	if (err) {
+@@ -1894,7 +1894,7 @@ static int vpu_probe(struct platform_device *pdev)
+ 	s_ve4_register2.virt_addr = (unsigned long)iobase;
+ 	s_ve4_register2.size = res.end - res.start + 1;
+ 
+-	pr_info("%s ve4 reg2 base address get from DTB physical base addr=0x%llx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
++	pr_info("%s ve4 reg2 base address get from DTB physical base addr=0x%lx, virtual base=0x%lx, size=0x%x\n", DEV_NAME, s_ve4_register2.phys_addr, s_ve4_register2.virt_addr, s_ve4_register2.size);
+ 
+ 	s_vpu_dev.minor = MISC_DYNAMIC_MINOR;
+ 	s_vpu_dev.name = VPU_DEV_NAME;
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.h b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.h
+index a2461125c2c3..50b2afabef1c 100755
+--- a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.h
++++ b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4.h
+@@ -30,6 +30,8 @@
+ 
+ #include "ve4config.h"
+ 
++#define SUPPORT_MULTI_INST_INTR
++#define SUPPORT_MULTI_INST_INTR_ERROR_CHECK
+ #define USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
+ 
+ #define VDI_IOCTL_MAGIC 'V'
+@@ -57,8 +59,8 @@
+ 
+ typedef struct vpudrv_buffer_t {
+ 	unsigned int size;
+-	unsigned long long phys_addr;
+-	unsigned long long base;
++	unsigned long phys_addr;
++	unsigned long base;
+ 	unsigned long virt_addr; /* virtual user space address */
+ 	unsigned int mem_type; /* RTK, for protect memory */
+ } vpudrv_buffer_t;
+@@ -83,9 +85,12 @@ typedef struct vpudrv_inst_info_t {
+ } vpudrv_inst_info_t;
+ 
+ typedef struct vpudrv_intr_info_t {
++	unsigned int core_idx;
+ 	unsigned int timeout;
+ 	int intr_reason;
++#ifdef SUPPORT_MULTI_INST_INTR
+ 	int intr_inst_index;
++#endif
+ } vpudrv_intr_info_t;
+ 
+ typedef struct vpu_drv_context_t {
+diff --git a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4config.h b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4config.h
+index 96abf80d03ea..75f9bbe3d1df 100755
+--- a/drivers/soc/realtek/kent/rtk_ve/ve4/ve4config.h
++++ b/drivers/soc/realtek/kent/rtk_ve/ve4/ve4config.h
+@@ -80,7 +80,15 @@
+ /************************************************************************/
+ /* VPU COMMON MEMORY */
+ /************************************************************************/
+-#define SIZE_COMMON (2*1024*1024)
++#define WAVE6_MAX_CODE_BUF_SIZE         (1*1024*1024)
++#define WAVE6_TEMPBUF_OFFSET            WAVE6_MAX_CODE_BUF_SIZE
++#define WAVE6_TEMPBUF_SIZE              (3*1024*1024)
++#define WAVE6_TEMPBUF_SIZE_FOR_CQ       ((3*1024*1024)*3)
++#define WAVE6_AR_TABLE_BUF_SIZE 1024 //adative round
++#define W_REMAP_MAX_SIZE               (1024*1024)
++
++#define ONE_TASKBUF_SIZE_FOR_CQ     0
++#define SIZE_COMMON                 (WAVE6_MAX_CODE_BUF_SIZE)
+ 
+ /*=====4. VPU REPORT MEMORY  ======================*/
+ #define SIZE_REPORT_BUF (0x10000)

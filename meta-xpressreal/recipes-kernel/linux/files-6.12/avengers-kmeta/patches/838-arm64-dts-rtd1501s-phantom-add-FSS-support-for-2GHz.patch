@@ -1,0 +1,37 @@
+From 6d14cb554d59ce3b644b4a60798a55b10b0a6ccf Mon Sep 17 00:00:00 2001
+From: Tsai-Wei Wu <wu.tsaiwei@realtek.com>
+Date: Wed, 29 Jul 2026 18:03:41 +0800
+Subject: [PATCH] arm64: dts: rtd1501s/rtd1920s: add FSS support for 2GHz
+
+---
+ arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi    | 1 +
+ arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+index 54f730fbe6a2..cff872a33cd8 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1501s-phantom.dtsi
+@@ -152,6 +152,7 @@ opp1900: opp-1900000000 {
+ 		opp2000: opp-2000000000 {
+ 			opp-hz = /bits/ 64 <2000000000>;
+ 			opp-microvolt = <1100000 1100000 1100000>;
++			opp-microvolt-fss = <0 0 0>;
+ 			clock-latency-ns = <150000>;
+ 			status = "okay";
+ 		};
+diff --git a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+index 83a61bbd5b1d..50f93feaa3b0 100644
+--- a/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd1920s-smallville.dtsi
+@@ -188,6 +188,7 @@ opp1900: opp-1900000000 {
+ 		opp2000: opp-2000000000 {
+ 			opp-hz = /bits/ 64 <2000000000>;
+ 			opp-microvolt = <1100000 1100000 1100000>;
++			opp-microvolt-fss = <0 0 0>;
+ 			clock-latency-ns = <150000>;
+ 			status = "okay";
+ 		};
+-- 
+2.34.1
+

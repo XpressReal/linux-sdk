@@ -2,6 +2,8 @@ From 458a5df0b6a50b7137da89555b0b65038c68c0e6 Mon Sep 17 00:00:00 2001
 From: yaozenhu <yaozenhu@realtek.com>
 Date: Tue, 22 Jul 2025 21:53:37 -0400
 Subject: [PATCH] NASPRJ-1157: fix avsync issue
+Source: Realtek
+License: LGPL-2.1-or-later
 
 [Root Cause] If stream have no pts three time, continue using min_ts to reorder it.
 

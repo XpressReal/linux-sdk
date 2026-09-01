@@ -1,0 +1,76 @@
+From 26fecbf7602dd69b649914e61526bd67c557fece Mon Sep 17 00:00:00 2001
+From: Vasile-Laurentiu Stanimir <vasile-laurentiu.stanimir@windriver.com>
+Date: Wed, 4 Nov 2020 15:05:32 +0200
+Subject: [PATCH] pstore: Move kmsg_bytes default into Kconfig
+
+While kmsg_bytes can be set for pstore via mount, if a crash occurs
+before the mount only partial console log will be stored as kmsg_bytes
+defaults to a potentially different hardcoded value in the kernel
+(PSTORE_DEFAULT_KMSG_BYTES). This makes it impossible to analyze valuable
+post-mortem data especially on the embedded development or in the process
+of bringing up new boards. Change this value to be a Kconfig option
+with the default of old PSTORE_DEFAULT_KMSG_BYTES
+
+Signed-off-by: Vasile-Laurentiu Stanimir <vasile-laurentiu.stanimir@windriver.com>
+Signed-off-by: Kees Cook <keescook@chromium.org>
+
+diff --git a/fs/pstore/Kconfig b/fs/pstore/Kconfig
+index e16a49ebfe54..8adabde685f1 100644
+--- a/fs/pstore/Kconfig
++++ b/fs/pstore/Kconfig
+@@ -14,6 +14,14 @@ config PSTORE
+ 	   If you don't have a platform persistent store driver,
+ 	   say N.
+ 
++config PSTORE_DEFAULT_KMSG_BYTES
++	int "Default kernel log storage space" if EXPERT
++	depends on PSTORE
++	default "10240"
++	help
++	  Defines default size of pstore kernel log storage.
++	  Can be enlarged if needed, not recommended to shrink it.
++
+ config PSTORE_DEFLATE_COMPRESS
+ 	tristate "DEFLATE (ZLIB) compression"
+ 	default y
+diff --git a/fs/pstore/inode.c b/fs/pstore/inode.c
+index c331efe8de95..93a217e4f563 100644
+--- a/fs/pstore/inode.c
++++ b/fs/pstore/inode.c
+@@ -266,7 +266,7 @@ static void parse_options(char *options)
+  */
+ static int pstore_show_options(struct seq_file *m, struct dentry *root)
+ {
+-	if (kmsg_bytes != PSTORE_DEFAULT_KMSG_BYTES)
++	if (kmsg_bytes != CONFIG_PSTORE_DEFAULT_KMSG_BYTES)
+ 		seq_printf(m, ",kmsg_bytes=%lu", kmsg_bytes);
+ 	return 0;
+ }
+diff --git a/fs/pstore/internal.h b/fs/pstore/internal.h
+index 7fb219042f13..801d6c0b170c 100644
+--- a/fs/pstore/internal.h
++++ b/fs/pstore/internal.h
+@@ -6,7 +6,6 @@
+ #include <linux/time.h>
+ #include <linux/pstore.h>
+ 
+-#define PSTORE_DEFAULT_KMSG_BYTES 10240
+ extern unsigned long kmsg_bytes;
+ 
+ #ifdef CONFIG_PSTORE_FTRACE
+diff --git a/fs/pstore/platform.c b/fs/pstore/platform.c
+index 36714df37d5d..32f64abc277c 100644
+--- a/fs/pstore/platform.c
++++ b/fs/pstore/platform.c
+@@ -101,7 +101,7 @@ static char *big_oops_buf;
+ static size_t big_oops_buf_sz;
+ 
+ /* How much of the console log to snapshot */
+-unsigned long kmsg_bytes = PSTORE_DEFAULT_KMSG_BYTES;
++unsigned long kmsg_bytes = CONFIG_PSTORE_DEFAULT_KMSG_BYTES;
+ 
+ void pstore_set_kmsg_bytes(int bytes)
+ {
+-- 
+2.47.0
+

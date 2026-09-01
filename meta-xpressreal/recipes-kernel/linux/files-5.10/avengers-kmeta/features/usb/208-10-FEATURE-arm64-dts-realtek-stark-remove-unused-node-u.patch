@@ -1,0 +1,50 @@
+From 153d4c2711f7ed6cd675fa69c58d1035bd51fe28 Mon Sep 17 00:00:00 2001
+From: Stanley Chang <stanley_chang@realtek.com>
+Date: Tue, 23 Jan 2024 18:01:02 +0800
+Subject: [PATCH] [FEATURE] arm64: dts: realtek: stark: remove unused node
+ usb-ctrl
+
+Remove usb-ctrl node and use iso node
+
+Change-Id: I026dd15403ceb6db8cb5cd9fb26723744ba9f7d6
+Signed-off-by: Stanley Chang <stanley_chang@realtek.com>
+---
+ arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi | 2 +-
+ arch/arm64/boot/dts/realtek/rtd16xxb.dtsi     | 8 --------
+ 2 files changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+index 596e48864ccdf..8db3bed219dce 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb-usb.dtsi
+@@ -6,7 +6,7 @@
+  */
+ 
+ &usb_manager {
+-	realtek,usb-ctrl = <&usb_ctrl>;
++	realtek,iso = <&iso>;
+ 
+ 	clocks = <&ic RTD1619B_ISO_CLK_EN_USB>; /* clk_en_usb */
+ 	clock-names = "usb"; /*clk_en_usb*/
+diff --git a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+index 1467c3c9ccd9a..d7f2b462d7ef2 100644
+--- a/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
++++ b/arch/arm64/boot/dts/realtek/rtd16xxb.dtsi
+@@ -1331,14 +1331,6 @@ pwm_3 {
+ 			duty_rate = <50>; /* default duty_rate 0 ~ 100 */
+ 		};
+ 	};
+-
+-	usb_ctrl: usb_ctrl@fb0 {
+-		compatible = "syscon";
+-		reg = <0xfb0 0x10>;
+-		#address-cells = <1>;
+-		#size-cells = <1>;
+-		ranges;
+-	};
+ };
+ 
+ &sb2 {
+-- 
+2.47.0
+

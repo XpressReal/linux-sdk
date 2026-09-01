@@ -6,6 +6,8 @@ COMPATIBLE_MACHINE:realtekevb-rtd1619b = "stark"
 COMPATIBLE_MACHINE:bleedingedge-rtd1619b = "stark"
 COMPATIBLE_MACHINE:bleedingedge-rtd1619b-mini = "stark"
 COMPATIBLE_MACHINE:phantom-rtd1625 = "kent"
+COMPATIBLE_MACHINE:phantom-vcodec-rtd1625 = "kent"
+COMPATIBLE_MACHINE:rose-rtd1635 = "prince"
 
 SRC_URI = "file://${BPN}.tar.xz"
 SRCREV = "${AUTOREV}"
@@ -21,6 +23,7 @@ FILESEXTRAPATHS:append := ":${SDK_DIR}"
 EXTRA_OEMAKE:stark += "KDIR=${STAGING_KERNEL_DIR}"
 EXTRA_OEMAKE:kent += "KDIR=${STAGING_KERNEL_DIR}"
 EXTRA_OEMAKE:rtd16xx += "KDIR=${STAGING_KERNEL_DIR}"
+EXTRA_OEMAKE:prince += "KDIR=${STAGING_KERNEL_DIR}"
 
 MODULES_INSTALL_TARGET += "-C ${STAGING_KERNEL_DIR} M=${S}"
 

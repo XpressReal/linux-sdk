@@ -1,0 +1,95 @@
+From 045574171642fe8b5611b8c04f643a057b346aa5 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Mon, 21 Feb 2022 19:21:12 -0800
+Subject: [PATCH] BACKPORT: net: add skb_set_end_offset() helper
+
+We have multiple places where this helper is convenient,
+and plan using it in the following patch.
+
+Bug: 254441685
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+(cherry picked from commit 763087dab97547230a6807c865a6a5ae53a59247)
+[Lee: Solves a dependency for the next Fixes: patch]
+Signed-off-by: Lee Jones <joneslee@google.com>
+Change-Id: I044e7020f9d0b85073253fbd4629cf97bbd38736
+---
+ include/linux/skbuff.h | 10 ++++++++++
+ net/core/skbuff.c      | 17 ++++-------------
+ 2 files changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/include/linux/skbuff.h b/include/linux/skbuff.h
+index 3a02503b3637a..2114fc0303f3f 100644
+--- a/include/linux/skbuff.h
++++ b/include/linux/skbuff.h
+@@ -1417,6 +1417,11 @@ static inline unsigned int skb_end_offset(const struct sk_buff *skb)
+ {
+ 	return skb->end;
+ }
++
++static inline void skb_set_end_offset(struct sk_buff *skb, unsigned int offset)
++{
++	skb->end = offset;
++}
+ #else
+ static inline unsigned char *skb_end_pointer(const struct sk_buff *skb)
+ {
+@@ -1427,6 +1432,11 @@ static inline unsigned int skb_end_offset(const struct sk_buff *skb)
+ {
+ 	return skb->end - skb->head;
+ }
++
++static inline void skb_set_end_offset(struct sk_buff *skb, unsigned int offset)
++{
++	skb->end = skb->head + offset;
++}
+ #endif
+ 
+ /* Internal */
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index fc36c8eddbf72..b0f4a79f36ee3 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -1676,11 +1676,10 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
+ 	skb->head     = data;
+ 	skb->head_frag = 0;
+ 	skb->data    += off;
++
++	skb_set_end_offset(skb, size);
+ #ifdef NET_SKBUFF_DATA_USES_OFFSET
+-	skb->end      = size;
+ 	off           = nhead;
+-#else
+-	skb->end      = skb->head + size;
+ #endif
+ 	skb->tail	      += off;
+ 	skb_headers_offset_update(skb, nhead);
+@@ -5975,11 +5974,7 @@ static int pskb_carve_inside_header(struct sk_buff *skb, const u32 off,
+ 	skb->head = data;
+ 	skb->data = data;
+ 	skb->head_frag = 0;
+-#ifdef NET_SKBUFF_DATA_USES_OFFSET
+-	skb->end = size;
+-#else
+-	skb->end = skb->head + size;
+-#endif
++	skb_set_end_offset(skb, size);
+ 	skb_set_tail_pointer(skb, skb_headlen(skb));
+ 	skb_headers_offset_update(skb, 0);
+ 	skb->cloned = 0;
+@@ -6117,11 +6112,7 @@ static int pskb_carve_inside_nonlinear(struct sk_buff *skb, const u32 off,
+ 	skb->head = data;
+ 	skb->head_frag = 0;
+ 	skb->data = data;
+-#ifdef NET_SKBUFF_DATA_USES_OFFSET
+-	skb->end = size;
+-#else
+-	skb->end = skb->head + size;
+-#endif
++	skb_set_end_offset(skb, size);
+ 	skb_reset_tail_pointer(skb);
+ 	skb_headers_offset_update(skb, 0);
+ 	skb->cloned   = 0;
+-- 
+2.47.0
+

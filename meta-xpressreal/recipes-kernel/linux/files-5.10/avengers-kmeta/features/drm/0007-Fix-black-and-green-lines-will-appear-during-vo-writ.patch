@@ -1,0 +1,357 @@
+From e58085a152f9cd521eba22f0ed9d361d82597177 Mon Sep 17 00:00:00 2001
+From: "joshua.yang" <joshua.yang@realtek.com>
+Date: Mon, 20 Jul 2026 17:07:50 +0800
+Subject: [PATCH 1/1] Fix black and green lines will appear during vo writeback
+
+---
+ drivers/gpu/drm/realtek/rtk_drm_vowb.c     | 196 ++++++++++++++++-----
+ drivers/gpu/drm/realtek/rtk_drm_vowb_job.h |   1 +
+ 2 files changed, 156 insertions(+), 41 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_vowb.c b/drivers/gpu/drm/realtek/rtk_drm_vowb.c
+index d7286bf16da4..f0b0bed072c4 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_vowb.c
++++ b/drivers/gpu/drm/realtek/rtk_drm_vowb.c
+@@ -1,7 +1,9 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ #include <linux/component.h>
+ #include <linux/delay.h>
++#include <linux/dma-buf.h>
+ #include <linux/dma-fence.h>
++#include <linux/dma-map-ops.h>
+ #include <linux/platform_device.h>
+ #include <linux/sync_file.h>
+ #include <linux/of.h>
+@@ -55,9 +57,25 @@ struct rtk_drm_vowb_func1_data {
+ 	spinlock_t data_lock;
+ };
+ 
++struct rtk_drm_vowb_buffer {
++	struct sg_table *sgt;
++	struct dma_buf_attachment *attach;
++	struct dma_buf *dmabuf;
++};
++
+ struct rtk_drm_vowb_func2_data {
+ 	struct rtk_drm_vowb_job job;
+ 	struct drm_file *file_priv;
++	/* writeback buffer */
++	struct rtk_drm_vowb_buffer wb;
++	/* source buffers */
++	struct rtk_drm_vowb_buffer src;
++	/* subtitle buffer */
++	struct rtk_drm_vowb_buffer sub;
++	/* previous frame buffer */
++	struct rtk_drm_vowb_buffer prev;
++	/* next frame buffer */
++	struct rtk_drm_vowb_buffer next;
+ };
+ 
+ struct refclock_data {
+@@ -68,6 +86,7 @@ struct refclock_data {
+ 
+ struct rtk_drm_vowb {
+ 	struct drm_device *dev;
++	struct device *pd_dev;  /* platform device for cache sync */
+ 	struct rtk_rpc_info *rpc_info;
+ 	u32 instance;
+ 	struct tag_refclock *shm_refclock;
+@@ -283,10 +302,15 @@ static int rtk_drm_vowb_handle_to_addr(struct drm_file *file_priv, u32 handle, d
+ 	return 0;
+ }
+ 
+-static int rtk_drm_vowb_handle_to_vaddr(struct drm_file *file_priv, u32 handle, void **addr)
++static int rtk_drm_vowb_attach_and_get_sgt(struct device *dev,
++					   struct drm_file *file_priv,
++					   u32 handle,
++					   dma_addr_t *addr,
++					   struct rtk_drm_vowb_buffer *buf)
+ {
+ 	struct drm_gem_object *obj;
+ 	struct rtk_gem_object *robj;
++	int ret = 0;
+ 
+ 	obj = drm_gem_object_lookup(file_priv, handle);
+ 	if (!obj) {
+@@ -295,13 +319,51 @@ static int rtk_drm_vowb_handle_to_vaddr(struct drm_file *file_priv, u32 handle,
+ 	}
+ 
+ 	robj = to_rtk_gem_obj(obj);
+-	*addr = robj->vaddr;
++	*addr = robj->paddr;
++
++	buf->dmabuf = obj->import_attach ? obj->import_attach->dmabuf : obj->dma_buf;
++	if (!buf->dmabuf) {
++		ret = -ENXIO;
++		DRM_ERROR("Failed to get dmabuf from import\n");
++		goto exit;
++	}
++
++	buf->attach = dma_buf_attach(buf->dmabuf, dev);
++	if (IS_ERR(buf->attach)) {
++		ret = -ENXIO;
++		DRM_ERROR("Failed to attach dmabuf to vowb device\n");
++		goto exit;
++	}
++
++	buf->sgt = dma_buf_map_attachment(buf->attach, DMA_BIDIRECTIONAL);
++	if (IS_ERR(buf->sgt)) {
++		ret = -ENXIO;
++		dma_buf_detach(buf->dmabuf, buf->attach);
++		DRM_ERROR("Failed to map sgt from attach\n");
++		goto exit;
++	}
++
++	DRM_DEBUG("vowb: attached dmabuf to vowb dev, sgt=%p nents=%d\n",
++		  buf->sgt, buf->sgt->nents);
++
++exit:
+ 	drm_gem_object_put(obj);
++	return ret;
++}
+ 
+-	return 0;
++static void rtk_drm_vowb_release_buffer(struct rtk_drm_vowb_buffer *buf)
++{
++	if (buf->attach && buf->sgt && buf->dmabuf) {
++		dma_buf_unmap_attachment(buf->attach, buf->sgt, DMA_BIDIRECTIONAL);
++		dma_buf_detach(buf->dmabuf, buf->attach);
++		DRM_DEBUG("vowb: released dmabuf buffer\n");
++	}
++	buf->sgt = NULL;
++	buf->attach = NULL;
++	buf->dmabuf = NULL;
+ }
+ 
+-static int rtk_drm_vowb_handle_to_metadata_vaddr(struct drm_file *file_priv, u32 handle, void **addr)
++static int rtk_drm_vowb_handle_to_vaddr(struct drm_file *file_priv, u32 handle, void **addr)
+ {
+ 	struct drm_gem_object *obj;
+ 	struct rtk_gem_object *robj;
+@@ -313,20 +375,27 @@ static int rtk_drm_vowb_handle_to_metadata_vaddr(struct drm_file *file_priv, u32
+ 	}
+ 
+ 	robj = to_rtk_gem_obj(obj);
+-	*addr = robj->vaddr + robj->metadata_offset;
++	*addr = robj->vaddr;
+ 	drm_gem_object_put(obj);
+ 
+ 	return 0;
+ }
+ 
+-static int rtk_drm_vowb_handle_to_addr_offset(struct drm_file *file_priv, u32 handle, u32 offset,
+-					      dma_addr_t *addr)
++static int rtk_drm_vowb_handle_to_metadata_vaddr(struct drm_file *file_priv, u32 handle, void **addr)
+ {
+-	int ret;
++	struct drm_gem_object *obj;
++	struct rtk_gem_object *robj;
++
++	obj = drm_gem_object_lookup(file_priv, handle);
++	if (!obj) {
++		DRM_ERROR("Failed to lookup GEM object of handle %u\n", handle);
++		return -ENXIO;
++	}
++
++	robj = to_rtk_gem_obj(obj);
++	*addr = robj->vaddr + robj->metadata_offset;
++	drm_gem_object_put(obj);
+ 
+-	ret = rtk_drm_vowb_handle_to_addr(file_priv, handle, addr);
+-	if (!ret)
+-		*addr += offset;
+ 	return 0;
+ }
+ 
+@@ -505,6 +574,27 @@ static void rtk_drm_vowb_check_resp(struct work_struct *work)
+ 			if (job->job_done_cb)
+ 				job->job_done_cb(vowb, job);
+ 
++			/* Sync cache for user space to read the result */
++			if (job->wb_handle) {
++				struct rtk_drm_vowb_func2_data *func2 =
++					container_of(job, struct rtk_drm_vowb_func2_data, job);
++				/* Use saved sgt from vowb device attachment */
++				DRM_DEBUG("vowb: sync wb cache using attached sgt=%p nents=%d\n",
++					  func2->wb.sgt,
++					  func2->wb.sgt ? (int)func2->wb.sgt->nents : -1);
++
++				if (func2->wb.sgt && func2->wb.sgt->nents)
++					dma_sync_sg_for_cpu(vowb->pd_dev, func2->wb.sgt->sgl,
++							    func2->wb.sgt->nents, DMA_FROM_DEVICE);
++
++				/* Release dmabuf resources after sync */
++				rtk_drm_vowb_release_buffer(&func2->src);
++				rtk_drm_vowb_release_buffer(&func2->sub);
++				rtk_drm_vowb_release_buffer(&func2->prev);
++				rtk_drm_vowb_release_buffer(&func2->next);
++				rtk_drm_vowb_release_buffer(&func2->wb);
++			}
++
+ 			job->status = RTK_DRM_VOWB_JOB_STATUS_DONE;
+ 			trace_vowb_job_update_status(job);
+ 			rtk_drm_vowb_clear_job(vowb);
+@@ -1121,31 +1211,32 @@ static void func2_inband_cmd_video_transcode_picture_object(struct rpmsg_device
+ 	cmd->use_video_plane = cpu_to_rpmsg32(rpdev, vowb_plane);
+ }
+ 
+-static int rtk_drm_vowb_run_cmd_get_addrs(struct drm_file *file_priv,
++static int rtk_drm_vowb_run_cmd_get_addrs(struct device *dev, struct drm_file *file_priv,
+ 					  struct rtk_drm_vowb_run_cmd *arg,
+-					  dma_addr_t addrs[11])
++					  dma_addr_t addrs[11],
++					  struct rtk_drm_vowb_func2_data *func2)
+ {
+ 	int ret = 0;
+ 
+-	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.src_handle, arg->pic.y_offset,
+-						 &addrs[0]);
++	/* Attach src_handle to vowb device for cache sync */
++	ret = rtk_drm_vowb_attach_and_get_sgt(dev, file_priv, arg->pic.src_handle,
++					       &addrs[0], &func2->src);
+ 	if (ret)
+ 		goto exit;
++	addrs[0] += arg->pic.y_offset;
+ 
+-	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.src_handle, arg->pic.c_offset,
+-						 &addrs[1]);
+-	if (ret)
+-		goto exit;
++	/* Calculate chroma address */
++	addrs[1] = addrs[0] + arg->pic.c_offset - arg->pic.y_offset;
+ 
+-	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.wb_handle, arg->pic.wb_y_offset,
+-						 &addrs[2]);
++	/* Attach wb_handle to vowb device for cache sync */
++	ret = rtk_drm_vowb_attach_and_get_sgt(dev, file_priv, arg->pic.wb_handle,
++					       &addrs[2], &func2->wb);
+ 	if (ret)
+ 		goto exit;
++	addrs[2] += arg->pic.wb_y_offset;
+ 
+-	ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.wb_handle, arg->pic.wb_c_offset,
+-						 &addrs[3]);
+-	if (ret)
+-		goto exit;
++	/* Calculate chroma address */
++	addrs[3] = addrs[2] + arg->pic.wb_c_offset - arg->pic.wb_y_offset;
+ 
+ 	if (arg->pic.luma_off_tbl_addr)
+ 		addrs[4] = (dma_addr_t)arg->pic.luma_off_tbl_addr;
+@@ -1158,35 +1249,34 @@ static int rtk_drm_vowb_run_cmd_get_addrs(struct drm_file *file_priv,
+ 		addrs[5] = -1L;
+ 
+ 	addrs[6] = -1L;
+-	if (arg->pic.sub_enable) {
+-		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.sub_handle,
+-						 arg->pic.sub_offset, &addrs[6]);
++	if (arg->pic.sub_enable && arg->pic.sub_handle) {
++		ret = rtk_drm_vowb_attach_and_get_sgt(dev, file_priv, arg->pic.sub_handle,
++						       &addrs[6], &func2->sub);
+ 		if (ret)
+ 			goto exit;
++		addrs[6] += arg->pic.sub_offset;
+ 	}
+ 
+ 	if (arg->pic.prev_handle) {
+-		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.prev_handle,
+-						 arg->pic.prev_y_offset, &addrs[7]);
++		ret = rtk_drm_vowb_attach_and_get_sgt(dev, file_priv, arg->pic.prev_handle,
++						       &addrs[7], &func2->prev);
+ 		if (ret)
+ 			goto exit;
++		addrs[7] += arg->pic.prev_y_offset;
+ 
+-		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.prev_handle,
+-						 arg->pic.prev_c_offset, &addrs[8]);;
+-		if (ret)
+-			goto exit;
++		/* Calculate chroma address */
++		addrs[8] = addrs[7] + arg->pic.prev_c_offset - arg->pic.prev_y_offset;
+ 	}
+ 
+ 	if (arg->pic.next_handle) {
+-		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.next_handle,
+-						 arg->pic.next_y_offset, &addrs[9]);
++		ret = rtk_drm_vowb_attach_and_get_sgt(dev, file_priv, arg->pic.next_handle,
++						       &addrs[9], &func2->next);
+ 		if (ret)
+ 			goto exit;
++		addrs[9] += arg->pic.next_y_offset;
+ 
+-		ret = rtk_drm_vowb_handle_to_addr_offset(file_priv, arg->pic.next_handle,
+-						 arg->pic.next_c_offset, &addrs[10]);
+-		if (ret)
+-			goto exit;
++		/* Calculate chroma address */
++		addrs[10] = addrs[9] + arg->pic.next_c_offset - arg->pic.next_y_offset;
+ 	}
+ 
+ exit:
+@@ -1253,6 +1343,7 @@ static int rtk_drm_vowb_verify_args(struct rtk_drm_vowb *vowb, struct rtk_drm_vo
+ int rtk_drm_vowb_run_cmd(struct drm_device *dev, void *data, struct drm_file *file_priv)
+ {
+ 	struct rtk_drm_vowb *vowb = ((struct rtk_drm_private *)dev->dev_private)->vowb;
++	struct rtk_drm_vowb_func2_data *func2 = &vowb->func2_data;
+ 	struct rtk_drm_vowb_run_cmd *arg = data;
+ 	struct video_transcode_picture_object cmd = {};
+ 	dma_addr_t addrs[11] = {};
+@@ -1266,12 +1357,34 @@ int rtk_drm_vowb_run_cmd(struct drm_device *dev, void *data, struct drm_file *fi
+ 		return ret;
+ 
+ 	spin_lock_irqsave(&vowb->lock, flags1);
+-	ret = rtk_drm_vowb_run_cmd_get_addrs(file_priv, arg, addrs);
++	ret = rtk_drm_vowb_run_cmd_get_addrs(vowb->pd_dev, file_priv, arg, addrs, func2);
+ 	spin_unlock_irqrestore(&vowb->lock, flags1);
+ 	if (ret)
+ 		return ret;
+ 
+ 	emit_job_id = (u64)atomic64_inc_return(&vowb->emit_job_id);
++
++	/* Store wb_handle for cache sync when job completes */
++	func2->job.wb_handle = arg->pic.wb_handle;
++	func2->file_priv = file_priv;
++
++	/* Sync source buffers for FW to read (CPU -> device) */
++	if (func2->src.sgt && func2->src.sgt->nents)
++		dma_sync_sg_for_device(vowb->pd_dev, func2->src.sgt->sgl,
++				       func2->src.sgt->nents, DMA_TO_DEVICE);
++
++	if (func2->sub.sgt && func2->sub.sgt->nents)
++		dma_sync_sg_for_device(vowb->pd_dev, func2->sub.sgt->sgl,
++				       func2->sub.sgt->nents, DMA_TO_DEVICE);
++
++	if (func2->prev.sgt && func2->prev.sgt->nents)
++		dma_sync_sg_for_device(vowb->pd_dev, func2->prev.sgt->sgl,
++				       func2->prev.sgt->nents, DMA_TO_DEVICE);
++
++	if (func2->next.sgt && func2->next.sgt->nents)
++		dma_sync_sg_for_device(vowb->pd_dev, func2->next.sgt->sgl,
++				       func2->next.sgt->nents, DMA_TO_DEVICE);
++
+ 	func2_inband_cmd_video_transcode_picture_object(vowb->tx.rpdev, &cmd, &arg->pic, addrs,
+ 							emit_job_id);
+ 
+@@ -1361,6 +1474,7 @@ static int rtk_vowb_bind(struct device *dev, struct device *master, void *data)
+ 	if (!vowb)
+ 		return -ENOMEM;
+ 	vowb->dev = drm;
++	vowb->pd_dev = dev;
+ 	vowb->quirks = of_device_get_match_data(dev);
+ 	if (!vowb->quirks) {
+ 		dev_err(dev, "failed to get vowb device data\n");
+diff --git a/drivers/gpu/drm/realtek/rtk_drm_vowb_job.h b/drivers/gpu/drm/realtek/rtk_drm_vowb_job.h
+index de4748efd445..ed944c5ddfa3 100644
+--- a/drivers/gpu/drm/realtek/rtk_drm_vowb_job.h
++++ b/drivers/gpu/drm/realtek/rtk_drm_vowb_job.h
+@@ -15,6 +15,7 @@ struct rtk_drm_vowb_job {
+ 	ktime_t time;
+ 	void (*job_done_cb)(struct rtk_drm_vowb *vowb, struct rtk_drm_vowb_job *job);
+ 	u32 status;
++	u32 wb_handle;  /* writeback handle for cache sync */
+ };
+ 
+ #endif
+-- 
+2.34.1
+

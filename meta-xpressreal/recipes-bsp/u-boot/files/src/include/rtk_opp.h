@@ -4,7 +4,7 @@
 #define RTK_OPP_OKAY     (0)
 #define RTK_OPP_ERROR    (-1)
 
-#define RTK_OPP_MAX_ENTRIES  (12)
+#define RTK_OPP_MAX_ENTRIES  (20)
 
 struct rtk_opp_entry {
 	int f;
@@ -16,7 +16,8 @@ struct rtk_opp_param {
 	int max;
 	int min;
 	int round;
-	int step;
+	int step; // extrapolation for lower frequency
+	int step_h; // extrapolation for higher frequency
 	int num_correct;
 	int correct[RTK_OPP_MAX_ENTRIES];
 };
@@ -27,12 +28,21 @@ struct rtk_opp_data {
 	struct rtk_opp_param  param;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int rtk_opp_mark_fdt_updated(void *fdt, const char *name);
+int rtk_opp_get_fdt_table_offset(void *fdt);
 int rtk_opp_update_fdt_table(void *fdt, const char *name, struct rtk_opp_data *data);
 int rtk_opp_get_fdt_param(void *fdt,  const char *name, struct rtk_opp_param *param);
 
 int rtk_opp_init_data(struct rtk_opp_data *data);
 int rtk_opp_add_entry(struct rtk_opp_data *data, int f, int v);
 int rtk_opp_evaluate_voltage(struct rtk_opp_data *data, int freq);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

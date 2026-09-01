@@ -1,0 +1,12 @@
+[Unit]
+Description=Check Realtek firmware logs for rotation
+Requires=rtk-fwlog-prepare.service
+After=rtk-fwlog-prepare.service
+PartOf=rtk-fwlog.target
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

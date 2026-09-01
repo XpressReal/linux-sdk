@@ -1,0 +1,87 @@
+From 98d1190194a887135c388215e471885c89f1723d Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Thu, 27 Aug 2026 22:54:55 -0400
+Subject: [PATCH] adjust tv mode setting flow
+
+License: MIT
+Source: Realtek
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ libweston/backend-drm/modes.c | 25 +++++++++++++++----------
+ 1 file changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/libweston/backend-drm/modes.c b/libweston/backend-drm/modes.c
+index 605fbdd..b517980 100644
+--- a/libweston/backend-drm/modes.c
++++ b/libweston/backend-drm/modes.c
+@@ -662,11 +662,19 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	int32_t max_width = 0;
+ 	int32_t max_height = 0;
+ 	char interlace[64] = {0};
++	char name[16] = "\0";
+ 
+ 	if (mode == WESTON_DRM_BACKEND_OUTPUT_PREFERRED && modeline) {
+-		n = sscanf(modeline, "%dx%d@%f%s %u:%u", &width, &height,
+-			   &refresh, interlace, &aspect_width, &aspect_height);
+-		if (device->aspect_ratio_supported && n == 5) {
++		sscanf(modeline, "%12[^@]", name);
++
++		n = sscanf(modeline, "%dx%d%[^@]@%f %u:%u", &width, &height,
++				interlace, &refresh, &aspect_width, &aspect_height);
++
++		if (n == 2)
++			n = sscanf(modeline, "%dx%d@%f %u:%u", &width, &height,
++				&refresh, &aspect_width, &aspect_height);
++
++		if (device->aspect_ratio_supported && n >= 5) {
+ 			if (aspect_width == 4 && aspect_height == 3)
+ 				aspect_ratio = WESTON_MODE_PIC_AR_4_3;
+ 			else if (aspect_width == 16 && aspect_height == 9)
+@@ -679,7 +687,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 				weston_log("Invalid modeline \"%s\" for output %s\n",
+ 					   modeline, output->base.name);
+ 		}
+-		if (n != 2 && n != 3 && n != 4 && n != 5) {
++		if (n < 2) {
+ 			width = -1;
+ 
+ 			if (parse_modeline(modeline, &drm_modeline) == 0) {
+@@ -694,8 +702,7 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 	}
+ 
+ 	wl_list_for_each_reverse(drm_mode, &output->base.mode_list, base.link) {
+-		if (width == drm_mode->base.width &&
+-		    height == drm_mode->base.height) {
++		if (!strcmp(name, drm_mode->mode_info.name)) {
+ 			int match_scan = false;
+ 			int match_fps = false;
+ 			int mode_refresh = (drm_mode->base.refresh + 5) / 10;
+@@ -709,14 +716,12 @@ drm_output_choose_initial_mode(struct drm_device *device,
+ 				} else {
+ 					match_scan = false;
+ 				}
+-			} else if (strncmp(interlace, "p", strlen("p")) == 0){
++			} else {
+ 				if ((drm_mode->mode_info.flags & DRM_MODE_FLAG_INTERLACE) == 0) {
+ 					match_scan = true;
+ 				} else {
+ 					match_scan = false;
+ 				}
+-			} else {
+-				match_scan = true;
+ 			}
+ 
+ 			if (match_scan == true && match_fps == true && (!device->aspect_ratio_supported ||
+@@ -833,7 +838,7 @@ drm_mode_pick_equivalent(const drmModeModeInfo *a, const drmModeModeInfo *b)
+ 
+ 	refresh_a = drm_refresh_rate_mHz(a);
+ 	refresh_b = drm_refresh_rate_mHz(b);
+-	if (u32distance(refresh_a, refresh_b) > 50)
++	if (u32distance(refresh_a, refresh_b) > 20)
+ 		return NULL;
+ 
+ 	if ((a->type ^ b->type) & DRM_MODE_TYPE_PREFERRED) {
+-- 
+2.34.1
+

@@ -142,6 +142,7 @@
 		opp1200: opp-1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
 			opp-microvolt = <900000>;
+			opp-microvolt-fss = <0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -149,6 +150,7 @@
 		opp1600: opp-1600000000 {
 			opp-hz = /bits/ 64 <1600000000>;
 			opp-microvolt = <1000000>;
+			opp-microvolt-fss = <0>;
 			clock-latency-ns = <150000>;
 			opp-suspend;
 			status = "okay";
@@ -157,6 +159,7 @@
 		opp1800: opp-1800000000 {
 			opp-hz = /bits/ 64 <1800000000>;
 			opp-microvolt = <1050000>;
+			opp-microvolt-fss = <0>;
 			clock-latency-ns = <150000>;
 			status = "okay";
 		};
@@ -208,4 +211,14 @@
 
 &reboot_mode {
 	status = "okay";
+};
+
+&{/} {
+	cpu-dvfs {
+		fss-opp-updated = <0>;
+		fss-volt-correct = <100000>;
+		fss-volt-step = <10000>;
+		fss-volt-min = <750000>;
+		fss-volt-max = <1100000>;
+	};
 };

@@ -2,6 +2,8 @@ From 0ca3308edefa3e23274b9614b74722bf0133392c Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 27 Oct 2025 19:29:07 +0800
 Subject: [PATCH 1/1] Fix EOS flush running during resolution change event
+Source: Realtek
+License: LGPL-2.1-or-later
  dispatch
 Upstream-Status: Inappropriate [rtk specific]
 

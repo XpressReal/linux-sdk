@@ -1,0 +1,83 @@
+From ff66d7b3f1d65f0840ae0dd4d6c146e939707753 Mon Sep 17 00:00:00 2001
+From: TY Chang <tychang@realtek.com>
+Date: Wed, 5 Nov 2025 14:08:54 +0800
+Subject: [PATCH 25/33] pinctrl: realtek: refactor driver to match upstream
+ version
+
+Change-Id: Id6795047181e2ae0537f4b460810da2a245df915
+---
+ drivers/pinctrl/realtek/Kconfig  | 39 ++++++++++++++++++++++++++++----
+ drivers/pinctrl/realtek/Makefile | 11 ++++++++-
+ 2 files changed, 45 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/pinctrl/realtek/Kconfig b/drivers/pinctrl/realtek/Kconfig
+index 17c9263bb8907..001e891d4f6c9 100644
+--- a/drivers/pinctrl/realtek/Kconfig
++++ b/drivers/pinctrl/realtek/Kconfig
+@@ -1,12 +1,43 @@
++# SPDX-License-Identifier: GPL-2.0-or-later
+ 
+ config PINCTRL_RTD
+-	tristate "Realtek DHC pin controller driver"
++	tristate "Realtek DHC core pin controller driver"
+ 	depends on ARCH_REALTEK
+ 	default y
+ 	select PINMUX
+ 	select GENERIC_PINCONF
+ 
+-config PINCTRL_RTD_SELFTEST
+-	bool "Realtek DHC pin controller driver self test"
++config PINCTRL_RTD1295
++	tristate "Realtek DHC 1295 pin controller driver"
+ 	depends on PINCTRL_RTD
+-	default n
++	default y
++
++config PINCTRL_RTD1319
++	tristate "Realtek DHC 1319 pin controller driver"
++	depends on PINCTRL_RTD
++	default y
++
++config PINCTRL_RTD1619B
++	tristate "Realtek DHC 1619B pin controller driver"
++	depends on PINCTRL_RTD
++	default y
++
++config PINCTRL_RTD1319D
++	tristate "Realtek DHC 1319D pin controller driver"
++	depends on PINCTRL_RTD
++	default y
++
++config PINCTRL_RTD1325
++	tristate "Realtek DHC 1325 pin controller driver"
++	depends on PINCTRL_RTD
++	default y
++
++config PINCTRL_RTD1625
++	tristate "Realtek DHC 1625 pin controller driver"
++	depends on PINCTRL_RTD
++	default y
++
++config PINCTRL_RTD1635
++	tristate "Realtek DHC 1635 pin controller driver"
++	depends on PINCTRL_RTD
++	default y
+diff --git a/drivers/pinctrl/realtek/Makefile b/drivers/pinctrl/realtek/Makefile
+index d6b5bf1394d6b..f8f709a206fca 100644
+--- a/drivers/pinctrl/realtek/Makefile
++++ b/drivers/pinctrl/realtek/Makefile
+@@ -1 +1,10 @@
+-obj-$(CONFIG_PINCTRL_RTD)		+= pinctrl-rtd.o
++# SPDX-License-Identifier: GPL-2.0-or-later
++# Realtek DHC pin control drivers
++obj-$(CONFIG_PINCTRL_RTD)			+= pinctrl-rtd.o
++obj-$(CONFIG_PINCTRL_RTD1295)		+= pinctrl-rtd1295.o
++obj-$(CONFIG_PINCTRL_RTD1319)		+= pinctrl-rtd1319.o
++obj-$(CONFIG_PINCTRL_RTD1619B)		+= pinctrl-rtd1619b.o
++obj-$(CONFIG_PINCTRL_RTD1319D)		+= pinctrl-rtd1319d.o
++obj-$(CONFIG_PINCTRL_RTD1325)		+= pinctrl-rtd1325.o
++obj-$(CONFIG_PINCTRL_RTD1625)		+= pinctrl-rtd1625.o
++obj-$(CONFIG_PINCTRL_RTD1635)		+= pinctrl-rtd1635.o
+-- 
+2.47.0
+

@@ -1,0 +1,58 @@
+diff --git a/rtl8822be/os_dep/linux/ioctl_cfg80211.c b/rtl8822be/os_dep/linux/ioctl_cfg80211.c
+index fcfc13dc..b8b0bd3b 100644
+--- a/rtl8822be/os_dep/linux/ioctl_cfg80211.c
++++ b/rtl8822be/os_dep/linux/ioctl_cfg80211.c
+@@ -427,6 +427,9 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
+ {
+ 	struct wiphy *wiphy = adapter_to_wiphy(adapter);
+ 	u8 ret = _SUCCESS;
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2))
++	unsigned int link_id = 0;
++#endif
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct cfg80211_chan_def chdef;
+@@ -441,7 +444,9 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+ 	if (started) {
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 9, 0))
++		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, link_id, 0, false);
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 144))
+ 		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, punct_bitmap);
+ #else
+@@ -470,7 +475,9 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
+ 	if (!rtw_cfg80211_allow_ch_switch_notify(adapter))
+ 		goto exit;
+ 
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 9, 0))
++	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, link_id);
++#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)) || defined(CONFIG_MLD_KERNEL_PATCH)
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 144))
+ 	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, punct_bitmap);
+ #else
+@@ -5339,10 +5346,20 @@ exit:
+ }
+ 
+ static int cfg80211_rtw_change_beacon(struct wiphy *wiphy, struct net_device *ndev,
+-		struct cfg80211_beacon_data *info)
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
++				      struct cfg80211_ap_update *param
++#else
++				      struct cfg80211_beacon_data *param
++#endif
++)
+ {
+ 	int ret = 0;
+ 	_adapter *adapter = (_adapter *)rtw_netdev_priv(ndev);
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
++	struct cfg80211_beacon_data *info = &param->beacon;
++#else
++	struct cfg80211_beacon_data *info = param;
++#endif
+ 
+ 	RTW_INFO(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
+ 

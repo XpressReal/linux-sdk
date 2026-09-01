@@ -2,7 +2,17 @@ From 4be8fae3ffb35f14400b6e484d58af6b8cb47810 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Fri, 20 Dec 2024 20:03:17 +0800
 Subject: [PATCH 3/3] [UPSTREAM] passing HDR10 information
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Backport
+
+when playing some codec such as matroska with vp9 codec,
+demuxer will save information like video_mastering_display_info
+and video_content_light_level in caps that decoder need,
+v4l2videodecoder can use it by calling V4L2_CTRL_CLASS_COLORIMETRY
+ioctl.
+
+Part-of: <https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/4403>
 ---
  sys/v4l2/gstv4l2object.c | 93 ++++++++++++++++++++++++++++++++++++++++
  1 file changed, 93 insertions(+)

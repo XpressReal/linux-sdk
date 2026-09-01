@@ -29,4 +29,8 @@ SRC_URI:append = " \
     file://0026-Fix-IS_MUTABLE-structure-issue.patch \
     file://0027-Supports-Sorenson-Spark-Codec.patch \
     file://0028-Avoid-advertising-empty-invalid-AVC-codec_data-in-ca.patch \
+    file://0029-splitmuxsink-needs-to-be-reset-during-seek.patch \
+    file://0030-OPC-19-add-extra-buffer-for-dprx-feature.patch \
+    file://0031-Reject-high-bit-depth-HDR-input-formats-for-v4l2enco.patch \
+    file://0032-v4l2-set-copy_threshold-0-to-avoid-buffer-copying.patch \
     "

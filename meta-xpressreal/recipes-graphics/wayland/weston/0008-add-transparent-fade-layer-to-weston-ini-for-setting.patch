@@ -5,6 +5,8 @@ Subject: [PATCH] add transparent-fade-layer to weston ini for setting
  transparent fade layer
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  compositor/main.c             | 1 +
  desktop-shell/shell.c         | 8 ++++++++

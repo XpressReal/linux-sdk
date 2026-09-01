@@ -2,6 +2,8 @@ From 147e4bab8390102241b5043d7039180f80c9f3a7 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 26 Nov 2025 18:22:09 +0800
 Subject: [PATCH 1/1] Avoid advertising empty/invalid AVC codec_data in caps
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

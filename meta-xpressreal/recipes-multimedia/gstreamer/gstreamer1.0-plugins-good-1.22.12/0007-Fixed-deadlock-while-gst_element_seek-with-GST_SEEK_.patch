@@ -2,6 +2,8 @@ From 39720e0788fd26ae91cdf81def4d93128734ed85 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Thu, 20 Mar 2025 16:33:21 +0800
 Subject: [PATCH 1/1] Fixed deadlock while gst_element_seek with GST_SEEK_FLAG_FLUSH
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 [What] Pipeline got stuck while using gst_element_seek() with GST_SEEK_FLAG_FLUSH

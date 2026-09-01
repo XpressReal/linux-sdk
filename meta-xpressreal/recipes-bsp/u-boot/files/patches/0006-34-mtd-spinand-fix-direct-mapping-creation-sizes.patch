@@ -1,0 +1,51 @@
+From e74f706334e8f559c2f8de8b58612a1df645f806 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 30 Sep 2025 03:21:07 +0300
+Subject: [PATCH 34/38] mtd: spinand: fix direct mapping creation sizes
+
+Continuous mode is only supported for data reads, thus writing
+requires only single flash page mapping.
+
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Signed-off-by: Michael Trimarchi <michael@amarulasolutions.com>
+---
+ drivers/mtd/nand/spi/core.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index b3d53e234b7..69dbdd60a6a 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1118,18 +1118,13 @@ static int spinand_create_dirmap(struct spinand_device *spinand,
+ 				 unsigned int plane)
+ {
+ 	struct nand_device *nand = spinand_to_nand(spinand);
+-	struct spi_mem_dirmap_info info = {
+-		.length = nanddev_page_size(nand) +
+-			  nanddev_per_page_oobsize(nand),
+-	};
++	struct spi_mem_dirmap_info info = { 0 };
+ 	struct spi_mem_dirmap_desc *desc;
+ 
+-	if (spinand->cont_read_possible)
+-		info.length = nanddev_eraseblock_size(nand);
+-
+ 	/* The plane number is passed in MSB just above the column address */
+ 	info.offset = plane << fls(nand->memorg.pagesize);
+ 
++	info.length = nanddev_page_size(nand) + nanddev_per_page_oobsize(nand);
+ 	info.op_tmpl = *spinand->op_templates.update_cache;
+ 	desc = spi_mem_dirmap_create(spinand->slave, &info);
+ 	if (IS_ERR(desc))
+@@ -1137,6 +1132,8 @@ static int spinand_create_dirmap(struct spinand_device *spinand,
+ 
+ 	spinand->dirmaps[plane].wdesc = desc;
+ 
++	if (spinand->cont_read_possible)
++		info.length = nanddev_eraseblock_size(nand);
+ 	info.op_tmpl = *spinand->op_templates.read_cache;
+ 	desc = spi_mem_dirmap_create(spinand->slave, &info);
+ 	if (IS_ERR(desc)) {
+-- 
+2.47.0
+

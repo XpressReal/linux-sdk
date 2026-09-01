@@ -1,0 +1,19 @@
+config RUNTIME_DEVICE_SELECTOR
+	tristate "Runtime device selector Driver"
+	depends on I2C
+	depends on OF
+	help
+	  This driver would probe devices base on runtime results.
+
+	  If not sure, say N.
+
+config REGULATOR_SUPPLY_ALIAS
+	tristate "Regulator supply alias Driver"
+	depends on OF
+	depends on REGULATOR
+	default n
+	help
+	  This driver provdes a simple approach for supporting dynamic
+	  selection to regulator devices.
+
+	  If not sure, say N.

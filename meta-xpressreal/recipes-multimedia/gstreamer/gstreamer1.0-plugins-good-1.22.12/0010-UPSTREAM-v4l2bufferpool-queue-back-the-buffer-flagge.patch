@@ -1,8 +1,9 @@
 From fdb05ba68fad3323057c909a471afc6fa7afb2dc Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 14 Apr 2025 13:57:47 +0800
-Subject: [PATCH 1/1] v4l2bufferpool: queue back the buffer flagged LAST but
- empty
+Subject: [PATCH 1/1] v4l2bufferpool: queue back the buffer flagged LAST but empty
+Source: gst-plugins-good
+License: LGPL-2.1-or-later
 Upstream-Status: Backport
 
 Some decoder drivers need to wait enough capture buffers before
@@ -11,6 +12,8 @@ has no chance to queue back to driver, which makes decode hang
 after seek. So need to queue back such kind of buffer to driver.
 The buffer would fail at gst_v4l2_is_buffer_valid() before,
 since it has a reference on it, it is not writable.
+
+Part-of: <https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/6579>
 ---
  sys/v4l2/gstv4l2bufferpool.c | 15 +++++++++------
  1 file changed, 9 insertions(+), 6 deletions(-)

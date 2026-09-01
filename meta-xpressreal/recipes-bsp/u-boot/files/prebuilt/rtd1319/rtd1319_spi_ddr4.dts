@@ -6,7 +6,7 @@
 	#size-cells = <1>;
 
 	binman {
-		filename = "bind.bin";
+		filename = "rtd1319_spi_bind.bin";
 		allow-repack;
 		section@1 {
 			/* 640KB: 256k(u-boot-env),384(u-boot-spl)ro */

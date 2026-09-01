@@ -1,0 +1,50 @@
+From b06a1785b2bbe489a634e3158f82f93491a84328 Mon Sep 17 00:00:00 2001
+From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+Date: Tue, 20 Jan 2026 01:33:05 +0300
+Subject: [PATCH] mtd: mtdpart: fix partitions searching
+
+mtdpart internally enumerate partitions starting from zero, but partition
+driver API enumerate partitions starting from 1, so wrong partition will
+be queried. This is wrong.
+
+Unnecessary debug message also was removed.
+
+Fixes: c29a6daec184 ("disk: support MTD partitions")
+Signed-off-by: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+---
+ drivers/mtd/mtdpart.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mtd/mtdpart.c b/drivers/mtd/mtdpart.c
+index 842d3e7274e..f3b7f1ee13c 100644
+--- a/drivers/mtd/mtdpart.c
++++ b/drivers/mtd/mtdpart.c
+@@ -1061,13 +1061,13 @@ EXPORT_SYMBOL_GPL(mtd_get_device_size);
+ static struct mtd_info *mtd_get_partition_by_index(struct mtd_info *mtd, int index)
+ {
+ 	struct mtd_info *part;
+-	int i = 0;
++	int i = 1;
+ 
++	/* partition indexes starts from 1 */
+ 	list_for_each_entry(part, &mtd->partitions, node)
+ 		if (i++ == index)
+ 			return part;
+ 
+-	debug("Partition with idx=%d not found on MTD device %s\n", index, mtd->name);
+ 	return NULL;
+ }
+ 
+@@ -1084,7 +1084,8 @@ static int __maybe_unused part_get_info_mtd(struct blk_desc *dev_desc, int part_
+ 
+ 	part = mtd_get_partition_by_index(master, part_idx);
+ 	if (!part) {
+-		debug("Failed to find partition with idx=%d\n", part_idx);
++		debug("Failed to find partition with idx=%d on MTD device %s\n",
++		      part_idx, master->name);
+ 		return -EINVAL;
+ 	}
+ 
+-- 
+2.47.0
+

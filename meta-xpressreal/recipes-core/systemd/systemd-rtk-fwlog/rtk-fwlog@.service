@@ -1,0 +1,18 @@
+[Unit]
+Description=Realtek firmware log collector for /dev/%i
+ConditionPathExists=/dev/%i
+Requires=rtk-fwlog-prepare.service
+After=rtk-fwlog-prepare.service
+PartOf=rtk-fwlog.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/bin/cat /dev/%i
+StandardOutput=append:/run/rtk-fwlog/log/%i.log
+StandardError=journal
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

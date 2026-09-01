@@ -2023,15 +2023,14 @@ static int vpu_resume(struct device *pdev)
 	u32 remap_size;
 	u32 hwOption  = 0;
 
-	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
+	if (s_vpu_open_ref_count > 0) {
+		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
 
-		if (s_bit_firmware_info[core].size == 0) {
-			continue;
-		}
+			if (s_bit_firmware_info[core].size == 0) {
+				continue;
+			}
 
-		product_code = ReadVpuRegister(VPU_PRODUCT_CODE_REGISTER, core);
-
-		{
+			product_code = ReadVpuRegister(VPU_PRODUCT_CODE_REGISTER, core);
 
 			WriteVpuRegister(BIT_CODE_RUN, 0, core);
 
@@ -2052,9 +2051,7 @@ static int vpu_resume(struct device *pdev)
 				if (time_after(jiffies, timeout))
 					goto DONE_WAKEUP;
 			}
-
 		}
-
 	}
 #endif /* end of DISABLE_ORIGIN_SUSPEND */
 

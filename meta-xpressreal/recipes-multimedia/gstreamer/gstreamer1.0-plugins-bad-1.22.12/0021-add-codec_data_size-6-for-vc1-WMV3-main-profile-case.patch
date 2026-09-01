@@ -2,6 +2,8 @@ From f45be100084d6035c2934fc562210a7d07d53eb7 Mon Sep 17 00:00:00 2001
 From: hayward_ling <hayward_ling@realtek.com>
 Date: Fri, 19 Sep 2025 18:29:25 +0800
 Subject: [PATCH] add codec_data_size 6 for vc1 MV3 main profile case
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

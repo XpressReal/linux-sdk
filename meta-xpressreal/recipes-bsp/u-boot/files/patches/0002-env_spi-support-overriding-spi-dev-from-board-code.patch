@@ -1,0 +1,69 @@
+From 7d84ad1da0e32f4525cee9b35bc5a4f3b5585ed8 Mon Sep 17 00:00:00 2001
+From: Venkatesh Yadav Abbarapu <venkatesh.abbarapu@amd.com>
+Date: Fri, 14 Jun 2024 18:18:10 +0530
+Subject: [PATCH] env_spi: support overriding spi dev from board code
+
+This enables boards to choose where to/from the environment
+should be saved/loaded. They can then for example support using
+the same device (dynamically) from which the bootloader was
+launched to load and save env data and do not have to
+define CONFIG_ENV_SPI_BUS statically.
+
+In my use case, the environment needs to be on the same device I
+booted from. It can be the QSPI or OSPI device.
+I therefore would override spi_get_env_dev in the board code,
+read the bootmode registers to determine where we booted from
+and return the corresponding device index.
+
+Signed-off-by: Venkatesh Yadav Abbarapu <venkatesh.abbarapu@amd.com>
+Link: https://lore.kernel.org/r/20240614124811.22945-2-venkatesh.abbarapu@amd.com
+Signed-off-by: Michal Simek <michal.simek@amd.com> # Move spi_get_env_dev to sf.c
+---
+ env/sf.c      | 12 +++++++++++-
+ include/spi.h |  2 ++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/env/sf.c b/env/sf.c
+index c747e175e31..906b85b0db4 100644
+--- a/env/sf.c
++++ b/env/sf.c
+@@ -38,14 +38,24 @@ static ulong env_new_offset	= CONFIG_ENV_OFFSET_REDUND;
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++__weak int spi_get_env_dev(void)
++{
++#ifdef CONFIG_ENV_SPI_BUS
++	return CONFIG_ENV_SPI_BUS;
++#else
++	return 0;
++#endif
++}
++
+ static int setup_flash_device(struct spi_flash **env_flash)
+ {
+ #if CONFIG_IS_ENABLED(DM_SPI_FLASH)
+ 	struct udevice *new;
+ 	int	ret;
++	int dev = spi_get_env_dev();
+ 
+ 	/* speed and mode will be read from DT */
+-	ret = spi_flash_probe_bus_cs(CONFIG_ENV_SPI_BUS, CONFIG_ENV_SPI_CS,
++	ret = spi_flash_probe_bus_cs(dev, CONFIG_ENV_SPI_CS,
+ 				     &new);
+ 	if (ret) {
+ 		env_set_default("spi_flash_probe_bus_cs() failed", 0);
+diff --git a/include/spi.h b/include/spi.h
+index 7e38cc2a2ad..9e9851284c8 100644
+--- a/include/spi.h
++++ b/include/spi.h
+@@ -743,4 +743,6 @@ int dm_spi_get_mmap(struct udevice *dev, ulong *map_basep, uint *map_sizep,
+ #define spi_get_ops(dev)	((struct dm_spi_ops *)(dev)->driver->ops)
+ #define spi_emul_get_ops(dev)	((struct dm_spi_emul_ops *)(dev)->driver->ops)
+ 
++int spi_get_env_dev(void);
++
+ #endif	/* _SPI_H_ */
+-- 
+2.47.0
+

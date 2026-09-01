@@ -617,7 +617,7 @@ static int rtd1619b_hifi_poweron(struct rtk_fw_rproc *rtk_rproc)
 		dev_err(rtk_rproc->dev, "Timeout waiting for 'done' bit in ISO_HIFI0_SRAM_PWR5\n");
 	}
 
-	regmap_write(rtk_rproc->ve3_regmap, ISO_HIFI0_SRAM_PWR5, BIT(2));
+	regmap_write(rtk_rproc->iso_regmap, ISO_HIFI0_SRAM_PWR5, BIT(2));
 
 	ret = regmap_update_bits(rtk_rproc->iso_regmap, ISO_POWER_CTRL, BIT(13), 0x0);
 	if (ret) {
@@ -1167,6 +1167,7 @@ static const struct rtk_fw_info rtd1619b_hifi_info = {
 	.smc_fid = SMC_CMD_RTD1619B_LOAD,
 	.cert_type = 0xff0a,
 	.ops = &rtd1619b_hifi_ops,
+	.pm_ops = &rtd1619b_pm_ops,
 	.log = &hifi_log_info,
 	.get_resource = &rtd1619b_hifi_get_resource,
 };

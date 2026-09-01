@@ -1,0 +1,17 @@
+Realtek Autoread dt-bindings
+=====================================
+
+Required properties:
+- compatible: "realtek,autoread"
+- reg: address range of autoread
+- ina_type: specifies the INA device type used. For example, use <226> for ina226, <231> for ina231
+
+Example:
+
+soc {
+	autoread: autoread@c00 {
+		compatible = "realtek,autoread";
+		reg = <0xc00 0x100>;
+		ina_type = <231>;
+	};
+};

@@ -65,7 +65,7 @@ static struct irq_chip rtd_pcie_msi_irq_chip = {
 };
 
 static struct msi_domain_info rtd_pcie_msi_domain_info = {
-	.flags	= (MSI_FLAG_USE_DEF_DOM_OPS | MSI_FLAG_USE_DEF_CHIP_OPS | MSI_FLAG_MULTI_PCI_MSI),
+	.flags	= (MSI_FLAG_USE_DEF_DOM_OPS | MSI_FLAG_USE_DEF_CHIP_OPS | MSI_FLAG_MULTI_PCI_MSI | MSI_FLAG_PCI_MSIX),
 	.chip	= &rtd_pcie_msi_irq_chip,
 };
 
@@ -76,6 +76,24 @@ irqreturn_t rtd_handle_mac_msi_irq(struct rtd_pcie_port *pp)
 	unsigned long val;
 	u32 status, num_ctrls;
 	irqreturn_t ret = IRQ_NONE;
+	u32 gnr = readl(pp->ctrl_base + DVR_GNR_INT);
+
+	if (gnr & BIT(S_INTP_CFG_AER_RC_MSI)) {
+		/*
+		 * DVR_GNR_INT is read-only status; it deasserts automatically
+		 * once PCIE_AER_MSI_STATUS is cleared.  PCIE_AER_MSI_STATUS can
+		 * only be cleared after PCI Root Error Status is 0, so dispatch
+		 * the Root Port's MSI IRQ first so aer_irq clears Root Error
+		 * Status.
+		 */
+		if (pp->rc_msi_hwirq != ULONG_MAX) {
+			irq = irq_find_mapping(pp->msi_irq_domain, pp->rc_msi_hwirq);
+			if (irq)
+				generic_handle_irq(irq);
+		}
+		writel(BIT(0), pp->ctrl_base + PCIE_AER_MSI_STATUS);
+		ret = IRQ_HANDLED;
+	}
 
 	num_ctrls = RTK_MAX_MSI_IRQS / RTK_MAX_MSI_IRQS_PER_CTRL;
 
@@ -90,7 +108,7 @@ irqreturn_t rtd_handle_mac_msi_irq(struct rtd_pcie_port *pp)
 		pos = 0;
 		while ((pos = find_next_bit(&val, RTK_MAX_MSI_IRQS_PER_CTRL,
 					    pos)) != RTK_MAX_MSI_IRQS_PER_CTRL) {
-			irq = irq_find_mapping(pp->irq_domain,
+			irq = irq_find_mapping(pp->msi_irq_domain,
 					       (i * RTK_MAX_MSI_IRQS_PER_CTRL) +
 					       pos);
 			generic_handle_irq(irq);
@@ -100,6 +118,28 @@ irqreturn_t rtd_handle_mac_msi_irq(struct rtd_pcie_port *pp)
 
 	return ret;
 }
+
+/* MSI int handler */
+irqreturn_t rtd_handle_intx_irq(struct rtd_pcie_port *pp)
+{
+	int pos, irq;
+	u32 status;
+	unsigned long val;
+
+	status = readl(pp->ctrl_base + DVR_PCIE_INT);
+	if (!status)
+		return IRQ_NONE;
+	pos = 0;
+	val = status;
+	while ((pos = find_next_bit(&val, PCI_NUM_INTX, pos)) != PCI_NUM_INTX) {
+		irq = irq_find_mapping(pp->intx_irq_domain, pos);
+		generic_handle_irq(irq);
+		pos++;
+	}
+
+	return IRQ_HANDLED;
+}
+
 
 irqreturn_t rtd13xx_handle_wrapper_msi_irq(int this_irq, void *devid)
 {
@@ -115,7 +155,7 @@ irqreturn_t rtd13xx_handle_wrapper_msi_irq(int this_irq, void *devid)
 		return IRQ_HANDLED;
 
 	pos = 0;
-	irq = irq_find_mapping(pp->irq_domain, pos);
+	irq = irq_find_mapping(pp->msi_irq_domain, pos);
 	if (irq != 0) {
 		generic_handle_irq(irq);
 		return IRQ_HANDLED;
@@ -129,7 +169,7 @@ irqreturn_t rtd_handle_wrapper_msi_irq(struct rtd_pcie_port *pp)
 	int pos, irq;
 
 	pos = 0;
-	irq = irq_find_mapping(pp->irq_domain, pos);
+	irq = irq_find_mapping(pp->msi_irq_domain, pos);
 	if (irq != 0) {
 		generic_handle_irq(irq);
 		return IRQ_HANDLED;
@@ -158,7 +198,7 @@ irqreturn_t rtd_handle_wrapper_msix_irq(struct rtd_pcie_port *pp)
 		pos = 0;
 		while ((pos = find_next_bit(&val, RTK_MAX_MSIX_IRQS_PER_CTRL,
 					    pos)) != RTK_MAX_MSIX_IRQS_PER_CTRL) {
-			irq = irq_find_mapping(pp->irq_domain,
+			irq = irq_find_mapping(pp->msi_irq_domain,
 					       (i * RTK_MAX_MSIX_IRQS_PER_CTRL) +
 					       pos);
 			generic_handle_irq(irq);
@@ -170,6 +210,21 @@ irqreturn_t rtd_handle_wrapper_msix_irq(struct rtd_pcie_port *pp)
 }
 
 
+static irqreturn_t rtd_pcie_handle_irq(int this_irq, void *devid)
+{
+	struct rtd_pcie_port *pp = devid;
+	irqreturn_t msi_ret = IRQ_NONE, intx_ret = IRQ_NONE;
+
+	if (pp->msi_irq_domain)
+		msi_ret = rtd_handle_mac_msi_irq(pp);
+	if (pp->intx_irq_domain)
+		intx_ret = rtd_handle_intx_irq(pp);
+
+	if (!msi_ret && !intx_ret)
+		return IRQ_NONE;
+
+	return IRQ_HANDLED;
+}
 
 /* Chained MSI interrupt service routine */
 static void rtd_chained_msi_isr(struct irq_desc *desc)
@@ -188,6 +243,7 @@ static void rtd_chained_msi_isr(struct irq_desc *desc)
 static void rtd_pci_setup_msi_msg(struct irq_data *d, struct msi_msg *msg)
 {
 	struct rtd_pcie_port *pp = irq_data_get_irq_chip_data(d);
+	struct pci_dev *pdev;
 	u64 msi_target;
 
 	msi_target = (u64)pp->msi_data;
@@ -196,6 +252,11 @@ static void rtd_pci_setup_msi_msg(struct irq_data *d, struct msi_msg *msg)
 	msg->address_hi = upper_32_bits(msi_target);
 
 	msg->data = d->hwirq;
+
+	/* Track hwirq of Root Port so DVR_GNR_INT handler can dispatch to it */
+	pdev = to_pci_dev(irq_data_get_msi_desc(d)->dev);
+	if (pci_pcie_type(pdev) == PCI_EXP_TYPE_ROOT_PORT)
+		pp->rc_msi_hwirq = d->hwirq;
 
 	dev_dbg(pp->dev, "msi#%d address_hi %#x address_lo %#x\n",
 		(int)d->hwirq, msg->address_hi, msg->address_lo);
@@ -370,7 +431,6 @@ static void rtd_pci_wrapper_msix_bottom_ack(struct irq_data *d)
 
 }
 
-
 static struct irq_chip rtd_pci_wrapper_msix_bottom_irq_chip = {
 	.name = "RTD_PCI-MSI",
 	.irq_ack = rtd_pci_wrapper_msix_bottom_ack,
@@ -434,21 +494,21 @@ int rtd_pcie_allocate_domains(struct rtd_pcie_port *pp)
 {
 	struct fwnode_handle *fwnode = of_node_to_fwnode(pp->dev->of_node);
 
-	pp->irq_domain = irq_domain_create_linear(fwnode, pp->msi_max_vector,
+	pp->msi_irq_domain = irq_domain_create_linear(fwnode, pp->msi_max_vector,
 					       &rtd_pcie_msi_domain_ops, pp);
-	if (!pp->irq_domain) {
+	if (!pp->msi_irq_domain) {
 		dev_err(pp->dev, "Failed to create IRQ domain\n");
 		return -ENOMEM;
 	}
 
-	irq_domain_update_bus_token(pp->irq_domain, DOMAIN_BUS_NEXUS);
+	irq_domain_update_bus_token(pp->msi_irq_domain, DOMAIN_BUS_NEXUS);
 
 	pp->msi_domain = pci_msi_create_irq_domain(fwnode,
 						   &rtd_pcie_msi_domain_info,
-						   pp->irq_domain);
+						   pp->msi_irq_domain);
 	if (!pp->msi_domain) {
 		dev_err(pp->dev, "Failed to create MSI domain\n");
-		irq_domain_remove(pp->irq_domain);
+		irq_domain_remove(pp->msi_irq_domain);
 		return -ENOMEM;
 	}
 
@@ -463,7 +523,7 @@ void rtd_pcie_free_msi(struct rtd_pcie_port *pp)
 	}
 
 	irq_domain_remove(pp->msi_domain);
-	irq_domain_remove(pp->irq_domain);
+	irq_domain_remove(pp->msi_irq_domain);
 
 	if (pp->msi_page)
 		__free_page(pp->msi_page);
@@ -472,12 +532,73 @@ void rtd_pcie_free_msi(struct rtd_pcie_port *pp)
 static void rtd_pcie_mac_msi_host_init(struct rtd_pcie_port *pp)
 {
 	u64 msi_target;
+	u32 i, num_ctrls;
 
+	writel(readl(pp->ctrl_base + PCIE_INT_CTR) | BIT(10), pp->ctrl_base + PCIE_INT_CTR);
 	msi_target = (u64)pp->msi_data;
 	writel(upper_32_bits(msi_target), pp->ctrl_base + PCIE_MSI_ADDR_HI);
 	writel(lower_32_bits(msi_target), pp->ctrl_base + PCIE_MSI_ADDR_LO);
 
-	writel(~0x0, pp->ctrl_base + PCIE_MSI_INTR0_ENABLE);
+	num_ctrls = RTK_MAX_MSI_IRQS / RTK_MAX_MSI_IRQS_PER_CTRL;
+
+	for (i = 0; i < num_ctrls; i++) {
+		writel(~0x0, pp->ctrl_base + PCIE_MSI_INTR0_ENABLE + i * 4);
+	}
+}
+
+static int rtd_pcie_intx_irq_map(struct irq_domain *d,
+			     unsigned int virq, irq_hw_number_t hwirq)
+{
+	struct rtd_pcie_port *pp = d->host_data;
+
+	irq_set_status_flags(virq, IRQ_LEVEL);
+	irq_set_chip_and_handler(virq, &pp->intx_irq_chip,
+				 handle_level_irq);
+	irq_set_chip_data(virq, pp);
+
+	return 0;
+}
+
+
+static const struct irq_domain_ops rtd_pcie_intx_domain_ops = {
+	.map = rtd_pcie_intx_irq_map,
+	.xlate = irq_domain_xlate_onecell,
+};
+
+static int rtd_pcie_intx_init(struct rtd_pcie_port *pp)
+{
+	struct device *dev = pp->dev;
+	struct device_node *node = dev->of_node;
+	struct device_node *pcie_intx_node;
+	struct irq_chip *irq_chip;
+	int ret = 0;
+
+	pcie_intx_node =  of_get_next_child(node, NULL);
+	if (!pcie_intx_node) {
+		dev_err(dev, "No PCIe Intc node found\n");
+		return -ENODEV;
+	}
+	irq_chip = &pp->intx_irq_chip;
+
+	irq_chip->name = devm_kasprintf(dev, GFP_KERNEL, "intx-irq");
+	if (!irq_chip->name) {
+		ret = -ENOMEM;
+		goto out_put_node;
+	}
+
+	irq_chip->irq_set_affinity = rtd_pci_msi_set_affinity,
+
+	pp->intx_irq_domain = irq_domain_add_linear(pcie_intx_node, PCI_NUM_INTX,
+				      &rtd_pcie_intx_domain_ops, pp);
+	if (!pp->intx_irq_domain) {
+		dev_err(dev, "Failed to get a INTx IRQ domain\n");
+		ret = -ENOMEM;
+		goto out_put_node;
+	}
+
+out_put_node:
+	of_node_put(pcie_intx_node);
+	return ret;
 }
 
 
@@ -485,7 +606,8 @@ static int rtd_pcie_mac_msi_init(struct rtd_pcie_port *pp)
 {
 	int ret;
 
-	pp->msi_max_vector = RTK_MSI_DEF_NUM_VECTORS;
+	pp->rc_msi_hwirq = ULONG_MAX;
+	pp->msi_max_vector = RTK_MAX_MSI_IRQS;
 	pp->msi_page = alloc_page(GFP_DMA32);
 	pp->msi_data = page_to_phys(pp->msi_page);
 	pp->ops->msi_ops->msi_host_init(pp);
@@ -495,13 +617,33 @@ static int rtd_pcie_mac_msi_init(struct rtd_pcie_port *pp)
 	if (ret)
 		return ret;
 
-	if (pp->msi_irq)
-		irq_set_chained_handler_and_data(pp->msi_irq,
-				rtd_chained_msi_isr, pp);
-
 	return 0;
 
 }
+
+static int rtd_pcie_irq_init(struct rtd_pcie_port *pp)
+{
+	int ret;
+
+	ret = rtd_pcie_mac_msi_init(pp);
+	if (ret)
+		dev_err(pp->dev, "mac msi init failed\n");
+
+	ret = rtd_pcie_intx_init(pp);
+	if (ret)
+		dev_err(pp->dev, "INTx init failed\n");
+
+	if (pp->msi_irq_domain || pp->intx_irq_domain) {
+		ret = request_irq(pp->msi_irq, rtd_pcie_handle_irq, IRQF_SHARED, pp->ops->name, pp);
+		if (ret) {
+			dev_err(pp->dev, "failed to request irq\n");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 
 static void rtd_pcie_wrapper_msi_host_init(struct rtd_pcie_port *pp)
 {
@@ -644,8 +786,11 @@ static int indirect_cfg_read(struct rtd_pcie_port *pp, struct pci_bus *bus, unsi
 	if (!mask)
 		return PCIBIOS_SET_FAILED;
 
-	writel(0x10, pp->ctrl_base + PCIE_INDIR_CTR);
-
+	if (pci_is_root_bus(bus->parent)) {
+		writel(0x10, pp->ctrl_base + PCIE_INDIR_CTR);
+	} else {
+		writel(0x14, pp->ctrl_base + PCIE_INDIR_CTR);
+	}
 	writel(CFG_ST_ERROR|CFG_ST_DONE, pp->ctrl_base + PCIE_CFG_ST);
 	writel((addr & ~0x3), pp->ctrl_base + PCIE_CFG_ADDR);
 	writel(BYTE_CNT(mask) | BYTE_EN | WRRD_EN(0), pp->ctrl_base + PCIE_CFG_EN);
@@ -751,8 +896,10 @@ static int indirect_cfg_write(struct rtd_pcie_port *pp,
 
 	data = (data << pci_bit_shift(addr)) & pci_bit_mask(mask);
 
-	writel(0x12, pp->ctrl_base + PCIE_INDIR_CTR);
-
+	if (pci_is_root_bus(bus->parent))
+		writel(0x12, pp->ctrl_base + PCIE_INDIR_CTR);
+	else
+		writel(0x16, pp->ctrl_base + PCIE_INDIR_CTR);
 	writel(CFG_ST_ERROR|CFG_ST_DONE, pp->ctrl_base + PCIE_CFG_ST);
 	writel(addr & ~0x3, pp->ctrl_base + PCIE_CFG_ADDR);
 	writel(data, pp->ctrl_base + PCIE_CFG_WDATA);
@@ -830,6 +977,23 @@ static struct pci_ops rtd_pcie_host_ops = {
 	.write = pci_generic_config_write,
 };
 
+static int check_pipe_clock_ready(struct rtd_pcie_port *pp)
+{
+	int timeout = 50;
+	int ret = 0;
+
+	while (!(readl(pp->ctrl_base + PCIE_MAC_ST) & BIT(16)) && --timeout) {
+		udelay(10);
+	}
+
+	if (!timeout) {
+		ret = -EBUSY;
+		dev_err(pp->dev, "pipe clock timeout\n");
+	}
+
+	return ret;
+}
+
 static u32 get_pcie_mac_stat(struct rtd_pcie_port *pp)
 {
 	int timeout = 10000;
@@ -856,6 +1020,7 @@ static int pcie_link_init(struct rtd_pcie_port *pp)
 	int cur_link_speed;
 	u32 ltssm;
 	u32 mac_stat;
+	int i;
 
 	ret = gpiod_direction_output(pp->perst_gpio, 0);
 	if (ret)
@@ -887,13 +1052,16 @@ static int pcie_link_init(struct rtd_pcie_port *pp)
 	while (timeout > 0) {
 		mac_stat = get_pcie_mac_stat(pp);
 		if (mac_stat & BIT(11)) {
+			i = 200;
 			ltssm = (mac_stat & GENMASK(9, 4)) >> 4;
-			if (ltssm == 0x11) {
-				mdelay(1);
+			while((ltssm == 0x11) && i > 0) {
+				udelay(5);
 				mac_stat = get_pcie_mac_stat(pp);
 				ltssm = (mac_stat & GENMASK(9, 4)) >> 4;
-				if (ltssm == 0x11)
-					break;
+				i--;
+			}
+			if (i == 0) {
+				break;
 			}
 		}
 		udelay(50);
@@ -1480,6 +1648,12 @@ static int rtd13xx_pcie1_init(struct rtd_pcie_port *pp)
 		return -EINVAL;
 	}
 
+	ret = check_pipe_clock_ready(pp);
+	if (ret) {
+		dev_err(pp->dev, "cannot get pipe clock\n");
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -1656,6 +1830,12 @@ static int rtd13xx_pcie2_init(struct rtd_pcie_port *pp)
 		dev_err(pp->dev, "unable to enable pcie clock\n");
 		clk_disable_unprepare(pp->pcie_clk);
 		return -EINVAL;
+	}
+
+	ret = check_pipe_clock_ready(pp);
+	if (ret) {
+		dev_err(pp->dev, "cannot get pipe clock\n");
+		return ret;
 	}
 
 	return 0;
@@ -2157,10 +2337,8 @@ static int rtd1625_pcie0_init(struct rtd_pcie_port *pp)
 		return ret;
 	}
 
-	if (pp->device_power_gpio) {
+	if (pp->device_power_gpio)
 		gpiod_direction_output(pp->device_power_gpio, 1);
-		mdelay(500);
-	}
 
 	reset_control_deassert(pp->rst);
 	phy_power_on(pp->pcie_phy);
@@ -2186,8 +2364,6 @@ static int rtd1625_pcie0_init2(struct rtd_pcie_port *pp)
 	reset_control_deassert(pp->rst_core);
 	reset_control_deassert(pp->rst_power);
 	reset_control_deassert(pp->rst_nonstitch);
-
-	writel(readl(pp->ctrl_base + PCIE_PHY_CTR) | BIT(3), pp->ctrl_base + PCIE_PHY_CTR);
 
 	if (soc_device_match(rtk_soc_kent_a00)) {
 		writel(0x420, pp->ctrl_base + PCIE_PWR_CTR);
@@ -2451,7 +2627,7 @@ static const struct rtd_msi_ops rtd_wrapper_msi_ops = {
 };
 
 static const struct rtd_msi_ops rtd_mac_msi_ops = {
-	.msi_init = rtd_pcie_mac_msi_init,
+	.msi_init = rtd_pcie_irq_init,
 	.msi_host_init = rtd_pcie_mac_msi_host_init,
 	.irq_handle = rtd_handle_mac_msi_irq,
 };
@@ -2624,8 +2800,32 @@ static void rtd_pcie_shutdown(struct platform_device *pdev)
 	struct rtd_pcie_port *pp = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
 	int ret = 0;
+	int timeout = 0;
 
 	dev_info(dev, "shutdown enter ...\n");
+
+	dev_info(dev, "try to enter L2 [current ltssm:0x%x]\n", (readl(pp->ctrl_base + PCIE_MAC_ST) &
+		LTSSM_STATE_MASK) >> 4);
+
+	dev_info(dev, "send PME_TURN_OFF\n");
+	writel(0x40, pp->ctrl_base + PCIE_PWR_CTR);
+	writel(0x0, pp->ctrl_base + PCIE_PWR_CTR);
+
+	timeout = 1000;
+	while(timeout) {
+		if (readl(pp->ctrl_base + PCIE_PME_ST) & 0x1) {
+			writel(0x1, pp->ctrl_base + PCIE_PME_ST);
+			break;
+		}
+		udelay(10);
+		timeout--;
+	}
+	if (timeout == 0) {
+		dev_info(dev, "PME_TURN_OFF NO ACK\n");
+	} else {
+		dev_info(dev, "receive PME_TO_ACK [current ltssm:0x%x]\n",
+			(readl(pp->ctrl_base + PCIE_MAC_ST) & LTSSM_STATE_MASK) >> 4);
+	}
 
 	ret = gpiod_direction_output(pp->perst_gpio, 0);
 	if (ret)
@@ -2633,8 +2833,10 @@ static void rtd_pcie_shutdown(struct platform_device *pdev)
 
 	phy_exit(pp->pcie_phy);
 	ret = pp->ops->deinit(pp);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "deinit failed.\n");
+		return;
+	}
 
 	dev_info(&pdev->dev, "shutdown exit ...\n");
 }

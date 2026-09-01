@@ -16,6 +16,10 @@
 	status = "okay";
 };
 
+&nand_flash {
+	status = "okay";
+};
+
 &nor_flash {
 	status = "okay";
 };

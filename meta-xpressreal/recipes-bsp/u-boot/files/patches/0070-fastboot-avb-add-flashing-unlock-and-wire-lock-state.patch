@@ -1,0 +1,333 @@
+From 653b46c61d8af520fed6dea74f6b00362b52b8ba Mon Sep 17 00:00:00 2001
+From: "yichen.wang" <yichen.wang@realtek.com>
+Date: Wed, 20 May 2026 16:17:35 +0800
+Subject: [PATCH] fastboot/avb: add flashing unlock and wire lock state to AVB
+
+Add support for the standard Android 'fastboot flashing unlock/lock'
+commands and connect the device lock state to AVB verification.
+
+- Add CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK Kconfig option (depends on
+  FASTBOOT_FLASH) and implement the five flashing subcommands:
+  unlock, lock, unlock_critical, lock_critical, get_unlock_ability.
+  Lock state is persisted in the 'fastboot_unlocked' env variable.
+  flash and erase commands are rejected while the device is locked.
+
+- Wire avb_verify.c:read_is_device_unlocked() to fastboot_is_unlocked()
+  when CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK is enabled, replacing the
+  previous stub that always returned true.
+
+- Fix cmd/avb.c:do_avb_verify_part() to reflect actual lock state:
+  - Use AVB_ORANGE (not hardcoded AVB_GREEN) when device is unlocked
+  - When unlocked and AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION is
+    returned (e.g. after adb remount modifies partitions), still set
+    avb_bootargs with verifiedbootstate=orange and boot normally.
+
+After this change the full flow works as expected:
+  fastboot flashing unlock
+  -> reboot -> AVB sets androidboot.verifiedbootstate=orange
+  -> adb remount succeeds
+  -> reboot -> modified partitions boot without AVB failure
+
+Signed-off-by: yichen.wang <yichen.wang@realtek.com>
+---
+ common/avb_verify.c           |   9 +--
+ drivers/fastboot/Kconfig      |  14 +++++
+ drivers/fastboot/fb_command.c | 108 ++++++++++++++++++++++++++++++++++
+ drivers/fastboot/fb_common.c  |  13 ++++
+ drivers/fastboot/fb_getvar.c  |  14 +++++
+ include/fastboot.h            |  10 ++++
+ 7 files changed, 178 insertions(+), 11 deletions(-)
+
+diff --git a/common/avb_verify.c b/common/avb_verify.c
+index f587dd42975..8fc8689e63a 100644
+--- a/common/avb_verify.c
++++ b/common/avb_verify.c
+@@ -6,6 +6,7 @@
+ 
+ #include <avb_verify.h>
+ #include <blk.h>
++#include <fastboot.h>
+ #include <cpu_func.h>
+ #include <image.h>
+ #include <malloc.h>
+@@ -821,10 +822,10 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
+ static AvbIOResult read_is_device_unlocked(AvbOps *ops, bool *out_is_unlocked)
+ {
+ #ifndef CONFIG_OPTEE_TA_AVB
+-	/* For now we always return that the device is unlocked. */
+-	debug("%s: device locking is not implemented\n", __func__);
+-
+-	*out_is_unlocked = true;
++	if (IS_ENABLED(CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK))
++		*out_is_unlocked = fastboot_is_unlocked();
++	else
++		*out_is_unlocked = true;
+ 
+ 	return AVB_IO_RESULT_OK;
+ #else
+diff --git a/drivers/fastboot/Kconfig b/drivers/fastboot/Kconfig
+index 837c6f1180d..bd9edf2cfbf 100644
+--- a/drivers/fastboot/Kconfig
++++ b/drivers/fastboot/Kconfig
+@@ -241,6 +241,20 @@ config FASTBOOT_OEM_RUN
+ 	  this feature if you are using verified boot, as it will allow an
+ 	  attacker to bypass any restrictions you have in place.
+ 
++config FASTBOOT_CMD_FLASHING_UNLOCK
++	bool "Enable 'flashing unlock' / 'flashing lock' commands"
++	depends on FASTBOOT_FLASH
++	help
++	  Add support for the standard Android "flashing unlock" and
++	  "flashing lock" commands. The device lock state is persisted in the
++	  "fastboot_unlocked" environment variable ("yes" = unlocked).
++
++	  When enabled, the "flash" and "erase" commands are rejected while
++	  the device is locked, matching standard Android bootloader behaviour.
++
++	  Also enables "flashing unlock_critical", "flashing lock_critical",
++	  and "flashing get_unlock_ability".
++
+ endif # FASTBOOT
+ 
+ endmenu
+diff --git a/drivers/fastboot/fb_command.c b/drivers/fastboot/fb_command.c
+index 5fcadcdf503..2f6a38bc22d 100644
+--- a/drivers/fastboot/fb_command.c
++++ b/drivers/fastboot/fb_command.c
+@@ -40,6 +40,11 @@ static void reboot_recovery(char *, char *);
+ static void oem_format(char *, char *);
+ static void oem_partconf(char *, char *);
+ static void oem_bootbus(char *, char *);
++static void flashing_unlock(char *, char *);
++static void flashing_lock(char *, char *);
++static void flashing_unlock_critical(char *, char *);
++static void flashing_lock_critical(char *, char *);
++static void flashing_get_unlock_ability(char *, char *);
+ static void run_ucmd(char *, char *);
+ static void run_acmd(char *, char *);
+ 
+@@ -107,6 +112,31 @@ static const struct {
+ 		.command = "oem run",
+ 		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_OEM_RUN, (run_ucmd), (NULL))
+ 	},
++	[FASTBOOT_COMMAND_FLASHING_UNLOCK] = {
++		.command = "flashing unlock",
++		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_UNLOCK,
++					      (flashing_unlock), (NULL))
++	},
++	[FASTBOOT_COMMAND_FLASHING_LOCK] = {
++		.command = "flashing lock",
++		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_UNLOCK,
++					      (flashing_lock), (NULL))
++	},
++	[FASTBOOT_COMMAND_FLASHING_UNLOCK_CRITICAL] = {
++		.command = "flashing unlock_critical",
++		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_UNLOCK,
++					      (flashing_unlock_critical), (NULL))
++	},
++	[FASTBOOT_COMMAND_FLASHING_LOCK_CRITICAL] = {
++		.command = "flashing lock_critical",
++		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_UNLOCK,
++					      (flashing_lock_critical), (NULL))
++	},
++	[FASTBOOT_COMMAND_FLASHING_GET_UNLOCK_ABILITY] = {
++		.command = "flashing get_unlock_ability",
++		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_FLASHING_UNLOCK,
++					      (flashing_get_unlock_ability), (NULL))
++	},
+ 	[FASTBOOT_COMMAND_UCMD] = {
+ 		.command = "UCmd",
+ 		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_UUU_SUPPORT, (run_ucmd), (NULL))
+@@ -296,6 +326,12 @@ void fastboot_data_complete(char *response)
+  */
+ static void __maybe_unused flash(char *cmd_parameter, char *response)
+ {
++	if (IS_ENABLED(CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK) &&
++	    !fastboot_is_unlocked()) {
++		fastboot_fail("device is locked, cannot flash", response);
++		return;
++	}
++
+ 	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_MMC))
+ 		fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr,
+ 					 image_size, response);
+@@ -316,6 +352,12 @@ static void __maybe_unused flash(char *cmd_parameter, char *response)
+  */
+ static void __maybe_unused erase(char *cmd_parameter, char *response)
+ {
++	if (IS_ENABLED(CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK) &&
++	    !fastboot_is_unlocked()) {
++		fastboot_fail("device is locked, cannot erase", response);
++		return;
++	}
++
+ 	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_MMC))
+ 		fastboot_mmc_erase(cmd_parameter, response);
+ 
+@@ -416,6 +458,72 @@ static void reboot_recovery(char *cmd_parameter, char *response)
+ 		fastboot_okay(NULL, response);
+ }
+ 
++/**
++ * flashing_unlock() - Unlock the device for flashing
++ *
++ * Sets the "fastboot_unlocked" env variable to "yes" and saves the env.
++ */
++static void __maybe_unused flashing_unlock(char *cmd_parameter, char *response)
++{
++	printf("Unlocking device for flashing\n");
++	env_set("fastboot_unlocked", "yes");
++	if (env_save())
++		fastboot_fail("cannot save unlock state", response);
++	else
++		fastboot_okay(NULL, response);
++}
++
++/**
++ * flashing_lock() - Lock the device against flashing
++ *
++ * Sets the "fastboot_unlocked" env variable to "no" and saves the env.
++ */
++static void __maybe_unused flashing_lock(char *cmd_parameter, char *response)
++{
++	printf("Locking device\n");
++	env_set("fastboot_unlocked", "no");
++	if (env_save())
++		fastboot_fail("cannot save lock state", response);
++	else
++		fastboot_okay(NULL, response);
++}
++
++/**
++ * flashing_unlock_critical() - Unlock critical partitions
++ *
++ * Critical partitions follow the same lock state as the device.
++ */
++static void __maybe_unused flashing_unlock_critical(char *cmd_parameter,
++						    char *response)
++{
++	if (!fastboot_is_unlocked()) {
++		fastboot_fail("device is locked", response);
++		return;
++	}
++	fastboot_okay(NULL, response);
++}
++
++/**
++ * flashing_lock_critical() - Lock critical partitions
++ */
++static void __maybe_unused flashing_lock_critical(char *cmd_parameter,
++						  char *response)
++{
++	fastboot_okay(NULL, response);
++}
++
++/**
++ * flashing_get_unlock_ability() - Report whether unlocking is allowed
++ *
++ * Always returns "1" (unlocking permitted). Override in board code to
++ * implement hardware-fused unlock restrictions.
++ */
++static void __maybe_unused flashing_get_unlock_ability(char *cmd_parameter,
++						       char *response)
++{
++	fastboot_okay("1", response);
++}
++
+ /**
+  * oem_format() - Execute the OEM format command
+  *
+diff --git a/drivers/fastboot/fb_common.c b/drivers/fastboot/fb_common.c
+index 3576b067729..a6bfd8004e9 100644
+--- a/drivers/fastboot/fb_common.c
++++ b/drivers/fastboot/fb_common.c
+@@ -79,6 +79,19 @@ void fastboot_okay(const char *reason, char *response)
+ 		fastboot_response("OKAY", response, NULL);
+ }
+ 
++/**
++ * fastboot_is_unlocked() - Return true if device is unlocked for flashing
++ *
++ * Reads the "fastboot_unlocked" environment variable. Returns true only when
++ * the variable is explicitly set to "yes".
++ */
++bool fastboot_is_unlocked(void)
++{
++	const char *s = env_get("fastboot_unlocked");
++
++	return s && !strcmp(s, "yes");
++}
++
+ /**
+  * fastboot_set_reboot_flag() - Set flag to indicate reboot-bootloader
+  *
+diff --git a/drivers/fastboot/fb_getvar.c b/drivers/fastboot/fb_getvar.c
+index 8cb8ffa2c6c..55aebd062ac 100644
+--- a/drivers/fastboot/fb_getvar.c
++++ b/drivers/fastboot/fb_getvar.c
+@@ -26,6 +26,8 @@ static void getvar_has_slot(char *var_parameter, char *response);
+ static void getvar_partition_type(char *part_name, char *response);
+ static void getvar_partition_size(char *part_name, char *response);
+ static void getvar_is_userspace(char *var_parameter, char *response);
++static void getvar_unlocked(char *var_parameter, char *response);
++
+ 
+ static const struct {
+ 	const char *variable;
+@@ -76,6 +78,11 @@ static const struct {
+ 	}, {
+ 		.variable = "is-userspace",
+ 		.dispatch = getvar_is_userspace
++#if IS_ENABLED(CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK)
++	}, {
++		.variable = "unlocked",
++		.dispatch = getvar_unlocked
++#endif
+ 	}
+ };
+ 
+@@ -237,6 +244,13 @@ static void getvar_is_userspace(char *var_parameter, char *response)
+ 	fastboot_okay("no", response);
+ }
+ 
++#if IS_ENABLED(CONFIG_FASTBOOT_CMD_FLASHING_UNLOCK)
++static void getvar_unlocked(char *var_parameter, char *response)
++{
++	fastboot_okay(fastboot_is_unlocked() ? "yes" : "no", response);
++}
++#endif
++
+ /**
+  * fastboot_getvar() - Writes variable indicated by cmd_parameter to response.
+  *
+diff --git a/include/fastboot.h b/include/fastboot.h
+index 296451f89d4..37d2bbfa5e9 100644
+--- a/include/fastboot.h
++++ b/include/fastboot.h
+@@ -37,6 +37,11 @@ enum {
+ 	FASTBOOT_COMMAND_OEM_PARTCONF,
+ 	FASTBOOT_COMMAND_OEM_BOOTBUS,
+ 	FASTBOOT_COMMAND_OEM_RUN,
++	FASTBOOT_COMMAND_FLASHING_UNLOCK,
++	FASTBOOT_COMMAND_FLASHING_LOCK,
++	FASTBOOT_COMMAND_FLASHING_UNLOCK_CRITICAL,
++	FASTBOOT_COMMAND_FLASHING_LOCK_CRITICAL,
++	FASTBOOT_COMMAND_FLASHING_GET_UNLOCK_ABILITY,
+ 	FASTBOOT_COMMAND_ACMD,
+ 	FASTBOOT_COMMAND_UCMD,
+ 	FASTBOOT_COMMAND_COUNT
+@@ -111,6 +116,11 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg));
+  */
+ void fastboot_init(void *buf_addr, u32 buf_size);
+ 
++/**
++ * fastboot_is_unlocked() - Return true if device is unlocked for flashing
++ */
++bool fastboot_is_unlocked(void);
++
+ /**
+  * fastboot_boot() - Execute fastboot boot command
+  *
+-- 
+2.50.1
+

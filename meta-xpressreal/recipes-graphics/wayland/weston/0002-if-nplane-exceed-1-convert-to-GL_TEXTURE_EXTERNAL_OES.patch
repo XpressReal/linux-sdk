@@ -4,6 +4,8 @@ Date: Fri, 30 Aug 2024 15:17:54 +0800
 Subject: [PATCH] weston: if nplane > 1, convert to GL_TEXTURE_EXTERNAL_OES
 
 Upstream-Status: Inappropriate [rtk specific]
+License: MIT
+Source: Realtek
 ---
  libweston/renderer-gl/gl-renderer.c | 3 +++
  1 file changed, 3 insertions(+)

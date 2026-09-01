@@ -2,6 +2,8 @@ From aac50160bc31dcde1e9e0029f5538ff451f9f5ce Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 17 Mar 2025 18:58:16 +0800
 Subject: [PATCH 1/1] Support video/x-wmv with both WVC1 and WMV3 formats
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

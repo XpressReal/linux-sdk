@@ -2,6 +2,8 @@ From 86a76c51ec135d0c9eb7588abc9def71683be058 Mon Sep 17 00:00:00 2001
 From: hayward_ling <hayward_ling@realtek.com>
 Date: Tue, 30 Sep 2025 16:16:26 +0800
 Subject: [PATCH] fix memory leak in qtdemux_parse_trak
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

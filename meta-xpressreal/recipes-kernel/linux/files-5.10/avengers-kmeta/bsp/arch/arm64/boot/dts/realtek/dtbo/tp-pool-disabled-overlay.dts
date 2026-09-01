@@ -1,0 +1,6 @@
+/dts-v1/;
+/plugin/;
+
+&cma_reserved_2 {
+	status = "disabled";
+};

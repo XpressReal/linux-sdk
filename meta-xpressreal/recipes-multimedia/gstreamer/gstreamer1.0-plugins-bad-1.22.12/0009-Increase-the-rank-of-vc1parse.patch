@@ -2,6 +2,8 @@ From 7f9c940ed9d98842a4c6269fae024bf2897d3ded Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Mon, 17 Mar 2025 19:27:18 +0800
 Subject: [PATCH 1/1] Increase the rank of vc1parse
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

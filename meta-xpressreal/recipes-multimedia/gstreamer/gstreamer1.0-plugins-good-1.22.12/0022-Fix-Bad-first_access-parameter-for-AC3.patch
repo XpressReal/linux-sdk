@@ -2,6 +2,8 @@ From 6f2345d2a8a1428422127f065fc47ea896759306 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 13 Aug 2025 15:44:58 +0800
 Subject: [PATCH 22/22] Fix Bad first_access parameter for AC3
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 ---
  gst/audioparsers/gstac3parse.c | 9 +++++++--

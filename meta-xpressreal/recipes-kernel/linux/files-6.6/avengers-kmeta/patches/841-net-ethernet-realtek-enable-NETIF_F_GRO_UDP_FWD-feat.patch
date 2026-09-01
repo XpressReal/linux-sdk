@@ -1,0 +1,30 @@
+From 0fca5ef5f6141f7eef92fd7090f813db3d65eed5 Mon Sep 17 00:00:00 2001
+From: edwardwu <edwardwu@realtek.com>
+Date: Mon, 22 Jun 2026 08:44:30 +0800
+Subject: [PATCH] net: ethernet: realtek: enable NETIF_F_GRO_UDP_FWD feature as
+ default
+
+jira: CHROME-921
+
+iperf 100Mbps CPU loading avg 8% => 2%
+youtube 4K streaming => CPU loading avg decrease 4-5%
+---
+ drivers/net/ethernet/realtek/rtl8169soc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/realtek/rtl8169soc.c b/drivers/net/ethernet/realtek/rtl8169soc.c
+index 4c82357c4fed7..d9889199597da 100644
+--- a/drivers/net/ethernet/realtek/rtl8169soc.c
++++ b/drivers/net/ethernet/realtek/rtl8169soc.c
+@@ -13597,7 +13597,7 @@ static int rtl_init_one(struct platform_device *pdev)
+ 		NETIF_F_RXCSUM | NETIF_F_HW_VLAN_CTAG_TX |
+ 		NETIF_F_HW_VLAN_CTAG_RX;
+ 
+-	ndev->features |= ndev->hw_features;
++	ndev->features |= ndev->hw_features | NETIF_F_GRO_UDP_FWD;
+ 
+ 	ndev->vlan_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO |
+ 		NETIF_F_HIGHDMA;
+-- 
+2.43.0
+

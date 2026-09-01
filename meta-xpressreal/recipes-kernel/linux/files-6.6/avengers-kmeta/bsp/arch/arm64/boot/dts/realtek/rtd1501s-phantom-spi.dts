@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1501S Phantom EVB
+ *
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ */
+
+#include "rtd1501s-phantom-8gb.dts"
+
+/ {
+	compatible = "realtek,phantom-spi", "realtek,rtd1501s";
+	model = "Realtek Phantom EVB SPI (8GB)";
+};
+
+&nand_flash {
+	status = "okay";
+};
+
+&emmc {
+	status = "disabled";
+};

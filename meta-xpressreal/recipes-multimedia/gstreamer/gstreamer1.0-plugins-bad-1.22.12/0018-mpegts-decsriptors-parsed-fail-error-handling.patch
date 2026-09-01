@@ -2,6 +2,8 @@ From e17204ad4ec9235b7688838612b4e230adba73de Mon Sep 17 00:00:00 2001
 From: hayward_ling <hayward_ling@realtek.com>
 Date: Tue, 5 Aug 2025 17:04:37 +0800
 Subject: [PATCH] mpegts decsriptors parsed fail error handling
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

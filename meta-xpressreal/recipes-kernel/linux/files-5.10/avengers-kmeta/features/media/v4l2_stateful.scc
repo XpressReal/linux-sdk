@@ -1,0 +1,6 @@
+patch 844-Add-V4L2-device-tree.patch
+patch 850-add-ve4-for-kent.patch
+patch 852-Add-RTK-V4L2-Compress-Pixel-Format.patch
+patch 853-ve4-driver-modifications-for-yocto.patch
+
+kconf hardware v4l2_stateful.cfg

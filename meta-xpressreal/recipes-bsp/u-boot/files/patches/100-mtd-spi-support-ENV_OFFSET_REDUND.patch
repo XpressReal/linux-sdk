@@ -1,0 +1,306 @@
+From 181a528b4df7b04fb2542ffd55bcc4876a752bd6 Mon Sep 17 00:00:00 2001
+From: Ken Tseng <ken.tseng@realtek.com>
+Date: Mon, 27 Apr 2026 16:31:47 +0800
+Subject: [PATCH] mtd: spi: support ENV_OFFSET_REDUND
+
+- CONFIG_ENV_SIZE must >= blocksize
+---
+ env/Kconfig |   2 +-
+ env/mtd.c   | 170 ++++++++++++++++++++--------------------------------
+ 2 files changed, 67 insertions(+), 105 deletions(-)
+
+diff --git a/env/Kconfig b/env/Kconfig
+index e1aa86db73..38c6dd00bf 100644
+--- a/env/Kconfig
++++ b/env/Kconfig
+@@ -605,7 +605,7 @@ config ENV_OFFSET
+ config ENV_OFFSET_REDUND
+ 	hex "Redundant environment offset"
+ 	depends on (ENV_IS_IN_EEPROM || ENV_IS_IN_MMC || ENV_IS_IN_NAND || \
+-		    ENV_IS_IN_SPI_FLASH) && SYS_REDUNDAND_ENVIRONMENT
++		    ENV_IS_IN_SPI_FLASH || ENV_IS_IN_MTD) && SYS_REDUNDAND_ENVIRONMENT
+ 	default 0x10C0000 if MICROBLAZE
+ 	default 0x0
+ 	help
+diff --git a/env/mtd.c b/env/mtd.c
+index ad263ed4b2..56245999be 100644
+--- a/env/mtd.c
++++ b/env/mtd.c
+@@ -32,7 +32,7 @@ static int setup_mtd_device(struct mtd_info **mtd_env)
+ 
+ static int env_mtd_save(void)
+ {
+-	char *saved_buf = NULL, *write_buf, *tmp;
++	char *write_buf, *tmp;
+ 	struct erase_info ei = { };
+ 	struct mtd_info *mtd_env;
+ 	u32 sect_size, sect_num;
+@@ -49,37 +49,6 @@ static int env_mtd_save(void)
+ 
+ 	sect_size = mtd_env->erasesize;
+ 
+-	/* Is the sector larger than the env (i.e. embedded) */
+-	if (sect_size > CONFIG_ENV_SIZE) {
+-		saved_buf = malloc(sect_size);
+-		if (!saved_buf) {
+-			ret = -ENOMEM;
+-			goto done;
+-		}
+-
+-		offset = CONFIG_ENV_OFFSET;
+-		remaining = sect_size;
+-		tmp = saved_buf;
+-
+-		while (remaining) {
+-			/* Skip the block if it is bad */
+-			if (!(offset % sect_size) &&
+-			    mtd_block_isbad(mtd_env, offset)) {
+-				offset += sect_size;
+-				continue;
+-			}
+-
+-			ret = mtd_read(mtd_env, offset, mtd_env->writesize,
+-				       &ret_len, tmp);
+-			if (ret)
+-				goto done;
+-
+-			tmp += ret_len;
+-			offset += ret_len;
+-			remaining -= ret_len;
+-		}
+-	}
+-
+ 	ret = env_export(&env_new);
+ 	if (ret)
+ 		goto done;
+@@ -87,7 +56,11 @@ static int env_mtd_save(void)
+ 	sect_num = DIV_ROUND_UP(CONFIG_ENV_SIZE, sect_size);
+ 
+ 	ei.mtd = mtd_env;
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	ei.addr = (gd->env_valid == ENV_VALID) ? CONFIG_ENV_OFFSET_REDUND : CONFIG_ENV_OFFSET;
++#else
+ 	ei.addr = CONFIG_ENV_OFFSET;
++#endif
+ 	ei.len = sect_num * sect_size;
+ 
+ 	puts("Erasing MTD...");
+@@ -95,16 +68,10 @@ static int env_mtd_save(void)
+ 	if (ret)
+ 		goto done;
+ 
+-	if (sect_size > CONFIG_ENV_SIZE) {
+-		memcpy(saved_buf, &env_new, CONFIG_ENV_SIZE);
+-		write_size = sect_size;
+-		write_buf = saved_buf;
+-	} else {
+-		write_size = sect_num * sect_size;
+-		write_buf = (char *)&env_new;
+-	}
++	write_size = sect_num * sect_size;
++	write_buf = (char *)&env_new;
+ 
+-	offset = CONFIG_ENV_OFFSET;
++	offset = ei.addr;
+ 	remaining = write_size;
+ 	tmp = write_buf;
+ 
+@@ -117,6 +84,10 @@ static int env_mtd_save(void)
+ 			continue;
+ 		}
+ 
++		ret = mtd_write(mtd_env, offset, mtd_env->writesize,
++				&ret_len, tmp);
++		/* second write should be OK since bad-block is mapped */
++		if (ret)
+ 		ret = mtd_write(mtd_env, offset, mtd_env->writesize,
+ 				&ret_len, tmp);
+ 		if (ret)
+@@ -130,12 +101,15 @@ static int env_mtd_save(void)
+ 	ret = 0;
+ 	puts("done\n");
+ 
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	/* preset other copy for next write */
++	gd->env_valid = gd->env_valid == ENV_REDUND ? ENV_VALID : ENV_REDUND;
++	printf("Valid environment: %d\n", (int)gd->env_valid);
++#endif
++
+ done:
+ 	put_mtd_device(mtd_env);
+ 
+-	if (saved_buf)
+-		free(saved_buf);
+-
+ 	return ret;
+ }
+ 
+@@ -154,6 +128,14 @@ static int env_mtd_load(void)
+ 		env_set_default("memalign() failed", 0);
+ 		return -EIO;
+ 	}
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	int remaining2;
++	char *buf2 = (char *)memalign(ARCH_DMA_MINALIGN, CONFIG_ENV_SIZE);
++	if (!buf2) {
++		env_set_default("memalign() failed", 0);
++		return -EIO;
++	}
++#endif
+ 
+ 	ret = setup_mtd_device(&mtd_env);
+ 	if (ret)
+@@ -176,8 +158,12 @@ static int env_mtd_load(void)
+ 		ret = mtd_read(mtd_env, offset, mtd_env->writesize,
+ 			       &ret_len, tmp);
+ 		if (ret) {
++#ifdef CONFIG_ENV_OFFSET_REDUND
++			break;
++#else
+ 			env_set_default("mtd_read() failed", 1);
+ 			goto out;
++#endif
+ 		}
+ 
+ 		tmp += ret_len;
+@@ -185,14 +171,45 @@ static int env_mtd_load(void)
+ 		remaining -= ret_len;
+ 	}
+ 
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	offset = CONFIG_ENV_OFFSET_REDUND;
++	remaining2 = CONFIG_ENV_SIZE;
++	tmp = buf2;
++
++	while (remaining2) {
++		/* Skip the block if it is bad */
++		if (!(offset % sect_size) &&
++		    mtd_block_isbad(mtd_env, offset)) {
++			offset += sect_size;
++			continue;
++		}
++
++		ret = mtd_read(mtd_env, offset, mtd_env->writesize,
++			       &ret_len, tmp);
++		if (ret) {
++			break;
++		}
++
++		tmp += ret_len;
++		offset += ret_len;
++		remaining2 -= ret_len;
++	}
++
++	ret = env_import_redund((char *)buf, remaining, (char *)buf2,
++				remaining2, H_EXTERNAL);
++#else
+ 	ret = env_import(buf, 1, H_EXTERNAL);
+ 	if (!ret)
+ 		gd->env_valid = ENV_VALID;
++#endif
+ 
+ out:
+ 	put_mtd_device(mtd_env);
+ 
+ 	free(buf);
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	free(buf2);
++#endif
+ 
+ 	return ret;
+ }
+@@ -201,7 +218,7 @@ static int env_mtd_erase(void)
+ {
+ 	struct mtd_info *mtd_env;
+ 	u32 sect_size, sect_num;
+-	char *saved_buf, *tmp;
++	char *tmp;
+ 	struct erase_info ei;
+ 	size_t ret_len;
+ 	int remaining;
+@@ -214,37 +231,6 @@ static int env_mtd_erase(void)
+ 
+ 	sect_size = mtd_env->erasesize;
+ 
+-	/* Is the sector larger than the env (i.e. embedded) */
+-	if (sect_size > CONFIG_ENV_SIZE) {
+-		saved_buf = malloc(sect_size);
+-		if (!saved_buf) {
+-			ret = -ENOMEM;
+-			goto done;
+-		}
+-
+-		offset = CONFIG_ENV_OFFSET;
+-		remaining = sect_size;
+-		tmp = saved_buf;
+-
+-		while (remaining) {
+-			/* Skip the block if it is bad */
+-			if (!(offset % sect_size) &&
+-			    mtd_block_isbad(mtd_env, offset)) {
+-				offset += sect_size;
+-				continue;
+-			}
+-
+-			ret = mtd_read(mtd_env, offset, mtd_env->writesize,
+-				       &ret_len, tmp);
+-			if (ret)
+-				goto done;
+-
+-			tmp += ret_len;
+-			offset += ret_len;
+-			remaining -= ret_len;
+-		}
+-	}
+-
+ 	sect_num = DIV_ROUND_UP(CONFIG_ENV_SIZE, sect_size);
+ 
+ 	ei.mtd = mtd_env;
+@@ -255,40 +241,16 @@ static int env_mtd_erase(void)
+ 	if (ret)
+ 		goto done;
+ 
+-	if (sect_size > CONFIG_ENV_SIZE) {
+-		memset(saved_buf, 0, CONFIG_ENV_SIZE);
+-
+-		offset = CONFIG_ENV_OFFSET;
+-		remaining = sect_size;
+-		tmp = saved_buf;
+-
+-		while (remaining) {
+-			/* Skip the block if it is bad */
+-			if (!(offset % sect_size) &&
+-			    mtd_block_isbad(mtd_env, offset)) {
+-				offset += sect_size;
+-				continue;
+-			}
+-
+-			ret = mtd_write(mtd_env, offset, mtd_env->writesize,
+-					&ret_len, tmp);
+-			if (ret)
+-				goto done;
+-
+-			offset += mtd_env->writesize;
+-			remaining -= ret_len;
+-			tmp += ret_len;
+-		}
+-	}
++#ifdef CONFIG_ENV_OFFSET_REDUND
++	ei.addr = CONFIG_ENV_OFFSET_REDUND;
++	ret = mtd_erase(mtd_env, &ei);
++#endif
+ 
+ 	ret = 0;
+ 
+ done:
+ 	put_mtd_device(mtd_env);
+ 
+-	if (saved_buf)
+-		free(saved_buf);
+-
+ 	return ret;
+ }
+ 
+-- 
+2.47.0
+

@@ -23,6 +23,12 @@
 #include "rtk_drm_drv.h"
 #include "rtk_hdmi.h"
 
+#include "rtk_drm_splash.h"
+
+#ifdef CONFIG_RTK_DRM_SPLASH_LOGO
+static bool rtk_boot_splash_drawn;
+#endif
+
 #define to_rtk_drm_fb(x) container_of(x, struct rtk_drm_fb, fb)
 
 struct rtk_drm_fb {
@@ -111,6 +117,13 @@ rtk_drm_fb_alloc(struct drm_device *dev,
 		kfree(rtk_fb);
 		return ERR_PTR(ret);
 	}
+
+#ifdef CONFIG_RTK_DRM_SPLASH_LOGO
+    if (!rtk_boot_splash_drawn) {
+		if (!rtk_drm_draw_logo(&rtk_fb->fb))
+			rtk_boot_splash_drawn = true;
+    }
+#endif
 
 	return rtk_fb;
 }

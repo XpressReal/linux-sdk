@@ -1,0 +1,156 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/**
+ * Copyright (c) 2024 RealTek Inc
+ */
+#ifndef _RTK_LVDS_REG_H
+#define _RTK_LVDS_REG_H
+
+/**
+ * TIMEGEN CTRL
+ */
+
+#define PIF_TIMEGEN_CTRL 0x000
+#define PIF_DH_WIDTH 0x004
+#define PIF_DH_TOTAL 0x008
+#define PIF_DH_DEN_START_END 0x00c
+#define PIF_DV_DEN_START_END_FIELD1 0x010
+#define PIF_DV_TOTAL 0x018
+#define PIF_DV_VS_START_END_FIELD1 0x01c
+#define PIF_DH_VS_ADJ_FIELD1 0x020
+#define PIF_DV_SYNC_INT 0x024
+#define PIF_DV_SYNC_INT_EN 0x028
+#define PIF_INTERRUPT_STATUS 0x030
+
+/**
+ * AIF DATA
+ */
+#define PIF_PIF_CRTL0 0x044
+
+/**
+ * DEBUG
+ */
+#define PIF_LVDS_DBG 0x048
+
+/**
+ * GAMMA
+ */
+#define PIF_GAMMA_PORT 0x060
+
+/**
+ * DITHER
+ */
+#define PIF_DITHER_CTRL 0x0b0
+#define PIF_DITHER_STRENGTH 0x0b4
+
+/**
+ * DUMMY
+ */
+#define PIF_DUMMY 0x0b8
+
+/**
+ * LVDSOUT
+ */
+#define LVDSOUT_LVDS_CTRL1 0x408
+#define LVDSOUT_LVDS_CTRL2 0x40c
+#define LVDSOUT_LVDS_MPPATTERN_ENABLE 0x468
+#define LVDSOUT_LVDS_MPPATTERN_SEL 0x46c
+#define LVDSOUT_ASYNC_FIFO_POWER 0x470
+
+/**
+ * AIF
+ */
+#define AIF_CTRL0 0x410
+#define AIF_CTRL1 0x414
+#define AIF_CTRL2 0x420
+#define AIF_CTRL3 0x424
+#define AIF_CTRL4 0x428
+#define AIF_CTRL5 0x42c
+#define AIF_CTRL6 0x430
+#define AIF_CTRL7 0x434
+#define AIF_CTRL8 0x438
+#define AIF_CTRL9 0x43c
+#define AIF_CTRLA 0x440
+#define AIF_CTRLB 0x444
+#define AIF_CTRLC 0x448
+#define AIF_CTRLD 0x44c
+#define AIF_CTRLE 0x450
+#define AIF_CTRLF 0x454
+#define AIF_CTRLG 0x458
+#define AIF_CTRLH 0x45c
+#define AIF_CTRLI 0x460
+#define AIF_CTRLJ 0x464
+
+/**
+ * LVDS2 TIMEGEN
+ */
+#define PIF_1_TIMEGEN_CTRL 0x000
+#define PIF_1_DH_WIDTH 0x004
+#define PIF_1_DH_TOTAL 0x008
+#define PIF_1_DH_DEN_START_END 0x00c
+#define PIF_1_DV_DEN_START_END_FIELD1 0x010
+#define PIF_1_DV_TOTAL 0x018
+#define PIF_1_DV_VS_START_END_FIELD1 0x01c
+#define PIF_1_DH_VS_ADJ_FIELD1 0x020
+#define PIF_1_DV_SYNC_INT 0x024
+#define PIF_1_DV_SYNC_INT_EN 0x028
+#define PIF_1_INTERRUPT_STATUS 0x030
+
+/**
+ * LVDS2 AIF DATA
+ */
+#define PIF_1_PIF_CTRL0 0x044
+
+/**
+ * LVDS2 GAMMA
+ */
+#define PIF_1_GAMMA_PORT 0x060
+#define PIF_1_GAMMA_CTRL_1 0x064
+#define PIF_1_GAMMA_STATUS 0x068
+#define PIF_1_GAMMA_CTRL_2 0x06c
+#define GAMMA_1_DSTAT_CTRL_R 0x080
+#define GAMMA_1_DSTAT_CTRL_G 0x084
+#define GAMMA_1_DSTAT_CTRL_B 0x088
+#define GAMMA_1_DSTAT_O_R1 0x08c
+#define GAMMA_1_DSTAT_O_R2 0x090
+#define GAMMA_1_DSTAT_O_G1 0x094
+#define GAMMA_1_DSTAT_O_G2 0x098
+#define GAMMA_1_DSTAT_O_B1 0x09c
+#define GAMMA_1_DSTAT_O_B2 0x0a0
+
+/**
+ * LVDS2 DITHER
+ */
+#define PIF_1_DITHER_CTRL 0x0b0
+#define PIF_1_DITHER_STRENGTH 0x0b4
+
+/**
+ * LVDS2 DUMMY
+ */
+#define PIF_1_DUMMY 0x0b8
+
+/**
+ * LVDS2 LVDSOUT
+ */
+#define LVDSOUT_1_LVDS_CTRL1 0x408
+#define LVDSOUT_1_LVDS_CTRL2 0x40c
+#define LVDSOUT_1_LVDS_MPPATTERN_ENABLE 0x468
+#define LVDSOUT_1_LVDS_MPPATTERN_SEL 0x46c
+#define LVDSOUT_1_ASYNC_FIFO_POWER 0x470
+
+/**
+ * LVDS2 AIF
+ */
+#define AIF_1_CTRL1 0x410
+#define AIF_1_CTRL3 0x414
+#define AIF_1_CTRL5 0x418
+#define AIF_1_CTRL7 0x41c
+#define AIF_1_CTRL9 0x420
+#define AIF_1_CTRLB 0x424
+#define AIF_1_CTRLD 0x428
+#define AIF_1_CTRLE 0x42c
+#define AIF_1_CTRLF 0x430
+#define AIF_1_CTRLG 0x434
+#define AIF_1_CTRLH 0x438
+#define AIF_1_CTRLI 0x43c
+
+#endif /* _RTK_LVDS_REG_H */

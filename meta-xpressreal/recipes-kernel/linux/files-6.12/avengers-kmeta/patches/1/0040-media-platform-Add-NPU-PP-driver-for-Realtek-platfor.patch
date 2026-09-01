@@ -1,0 +1,37 @@
+From 0838bb0b0cc5dd75e4d86d176744cc09bec27711 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Sun, 16 Mar 2025 22:45:11 +0800
+Subject: [PATCH 40/73] media: platform: Add NPU-PP driver for Realtek
+ platforms
+
+Change-Id: I47fe09a32a710d76672048ab4656dd299299f5da
+---
+ drivers/media/platform/Kconfig  | 1 +
+ drivers/media/platform/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 0ce2db593f1c2..b2763de1c0c7f 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -93,4 +93,5 @@ source "drivers/media/platform/rtk_dsi/Kconfig"
+ source "drivers/media/platform/rtk_tpdemux/Kconfig"
+ source "drivers/media/platform/rtk-vi/Kconfig"
+ source "drivers/media/platform/rtk-mipi-csi/Kconfig"
++source "drivers/media/platform/rtk_npp/Kconfig"
+ endif # MEDIA_PLATFORM_DRIVERS
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index b8df4a41900c6..898301835a855 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -36,6 +36,7 @@ obj-y += rtk_dsi/
+ obj-y += rtk_tpdemux/
+ obj-y += rtk-vi/
+ obj-y += rtk-mipi-csi/
++obj-y += rtk_npp/
+ 
+ # Please place here only ancillary drivers that aren't SoC-specific
+ # Please keep it alphabetically sorted by Kconfig name
+-- 
+2.47.0
+

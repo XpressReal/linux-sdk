@@ -5,7 +5,7 @@
 	#size-cells = <1>;
 
 	binman: binman {
-		filename = "bind.bin";
+		filename = "rtd1619b_emmc_bind.bin";
 		size = <0x00100000>;
 		allow-repack;
 		section_1: section@1 {

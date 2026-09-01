@@ -1,0 +1,3 @@
+patch 0001-kernel-remoteproc-load-hifi-fw-on-aiot.patch
+
+kconf hardware remoteproc.cfg

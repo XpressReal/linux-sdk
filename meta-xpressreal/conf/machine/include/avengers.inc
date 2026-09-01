@@ -39,16 +39,20 @@ do_image_wic[depends] += " \
 	u-boot:do_deploy \
 	"
 IMAGE_INSTALL:append = " libubootenv-bin kernel-modules fwdbg dropbear sysstat"
-IMAGE_INSTALL:append = " rtk-mod-wifi wpa-supplicant"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'vendor-wifi', 'rtk-mod-wifi', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'upstream-wifi', 'linux-firmware-rtw', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains_any('MACHINE_FEATURES', 'vendor-wifi upstream-wifi', 'wpa-supplicant hostapd', '', d)}"
 IMAGE_INSTALL:append = " alsa-utils"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa-avengers', 'libmali vulkan-headers vulkan-loader vulkan-tools vulkan-samples vkcube', d)}"
 IMAGE_INSTALL:append = " ${@oe.utils.conditional('VIRTUAL-RUNTIME_init_manager', 'systemd', 'systemd-firmware', '', d)}"
+IMAGE_INSTALL:append = " ${@oe.utils.conditional('VIRTUAL-RUNTIME_init_manager', 'systemd', 'systemd-rtk-fwlog', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'qt', 'qtbase qtbase-examples qtdeclarative qtdeclarative-examples qtwayland', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'qt', 'udev-extraconf', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui', 'rtk-qt-base', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui-plus', 'rtk-qt-plus', '', d)}"
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'stt-capable', ' stt-demo rtkstt libtorch llama-cpp tinyllama-gguf', '', d)}"
-IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'bt', ' rtkbt rtk-mod-btusb bluez5', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'vendor-bt', 'rtkbt rtk-mod-btusb', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'upstream-bt', 'linux-firmware-rtlbt', '', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains_any('MACHINE_FEATURES', 'vendor-bt upstream-bt', 'bluez5', '', d)}"
 
 # stt and tinyllama setting
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'stt-capable', ' stt-demo rtkstt libtorch llama-cpp tinyllama-gguf', '', d)}"
@@ -62,7 +66,6 @@ IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'rtk-ui', "rtk
 # chromium-browser
 IMAGE_INSTALL:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'chromium-browser', 'chromium-ozone-wayland fontconfig freetype ttf-droid-sans ttf-droid-sans-fallback ttf-droid-sans-mono ttf-droid-serif', '', d)}"
 
-DISTRO_FEATURES:remove = " ${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', '', 'x11', d)}"
 DISTRO_FEATURES:append = " ${@oe.utils.conditional('VIRTUAL-RUNTIME_init_manager', 'systemd', 'pam', '', d)}"
 
 PREFERRED_VERSION_weston ?= "13.0.1"
@@ -75,10 +78,9 @@ PREFERRED_PROVIDER_virtual/libgles3 ?= "${@bb.utils.contains('MACHINE_FEATURES',
 PREFERRED_PROVIDER_virtual/egl ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
 PREFERRED_PROVIDER_virtual/libgbm ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
 PREFERRED_PROVIDER_virtual/libgl ?= "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', 'mesa', 'libmali', d)}"
-
-PREFERRED_VERSION_vulkan-headers ?= "1.3.231.1"
-PREFERRED_VERSION_vulkan-loader ?= "1.3.231.1"
-PREFERRED_VERSION_vulkan-tools ?= "1.3.231.1"
+PACKAGECONFIG:remove:pn-xwayland = "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', '', 'glx', d)}"
+PACKAGECONFIG:remove:pn-gstreamer1.0-plugins-base = "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', '', 'opengl glx', d)}"
+IMAGE_INSTALL:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'xeyes xclock xterm xauth', '', d)}"
 
 GSTREAMER_VERSION ?= "${@bb.utils.contains('DISTRO_FEATURES', 'stateless_v4l2', '1.24.5', '1.22.12', d )}"
 PREFERRED_VERSION_gstreamer1.0 ?= "${GSTREAMER_VERSION}"
@@ -89,7 +91,7 @@ PREFERRED_VERSION_gstreamer1.0-plugins-base ?= "${GSTREAMER_VERSION}"
 PREFERRED_VERSION_gstreamer1.0-plugins-good ?= "${GSTREAMER_VERSION}"
 PREFERRED_VERSION_gstreamer1.0-plugins-ugly ?= "${GSTREAMER_VERSION}"
 
-IMAGE_INSTALL:append = " rtkshmallocator rtkdmaallocator rtksubtitlepool rtkdvdspu rtksrtrender rtkassrender rtkhookqueue rtkvowb rtkmixer rtknvrsink rtkhse rtksubtitlebin"
+IMAGE_INSTALL:append = " rtkshmallocator rtkdmaallocator rtksubtitlepool rtkdvdspu rtksrtrender rtkassrender rtkhookqueue rtkvowb rtkmixer rtknvrsink rtkhse rtksubtitlebin rtkgridcomposer"
 
 XSERVER ?= " \
 	xserver-xorg \
@@ -101,5 +103,9 @@ XSERVER ?= " \
 	xf86-input-mouse \
         "
 
-MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS += "${@bb.utils.contains('MACHINE_FEATURES', 'panfrost', '', 'kernel-module-mali_kbase kernel-module-dmabuf-exporter', d)}"
+# GPU driver selected by MACHINE_FEATURES:
+# - mali + panfrost = MESA
+# - mali only = Mali um/km
+IMAGE_INSTALL:append = "${@(' mesa-avengers' if (bb.utils.contains('MACHINE_FEATURES', 'mali', True, False, d) and bb.utils.contains('MACHINE_FEATURES', 'panfrost', True, False, d)) else (' libmali' if bb.utils.contains('MACHINE_FEATURES', 'mali', True, False, d) else ''))}"
+MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS:append = "${@('' if (bb.utils.contains('MACHINE_FEATURES', 'mali', True, False, d) and bb.utils.contains('MACHINE_FEATURES', 'panfrost', True, False, d)) else (' kernel-module-mali_kbase kernel-module-dmabuf-exporter' if bb.utils.contains('MACHINE_FEATURES', 'mali', True, False, d) else ''))}"
 

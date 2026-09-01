@@ -103,7 +103,7 @@
 		compatible = "ti,tps62872";
 		reg = <0x43>;
 		regulator-name = "cpudvs";
-		regulator-min-microvolt = <800000>;
+		regulator-min-microvolt = <750000>;
 		regulator-max-microvolt = <11000000>;
 		regulator-boot-on;
 		regulator-always-on;

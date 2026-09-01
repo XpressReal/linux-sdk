@@ -1,0 +1,27 @@
+From fa8a5a55e11c9339a16ae737630dbdb02cc60aaf Mon Sep 17 00:00:00 2001
+From: yaozenhu <yaozenhu@realtek.com>
+Date: Wed, 17 Jun 2026 21:42:26 -0400
+Subject: [PATCH] Downgrade wayland version requirement to 1.22
+
+The system wayland is 1.22.0 and wayland-egl is 1.4, but Chromium
+requires >= 1.23.0 and >= 18.1.0 respectively. Lower the requirements
+to match the system versions. The APIs are compatible across these
+versions.
+
+Upstream-Status: Inappropriate [rtk specific]
+---
+ third_party/wayland/wayland_version.gni | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/third_party/wayland/wayland_version.gni b/third_party/wayland/wayland_version.gni
+index 90bb80a..f3e4d5c 100644
+--- a/third_party/wayland/wayland_version.gni
++++ b/third_party/wayland/wayland_version.gni
+@@ -4,5 +4,5 @@
+ # is true to check system wayland package version meets
+ # at least the version of third-party/wayland so that it won't
+ # make any compile error with chromium
+-wayland_version = "1.23.0"
+-wayland_egl_version = "18.1.0"
++wayland_version = "1.22.0"
++wayland_egl_version = "1.4"

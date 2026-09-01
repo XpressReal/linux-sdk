@@ -49,6 +49,17 @@
                 algo = "sha256";
             };
         };
+        fdt-spi {
+            description = "Normal DTB with SPI-NAND";
+            data = /incbin/("./spi.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+            load = <0x03000000>;
+            hash-1 {
+                algo = "sha256";
+            };
+        };
         fdt-phantom{
             description = "Phantom";
             data = /incbin/("./rtd1501s-phantom-8gb.dtb");
@@ -113,6 +124,21 @@
                 algo = "sha256,rsa2048";
                 key-name-hint = "dev";
                 sign-images = "fdt", "kernel", "ramdisk";
+            };
+        };
+        spinand {
+            description = "Normal boot with SPI-NAND";
+            kernel = "kernel-1";
+            fdt = "fdt-spi";
+            signature-1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "kernel";
+                sign-images = "fdt", "kernel";
+            };
+            signature-2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "dev";
+                sign-images = "fdt", "kernel";
             };
         };
         rtd1501s-phantom {

@@ -8,19 +8,26 @@ SRC_URI = "gitsm://github.com/moonlight-stream/moonlight-qt.git;protocol=https;b
 SRCREV = "fad197fdce9895bd96f2c1a8f32f853e7d55fb8d"
 SRC_URI += "\
         file://0001-Add-WiFi-Setting.patch \
+	file://moonlight.service \
         "
 
 S = "${WORKDIR}/git"
 
 DEPENDS += "qtbase qtdeclarative qtquickcontrols2 qtsvg qttools qtxmlpatterns openssl libsdl2 libsdl2-ttf libopus"
-DEPENDS += "ffmpeg libdrm qtvirtualkeyboard"
+DEPENDS += "ffmpeg libdrm qtvirtualkeyboard wayland qtwayland"
 
+RDEPENDS:${PN} += "qtvirtualkeyboard qtwayland qtwayland-plugins qtbase-plugins"
 
 EXTRA_QMAKEVARS_PRE += "CONFIG+=c++17"
 
-inherit qmake5 pkgconfig
+inherit qmake5 pkgconfig systemd
 
 do_install() {
     install -d ${D}${bindir}
     install -m 0755 ${B}/app/moonlight ${D}${bindir}/moonlight-qt
+    install -d ${D}${systemd_system_unitdir}
+    install -m 0644 ${WORKDIR}/moonlight.service \
+        ${D}${systemd_system_unitdir}
 }
+
+SYSTEMD_SERVICE:${PN} = "moonlight.service"

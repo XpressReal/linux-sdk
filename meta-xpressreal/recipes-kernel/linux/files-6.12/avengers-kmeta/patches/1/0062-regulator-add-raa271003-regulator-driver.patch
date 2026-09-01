@@ -1,0 +1,42 @@
+From 63f6d3bda0a40ddbc5c2191cdaea075b01036748 Mon Sep 17 00:00:00 2001
+From: James Tai <james.tai@realtek.com>
+Date: Mon, 17 Mar 2025 14:30:54 +0800
+Subject: [PATCH 62/73] regulator: add raa271003-regulator driver
+
+Change-Id: If6fe19b8eb02cd37465ad56e1431d2b23494f178
+---
+ drivers/regulator/Kconfig  | 8 ++++++++
+ drivers/regulator/Makefile | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 9f1a7839dc3e6..d4746f714dac8 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1746,4 +1746,12 @@ config REGULATOR_RR320010
+ 	help
+ 	  This driver provides support for the voltage regulators on the
+ 	  Renesas RR320010 PMIC.
++
++config REGULATOR_RAA271003
++	tristate "Renesas RAA271003 Power regulators"
++	depends on MFD_RAA271003_I2C
++	help
++	  This driver provides support for the voltage regulators on the
++	  Renesas RAA271003 PMIC.
++
+ endif
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index f4188ceabfd30..f6c2f7ce6d628 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -205,5 +205,6 @@ obj-$(CONFIG_REGULATOR_APW888X_CORE) += apw888x-regulator-core.o
+ obj-$(CONFIG_REGULATOR_APW8889) += apw8889-regulator.o
+ obj-$(CONFIG_REGULATOR_APW8886) += apw8886-regulator.o
+ obj-$(CONFIG_REGULATOR_RR320010) += rr320010-regulator.o
++obj-$(CONFIG_REGULATOR_RAA271003) += raa271003-regulator.o
+ 
+ ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+-- 
+2.47.0
+

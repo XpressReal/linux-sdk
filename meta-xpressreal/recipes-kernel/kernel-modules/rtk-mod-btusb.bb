@@ -14,25 +14,22 @@ SRCREV = "${AUTOREV}"
 include ${BPN}.inc
 
 S = "${WORKDIR}/${BPN}-${PV}"
+
 SDK_DIR = "${THISDIR}/../../rtk-dl"
 FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
-do_configure() {
-	:
-}
+DRV_SRC_PATH = "linux/usb/bluetooth_usb_driver"
+DRV_SRC_PATH:realtekevb-rtd16xx-android = "android/linux/drivers/bluetooth"
+DRV_SRC_PATH:realtekevb-rtd16xx-android-z0e = "android/linux/drivers/bluetooth"
 
 do_compile() {
-	make ${PARALLEL_MAKE} -C ${STAGING_KERNEL_DIR} M=`pwd`/usb/bluetooth_usb_driver  modules
-}
-
-do_clean() {
-	rm -f usb/bluetooth_usb_driver/{*.o,*.ko}
+	make ${PARALLEL_MAKE} -C ${STAGING_KERNEL_DIR} M=`pwd`/${DRV_SRC_PATH}  modules
 }
 
 do_install(){
         MODULE_DIR=${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/usb/bluetooth
 	install -d $MODULE_DIR
-	install -m 644 ${S}/usb/bluetooth_usb_driver/rtk_btusb.ko $MODULE_DIR/
+	install -m 644 ${S}/${DRV_SRC_PATH}/rtk_btusb.ko $MODULE_DIR/
 }
 
 # Ignore buildpaths check for the main package and the debug package

@@ -20,7 +20,7 @@ SRC_URI = " \
     git://github.com/pytorch/fbgemm;protocol=https;destsuffix=pytorch/third_party/fbgemm;name=third_party_fbgemm;branch=main \
     git://github.com/facebookincubator/fbjni.git;protocol=https;destsuffix=pytorch/android/libs/fbjni;name=android_libs_fbjni;branch=main \
     git://github.com/google/XNNPACK.git;protocol=https;destsuffix=pytorch/third_party/XNNPACK;name=third_party_XNNPACK;branch=master \
-    git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/fmt;name=third_party_fmt;branch=master \
+    git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/fmt;name=third_party_fmt;branch=main \
     git://github.com/pytorch/tensorpipe.git;protocol=https;destsuffix=pytorch/third_party/tensorpipe;name=third_party_tensorpipe;branch=main \
     git://github.com/NVIDIA/cudnn-frontend.git;protocol=https;destsuffix=pytorch/third_party/cudnn_frontend;name=third_party_cudnn_frontend;branch=main \
     git://github.com/pytorch/kineto;protocol=https;destsuffix=pytorch/third_party/kineto;name=third_party_kineto;branch=main \
@@ -143,7 +143,7 @@ SRCREV_FORMAT += "opentelemetry-cpp_third_party_prometheus-cpp_3rdparty_googlete
 
 SRC_URI += " \
         git://github.com/google/googletest.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/googletest;name=opentelemetry-cpp_third_party_prometheus-cpp_libkineto_third_party_googletest;branch=main \
-        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/fmt;name=opentelemetry-cpp_third_party_prometheus-cpp_libkineto_third_party_fmt;branch=master \
+        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/fmt;name=opentelemetry-cpp_third_party_prometheus-cpp_libkineto_third_party_fmt;branch=main \
         git://github.com/facebookincubator/dynolog.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog;name=opentelemetry-cpp_third_party_prometheus-cpp_libkineto_third_party_dynolog;branch=main \
 "
 
@@ -155,7 +155,7 @@ SRCREV_FORMAT += "opentelemetry-cpp_third_party_prometheus-cpp_libkineto_third_p
 
 SRC_URI += " \
         git://github.com/google/googletest.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/googletest;name=kineto_libkineto_third_party_googletest;branch=main \
-        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/fmt;name=kineto_libkineto_third_party_fmt;branch=master \
+        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/fmt;name=kineto_libkineto_third_party_fmt;branch=main \
         git://github.com/facebookincubator/dynolog.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog;name=kineto_libkineto_third_party_dynolog;branch=main \
 "
 
@@ -168,7 +168,7 @@ SRCREV_FORMAT += "kineto_libkineto_third_party_googletest kineto_libkineto_third
 SRC_URI += " \
         git://github.com/google/glog.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/glog;name=kineto_libkineto_third_party_dynolog_third_party_glog;branch=master \
         git://github.com/gflags/gflags.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/gflags;name=kineto_libkineto_third_party_dynolog_third_party_gflags;branch=master \
-        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/fmt;name=kineto_libkineto_third_party_dynolog_third_party_fmt;branch=master \
+        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/fmt;name=kineto_libkineto_third_party_dynolog_third_party_fmt;branch=main \
         git://github.com/nlohmann/json.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/json;name=kineto_libkineto_third_party_dynolog_third_party_json;branch=develop \
         git://github.com/dtrugman/pfs.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/pfs;name=kineto_libkineto_third_party_dynolog_third_party_pfs;branch=main \
         git://github.com/google/googletest.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/googletest;name=kineto_libkineto_third_party_dynolog_third_party_googletest;branch=v1.12.x \
@@ -190,7 +190,7 @@ SRCREV_FORMAT += "kineto_libkineto_third_party_dynolog_third_party_glog kineto_l
 SRC_URI += " \
         git://github.com/google/glog.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/glog;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_glog;branch=master \
         git://github.com/gflags/gflags.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/gflags;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_gflags;branch=master \
-        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/fmt;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_fmt;branch=master \
+        git://github.com/fmtlib/fmt.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/fmt;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_fmt;branch=main \
         git://github.com/nlohmann/json.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/json;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_json;branch=develop \
         git://github.com/dtrugman/pfs.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/pfs;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_pfs;branch=main \
         git://github.com/google/googletest.git;protocol=https;destsuffix=pytorch/third_party/kineto/libkineto/third_party/dynolog/third_party/googletest;name=kineto_libkineto_third_party_dynolog_third_party_gflags_third_party_googletest;branch=v1.12.x \

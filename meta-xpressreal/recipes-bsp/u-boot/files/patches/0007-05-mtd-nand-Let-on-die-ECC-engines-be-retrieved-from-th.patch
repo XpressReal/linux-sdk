@@ -1,0 +1,48 @@
+From da429b9615803b6f19e5734c4c4d99136e1e3bfd Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Wed, 30 Sep 2020 17:41:08 +0200
+Subject: [PATCH] mtd: nand: Let on-die ECC engines be retrieved from the NAND
+ core
+
+Before making use of the ECC engines, we must retrieve them. Add the
+necessary boilerplate.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20200930154109.3922-5-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/ecc.c   | 6 ++++++
+ include/linux/mtd/nand.h | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/mtd/nand/ecc.c b/drivers/mtd/nand/ecc.c
+index 57bc8c5ef08c0..9afdde70824a5 100644
+--- a/drivers/mtd/nand/ecc.c
++++ b/drivers/mtd/nand/ecc.c
+@@ -605,6 +605,12 @@ struct nand_ecc_engine *nand_ecc_get_sw_engine(struct nand_device *nand)
+ }
+ EXPORT_SYMBOL_GPL(nand_ecc_restore_req);
+ 
++struct nand_ecc_engine *nand_ecc_get_on_die_hw_engine(struct nand_device *nand)
++{
++	return nand->ecc.ondie_engine;
++}
++EXPORT_SYMBOL(nand_ecc_get_on_die_hw_engine);
++
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Miquel Raynal <miquel.raynal@bootlin.com>");
+ MODULE_DESCRIPTION("Generic ECC engine");
+diff --git a/include/linux/mtd/nand.h b/include/linux/mtd/nand.h
+index f78f61c9a9ee2..6c6f91c03c42b 100644
+--- a/include/linux/mtd/nand.h
++++ b/include/linux/mtd/nand.h
+@@ -278,6 +278,7 @@ int nand_ecc_finish_io_req(struct nand_device *nand,
+ int nand_ecc_finish_io_req(struct nand_device *nand,
+ 			   struct nand_page_io_req *req);
+ bool nand_ecc_is_strong_enough(struct nand_device *nand);
++struct nand_ecc_engine *nand_ecc_get_on_die_hw_engine(struct nand_device *nand);
+ 
+ /**
+  * struct nand_ecc_req_tweak_ctx - Help for automatically tweaking requests
+-- 
+2.47.0
+

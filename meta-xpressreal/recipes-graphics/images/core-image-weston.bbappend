@@ -5,7 +5,6 @@ IMAGE_INSTALL:append = " \
 		glmark2 \
 		wayland weston \
 		rtk-mod-v4l2dec v4l-utils v4l2test \
-		rtk-mod-v4l2cap \
 		gstreamer1.0 \
 		gstreamer1.0-python \
 		gstreamer1.0-plugins-base \
@@ -17,5 +16,8 @@ IMAGE_INSTALL:append = " \
 		json-c \
 		rtk-media-framework \
 		alsa-utils \
+		tinyalsa \
+		tinycompress \
+		kms-ipc-ui \
 		"
 

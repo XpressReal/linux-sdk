@@ -1,0 +1,39 @@
+From 75c3543e39f0c94644eac5965b3efe50c2c5c39d Mon Sep 17 00:00:00 2001
+From: Vincent Whitchurch <vincent.whitchurch@axis.com>
+Date: Tue, 1 Mar 2022 12:18:29 +0100
+Subject: [PATCH] regulator: virtual: use dev_err_probe()
+
+Use dev_err_probe() to avoid printing spurious warnings on
+probe deferral.
+
+Signed-off-by: Vincent Whitchurch <vincent.whitchurch@axis.com>
+Link: https://lore.kernel.org/r/20220301111831.3742383-2-vincent.whitchurch@axis.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/virtual.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/regulator/virtual.c b/drivers/regulator/virtual.c
+index 52c5a0e0acd8..50d2e9caaa71 100644
+--- a/drivers/regulator/virtual.c
++++ b/drivers/regulator/virtual.c
+@@ -295,12 +295,10 @@ static int regulator_virtual_probe(struct platform_device *pdev)
+ 	mutex_init(&drvdata->lock);
+ 
+ 	drvdata->regulator = devm_regulator_get(&pdev->dev, reg_id);
+-	if (IS_ERR(drvdata->regulator)) {
+-		ret = PTR_ERR(drvdata->regulator);
+-		dev_err(&pdev->dev, "Failed to obtain supply '%s': %d\n",
+-			reg_id, ret);
+-		return ret;
+-	}
++	if (IS_ERR(drvdata->regulator))
++		return dev_err_probe(&pdev->dev, PTR_ERR(drvdata->regulator),
++				     "Failed to obtain supply '%s'\n",
++				     reg_id);
+ 
+ 	ret = sysfs_create_group(&pdev->dev.kobj,
+ 				 &regulator_virtual_attr_group);
+-- 
+2.47.0
+

@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: gary_gen <gary_gen@realtek.com>
+Date: Wed, 22 Jul 2026 14:30:00 +0800
+Subject: [PATCH] gpu: drm: realtek: hdcp: add deferred TEE init support
+
+Add RTK_EXT_DEFER_TEE ext_flag support:
+
+When RTK_EXT_DEFER_TEE is set in DTS ext-flags, the HDCP2 TEE
+initialization is deferred during boot. Instead of failing HDCP init
+when TEE is not yet available (tee-supplicant not running), the driver
+skips tee_client_open_context and creates sysfs nodes normally.
+
+HDCP2 TEE initialization happens later when userspace triggers content
+protection via the HDCP sysfs interface, at which point tee-supplicant
+is already running.
+
+Signed-off-by: gary_gen <gary_gen@realtek.com>
+
+---
+ drivers/gpu/drm/realtek/rtk_hdcp.c | 16 +++++++++-------
+ drivers/gpu/drm/realtek/rtk_hdmi.h |  1 +
+ 2 files changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/realtek/rtk_hdcp.c b/drivers/gpu/drm/realtek/rtk_hdcp.c
+index 380448c1fdee..aeaebcfd7f60 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdcp.c
++++ b/drivers/gpu/drm/realtek/rtk_hdcp.c
+@@ -2422,14 +2422,16 @@ int rtk_hdcp_init(struct rtk_hdmi *hdmi, u32 hdcp_support)
+ 		if (ret)
+ 			return ret;
+ 
+-		ret = hdcp2_tee->hdcp2_tee_ops->hdcp2_tee_api_init(hdcp2_tee);
+-		if (ret)
+-			return -EFAULT;
++		if (!(hdmi->ext_flags & RTK_EXT_DEFER_TEE)) {
++			ret = hdcp2_tee->hdcp2_tee_ops->hdcp2_tee_api_init(hdcp2_tee);
++			if (ret)
++				return -EFAULT;
+ 
+-		ret = hdcp2_tee->hdcp2_tee_ops->read_hdcp2_key(hdcp2_tee);
+-		if (ret) {
+-			dev_err(hdmi->dev, "hdcp2 key doesn't exist, dis support hdcp2");
+-			hdcp->hdcp2_supported = 0;
++			ret = hdcp2_tee->hdcp2_tee_ops->read_hdcp2_key(hdcp2_tee);
++			if (ret) {
++				dev_err(hdmi->dev, "hdcp2 key doesn't exist, dis support hdcp2");
++				hdcp->hdcp2_supported = 0;
++			}
+ 		}
+ 	}
+ 
+diff --git a/drivers/gpu/drm/realtek/rtk_hdmi.h b/drivers/gpu/drm/realtek/rtk_hdmi.h
+index a1f16c123e47..e5f798c69f21 100644
+--- a/drivers/gpu/drm/realtek/rtk_hdmi.h
++++ b/drivers/gpu/drm/realtek/rtk_hdmi.h
+@@ -53,6 +53,7 @@
+ #define RTK_EXT_DIS_4KP30_UPPER	(1 << 3)
+ #define RTK_EXT_TMDS_PHY	(1 << 4)
+ #define RTK_EXT_SKIP_EDID_AUDIO	(1 << 5)
++#define RTK_EXT_DEFER_TEE		(1 << 18)
+ 
+ #define TMDS_PLL_NUM 29
+ 

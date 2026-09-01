@@ -3,7 +3,7 @@
 #include "rtd1619b_emmc.dtsi"
 
 &binman {
-	filename = "bind_4gb.bin";
+	filename = "rtd1619b_emmc_bind_4gb.bin";
 };
 
 &scs_param {

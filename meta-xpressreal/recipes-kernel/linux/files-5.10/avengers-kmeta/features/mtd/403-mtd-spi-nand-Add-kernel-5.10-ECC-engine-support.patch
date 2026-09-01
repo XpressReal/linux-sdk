@@ -1,0 +1,396 @@
+From 4838dd5a03fdf1ac87230de18e84adb376623f55 Mon Sep 17 00:00:00 2001
+From: Jyan Chou <jyanchou@realtek.com>
+Date: Thu, 19 Mar 2026 15:04:08 +0800
+Subject: [PATCH 02/33] mtd: spi-nand: Add kernel 5.10 ECC engine support
+
+backport mtd/nand/ from kernel5.18 for spi-nand ecc usage
+
+Major changes include:
+
+Core Architecture (drivers/mtd/nand/spi/core.c):
+- Implement on-die ECC engine callbacks (init_ctx, cleanup_ctx,
+  prepare_io_req, finish_io_req) to replace direct ECC control
+- Refactor spinand_read_page/spinand_write_page to use new
+  nand_ecc_prepare_io_req() and nand_ecc_finish_io_req() APIs
+- Remove ecc_enabled parameter from read/write page functions
+- Move ECC statistics tracking from driver to ECC engine layer
+
+Change-Id: Icd7dddb0d7bf40854062e2e8099cf6d7b117b2a4
+---
+ drivers/mtd/nand/core.c     |   1 -
+ drivers/mtd/nand/ecc.c      |  19 -----
+ drivers/mtd/nand/spi/core.c | 156 +++++++++++++++++++++++++++---------
+ include/linux/mtd/nand.h    |   2 +
+ include/linux/mtd/spinand.h |  32 ++++++++
+ 5 files changed, 150 insertions(+), 60 deletions(-)
+
+diff --git a/drivers/mtd/nand/core.c b/drivers/mtd/nand/core.c
+index 4875185506dcf..9329ac0f2664a 100644
+--- a/drivers/mtd/nand/core.c
++++ b/drivers/mtd/nand/core.c
+@@ -226,7 +226,6 @@ static int nanddev_get_ecc_engine(struct nand_device *nand)
+ 	case NAND_ECC_ENGINE_TYPE_NONE:
+ 		return 0;
+ 	case NAND_ECC_ENGINE_TYPE_SOFT:
+-		nand->ecc.engine = nand_ecc_get_sw_engine(nand);
+ 		break;
+ 	case NAND_ECC_ENGINE_TYPE_ON_DIE:
+ 		nand->ecc.engine = nand_ecc_get_on_die_hw_engine(nand);
+diff --git a/drivers/mtd/nand/ecc.c b/drivers/mtd/nand/ecc.c
+index eba3b7f470001..5278524f811ed 100644
+--- a/drivers/mtd/nand/ecc.c
++++ b/drivers/mtd/nand/ecc.c
+@@ -653,25 +653,6 @@ struct nand_ecc_engine *nand_ecc_get_on_host_hw_engine(struct nand_device *nand)
+ }
+ EXPORT_SYMBOL(nand_ecc_get_on_host_hw_engine);
+ 
+-struct nand_ecc_engine *nand_ecc_get_sw_engine(struct nand_device *nand)
+-{
+-	unsigned int algo = nand->ecc.user_conf.algo;
+-
+-	if (algo == NAND_ECC_ALGO_UNKNOWN)
+-		algo = nand->ecc.defaults.algo;
+-
+-	switch (algo) {
+-	case NAND_ECC_ALGO_HAMMING:
+-		return nand_ecc_sw_hamming_get_engine();
+-	case NAND_ECC_ALGO_BCH:
+-		return nand_ecc_sw_bch_get_engine();
+-	default:
+-		break;
+-	}
+-
+-	return NULL;
+-}
+-EXPORT_SYMBOL(nand_ecc_get_sw_engine);
+ 
+ struct nand_ecc_engine *nand_ecc_get_on_die_hw_engine(struct nand_device *nand)
+ {
+diff --git a/drivers/mtd/nand/spi/core.c b/drivers/mtd/nand/spi/core.c
+index 8794a1f6eacd9..762ea2ec8e161 100644
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -284,9 +284,12 @@ static int spinand_write_to_cache_op(struct spinand_device *spinand,
+ 	 * must fill the page cache entirely even if we only want to program
+ 	 * the data portion of the page, otherwise we might corrupt the BBM or
+ 	 * user data previously programmed in OOB area.
++	 *
++	 * Only reset the data buffer manually, the OOB buffer is prepared by
++	 * ECC engines ->prepare_io_req() callback.
+ 	 */
+ 	nbytes = nanddev_page_size(nand) + nanddev_per_page_oobsize(nand);
+-	memset(spinand->databuf, 0xff, nbytes);
++	memset(spinand->databuf, 0xff, nanddev_page_size(nand));
+ 
+ 	if (req->datalen)
+ 		memcpy(spinand->databuf + req->dataoffs, req->databuf.out,
+@@ -432,8 +435,7 @@ static int spinand_check_ecc_status(struct spinand_device *spinand, u8 status)
+ }
+ 
+ static int spinand_read_page(struct spinand_device *spinand,
+-			     const struct nand_page_io_req *req,
+-			     bool ecc_enabled)
++			     const struct nand_page_io_req *req)
+ {
+ 	u8 status;
+ 	int ret;
+@@ -450,9 +452,6 @@ static int spinand_read_page(struct spinand_device *spinand,
+ 	if (ret)
+ 		return ret;
+ 
+-	if (!ecc_enabled)
+-		return 0;
+-
+ 	return spinand_check_ecc_status(spinand, status);
+ }
+ 
+@@ -488,35 +487,31 @@ static int spinand_mtd_read(struct mtd_info *mtd, loff_t from,
+ 	struct nand_device *nand = mtd_to_nanddev(mtd);
+ 	unsigned int max_bitflips = 0;
+ 	struct nand_io_iter iter;
+-	bool enable_ecc = false;
++	bool disable_ecc = false;
+ 	bool ecc_failed = false;
+ 	int ret = 0;
+ 
+-	if (ops->mode != MTD_OPS_RAW && spinand->eccinfo.ooblayout)
+-		enable_ecc = true;
++	if (ops->mode == MTD_OPS_RAW || !spinand->eccinfo.ooblayout)
++		disable_ecc = true;
+ 
+ 	mutex_lock(&spinand->lock);
+ 
+ 	nanddev_io_for_each_page(nand, NAND_PAGE_READ, from, ops, &iter) {
+-		ret = spinand_select_target(spinand, iter.req.pos.target);
+-		if (ret)
+-			break;
++		if (disable_ecc)
++			iter.req.mode = MTD_OPS_RAW;
+ 
+-		ret = spinand_ecc_enable(spinand, enable_ecc);
++		ret = spinand_select_target(spinand, iter.req.pos.target);
+ 		if (ret)
+ 			break;
+ 
+-		ret = spinand_read_page(spinand, &iter.req, enable_ecc);
++		ret = spinand_read_page(spinand, &iter.req);
+ 		if (ret < 0 && ret != -EBADMSG)
+ 			break;
+ 
+-		if (ret == -EBADMSG) {
++		if (ret == -EBADMSG)
+ 			ecc_failed = true;
+-			mtd->ecc_stats.failed++;
+-		} else {
+-			mtd->ecc_stats.corrected += ret;
++		else
+ 			max_bitflips = max_t(unsigned int, max_bitflips, ret);
+-		}
+ 
+ 		ret = 0;
+ 		ops->retlen += iter.req.datalen;
+@@ -537,20 +532,19 @@ static int spinand_mtd_write(struct mtd_info *mtd, loff_t to,
+ 	struct spinand_device *spinand = mtd_to_spinand(mtd);
+ 	struct nand_device *nand = mtd_to_nanddev(mtd);
+ 	struct nand_io_iter iter;
+-	bool enable_ecc = false;
++	bool disable_ecc = false;
+ 	int ret = 0;
+ 
+-	if (ops->mode != MTD_OPS_RAW && mtd->ooblayout)
+-		enable_ecc = true;
++	if (ops->mode == MTD_OPS_RAW || !mtd->ooblayout)
++		disable_ecc = true;
+ 
+ 	mutex_lock(&spinand->lock);
+ 
+ 	nanddev_io_for_each_page(nand, NAND_PAGE_WRITE, to, ops, &iter) {
+-		ret = spinand_select_target(spinand, iter.req.pos.target);
+-		if (ret)
+-			break;
++		if (disable_ecc)
++			iter.req.mode = MTD_OPS_RAW;
+ 
+-		ret = spinand_ecc_enable(spinand, enable_ecc);
++		ret = spinand_select_target(spinand, iter.req.pos.target);
+ 		if (ret)
+ 			break;
+ 
+@@ -580,7 +574,7 @@ static bool spinand_isbad(struct nand_device *nand, const struct nand_pos *pos)
+ 	};
+ 
+ 	spinand_select_target(spinand, pos->target);
+-	spinand_read_page(spinand, &req, false);
++	spinand_read_page(spinand, &req);
+ 	if (marker[0] != 0xff || marker[1] != 0xff)
+ 		return true;
+ 
+@@ -966,7 +960,7 @@ static int spinand_detect(struct spinand_device *spinand)
+ }
+ 
+ static int spinand_noecc_ooblayout_ecc(struct mtd_info *mtd, int section,
+-				       struct mtd_oob_region *region)
++					struct mtd_oob_region *region)
+ {
+ 	return -ERANGE;
+ }
+@@ -989,6 +983,83 @@ static const struct mtd_ooblayout_ops spinand_noecc_ooblayout = {
+ 	.free = spinand_noecc_ooblayout_free,
+ };
+ 
++static int spinand_ondie_ecc_init_ctx(struct nand_device *nand)
++{
++	struct spinand_device *spinand = nand_to_spinand(nand);
++	struct mtd_info *mtd = nanddev_to_mtd(nand);
++	struct spinand_ondie_ecc_conf *engine_conf;
++
++	nand->ecc.ctx.conf.engine_type = NAND_ECC_ENGINE_TYPE_ON_DIE;
++	nand->ecc.ctx.conf.step_size = nand->ecc.requirements.step_size;
++	nand->ecc.ctx.conf.strength = nand->ecc.requirements.strength;
++
++	engine_conf = kzalloc(sizeof(*engine_conf), GFP_KERNEL);
++	if (!engine_conf)
++		return -ENOMEM;
++
++	nand->ecc.ctx.priv = engine_conf;
++
++	if (spinand->eccinfo.ooblayout)
++		mtd_set_ooblayout(mtd, spinand->eccinfo.ooblayout);
++	else
++		mtd_set_ooblayout(mtd, &spinand_noecc_ooblayout);
++
++	return 0;
++}
++
++static void spinand_ondie_ecc_cleanup_ctx(struct nand_device *nand)
++{
++	kfree(nand->ecc.ctx.priv);
++}
++
++static int spinand_ondie_ecc_prepare_io_req(struct nand_device *nand,
++                                            struct nand_page_io_req *req)
++{
++	struct spinand_device *spinand = nand_to_spinand(nand);
++	bool enable = (req->mode != MTD_OPS_RAW);
++
++	memset(spinand->oobbuf, 0xff, nanddev_per_page_oobsize(nand));
++
++	/* Only enable or disable the engine */
++	return spinand_ecc_enable(spinand, enable);
++}
++
++static int spinand_ondie_ecc_finish_io_req(struct nand_device *nand,
++                                           struct nand_page_io_req *req)
++{
++	struct spinand_ondie_ecc_conf *engine_conf = nand->ecc.ctx.priv;
++	struct spinand_device *spinand = nand_to_spinand(nand);
++	struct mtd_info *mtd = spinand_to_mtd(spinand);
++	int ret;
++
++	if (req->mode == MTD_OPS_RAW)
++		return 0;
++
++	/* Nothing to do when finishing a page write */
++	if (req->type == NAND_PAGE_WRITE)
++		return 0;
++
++	/* Finish a page read: check the status, report errors/bitflips */
++	ret = spinand_check_ecc_status(spinand, engine_conf->status);
++	if (ret == -EBADMSG)
++		mtd->ecc_stats.failed++;
++	else if (ret > 0)
++		mtd->ecc_stats.corrected += ret;
++
++	return ret;
++}
++
++static struct nand_ecc_engine_ops spinand_ondie_ecc_engine_ops = {
++	.init_ctx = spinand_ondie_ecc_init_ctx,
++	.cleanup_ctx = spinand_ondie_ecc_cleanup_ctx,
++	.prepare_io_req = spinand_ondie_ecc_prepare_io_req,
++	.finish_io_req = spinand_ondie_ecc_finish_io_req,
++};
++
++static struct nand_ecc_engine spinand_ondie_ecc_engine = {
++	.ops = &spinand_ondie_ecc_engine_ops,
++};
++
+ static int spinand_init(struct spinand_device *spinand)
+ {
+ 	struct device *dev = &spinand->spimem->spi->dev;
+@@ -1066,10 +1137,15 @@ static int spinand_init(struct spinand_device *spinand)
+ 	if (ret)
+ 		goto err_manuf_cleanup;
+ 
+-	/*
+-	 * Right now, we don't support ECC, so let the whole oob
+-	 * area is available for user.
+-	 */
++	/* SPI-NAND default ECC engine is on-die */
++	nand->ecc.defaults.engine_type = NAND_ECC_ENGINE_TYPE_ON_DIE;
++	nand->ecc.ondie_engine = &spinand_ondie_ecc_engine;
++
++	spinand_ecc_enable(spinand, false);
++	ret = nanddev_ecc_engine_init(nand);
++	if (ret)
++		goto err_cleanup_nanddev;
++
+ 	mtd->_read_oob = spinand_mtd_read;
+ 	mtd->_write_oob = spinand_mtd_write;
+ 	mtd->_block_isbad = spinand_mtd_block_isbad;
+@@ -1078,14 +1154,11 @@ static int spinand_init(struct spinand_device *spinand)
+ 	mtd->_erase = spinand_mtd_erase;
+ 	mtd->_max_bad_blocks = nanddev_mtd_max_bad_blocks;
+ 
+-	if (spinand->eccinfo.ooblayout)
+-		mtd_set_ooblayout(mtd, spinand->eccinfo.ooblayout);
+-	else
+-		mtd_set_ooblayout(mtd, &spinand_noecc_ooblayout);
+-
+-	ret = mtd_ooblayout_count_freebytes(mtd);
+-	if (ret < 0)
+-		goto err_cleanup_nanddev;
++	if (nand->ecc.engine) {
++		ret = mtd_ooblayout_count_freebytes(mtd);
++		if (ret < 0)
++			goto err_cleanup_ecc_engine;
++	}
+ 
+ 	mtd->oobavail = ret;
+ 
+@@ -1095,6 +1168,9 @@ static int spinand_init(struct spinand_device *spinand)
+ 
+ 	return 0;
+ 
++err_cleanup_ecc_engine:
++	nanddev_ecc_engine_cleanup(nand);
++
+ err_cleanup_nanddev:
+ 	nanddev_cleanup(nand);
+ 
+diff --git a/include/linux/mtd/nand.h b/include/linux/mtd/nand.h
+index 0dc56ba9faaf7..8b956048dc9a6 100644
+--- a/include/linux/mtd/nand.h
++++ b/include/linux/mtd/nand.h
+@@ -280,6 +280,8 @@ struct nand_ecc_engine {
+ };
+ 
+ int nand_ecc_register_on_host_hw_engine(struct nand_ecc_engine *engine);
++int nanddev_ecc_engine_init(struct nand_device *nand);
++void nanddev_ecc_engine_cleanup(struct nand_device *nand);
+ 
+ void of_get_nand_ecc_user_config(struct nand_device *nand);
+ int nand_ecc_init_ctx(struct nand_device *nand);
+diff --git a/include/linux/mtd/spinand.h b/include/linux/mtd/spinand.h
+index 7b78c4ba9b3e9..3eef65c54a37e 100644
+--- a/include/linux/mtd/spinand.h
++++ b/include/linux/mtd/spinand.h
+@@ -171,6 +171,29 @@ struct spinand_device;
+ 
+ #define SPINAND_MAX_ID_LEN	4
+ 
++/*
++ * For erase, write and read operation, we got the following timings :
++ * tBERS (erase) 1ms to 4ms
++ * tPROG 300us to 400us
++ * tREAD 25us to 100us
++ * In order to minimize latency, the min value is divided by 4 for the
++ * initial delay, and dividing by 20 for the poll delay.
++ * For reset, 5us/10us/500us if the device is respectively
++ * reading/programming/erasing when the RESET occurs. Since we always
++ * issue a RESET when the device is IDLE, 5us is selected for both initial
++ * and poll delay.
++ */
++#define SPINAND_READ_INITIAL_DELAY_US	6
++#define SPINAND_READ_POLL_DELAY_US	5
++#define SPINAND_RESET_INITIAL_DELAY_US	5
++#define SPINAND_RESET_POLL_DELAY_US	5
++#define SPINAND_WRITE_INITIAL_DELAY_US	75
++#define SPINAND_WRITE_POLL_DELAY_US	15
++#define SPINAND_ERASE_INITIAL_DELAY_US	250
++#define SPINAND_ERASE_POLL_DELAY_US	50
++
++#define SPINAND_WAITRDY_TIMEOUT_MS	400
++
+ /**
+  * struct spinand_id - SPI NAND id structure
+  * @data: buffer containing the id bytes. Currently 4 bytes large, but can
+@@ -283,6 +306,15 @@ struct spinand_ecc_info {
+ 	const struct mtd_ooblayout_ops *ooblayout;
+ };
+ 
++/**
++ * struct spinand_ondie_ecc_conf - private SPI-NAND on-die ECC engine structure
++ * @status: status of the last wait operation that will be used in case
++ *          ->get_status() is not populated by the spinand device.
++ */
++struct spinand_ondie_ecc_conf {
++	u8 status;
++};
++
+ #define SPINAND_HAS_QE_BIT		BIT(0)
+ #define SPINAND_HAS_CR_FEAT_BIT		BIT(1)
+ 
+-- 
+2.47.0
+

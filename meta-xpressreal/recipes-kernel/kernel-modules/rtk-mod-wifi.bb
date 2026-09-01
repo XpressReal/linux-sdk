@@ -11,13 +11,13 @@ SRCREV = "${AUTOREV}"
 include ${BPN}.inc
 
 SRC_URI:append = "\
-	file://0001-rtl8733bu-fix-compile-error-in-kernel-6.6.patch \
-	file://0002-rtl8822be-fix-compile-error-in-kernel-6.6.patch \
-	file://0003-rtl8822ce-fix-compile-error-in-kernel-6.6.patch \
-	"
-
-SRC_URI:append:rtd16xx = "\
-	file://0004-rtl8822es-fix-enum-conversion.patch \
+	file://0001-01-rtl8733bu-fix-compile-error-in-kernel-6.6.patch \
+	file://0001-02-rtl8733bu-fix-compile-error-in-kernel-6.12.patch \
+	file://0002-01-rtl8822be-fix-compile-error-in-kernel-6.6.patch \
+	file://0002-02-rtl8822be-fix-compile-error-in-kernel-6.12.patch \
+	file://0003-01-rtl8822ce-fix-compile-error-in-kernel-6.6.patch \
+	file://0003-02-rtl8822ce-fix-compile-error-in-kernel-6.12.patch \
+	file://0005-01-rtl8822cs-fix-compile-error-in-kernel-6.12.patch \
 	"
 
 S = "${WORKDIR}/${BPN}-${PV}"
@@ -26,13 +26,14 @@ FILESEXTRAPATHS:append := ":${SDK_DIR}"
 
 DEPENDS += "bc-native"
 
-WIFI_MODULES = "rtl8852be rtl8852bs rtl8822es rtl8822cs rtl8821cu rtl8733bu rtl8822be rtl8822ce"
+WIFI_MODULES = "rtl8852be rtl8852bs rtl8822es rtl8822cs rtl8821cs rtl8821cu rtl8733bu rtl8822be rtl8822ce"
 WIFI_MODULES:rtd16xx = "rtl8822es"
 TARGET_PLATFORM = "CONFIG_PLATFORM_I386_PC=n CONFIG_PLATFORM_RTK1319=n CONFIG_PLATFORM_RTKSTB=y"
+EXTRA_CFLAGS:append:rtd16xx = "USER_EXTRA_CFLAGS=-Wno-enum-conversion"
 
 module_do_compile() {
 	for module in ${WIFI_MODULES}; do
-		make ${PARALLEL_MAKE} -C ${module} ${TARGET_PLATFORM} KSRC="${STAGING_KERNEL_DIR}" UPSTREAM_KSRC=y PLTFM_VER=0 CROSS="${CROSS_COMPILE}" all
+		make ${PARALLEL_MAKE} -C ${module} ${TARGET_PLATFORM} ${EXTRA_CFLAGS} KSRC="${STAGING_KERNEL_DIR}" UPSTREAM_KSRC=y PLTFM_VER=0 CROSS="${CROSS_COMPILE}" all
 	done
 }
 

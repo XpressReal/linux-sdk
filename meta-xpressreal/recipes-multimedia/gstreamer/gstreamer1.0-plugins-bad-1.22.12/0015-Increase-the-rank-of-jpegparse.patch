@@ -2,6 +2,8 @@ From a9eb83aee77590d1935ec72837da9fb456c90313 Mon Sep 17 00:00:00 2001
 From: "joshua.yang" <joshua.yang@realtek.com>
 Date: Wed, 9 Jul 2025 14:31:55 +0800
 Subject: [PATCH 1/1] Increase the rank of jpegparse
+Source: Realtek
+License: LGPL-2.1-or-later
 Upstream-Status: Inappropriate [rtk specific]
 
 ---

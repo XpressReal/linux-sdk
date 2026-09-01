@@ -299,8 +299,16 @@ static int dma_heap_dma_buf_kmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
 	struct dma_heap_buffer *heap_buffer = dmabuf->priv;
 	struct heap_helper_buffer *buffer = to_helper_buffer(heap_buffer);
+	void *vaddr;
 
-	map->vaddr = buffer->vaddr;
+	mutex_lock(&buffer->lock);
+	vaddr = dma_heap_buffer_kmap_get(heap_buffer);
+	mutex_unlock(&buffer->lock);
+
+	if (IS_ERR_OR_NULL(vaddr))
+		return vaddr ? PTR_ERR(vaddr) : -ENOMEM;
+
+	map->vaddr = vaddr;
 	map->is_iomem = false;
 
 	return 0;
@@ -308,6 +316,12 @@ static int dma_heap_dma_buf_kmap(struct dma_buf *dmabuf, struct iosys_map *map)
 
 static void dma_heap_dma_buf_kunmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
+	struct dma_heap_buffer *heap_buffer = dmabuf->priv;
+	struct heap_helper_buffer *buffer = to_helper_buffer(heap_buffer);
+
+	mutex_lock(&buffer->lock);
+	dma_heap_buffer_kmap_put(heap_buffer);
+	mutex_unlock(&buffer->lock);
 }
 
 static int dma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
@@ -315,17 +329,10 @@ static int dma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 {
 	struct dma_heap_buffer *heap_buffer = dmabuf->priv;
 	struct heap_helper_buffer *buffer = to_helper_buffer(heap_buffer);
-	void *vaddr;
 	struct dma_heaps_attachment *a;
 	int ret = 0;
 
 	mutex_lock(&buffer->lock);
-	vaddr = dma_heap_buffer_kmap_get(heap_buffer);
-	if (IS_ERR_OR_NULL(vaddr)) {
-		ret = PTR_ERR(vaddr);
-		goto unlock;
-	}
-
 	if (!(heap_buffer->flags & RTK_FLAG_SCPUACC)
 		|| (heap_buffer->flags & RTK_FLAG_PROTECTED_MASK)
 		|| (buffer->uncached))
@@ -352,8 +359,6 @@ static int dma_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	struct dma_heaps_attachment *a;
 
 	mutex_lock(&buffer->lock);
-	dma_heap_buffer_kmap_put(heap_buffer);
-
 	if (!(heap_buffer->flags & RTK_FLAG_SCPUACC)
 		|| (heap_buffer->flags & RTK_FLAG_PROTECTED_MASK)
 		|| (buffer->uncached))

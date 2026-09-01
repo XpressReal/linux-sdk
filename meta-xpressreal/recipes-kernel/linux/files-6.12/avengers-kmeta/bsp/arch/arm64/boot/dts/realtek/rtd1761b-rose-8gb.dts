@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+/*
+ * Realtek RTD1761B Rose EVB
+ *
+ * Copyright (c) 2025 Realtek Semiconductor Corp.
+ */
+
+/dts-v1/;
+
+#include "rtd1761b-rose.dtsi"
+
+/ {
+	compatible = "realtek,rose", "realtek,rtd1761b";
+	model = "Realtek Rose EVB (8GB)";
+
+	memory: memory@50000 {
+		device_type = "memory";
+		reg = <0x00000000 0x00050000 0x00000000 0x7ffb0000>,
+		      <0x00000000 0x8a100000 0x00000000 0x0def0000>,
+		      <0x00000000 0x98700000 0x00000000 0x07900000>,
+		      <0x00000000 0xa0600000 0x00000000 0x5ea00000>,
+		      <0x00000001 0x00000000 0x00000000 0xa0000000>,
+		      <0x00000001 0xa0600000 0x00000000 0x5fa00000>;
+	};
+};
+
+&dsi {
+	status = "disabled";
+};
+
+&dp {
+	compatible = "realtek,rtk-1761-car-dptx";
+	status = "disabled";
+};
+
+&lvds1 {
+	status = "okay";
+};
+
+&vo0 {
+	status = "disabled";
+};
+
+&vo1 {
+	status = "okay";
+};
+
+&rtk_soc {
+	compatible = "realtek,rtd1920s-hifi-afe";
+};
